@@ -359,7 +359,7 @@ export function FichaPersonaPage() {
             {!persona.tiene_usuario && (
               <a href={`/usuarios/nuevo?persona_id=${persona.id}`} className="boton-con-icono">
                 <KeyRound size={16} aria-hidden="true" />
-                Crear acceso a Kairos
+                Crear acceso al sistema
               </a>
             )}
             <a href={`/personas/${persona.id}/movimiento`} className="boton-con-icono boton-primario">

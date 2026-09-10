@@ -367,9 +367,9 @@ export function ParametrosTopeLegalPage() {
                       {personasOrdenadas.map((p) => (
                         <tr key={p.persona_id}>
                           <td>{p.persona_nombre ?? "—"}</td>
-                          <td>{p.horas_ordinarias.toFixed(1)}</td>
-                          <td>{p.horas_extra.toFixed(1)}</td>
-                          <td>{p.horas_reposicion.toFixed(1)}</td>
+                          <td className="num">{p.horas_ordinarias.toFixed(1)}</td>
+                          <td className="num">{p.horas_extra.toFixed(1)}</td>
+                          <td className="num">{p.horas_reposicion.toFixed(1)}</td>
                           <td>
                             <div className="grupo-insignias">
                               {p.supera_semanal && (

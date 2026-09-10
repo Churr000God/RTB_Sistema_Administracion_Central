@@ -221,7 +221,10 @@ export function AppShell({ children }: Props) {
   return (
     <div className="app-shell">
       <aside className="app-shell-aside">
-        <strong className="app-shell-wordmark">Kairos</strong>
+        <strong className="app-shell-wordmark">
+          <img src="/logo-rtb-compacto.png" alt="" aria-hidden="true" className="app-shell-logo" />
+          RTB
+        </strong>
         <nav className="app-shell-nav">
           {gruposVisibles.map((grupo) => {
             const Icono = grupo.icono;

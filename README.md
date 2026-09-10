@@ -1,7 +1,7 @@
 # Sistema de Control de Jornada — SCJ
 
 **Diseño de base de datos · Subsistema de Tiempo**
-Proyecto académico · Caso de estudio: *Distribuidora Central, S.A. de C.V.*
+Proyecto académico · Caso de estudio: *Refacciones Tomás Badillo, S.A. de C.V.*
 
 Diseño e implementación del modelo de datos de un sistema de registro y cálculo de jornada
 laboral para una empresa distribuidora de ocho empleados en México.
@@ -93,57 +93,27 @@ cd backend && uv run uvicorn app.main:app --reload --port 8000    # terminal 1
 cd frontend && npm install && npm run dev                          # terminal 2
 ```
 
-### 1. Crear los esquemas
+### 1. Aplicar el DDL completo
+
+El DDL vive en `db/ddl/00_*.sql` a `db/ddl/70_*.sql` (71 archivos, orden lexicográfico = orden de
+aplicación). No es idempotente — una sola aplicación sobre base vacía. Se aplica con el script:
 
 ```bash
-source .env    # o exporta DATABASE_URL a mano
-psql "$DATABASE_URL" -f db/ddl/00_esquemas.sql
-psql "$DATABASE_URL" -f db/ddl/01_persona_stub.sql
-psql "$DATABASE_URL" -f db/ddl/02_tiempo.sql
-psql "$DATABASE_URL" -f db/indices/01_indices.sql
+source .env    # o exporta DATABASE_URL a mano (session pooler, puerto 5432)
+./scripts/aplicar_ddl.sh
 ```
+
+Corta en el primer error (`ON_ERROR_STOP=1` + `--single-transaction` por archivo). Al final corre
+`db/indices/01_indices.sql`. Ver `scripts/aplicar_ddl.sh` para el detalle de los dos archivos que
+pueden necesitar aplicación manual desde el SQL Editor si el rol no tiene los privilegios
+necesarios (`07_personas_storage.sql`, `37_tiempo_rls_terminal.sql`) y `db/verificar_ddl.sql` para
+las consultas de verificación por fase.
 
 Alternativa sin `psql`: pegar cada archivo, en el mismo orden, en el **SQL Editor** del dashboard
 de Supabase.
 
-### 2. Cargar parámetros de ejemplo
-
-```bash
-psql "$DATABASE_URL" -f db/ddl/03_parametros_ejemplo.sql
-```
-
-> Los valores son **de ejemplo**. Las políticas reales se cargan como parámetros en el despliegue y
-> no forman parte del alcance de este proyecto.
-
-### 3. Crear el esquema `personas` y Estructura Organizacional
-
-```bash
-psql "$DATABASE_URL" -f db/ddl/04_personas.sql
-psql "$DATABASE_URL" -f db/ddl/05_personas_estructura.sql
-psql "$DATABASE_URL" -f db/ddl/06_personas_rls.sql
-psql "$DATABASE_URL" -f db/ddl/07_personas_storage.sql
-psql "$DATABASE_URL" -f db/ddl/08_personas_permisos.sql
-psql "$DATABASE_URL" -f db/ddl/09_personas_bitacora_inmutable.sql
-psql "$DATABASE_URL" -f db/ddl/10_personas_area.sql
-psql "$DATABASE_URL" -f db/ddl/11_area_migracion_inicial.sql
-psql "$DATABASE_URL" -f db/ddl/12_personas_departamento.sql
-psql "$DATABASE_URL" -f db/ddl/13_departamento_migracion_inicial.sql
-psql "$DATABASE_URL" -f db/ddl/14_personas_puesto.sql
-psql "$DATABASE_URL" -f db/ddl/15_estructura_placeholders_direccion.sql
-psql "$DATABASE_URL" -f db/ddl/16_puesto_migracion_inicial.sql
-psql "$DATABASE_URL" -f db/ddl/17_personas_asignacion.sql
-psql "$DATABASE_URL" -f db/ddl/18_asignacion_trigger_baja_definitiva.sql
-psql "$DATABASE_URL" -f db/ddl/19_asignacion_fn_cambiar_puesto.sql
-psql "$DATABASE_URL" -f db/ddl/20_asignacion_fn_revoca_execute_public.sql
-psql "$DATABASE_URL" -f db/ddl/21_personas_permiso.sql
-psql "$DATABASE_URL" -f db/ddl/22_personas_puesto_permiso.sql
-psql "$DATABASE_URL" -f db/ddl/23_personas_bitacora_puesto_permiso.sql
-psql "$DATABASE_URL" -f db/ddl/24_puesto_permiso_trigger.sql
-psql "$DATABASE_URL" -f db/ddl/25_permiso_migracion_inicial.sql
-psql "$DATABASE_URL" -f db/ddl/26_puesto_permiso_bootstrap_admin_generico.sql
-psql "$DATABASE_URL" -f db/ddl/27_puesto_permiso_mapeo_inicial.sql
-psql "$DATABASE_URL" -f db/ddl/28_bitacora_puesto_permiso_revoca_update_delete.sql
-```
+> `03_parametros_ejemplo.sql` carga valores **de ejemplo** — las políticas reales de la empresa se
+> capturan después desde la pantalla de Parámetros, no forman parte del DDL.
 
 `10`–`28` cierran el módulo Estructura Organizacional (`area`, `departamento`, `puesto`,
 `asignacion`, `permiso`/`puesto_permiso`, ver `CLAUDE.md`). `15` agrega una 6ª área ("Dirección
@@ -163,7 +133,7 @@ del organigrama real — funciona aunque `11`/`13`/`15`/`16` no estén aplicados
 `devops`). `27` es el mapeo real de permisos sobre los puestos ya sembrados del organigrama
 (Responsable de Recursos Humanos, Encargado de TI, Gerente General).
 
-### 4. Generar datos sintéticos
+### 2. Generar datos sintéticos
 
 **Pendiente.** `tools/generador/` está vacío — es el entregable `E5` (`SCJ-GEN-01`), programado para
 el 8 de septiembre. Una vez escrito, se invoca con `uv run python`, no con `python3` directo:
@@ -176,7 +146,7 @@ psql "$DATABASE_URL" -f ../../db/seeds/datos_sinteticos.sql
 
 La semilla fija hace el conjunto reproducible: la misma semilla produce siempre los mismos datos.
 
-### 5. Correr las consultas de validación
+### 3. Correr las consultas de validación
 
 ```bash
 for f in db/consultas/validacion/*.sql; do echo "== $f"; psql "$DATABASE_URL" -f "$f"; done

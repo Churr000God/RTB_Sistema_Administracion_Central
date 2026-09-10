@@ -469,7 +469,7 @@ export function DiasPage() {
                             );
                           })()}
                         </td>
-                        <td>{formatearHorasTotales(dia.horas_totales)}</td>
+                        <td className="num">{formatearHorasTotales(dia.horas_totales)}</td>
                         <td>{dia.origen ? ETIQUETA_ORIGEN[dia.origen] : "—"}</td>
                         <td>{formatearHora(dia.primera_marca)}</td>
                         <td>{formatearHora(dia.ultima_marca)}</td>

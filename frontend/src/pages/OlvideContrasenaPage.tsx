@@ -53,7 +53,7 @@ export function OlvideContrasenaPage() {
                 id="correo"
                 name="correo"
                 type="email"
-                placeholder="nombre@distribuidoracentral.mx"
+                placeholder="nombre@refacrtb.com.mx"
                 required
               />
             </div>

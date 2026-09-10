@@ -25,7 +25,7 @@ export function AltaUsuarioPage() {
   const [error, setError] = useState<string | null>(null);
   const [enviado, setEnviado] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  // Deep-link desde "Crear acceso a Kairos" en la ficha de persona (?persona_id=...) — precarga
+  // Deep-link desde "Crear acceso al sistema" en la ficha de persona (?persona_id=...) — precarga
   // la selección así no hay que volver a buscar a la misma persona de la que se vino.
   const [personaId, setPersonaId] = useState(
     () => new URLSearchParams(window.location.search).get("persona_id") ?? ""

@@ -274,7 +274,7 @@ export function TramosPage() {
                           formatearHora(tramo.fin)
                         )}
                       </td>
-                      <td>{formatearMinutos(tramo.minutos_trabajados)}</td>
+                      <td className="num">{formatearMinutos(tramo.minutos_trabajados)}</td>
                       <td>
                         {(() => {
                           const variante = VARIANTE_DIA_ESTADO[tramo.dia_estado];

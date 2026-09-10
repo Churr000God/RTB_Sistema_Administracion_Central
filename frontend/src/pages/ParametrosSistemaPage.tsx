@@ -275,7 +275,7 @@ export function ParametrosSistemaPage() {
                               <p className="ayuda-campo">{fila.descripcion}</p>
                             )}
                           </td>
-                          <td>
+                          <td className="num">
                             {enEdicion ? (
                               <input
                                 type={fila.tipo === "hora" ? "time" : "number"}
@@ -449,7 +449,7 @@ export function ParametrosSistemaPage() {
                   {historialFiltrado.map((fila) => (
                     <tr key={fila.id}>
                       <td>{fila.etiqueta}</td>
-                      <td>{fila.valor}</td>
+                      <td className="num">{fila.valor}</td>
                       <td>{formatearFecha(fila.vigente_desde)}</td>
                       <td>
                         {fila.vigente_hasta ? (

@@ -83,7 +83,7 @@ export function VerificarTotpPage({
         <ShieldCheck size={22} aria-hidden="true" />
       </div>
       <h2>Verificación en dos pasos</h2>
-      <p>Abre tu app autenticadora e ingresa el código de 6 dígitos que aparece para Kairos.</p>
+      <p>Abre tu app autenticadora e ingresa el código de 6 dígitos que aparece para RTB.</p>
       {correo && (
         <span className="chip-correo">
           <span className="correo">{correo}</span>

@@ -21,17 +21,17 @@ const COPY: Record<Motivo, Copy> = {
       "La cuenta fue suspendida por Recursos Humanos. Nadie más puede reactivarla, y ninguna marca de jornada se registra mientras siga en ese estado.",
     tituloTarjeta: "Tu cuenta no está activa",
     bajadaTarjeta:
-      "El acceso a Kairos fue suspendido para este usuario. Mientras la cuenta permanezca en ese estado no es posible iniciar sesión ni registrar marcas de jornada.",
+      "El acceso al sistema fue suspendido para este usuario. Mientras la cuenta permanezca en ese estado no es posible iniciar sesión ni registrar marcas de jornada.",
     siguientePaso: "La reactivación sólo la puede realizar Recursos Humanos.",
     contacto: "rh",
   },
   baja_definitiva: {
     tituloPanel: "Este acceso ya no está disponible",
     bajadaPanel:
-      "Tu relación laboral con la empresa fue cerrada. El acceso a Kairos no puede reactivarse para cuentas dadas de baja.",
+      "Tu relación laboral con la empresa fue cerrada. El acceso al sistema no puede reactivarse para cuentas dadas de baja.",
     tituloTarjeta: "Tu cuenta fue dada de baja",
     bajadaTarjeta:
-      "El acceso a Kairos fue cerrado de forma definitiva para este usuario. No es posible iniciar sesión ni registrar marcas de jornada.",
+      "El acceso al sistema fue cerrado de forma definitiva para este usuario. No es posible iniciar sesión ni registrar marcas de jornada.",
     siguientePaso: "Si consideras que esto es un error, comunícate con Recursos Humanos.",
     contacto: "rh",
   },

@@ -195,7 +195,7 @@ describe("FichaPersonaPage", () => {
     );
   });
 
-  it("muestra 'Crear acceso a Kairos' cuando la persona no tiene usuario vinculado", async () => {
+  it("muestra 'Crear acceso al sistema' cuando la persona no tiene usuario vinculado", async () => {
     mockApiFetch();
     renderPagina();
 
@@ -203,11 +203,11 @@ describe("FichaPersonaPage", () => {
       expect(screen.getAllByText("Mariana Guadalupe Alcántara Ruvalcaba").length).toBeGreaterThan(0)
     );
     expect(
-      screen.getByRole("link", { name: /crear acceso a kairos/i })
+      screen.getByRole("link", { name: /crear acceso al sistema/i })
     ).toHaveAttribute("href", `/usuarios/nuevo?persona_id=${PERSONA.id}`);
   });
 
-  it("oculta 'Crear acceso a Kairos' cuando la persona ya tiene usuario vinculado", async () => {
+  it("oculta 'Crear acceso al sistema' cuando la persona ya tiene usuario vinculado", async () => {
     vi.mocked(apiFetch).mockImplementation((path: string) => {
       if (path === "/api/sesion") {
         return Promise.resolve(
@@ -228,7 +228,7 @@ describe("FichaPersonaPage", () => {
       expect(screen.getAllByText("Mariana Guadalupe Alcántara Ruvalcaba").length).toBeGreaterThan(0)
     );
     expect(
-      screen.queryByRole("link", { name: /crear acceso a kairos/i })
+      screen.queryByRole("link", { name: /crear acceso al sistema/i })
     ).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /nuevo movimiento/i })).toBeInTheDocument();
   });

@@ -4,8 +4,8 @@ Instrucciones que se cargan cada sesión para trabajar en `sistema-control-jorna
 
 ## Qué es el proyecto
 
-Sistema de Control de Jornada (SCJ) — proyecto académico, caso de estudio *Distribuidora Central,
-S.A. de C.V.* (empresa ficticia). Cubre el modelo de datos del subsistema de Tiempo, más un
+Sistema de Control de Jornada (SCJ) — proyecto académico, caso de estudio *Refacciones Tomás
+Badillo, S.A. de C.V.* Cubre el modelo de datos del subsistema de Tiempo, más un
 backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CTX-01_*.md`.
 
 ## Stack y cómo correrlo
@@ -405,7 +405,7 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   `http://localhost:5173` fijo a mano — esa configuración no vive en este repositorio. Al pasar a
   producción (`docker compose … prod`, frontend en `:8080`) hay que actualizarla ahí también, o
   los links de invitación/recuperación de contraseña no aterrizan en la app.
-- El DDL corre hasta `db/ddl/68_*.sql`. `personas.permiso`
+- El DDL corre hasta `db/ddl/70_*.sql` (71 archivos, `00` a `70`). `personas.permiso`
   es la única tabla del proyecto con clave natural (`codigo varchar PRIMARY KEY`) en vez de `uuid`
   — decisión deliberada, fiel a la redacción literal de `SCJ-PRO-05`, no un descuido a corregir.
 - Las tablas de bitácora inmutables (`bitacora_movimiento_persona`,

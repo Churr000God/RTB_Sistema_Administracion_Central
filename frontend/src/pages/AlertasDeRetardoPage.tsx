@@ -234,10 +234,10 @@ export function AlertasDeRetardoPage() {
                   <tr key={`${alerta.persona_id}-${alerta.fecha}`}>
                     <td>{alerta.persona_nombre ?? "—"}</td>
                     <td>{formatearFecha(alerta.fecha)}</td>
-                    <td>{formatearHoraProgramada(alerta.hora_entrada_programada)}</td>
-                    <td>{formatearHoraProgramada(alerta.hora_salida_programada)}</td>
-                    <td>{formatearHoraMarca(alerta.primera_marca)}</td>
-                    <td>{formatearHoraMarca(alerta.ultima_marca)}</td>
+                    <td className="num">{formatearHoraProgramada(alerta.hora_entrada_programada)}</td>
+                    <td className="num">{formatearHoraProgramada(alerta.hora_salida_programada)}</td>
+                    <td className="num">{formatearHoraMarca(alerta.primera_marca)}</td>
+                    <td className="num">{formatearHoraMarca(alerta.ultima_marca)}</td>
                     <td>
                       <Badge variante={alerta.motivo === "sin_marcas" ? "peligro" : "aviso"}>
                         {ETIQUETA_MOTIVO[alerta.motivo]}

@@ -121,7 +121,7 @@ export function LoginPage() {
             id="correo"
             name="correo"
             type="email"
-            placeholder="nombre@distribuidoracentral.mx"
+            placeholder="nombre@refacrtb.com.mx"
             required
           />
         </div>

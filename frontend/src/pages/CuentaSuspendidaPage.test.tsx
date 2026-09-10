@@ -30,7 +30,7 @@ describe("CuentaSuspendidaPage", () => {
 
     expect(screen.getByText("No pudimos verificar tu perfil")).toBeInTheDocument();
     expect(screen.getByText("Contacta a Sistemas")).toBeInTheDocument();
-    expect(screen.getByText("sistemas@distribuidoracentral.mx")).toBeInTheDocument();
+    expect(screen.getByText("sistemas@refacrtb.com.mx")).toBeInTheDocument();
   });
 
   it("muestra el copy de perfil no encontrado con ?motivo=sin_usuario, con el contacto de Sistemas", () => {
@@ -40,7 +40,7 @@ describe("CuentaSuspendidaPage", () => {
 
     expect(screen.getByText("No pudimos verificar tu perfil")).toBeInTheDocument();
     expect(screen.getByText("Contacta a Sistemas")).toBeInTheDocument();
-    expect(screen.getByText("sistemas@distribuidoracentral.mx")).toBeInTheDocument();
+    expect(screen.getByText("sistemas@refacrtb.com.mx")).toBeInTheDocument();
   });
 
   it("un motivo desconocido cae al copy de suspensión por defecto", () => {
@@ -53,7 +53,7 @@ describe("CuentaSuspendidaPage", () => {
 
   it("suspension (default) muestra el contacto de RH", () => {
     render(<CuentaSuspendidaPage />);
-    expect(screen.getByText("rh@distribuidoracentral.mx")).toBeInTheDocument();
+    expect(screen.getByText("tbadillob@refacrtb.com.mx")).toBeInTheDocument();
     expect(screen.getByText(/no permite reintentar el inicio de sesión/i)).toBeInTheDocument();
   });
 
@@ -62,7 +62,7 @@ describe("CuentaSuspendidaPage", () => {
 
     render(<CuentaSuspendidaPage />);
 
-    expect(screen.getByText("rh@distribuidoracentral.mx")).toBeInTheDocument();
-    expect(screen.queryByText("sistemas@distribuidoracentral.mx")).not.toBeInTheDocument();
+    expect(screen.getByText("tbadillob@refacrtb.com.mx")).toBeInTheDocument();
+    expect(screen.queryByText("sistemas@refacrtb.com.mx")).not.toBeInTheDocument();
   });
 });

@@ -28,7 +28,7 @@ type PropsEnlace = PropsComunes &
 
 type Props = PropsBoton | PropsEnlace;
 
-// Envuelve las clases Kairos ya existentes (.boton-con-icono / .boton-primario) — no define
+// Envuelve las clases RTB ya existentes (.boton-con-icono / .boton-primario) — no define
 // estilos nuevos. Polimórfico entre <button> y <a href> porque las pantallas de Estructura
 // Organizacional usan ambos indistintamente para la misma clase visual (alta vs. navegación).
 export function Button(props: Props) {

@@ -22,7 +22,7 @@
 # contra las imágenes dev.
 #
 # 'levantar' también bootstrapea el "usuario base" (SCJ-PRO-05) si hace falta: la
-# primera vez, pregunta correo+contraseña (sin eco) para crear su acceso a Kairos;
+# primera vez, pregunta correo+contraseña (sin eco) para crear su acceso al sistema;
 # despliegues posteriores del mismo entorno no repreguntan. Requiere 'uv' en el host
 # (habla con Supabase directo, no con los contenedores) -- ver scripts/bootstrap_usuario_base.py.
 
@@ -163,7 +163,7 @@ bootstrap_usuario_base() {
 
   echo
   echo "== Usuario base de bootstrap =="
-  echo "No existe todavía un acceso a Kairos para la persona de bootstrap. Se crea ahora"
+  echo "No existe todavía un acceso al sistema para la persona de bootstrap. Se crea ahora"
   echo "(sólo se pregunta esta vez -- despliegues posteriores de este entorno no repreguntan)."
   local correo contrasena contrasena_confirmar resultado
   read -r -p "Correo del usuario base: " correo

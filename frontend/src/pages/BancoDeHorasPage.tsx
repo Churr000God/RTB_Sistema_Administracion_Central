@@ -560,8 +560,8 @@ export function BancoDeHorasPage() {
                             )}
                             {(saldo.nivel_alerta === "sin_alerta" || saldo.nivel_alerta === null) && "—"}
                           </td>
-                          <td>{formatearHoras(saldo.horas_reciente)}</td>
-                          <td>{formatearHoras(saldo.horas_media)}</td>
+                          <td className="num">{formatearHoras(saldo.horas_reciente)}</td>
+                          <td className="num">{formatearHoras(saldo.horas_media)}</td>
                           <td>
                             {saldo.horas_fuera_ventana > 0 ? (
                               <Badge variante="peligro">{formatearHoras(saldo.horas_fuera_ventana)}</Badge>
@@ -690,8 +690,8 @@ export function BancoDeHorasPage() {
                                         <tr key={movimiento.id}>
                                           <td>{formatearFechaHora(movimiento.creado_en)}</td>
                                           <td>{ETIQUETA_TIPO_MOVIMIENTO[movimiento.tipo]}</td>
-                                          <td>{formatearHorasConSigno(movimiento.monto)}</td>
-                                          <td>{formatearHoras(movimiento.saldo_corrido)}</td>
+                                          <td className="num">{formatearHorasConSigno(movimiento.monto)}</td>
+                                          <td className="num">{formatearHoras(movimiento.saldo_corrido)}</td>
                                           <td>{movimiento.motivo ?? "—"}</td>
                                           <td>{movimiento.autor_nombre ?? "Sistema"}</td>
                                           <td>
