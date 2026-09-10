@@ -1,0 +1,1579 @@
+{
+  "version": "2.17",
+  "children": [
+    {
+      "type": "frame",
+      "id": "oIZTA",
+      "x": 0,
+      "y": 0,
+      "name": "Configurar 2FA",
+      "clip": true,
+      "width": 1440,
+      "height": 1024,
+      "fill": "$base",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "y0Wei",
+          "name": "Header",
+          "width": "fill_container",
+          "padding": [
+            16,
+            48
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "YD0uJ",
+              "name": "Marca",
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "ewWW3",
+                  "name": "Marca Glifo",
+                  "width": 32,
+                  "height": 32,
+                  "fill": {
+                    "type": "gradient",
+                    "gradientType": "linear",
+                    "enabled": true,
+                    "rotation": 135,
+                    "size": {
+                      "height": 1
+                    },
+                    "colors": [
+                      {
+                        "color": "$primary",
+                        "position": 0
+                      },
+                      {
+                        "color": "$primary-light",
+                        "position": 1
+                      }
+                    ]
+                  },
+                  "cornerRadius": 9,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "QGY6E",
+                      "name": "Inicial",
+                      "fill": "$base",
+                      "content": "K",
+                      "fontFamily": "$font-title",
+                      "fontSize": 17,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "G7g91",
+                  "name": "Nombre",
+                  "fill": "$navy",
+                  "content": "Kairos",
+                  "fontFamily": "$font-title",
+                  "fontSize": 21,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Ja2sQ",
+              "name": "Header Derecha",
+              "gap": 20,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "kzIbd",
+                  "name": "Usuario",
+                  "fill": "$navy-mid",
+                  "content": "d.hernandez@kairos.mx",
+                  "fontFamily": "$font-body",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "TZVG0",
+                  "name": "Salir",
+                  "fill": "$surface",
+                  "cornerRadius": 8,
+                  "gap": 7,
+                  "padding": [
+                    7,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "ogHdq",
+                      "name": "Icono Salir",
+                      "width": 15,
+                      "height": 15,
+                      "icon": "log-out",
+                      "library": "lucide",
+                      "fill": "$navy-mid"
+                    },
+                    {
+                      "type": "text",
+                      "id": "PqYqn",
+                      "name": "Salir Texto",
+                      "fill": "$navy-mid",
+                      "content": "Cerrar sesión",
+                      "fontFamily": "$font-body",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "O4nA9K",
+          "name": "Línea Header",
+          "fill": "#E3EEEC",
+          "width": "fill_container",
+          "height": 1
+        },
+        {
+          "type": "frame",
+          "id": "L4GsB",
+          "name": "Cuerpo",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "padding": [
+            0,
+            48
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "gnXRA",
+              "name": "Columna Central",
+              "width": 1344,
+              "height": 647,
+              "gap": 36,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Gbhhp",
+                  "name": "Panel Contexto",
+                  "clip": true,
+                  "width": 420,
+                  "height": "fill_container",
+                  "fill": {
+                    "type": "gradient",
+                    "gradientType": "linear",
+                    "enabled": true,
+                    "rotation": 150,
+                    "size": {
+                      "height": 1
+                    },
+                    "colors": [
+                      {
+                        "color": "$navy",
+                        "position": 0
+                      },
+                      {
+                        "color": "$navy-mid",
+                        "position": 1
+                      }
+                    ]
+                  },
+                  "cornerRadius": 16,
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "#002B5B33",
+                    "offset": {
+                      "x": 0,
+                      "y": 14
+                    },
+                    "blur": 36,
+                    "spread": -10
+                  },
+                  "layout": "vertical",
+                  "gap": 40,
+                  "padding": 34,
+                  "justifyContent": "space_between",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "D5eM7d",
+                      "layoutPosition": "absolute",
+                      "x": 310,
+                      "y": -70,
+                      "name": "Aro Decorativo 2",
+                      "opacity": 0.12,
+                      "innerRadius": 0.94,
+                      "fill": "$primary-light",
+                      "width": 200,
+                      "height": 200
+                    },
+                    {
+                      "type": "ellipse",
+                      "id": "AAdNl",
+                      "layoutPosition": "absolute",
+                      "x": 250,
+                      "y": 300,
+                      "name": "Aro Decorativo",
+                      "opacity": 0.16,
+                      "innerRadius": 0.92,
+                      "fill": "$primary-light",
+                      "width": 300,
+                      "height": 300
+                    },
+                    {
+                      "type": "frame",
+                      "id": "EXl81",
+                      "name": "Panel Superior",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 16,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "LQU9U",
+                          "name": "Paso",
+                          "fill": "#FFFFFF1F",
+                          "cornerRadius": 20,
+                          "gap": 8,
+                          "padding": [
+                            7,
+                            14
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "NoFca",
+                              "name": "Icono Escudo",
+                              "width": 14,
+                              "height": 14,
+                              "icon": "shield-check",
+                              "library": "lucide",
+                              "fill": "$primary-light"
+                            },
+                            {
+                              "type": "text",
+                              "id": "LVHXt",
+                              "name": "Paso Texto",
+                              "fill": "$primary-light",
+                              "content": "PASO 2 DE 3 · SEGURIDAD",
+                              "fontFamily": "$font-body",
+                              "fontSize": 11,
+                              "fontWeight": "600",
+                              "letterSpacing": 1.2
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "UBvqz",
+                          "name": "Título",
+                          "fill": "$base",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Verificación en dos pasos",
+                          "lineHeight": 1.12,
+                          "fontFamily": "$font-title",
+                          "fontSize": 40,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "u6BUn",
+                          "name": "Subtítulo",
+                          "opacity": 0.78,
+                          "fill": "$base",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Añade una segunda capa de protección: necesitarás tu teléfono al iniciar sesión desde un equipo nuevo.",
+                          "lineHeight": 1.6,
+                          "fontFamily": "$font-body",
+                          "fontSize": 15,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "LbmK9",
+                      "name": "Nota Respaldo",
+                      "width": "fill_container",
+                      "fill": "#FFFFFF14",
+                      "cornerRadius": 12,
+                      "stroke": "#AD955166",
+                      "strokeWidth": 1,
+                      "gap": 12,
+                      "padding": [
+                        16,
+                        18
+                      ],
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "X19IK",
+                          "name": "Icono Llave",
+                          "width": 17,
+                          "height": 17,
+                          "icon": "key-round",
+                          "library": "lucide",
+                          "fill": "$gold"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "CeOWm",
+                          "name": "Nota Texto",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 3,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "L7VcFz",
+                              "name": "Nota Título",
+                              "fill": "$base",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "Códigos de respaldo",
+                              "fontFamily": "$font-body",
+                              "fontSize": 13,
+                              "fontWeight": "600"
+                            },
+                            {
+                              "type": "text",
+                              "id": "iXcpr",
+                              "name": "Nota Detalle",
+                              "opacity": 0.72,
+                              "fill": "$base",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "Al activar la verificación te entregaremos 8 códigos de un solo uso. Guárdalos: son la única forma de entrar si pierdes el teléfono.",
+                              "lineHeight": 1.5,
+                              "fontFamily": "$font-body",
+                              "fontSize": 12.5,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "X4alr",
+                  "name": "Tarjeta 2FA",
+                  "width": "fill_container",
+                  "fill": "$base",
+                  "cornerRadius": 16,
+                  "stroke": "#DCEEEB",
+                  "strokeWidth": 1,
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "#002B5B14",
+                    "offset": {
+                      "x": 0,
+                      "y": 14
+                    },
+                    "blur": 36,
+                    "spread": -12
+                  },
+                  "layout": "vertical",
+                  "gap": 26,
+                  "padding": 32,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "QXnRS",
+                      "name": "Bloque Escaneo",
+                      "width": "fill_container",
+                      "gap": 28,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "k2wlPG",
+                          "name": "Columna QR",
+                          "layout": "vertical",
+                          "gap": 10,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "tUUv6",
+                              "name": "Marco QR",
+                              "width": 208,
+                              "height": 208,
+                              "fill": "$base",
+                              "cornerRadius": 14,
+                              "stroke": "#C7E6E2",
+                              "strokeWidth": 1,
+                              "padding": 14,
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "oNY3I",
+                                  "name": "Código QR",
+                                  "clip": true,
+                                  "width": 180,
+                                  "height": 180,
+                                  "layout": "none",
+                                  "children": [
+                                    {
+                                      "type": "path",
+                                      "id": "nVNG0",
+                                      "x": 0,
+                                      "y": 0,
+                                      "geometry": "M0 0l0 43.08 44.4 0 0-43.08-44.4 0z m37.56 36.48l-31.32 0 0-30.12 31.44 0 0 30.12-0.12 0z",
+                                      "fill": "#00205C",
+                                      "width": 44.4,
+                                      "height": 43.08
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "voPWn",
+                                      "x": 0,
+                                      "y": 0,
+                                      "geometry": "M50.76 0l0 6.96 6.72 0 0 7.08-6.72 0 0 14.52 6.72 0 0 7.32-6.72 0 0 7.2 6.72 0 0 6.72-6.72 0 0 6.72-6.36 0 0-6.72-32.04 0 0 6.72-6.12 0 0 7.92 12.48 0 0 14.88-6.48 0 0 7.32-6 0 0-7.32-6.24 0 0 21.60001 6.24 0 0 6.95999-6.24 0 0 22.08001 6.24 0 0-22.08001 6.12 0 0 7.20001 6.36 0 0 7.31999-6.36 0 0 7.56001 6.36 0 0-7.56001 12.72 0 0 7.56001 12.96 0 0-7.32001-6.84 0 0-7.55999 6.84 0 0 7.31999 6.36 0 0 21.96002 6.72 0 0 6.95999-6.84 0 0 22.31999 13.68 0 0-7.07999-6.96 0 0-15.24 6.96 0 0 15.24 6.48 0 0 13.43999 9.48001 0 0-6.36-2.76001 0 0-7.07999-6.72 0 0-7.68001 6.72 0 0-7.55999 9.24001 0 0 15.24-6.48 0 0 7.07999 6.48 0 0 6.36 6.35999 0 0-6.36-6.35999 0 0-7.07999 6.35999 0 0 7.07999 6.6 0 0 6.36 9.6 0 0-6.36-9.48 0 0-7.07999-6.72 0 0-7.68001 6.48001 0 0-14.51998-6.36001 0 0 6.95999-6.47999 0 0-6.95999-9.24001 0 0-6.96001-6.6 0 0 6.96001-13.44 0 0-6.84002 13.44 0 0-7.55999-13.56 0 0-7.56001-6.6 0 0-7.31999 6.6 0 0 7.31999 13.44 0 0 7.56001 6.72 0 0 7.44 9.24001 0 0 6.96001 6.47999 0 0-6.96001-6.47999 0 0-7.44-9.24001 0 0-7.56001-6.72 0 0-7.31999-6.48 0 0-7.20001-13.56 0 0-6.95999 6.72 0 0-7.20001-13.08 0 0-7.08 13.08 0 0 7.08 22.80001 0 0-7.08 6.48 0 0 14.28001-9.24001 0 0 6.95999-6.72 0 0-6.95999-6.48 0 0 6.95999-6.84 0 6.84 0 0 7.20001 6.48 0 0-7.20001 6.72 0 0 7.20001-6.72 0 6.72 0 0-7.20001 9.24001 0 0-6.95999 6.47999 0 0 14.16-12.95999 0 0 7.31999 6.48 0 0 7.56001 6.47999 0 0 7.44 6.36001 0 0 6.96001 6.96 0 0 6.95999 9.36 0 0 7.55999-6.60001 0 0 7.68001-0.95999 0 0 7.07999 7.43999 0 0-7.07999 13.2 0 0 6.96001-6.6 0 0 6.47998 19.68 0 0-6.47998-6.11999 0 0-7.08002-6.96001 0 0-7.67999 12.96001 0 0 14.76001 6.47999 0 0.36 0 0 6.47998 6.24001 0 0-6.47998-6.60001 0 0-14.76001 6.60001 0 0 14.76001 6.36 0 0-7.08002 6 0 0 7.08002 6.59999 0 0 6.47998 6 0 0-6.47998-6 0 0-7.08002-6.59999 0 0-7.56 6.59999 0 0-7.55999 6 0 0-6.95999-24.95999 0 0-6.84002 12.36 0 0-7.55999-6 0 0-7.56001 12.59999 0 0 15.12 6 0 0-15.12-6 0 0-7.31999 6 0 0-35.76001-12.59999 0 0 7.32 6.59999 0 0 7.08-6.59999 0 0 7.08 6.59999 0 0 7.08-6.59999 0 0 7.20001-6 0 0 7.31999-6.36 0 0-14.52 12.36 0 0-6.95999-12.36 0 0 6.95999-13.08 0 0-21.24-6 0 0 21.24-6.96001 0 0 7.20001 19.44 0 0 7.31999-19.56 0 0-7.31999-6.48 0 0 14.88-22.68 0 0-7.56001-6.48 0 0-7.31999 6.48 0 0-7.20001 8.64001 0 0 14.52 7.43999 0 0-28.68-6.48 0 0 7.08-16.08 0 0-7.08 13.32001 0 0-7.08-6.84001 0 0-7.32-6.48 0 0 7.32-6.47999 0 0-7.32-15.96001 0 0 7.32-13.32 0 0-7.32-6.6 0 0-22.8-6.48 0 0 7.92-12.96 0 0 14.88-6.24 0 0-14.88-6.48 0 0-7.92 25.68 0 0 7.92-12.96 0 0 14.88 6.24 0 0-7.2 6.72 0 0 14.52-12.96 0 0-7.32-6.24 0 6.24 0 0 7.32 12.96 0-18.84 0 0 7.08 18.84 0 0 14.16-6.84 0 0 7.20001-18.84 0 0-7.20001 6.48 0 0-14.16-6.48 0 0-7.08 6.6 0 0 7.08-12.96 0 0 14.16 6.36 0-6.36 0 0-6.95999 0 6.95999 0-14.16 38.4-93.72z",
+                                      "fill": "#00205C",
+                                      "width": 180,
+                                      "height": 180
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "H2tf2X",
+                                      "x": 12.36,
+                                      "y": 12.84,
+                                      "fill": "#00205C",
+                                      "width": 18,
+                                      "height": 16.8
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "EdUjv",
+                                      "x": 0,
+                                      "y": 137.4,
+                                      "geometry": "M0 0l0 42.59999 44.4 0 0-42.59999c0 0-44.4 0-44.4 0z m37.44 36.36l-31.2 0 0-30.23999 31.2 0 0 30.23999 0 0z",
+                                      "fill": "#00205C",
+                                      "width": 44.4,
+                                      "height": 42.6
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "hAu2t",
+                                      "x": 12.36,
+                                      "y": 150.24,
+                                      "fill": "#00205C",
+                                      "width": 18,
+                                      "height": 16.56
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "MaFG1",
+                                      "x": 135.96,
+                                      "y": 0,
+                                      "geometry": "M0 0l0 43.08 44.03999 0 0-43.08-44.03999 0z m37.8 36.48l-31.68 0 0-30.12 31.68 0 0 30.12z",
+                                      "fill": "#00205C",
+                                      "width": 44.04,
+                                      "height": 43.08
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "TrIdP",
+                                      "x": 149.04,
+                                      "y": 12.84,
+                                      "fill": "#00205C",
+                                      "width": 18.36,
+                                      "height": 16.8
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "VrxY1",
+                                      "x": 70.8,
+                                      "y": 0,
+                                      "geometry": "M0 0l0 6.96 6.72 0 0 7.08 22.2 0 0 7.32-12.95999 0 0 7.2 12.83999 0 0-7.2 6.96 0 0-7.32-6.84 0 0-7.08 6.84 0 0-6.96-13.32 0 0 6.84-6.47999 0 0-6.84-15.96001 0z",
+                                      "fill": "#00205C",
+                                      "width": 35.76,
+                                      "height": 28.56
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "u04utM",
+                                      "x": 122.4,
+                                      "y": 0,
+                                      "fill": "#00205C",
+                                      "width": 6.6,
+                                      "height": 6.96
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "Xhevm",
+                                      "x": 106.56,
+                                      "y": 6.96,
+                                      "geometry": "M12.24 0l-12.24 0 0 7.08 9.24 0 0 7.2 6.6 0 0 7.32 6.59999 0 0-14.52-6.59999 0 0-7.08-3.6 0z",
+                                      "fill": "#00205C",
+                                      "width": 22.44,
+                                      "height": 21.6
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "TdihQ",
+                                      "x": 93.6,
+                                      "y": 21.24,
+                                      "geometry": "M28.79999 7.32l-6.59999 0 0-7.32-7.32 0 0 7.32 1.08 0 0 14.28-2.76 0 0-7.2-6.6 0 0 7.2-6.6 0 0 13.8 6.6 0 0-6.84 8.4 0 0 7.32 7.32 0 0-7.32 6.6 0 0-6.84-6.6 0 0-7.08 6.47999 0c0 0 0-7.32 0-7.32z",
+                                      "fill": "#00205C",
+                                      "width": 28.92,
+                                      "height": 35.88
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "udmKc",
+                                      "x": 86.76,
+                                      "y": 35.88,
+                                      "fill": "#00205C",
+                                      "width": 6.48,
+                                      "height": 7.08
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "xfxQH",
+                                      "x": 122.4,
+                                      "y": 35.88,
+                                      "fill": "#00205C",
+                                      "width": 6.6,
+                                      "height": 7.08
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "D4F7Ji",
+                                      "x": 86.76,
+                                      "y": 56.52,
+                                      "fill": "#00205C",
+                                      "width": 6.48,
+                                      "height": 7.44
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "pViDK",
+                                      "x": 57.48,
+                                      "y": 72.12,
+                                      "fill": "#00205C",
+                                      "width": 6.6,
+                                      "height": 7.2
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "HgBZe",
+                                      "x": 64.32,
+                                      "y": 64.44,
+                                      "geometry": "M22.44001 0l-22.44001 0 0 7.68 22.44001 0 0 7.2 6.35999 0 0-7.2-6.35999 0 0-7.68z",
+                                      "fill": "#00205C",
+                                      "width": 28.8,
+                                      "height": 14.88
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "yxSNH",
+                                      "x": 31.44,
+                                      "y": 100.8,
+                                      "fill": "#00205C",
+                                      "width": 6.12,
+                                      "height": 7.08
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "o4Vrj",
+                                      "x": 99.96,
+                                      "y": 64.56,
+                                      "geometry": "M29.03999 14.75999l-13.19999 0 0-7.19999-9.24 0 0-7.56-6.6 0 0 14.88 6.6 0 0 7.19999 9.36 0 0 7.2 6.36 0 0-7.2 6.6 0 0-7.32 0.11999 0z",
+                                      "fill": "#00205C",
+                                      "width": 29.04,
+                                      "height": 29.28
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "Xc9Sw",
+                                      "x": 122.4,
+                                      "y": 93.72,
+                                      "fill": "#00205C",
+                                      "width": 6.48,
+                                      "height": 14.04
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "WDcTA",
+                                      "x": 174,
+                                      "y": 49.8,
+                                      "geometry": "M0 0l0 6.6 6 0 0-6.6-6 0z",
+                                      "fill": "#00205C",
+                                      "width": 6,
+                                      "height": 6.6
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "H8NSw",
+                                      "x": 128.88,
+                                      "y": 49.8,
+                                      "geometry": "M19.56 0l0 6.6-6.36 0 0-6.6-6.12 0 0 6.72-7.08 0 0 7.92 13.08 0 0 7.68 6.48 0 0-7.68 6.6 0 0-7.92 12.36 0 0-6.72-18.96 0z",
+                                      "fill": "#00205C",
+                                      "width": 38.52,
+                                      "height": 22.32
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "wTKa7",
+                                      "x": 115.8,
+                                      "y": 56.52,
+                                      "fill": "#00205C",
+                                      "width": 6.48,
+                                      "height": 7.56
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "ncEeY",
+                                      "x": 122.4,
+                                      "y": 49.8,
+                                      "fill": "#00205C",
+                                      "width": 6.48,
+                                      "height": 7.08
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "kVkb2",
+                                      "x": 167.4,
+                                      "y": 56.4,
+                                      "geometry": "M0 0l0 15.72 6.36 0 0-15.72-6.36 0z",
+                                      "fill": "#00205C",
+                                      "width": 6.36,
+                                      "height": 15.72
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "Xuzo8",
+                                      "x": 155.04,
+                                      "y": 64.44,
+                                      "geometry": "M6.23999 7.68l0-7.68-6.23999 0 0 14.88 12.36 0 0-7.2-6.12001 0z",
+                                      "fill": "#00205C",
+                                      "width": 12.36,
+                                      "height": 14.88
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "IfE0g",
+                                      "x": 122.4,
+                                      "y": 64.44,
+                                      "fill": "#00205C",
+                                      "width": 6.48,
+                                      "height": 7.56
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "WQGGc",
+                                      "x": 129,
+                                      "y": 72.12,
+                                      "fill": "#00205C",
+                                      "width": 12.84,
+                                      "height": 7.08
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "m17Kq",
+                                      "x": 141.96,
+                                      "y": 79.32,
+                                      "fill": "#00205C",
+                                      "width": 12.84,
+                                      "height": 7.08
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "IQKjQ",
+                                      "x": 161.28,
+                                      "y": 86.64,
+                                      "fill": "#00205C",
+                                      "width": 6.36,
+                                      "height": 7.2
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "mCHQC",
+                                      "x": 148.44,
+                                      "y": 93.72,
+                                      "fill": "#00205C",
+                                      "width": 6.48,
+                                      "height": 7.2
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "AJdvK",
+                                      "x": 155.04,
+                                      "y": 100.8,
+                                      "geometry": "M0 0.12l0 6.96 12.36 0 0-7.08-12.36 0.12z",
+                                      "fill": "#00205C",
+                                      "width": 12.36,
+                                      "height": 7.08
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "AkJZX",
+                                      "x": 128.88,
+                                      "y": 129.96,
+                                      "geometry": "M0 0l0 21.36 19.44 0 0-21.36c0.12 0-19.44 0-19.44 0z m13.08 14.28l-6.11999 0 0-6.84 6.11999 0 0 6.84z",
+                                      "fill": "#00205C",
+                                      "width": 19.4406,
+                                      "height": 21.36
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "MyBpw",
+                                      "x": 106.56,
+                                      "y": 144.36,
+                                      "fill": "#00205C",
+                                      "width": 9.24,
+                                      "height": 6.96
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "AvIzs",
+                                      "x": 106.56,
+                                      "y": 129.96,
+                                      "geometry": "M9.36 14.40001l6.48 0 0 6.95999-6.48 0 0 7.56 12.96 0 0-14.51999 0-6.96001 0-7.44-22.32 0 0 7.44 9.24 0 0.12 6.96001z",
+                                      "fill": "#00205C",
+                                      "width": 22.32,
+                                      "height": 28.92
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "S2HqQb",
+                                      "x": 155.04,
+                                      "y": 158.88,
+                                      "geometry": "M0 0l0 7.68001 12.36 0 0-7.68001-12.36 0z",
+                                      "fill": "#00205C",
+                                      "width": 12.36,
+                                      "height": 7.68
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "afxPe",
+                                      "x": 174,
+                                      "y": 158.88,
+                                      "fill": "#00205C",
+                                      "width": 6,
+                                      "height": 7.56
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "X1p5x",
+                                      "x": 155.04,
+                                      "y": 144.36,
+                                      "geometry": "M0 6.95999l12.36 0 0 7.56 6.59999 0 0-7.56 6 0 0-6.95999-24.95999 0 0 6.95999z",
+                                      "fill": "#00205C",
+                                      "width": 24.96,
+                                      "height": 14.52
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "OQn40",
+                                      "x": 18.72,
+                                      "y": 93.72,
+                                      "fill": "#00205C",
+                                      "width": 6.36,
+                                      "height": 14.04
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "zAFdv",
+                                      "x": 50.76,
+                                      "y": 6.96,
+                                      "geometry": "M29.52 14.28l-9.36 0 0-14.28-13.44 0 0 7.08-6.72 0 0 14.52 6.72 0 0-7.2 13.32 0 0 7.2-13.32 0 0 7.2 6.72 0 0 7.32 6.6 0 0-7.2 3 0 0 7.08-3 0 0 6.84 6.36 0 0 6.6 9.36001 0 0-7.2-6.24001 0 0-13.32 6.36 0 0-7.2-6.36 0c0-0.12 0-7.44 0-7.44z",
+                                      "fill": "#00205C",
+                                      "width": 35.88,
+                                      "height": 49.44
+                                    },
+                                    {
+                                      "type": "rectangle",
+                                      "id": "R55Wnj",
+                                      "x": 57.48,
+                                      "y": 43.08,
+                                      "fill": "#00205C",
+                                      "width": 6.6,
+                                      "height": 6.72
+                                    },
+                                    {
+                                      "type": "path",
+                                      "id": "XzCTb",
+                                      "x": 50.76,
+                                      "y": 49.8,
+                                      "geometry": "M6.72 6.72l0 7.92 6.84 0 0-7.92 6.48 0 0-6.72-20.04 0 0 6.6 6.72 0",
+                                      "fill": "#00205C",
+                                      "width": 20.04,
+                                      "height": 14.64
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "W3Ar7",
+                              "name": "QR Vigencia",
+                              "fill": "$surface",
+                              "cornerRadius": 8,
+                              "gap": 6,
+                              "padding": [
+                                5,
+                                10
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon",
+                                  "id": "sbKUx",
+                                  "name": "Icono Vigencia",
+                                  "width": 13,
+                                  "height": 13,
+                                  "icon": "timer",
+                                  "library": "lucide",
+                                  "fill": "$navy-mid"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "x4L2B",
+                                  "name": "Vigencia Texto",
+                                  "fill": "$navy-mid",
+                                  "content": "Válido por 10 minutos",
+                                  "fontFamily": "$font-body",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "gA3Tl",
+                          "name": "Instrucciones",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 14,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "e0rSuq",
+                              "name": "Instrucciones Título",
+                              "fill": "$navy",
+                              "content": "Escanea el código con tu aplicación",
+                              "fontFamily": "$font-title",
+                              "fontSize": 19,
+                              "fontWeight": "700"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "Jj5u3",
+                              "name": "Paso 1",
+                              "width": "fill_container",
+                              "gap": 11,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "t3gyqK",
+                                  "name": "Número 1",
+                                  "width": 23,
+                                  "height": 23,
+                                  "fill": "$surface",
+                                  "cornerRadius": 8,
+                                  "stroke": "#C7E6E2",
+                                  "strokeWidth": 1,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "BZo55",
+                                      "name": "Dígito",
+                                      "fill": "$primary",
+                                      "content": "1",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 12,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "d8fni",
+                                  "name": "Texto 1",
+                                  "width": "fill_container",
+                                  "layout": "vertical",
+                                  "gap": 3,
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "XZgGK",
+                                      "name": "Encabezado",
+                                      "fill": "$navy",
+                                      "textGrowth": "fixed-width",
+                                      "width": "fill_container",
+                                      "content": "Descarga una app autenticadora",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 14,
+                                      "fontWeight": "600"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "U3Cwv",
+                                      "name": "Detalle",
+                                      "fill": "$navy-mid",
+                                      "textGrowth": "fixed-width",
+                                      "width": "fill_container",
+                                      "content": "Google Authenticator, Microsoft Authenticator o Authy.",
+                                      "lineHeight": 1.5,
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 13,
+                                      "fontWeight": "normal"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "c3PE5E",
+                              "name": "Paso 2",
+                              "width": "fill_container",
+                              "gap": 11,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "WphbV",
+                                  "name": "Número 2",
+                                  "width": 23,
+                                  "height": 23,
+                                  "fill": "$surface",
+                                  "cornerRadius": 8,
+                                  "stroke": "#C7E6E2",
+                                  "strokeWidth": 1,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "L3d2y",
+                                      "name": "Dígito",
+                                      "fill": "$primary",
+                                      "content": "2",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 12,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "kUNUM",
+                                  "name": "Texto 2",
+                                  "width": "fill_container",
+                                  "layout": "vertical",
+                                  "gap": 3,
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "Ytzam",
+                                      "name": "Encabezado",
+                                      "fill": "$navy",
+                                      "textGrowth": "fixed-width",
+                                      "width": "fill_container",
+                                      "content": "Escanea el código QR",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 14,
+                                      "fontWeight": "600"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "u0MZT",
+                                      "name": "Detalle",
+                                      "fill": "$navy-mid",
+                                      "textGrowth": "fixed-width",
+                                      "width": "fill_container",
+                                      "content": "Abre la app, elige «Agregar cuenta» y apunta la cámara.",
+                                      "lineHeight": 1.5,
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 13,
+                                      "fontWeight": "normal"
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "KVTIJ",
+                              "name": "Paso 3",
+                              "width": "fill_container",
+                              "gap": 11,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "ya5T5",
+                                  "name": "Número 3",
+                                  "width": 23,
+                                  "height": 23,
+                                  "fill": "$surface",
+                                  "cornerRadius": 8,
+                                  "stroke": "#C7E6E2",
+                                  "strokeWidth": 1,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "n35px",
+                                      "name": "Dígito",
+                                      "fill": "$primary",
+                                      "content": "3",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 12,
+                                      "fontWeight": "700"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "OTixW",
+                                  "name": "Texto 3",
+                                  "width": "fill_container",
+                                  "layout": "vertical",
+                                  "gap": 3,
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "e9XtzL",
+                                      "name": "Encabezado",
+                                      "fill": "$navy",
+                                      "textGrowth": "fixed-width",
+                                      "width": "fill_container",
+                                      "content": "Ingresa el código de 6 dígitos",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 14,
+                                      "fontWeight": "600"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "xRwfP",
+                                      "name": "Detalle",
+                                      "fill": "$navy-mid",
+                                      "textGrowth": "fixed-width",
+                                      "width": "fill_container",
+                                      "content": "La app genera un código nuevo cada 30 segundos.",
+                                      "lineHeight": 1.5,
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 13,
+                                      "fontWeight": "normal"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "sLwRz",
+                      "name": "Clave Manual",
+                      "width": "fill_container",
+                      "fill": "$surface",
+                      "cornerRadius": 10,
+                      "stroke": "#D6EAE7",
+                      "strokeWidth": 1,
+                      "gap": 16,
+                      "padding": [
+                        12,
+                        14,
+                        12,
+                        16
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "z9rId",
+                          "name": "Clave Texto",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 2,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "yLaaT",
+                              "name": "Clave Etiqueta",
+                              "fill": "$navy-mid",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "¿No puedes escanear? Clave manual",
+                              "fontFamily": "$font-body",
+                              "fontSize": 11,
+                              "fontWeight": "600",
+                              "letterSpacing": 0.8
+                            },
+                            {
+                              "type": "text",
+                              "id": "wXPKI",
+                              "name": "Clave Valor",
+                              "fill": "$navy",
+                              "content": "K4RS  2M9X  7QTD  BF13",
+                              "fontFamily": "$font-body",
+                              "fontSize": 16,
+                              "fontWeight": "600",
+                              "letterSpacing": 1.5
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "QRi9S",
+                          "name": "Copiar",
+                          "fill": "$base",
+                          "cornerRadius": 8,
+                          "stroke": "#B9DFDA",
+                          "strokeWidth": 1,
+                          "gap": 6,
+                          "padding": [
+                            8,
+                            12
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "WKpdZ",
+                              "name": "Icono Copiar",
+                              "width": 14,
+                              "height": 14,
+                              "icon": "copy",
+                              "library": "lucide",
+                              "fill": "$primary"
+                            },
+                            {
+                              "type": "text",
+                              "id": "by51R",
+                              "name": "Copiar Texto",
+                              "fill": "$primary",
+                              "content": "Copiar",
+                              "fontFamily": "$font-body",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "rectangle",
+                      "id": "Mr5dX",
+                      "name": "Divisor",
+                      "fill": "#D6EAE7",
+                      "width": "fill_container",
+                      "height": 1
+                    },
+                    {
+                      "type": "frame",
+                      "id": "FBuq1",
+                      "name": "Bloque Verificación",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Y8D2k",
+                          "name": "Verificación Título",
+                          "fill": "$navy",
+                          "content": "Ingresa el primer código de verificación",
+                          "fontFamily": "$font-title",
+                          "fontSize": 19,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "I8VIe",
+                          "name": "Verificación Ayuda",
+                          "fill": "$navy-mid",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Escribe los 6 dígitos que muestra tu aplicación autenticadora para confirmar la vinculación.",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font-body",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "ajNy2",
+                          "name": "Fila Código",
+                          "width": "fill_container",
+                          "gap": 16,
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "Pmb5Q",
+                              "name": "Campo Código",
+                              "gap": 10,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "XQto3",
+                                  "name": "Dígito 1",
+                                  "width": 56,
+                                  "height": 62,
+                                  "fill": "$surface",
+                                  "cornerRadius": 12,
+                                  "stroke": "#C7E6E2",
+                                  "strokeWidth": 1,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "J3HXSd",
+                                      "name": "Valor",
+                                      "fill": "$navy",
+                                      "content": "4",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 26,
+                                      "fontWeight": "600"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "AMSsL",
+                                  "name": "Dígito 2",
+                                  "width": 56,
+                                  "height": 62,
+                                  "fill": "$surface",
+                                  "cornerRadius": 12,
+                                  "stroke": "#C7E6E2",
+                                  "strokeWidth": 1,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "Wx7AL",
+                                      "name": "Valor",
+                                      "fill": "$navy",
+                                      "content": "8",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 26,
+                                      "fontWeight": "600"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "fInUQ",
+                                  "name": "Dígito 3",
+                                  "width": 56,
+                                  "height": 62,
+                                  "fill": "$surface",
+                                  "cornerRadius": 12,
+                                  "stroke": "#C7E6E2",
+                                  "strokeWidth": 1,
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "l7b1uD",
+                                      "name": "Valor",
+                                      "fill": "$navy",
+                                      "content": "3",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 26,
+                                      "fontWeight": "600"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "Mie2J",
+                                  "name": "Dígito 4",
+                                  "width": 56,
+                                  "height": 62,
+                                  "fill": "$base",
+                                  "cornerRadius": 12,
+                                  "stroke": "$primary",
+                                  "strokeWidth": 2,
+                                  "effect": {
+                                    "type": "shadow",
+                                    "shadowType": "outer",
+                                    "color": "#57C5B63D",
+                                    "spread": 4
+                                  },
+                                  "justifyContent": "center",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "rectangle",
+                                      "id": "sHkun",
+                                      "name": "Cursor",
+                                      "fill": "$primary",
+                                      "width": 2,
+                                      "height": 26
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "O2IJin",
+                                  "name": "Dígito 5",
+                                  "width": 56,
+                                  "height": 62,
+                                  "fill": "$base",
+                                  "cornerRadius": 12,
+                                  "stroke": "#D6EAE7",
+                                  "strokeWidth": 1,
+                                  "justifyContent": "center",
+                                  "alignItems": "center"
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "IbX9K",
+                                  "name": "Dígito 6",
+                                  "width": 56,
+                                  "height": 62,
+                                  "fill": "$base",
+                                  "cornerRadius": 12,
+                                  "stroke": "#D6EAE7",
+                                  "strokeWidth": 1,
+                                  "justifyContent": "center",
+                                  "alignItems": "center"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "yR0lw",
+                              "name": "Temporizador",
+                              "gap": 7,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon",
+                                  "id": "Htmqr",
+                                  "name": "Icono Reloj",
+                                  "width": 15,
+                                  "height": 15,
+                                  "icon": "timer",
+                                  "library": "lucide",
+                                  "fill": "$navy-mid"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "bwTit",
+                                  "name": "Temporizador Texto",
+                                  "fill": "$navy-mid",
+                                  "content": "Nuevo código en 18 s",
+                                  "fontFamily": "$font-body",
+                                  "fontSize": 13,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "yc2jk",
+                      "name": "Acciones",
+                      "width": "fill_container",
+                      "gap": 16,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "D52iqu",
+                          "name": "Botón Más Tarde",
+                          "cornerRadius": 10,
+                          "stroke": "#CFE4E1",
+                          "strokeWidth": 1,
+                          "gap": 8,
+                          "padding": [
+                            14,
+                            20
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "KL8Gz",
+                              "name": "Acción Secundaria",
+                              "fill": "$navy-mid",
+                              "content": "Configurar más tarde",
+                              "fontFamily": "$font-body",
+                              "fontSize": 14,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "ux7tS",
+                          "name": "Botón Confirmar",
+                          "fill": "$primary",
+                          "cornerRadius": 10,
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "#15989552",
+                            "offset": {
+                              "x": 0,
+                              "y": 6
+                            },
+                            "blur": 16,
+                            "spread": -4
+                          },
+                          "gap": 9,
+                          "padding": [
+                            14,
+                            26
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "JEMIW",
+                              "name": "Botón Texto",
+                              "fill": "$base",
+                              "content": "Confirmar y activar",
+                              "fontFamily": "$font-body",
+                              "fontSize": 15,
+                              "fontWeight": "600"
+                            },
+                            {
+                              "type": "icon",
+                              "id": "oKIZF",
+                              "name": "Botón Icono",
+                              "width": 17,
+                              "height": 17,
+                              "icon": "arrow-right",
+                              "library": "lucide",
+                              "fill": "$base"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "wjVOC",
+          "name": "Línea Pie",
+          "fill": "#E3EEEC",
+          "width": "fill_container",
+          "height": 1
+        },
+        {
+          "type": "frame",
+          "id": "MMg2q",
+          "name": "Pie",
+          "width": "fill_container",
+          "gap": 8,
+          "padding": [
+            18,
+            48
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "OenBn",
+              "name": "Pie Texto",
+              "opacity": 0.85,
+              "fill": "$navy-mid",
+              "content": "Kairos · Sistema de control de jornada y gestión de personas",
+              "fontFamily": "$font-body",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "primary": {
+      "type": "color",
+      "value": "#159895"
+    },
+    "primary-light": {
+      "type": "color",
+      "value": "#57C5B6"
+    },
+    "base": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "surface": {
+      "type": "color",
+      "value": "#EEF8F7"
+    },
+    "navy": {
+      "type": "color",
+      "value": "#002B5B"
+    },
+    "navy-mid": {
+      "type": "color",
+      "value": "#1A5F7A"
+    },
+    "gold": {
+      "type": "color",
+      "value": "#AD9551"
+    },
+    "font-title": {
+      "type": "string",
+      "value": "Playfair Display"
+    },
+    "font-body": {
+      "type": "string",
+      "value": "Inter"
+    }
+  },
+  "fileToken": "9e466444-1803-420c-80a9-48e6d7ff5f44"
+}

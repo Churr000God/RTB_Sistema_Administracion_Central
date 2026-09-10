@@ -1,0 +1,742 @@
+{
+  "version": "2.17",
+  "children": [
+    {
+      "type": "frame",
+      "id": "BA5u3",
+      "x": 0,
+      "y": 0,
+      "name": "Error Credenciales Kairos",
+      "clip": true,
+      "width": 1440,
+      "height": 960,
+      "fill": "$blanco",
+      "children": [
+        {
+          "type": "frame",
+          "id": "CDqd7",
+          "name": "Panel Izquierdo",
+          "clip": true,
+          "width": 600,
+          "height": "fill_container",
+          "fill": {
+            "type": "gradient",
+            "gradientType": "linear",
+            "enabled": true,
+            "rotation": 200,
+            "size": {
+              "height": 1
+            },
+            "colors": [
+              {
+                "color": "$navy",
+                "position": 0
+              },
+              {
+                "color": "#0B4A6F",
+                "position": 0.42
+              },
+              {
+                "color": "$teal",
+                "position": 0.76
+              },
+              {
+                "color": "$teal-claro",
+                "position": 1
+              }
+            ]
+          },
+          "layout": "vertical",
+          "padding": [
+            56,
+            56,
+            48,
+            64
+          ],
+          "justifyContent": "space_between",
+          "children": [
+            {
+              "type": "frame",
+              "id": "i0hYpK",
+              "name": "Logotipo",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "MfN6r",
+                  "name": "Marco Icono",
+                  "width": 40,
+                  "height": 40,
+                  "fill": "#FFFFFF1F",
+                  "cornerRadius": 12,
+                  "stroke": "#FFFFFF33",
+                  "strokeWidth": 1,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "EzBgM",
+                      "name": "Icono Reloj",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "clock-8",
+                      "library": "lucide",
+                      "fill": "$blanco"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "w8eBB",
+                  "name": "Nombre Marca",
+                  "fill": "$blanco",
+                  "content": "Kairos",
+                  "fontFamily": "$font-titulo",
+                  "fontSize": 26,
+                  "fontWeight": "700",
+                  "letterSpacing": 1.2
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Wi7eX",
+              "name": "Mensaje",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 18,
+              "padding": [
+                40,
+                0,
+                32,
+                0
+              ],
+              "children": [
+                {
+                  "type": "text",
+                  "id": "E2dDm1",
+                  "name": "Titular",
+                  "fill": "$blanco",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "No pudimos verificar tu acceso.",
+                  "lineHeight": 1.12,
+                  "fontFamily": "$font-titulo",
+                  "fontSize": 54,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "WqA4k",
+                  "name": "Bajada",
+                  "fill": "#DDF3F1",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Revisa tu correo corporativo y tu contraseña antes de volver a intentarlo. Tras cinco intentos fallidos la cuenta se bloquea de forma temporal por seguridad.",
+                  "lineHeight": 1.65,
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "Vs4Ad",
+                  "name": "Contenedor Regla",
+                  "width": "fill_container",
+                  "padding": [
+                    14,
+                    0,
+                    0,
+                    0
+                  ],
+                  "children": [
+                    {
+                      "type": "rectangle",
+                      "cornerRadius": 2,
+                      "id": "xRB1F",
+                      "name": "Regla Oro",
+                      "fill": "$oro",
+                      "width": 88,
+                      "height": 2
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "WWekj",
+              "name": "Pie Panel",
+              "width": "fill_container",
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "KJvZV",
+                  "name": "Pie Empresa",
+                  "fill": "#CFEAE8",
+                  "content": "Distribuidora Central, S.A. de C.V.",
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 12,
+                  "fontWeight": "normal",
+                  "letterSpacing": 0.4
+                },
+                {
+                  "type": "ellipse",
+                  "id": "VTkwC",
+                  "name": "Punto Pie",
+                  "fill": "#8FCFC9",
+                  "width": 3,
+                  "height": 3
+                },
+                {
+                  "type": "text",
+                  "id": "DEm5x",
+                  "name": "Pie Version",
+                  "fill": "#A9DCD7",
+                  "content": "v1.0",
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 12,
+                  "fontWeight": "normal",
+                  "letterSpacing": 0.4
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "nTjUe",
+          "name": "Panel Derecho",
+          "clip": true,
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$blanco",
+          "layout": "vertical",
+          "padding": [
+            56,
+            64
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "NqP62",
+              "name": "Tarjeta Acceso",
+              "width": 472,
+              "fill": "$superficie",
+              "cornerRadius": 18,
+              "stroke": "$borde",
+              "strokeWidth": 1,
+              "effect": [
+                {
+                  "type": "shadow",
+                  "shadowType": "outer",
+                  "color": "#002B5B14",
+                  "offset": {
+                    "x": 0,
+                    "y": 18
+                  },
+                  "blur": 48,
+                  "spread": -12
+                },
+                {
+                  "type": "shadow",
+                  "shadowType": "outer",
+                  "color": "#002B5B0D",
+                  "offset": {
+                    "x": 0,
+                    "y": 2
+                  },
+                  "blur": 6,
+                  "spread": -2
+                }
+              ],
+              "layout": "vertical",
+              "gap": 26,
+              "padding": [
+                44,
+                44,
+                36,
+                44
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "CWlba",
+                  "name": "Encabezado",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "uTley",
+                      "name": "Titulo",
+                      "fill": "$navy",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Iniciar sesión",
+                      "lineHeight": 1.15,
+                      "fontFamily": "$font-titulo",
+                      "fontSize": 36,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "W5yUD",
+                      "name": "Subtitulo",
+                      "fill": "$navy-medio",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Accede con tu correo corporativo.",
+                      "lineHeight": 1.5,
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "B5r4S",
+                  "name": "Alerta Credenciales",
+                  "width": "fill_container",
+                  "fill": "$error-suave",
+                  "cornerRadius": 12,
+                  "stroke": "$error-borde",
+                  "strokeWidth": 1,
+                  "gap": 12,
+                  "padding": [
+                    14,
+                    16
+                  ],
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "HjsK3",
+                      "name": "Icono Alerta",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "circle-alert",
+                      "library": "lucide",
+                      "fill": "$error"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Covjd",
+                      "name": "Texto Alerta",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 6,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "AbgQl",
+                          "name": "Titulo Alerta",
+                          "fill": "$error",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Credenciales inválidas",
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 14,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "text",
+                          "id": "E5UD88",
+                          "name": "Detalle Alerta",
+                          "fill": "#7B3A36",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "El correo o la contraseña no coinciden. Verifica los datos e inténtalo de nuevo.",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "rectangle",
+                          "id": "XbVhn",
+                          "name": "Separador Alerta",
+                          "fill": "#EBD3D0",
+                          "width": "fill_container",
+                          "height": 1
+                        },
+                        {
+                          "type": "text",
+                          "id": "fF1pu",
+                          "name": "Intentos Alerta",
+                          "fill": "#9A6360",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Te quedan 4 intentos antes de bloquear la cuenta por 15 minutos.",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "nMvLq",
+                  "name": "Campos",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 20,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "DzRCX",
+                      "name": "Campo Correo",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 8,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "CKHTf",
+                          "name": "Etiqueta Correo",
+                          "fill": "$navy-medio",
+                          "content": "Correo electrónico",
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 13,
+                          "fontWeight": "500",
+                          "letterSpacing": 0.2
+                        },
+                        {
+                          "type": "frame",
+                          "id": "gzaYA",
+                          "name": "Entrada Correo",
+                          "width": "fill_container",
+                          "fill": "$campo-fondo",
+                          "cornerRadius": 11,
+                          "stroke": "$borde",
+                          "strokeWidth": 1,
+                          "gap": 12,
+                          "padding": [
+                            15,
+                            16
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "m24PRy",
+                              "name": "Icono Correo",
+                              "width": 18,
+                              "height": 18,
+                              "icon": "mail",
+                              "library": "lucide",
+                              "fill": "$teal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "U0eMC",
+                              "name": "Valor Correo",
+                              "fill": "$navy",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "m.rivas@distribuidoracentral.mx",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ezpp4",
+                      "name": "Campo Contrasena",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 8,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "s0QoL",
+                          "name": "Fila Etiqueta Contrasena",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "NhCI1",
+                              "name": "Etiqueta Contrasena",
+                              "fill": "$navy-medio",
+                              "content": "Contraseña",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 13,
+                              "fontWeight": "500",
+                              "letterSpacing": 0.2
+                            },
+                            {
+                              "type": "text",
+                              "id": "M2s7Q6",
+                              "name": "Enlace Olvido",
+                              "fill": "$teal",
+                              "content": "¿Olvidaste tu contraseña?",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "IbD8O",
+                          "name": "Entrada Contrasena",
+                          "width": "fill_container",
+                          "fill": "#FEFAFA",
+                          "cornerRadius": 11,
+                          "stroke": "$error",
+                          "strokeWidth": 1.5,
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "#A8322D1F",
+                            "spread": 3
+                          },
+                          "gap": 12,
+                          "padding": [
+                            15,
+                            16
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "ADoQT",
+                              "name": "Icono Contrasena",
+                              "width": 18,
+                              "height": 18,
+                              "icon": "lock",
+                              "library": "lucide",
+                              "fill": "$error"
+                            },
+                            {
+                              "type": "text",
+                              "id": "t66sv",
+                              "name": "Valor Contrasena",
+                              "fill": "$texto-tenue",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "Escribe tu contraseña",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "icon",
+                              "id": "xXIAy",
+                              "name": "Icono Ver",
+                              "width": 18,
+                              "height": 18,
+                              "icon": "eye",
+                              "library": "lucide",
+                              "fill": "$navy-medio"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "qGXdP",
+                          "name": "Ayuda Contrasena",
+                          "width": "fill_container",
+                          "gap": 6,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "c4exJ",
+                              "name": "Icono Ayuda Contrasena",
+                              "width": 14,
+                              "height": 14,
+                              "icon": "info",
+                              "library": "lucide",
+                              "fill": "#8B4A46"
+                            },
+                            {
+                              "type": "text",
+                              "id": "yWBuN",
+                              "name": "Texto Ayuda Contrasena",
+                              "fill": "#8B4A46",
+                              "content": "Distingue mayúsculas y minúsculas.",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "O5O1G",
+                  "name": "Boton Reintentar",
+                  "width": "fill_container",
+                  "fill": "$teal",
+                  "cornerRadius": 11,
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "#15989547",
+                    "offset": {
+                      "x": 0,
+                      "y": 8
+                    },
+                    "blur": 20,
+                    "spread": -6
+                  },
+                  "gap": 10,
+                  "padding": [
+                    17,
+                    24
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "VSFMG",
+                      "name": "Texto Boton",
+                      "fill": "$blanco",
+                      "content": "Reintentar acceso",
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 15,
+                      "fontWeight": "600",
+                      "letterSpacing": 0.2
+                    },
+                    {
+                      "type": "icon",
+                      "id": "tL54s",
+                      "name": "Icono Flecha",
+                      "width": 18,
+                      "height": 18,
+                      "icon": "arrow-right",
+                      "library": "lucide",
+                      "fill": "$blanco"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "uJ7hN",
+                  "name": "Ayuda",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "rectangle",
+                      "id": "RDd9b",
+                      "name": "Separador",
+                      "fill": "#DDEFED",
+                      "width": "fill_container",
+                      "height": 1
+                    },
+                    {
+                      "type": "text",
+                      "id": "utROC",
+                      "name": "Texto Ayuda",
+                      "fill": "$navy-medio",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "¿Sigues sin poder entrar? Escribe a Recursos Humanos.",
+                      "lineHeight": 1.5,
+                      "textAlign": "center",
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "teal": {
+      "type": "color",
+      "value": "#159895"
+    },
+    "teal-claro": {
+      "type": "color",
+      "value": "#57C5B6"
+    },
+    "blanco": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "superficie": {
+      "type": "color",
+      "value": "#EEF8F7"
+    },
+    "navy": {
+      "type": "color",
+      "value": "#002B5B"
+    },
+    "navy-medio": {
+      "type": "color",
+      "value": "#1A5F7A"
+    },
+    "oro": {
+      "type": "color",
+      "value": "#AD9551"
+    },
+    "borde": {
+      "type": "color",
+      "value": "#D3E7E5"
+    },
+    "error": {
+      "type": "color",
+      "value": "#A8322D"
+    },
+    "error-suave": {
+      "type": "color",
+      "value": "#FCF2F1"
+    },
+    "error-borde": {
+      "type": "color",
+      "value": "#EFCFCB"
+    },
+    "font-titulo": {
+      "type": "string",
+      "value": "Playfair Display"
+    },
+    "font-cuerpo": {
+      "type": "string",
+      "value": "Inter"
+    },
+    "radio-tarjeta": {
+      "type": "number",
+      "value": 14
+    },
+    "campo-fondo": {
+      "type": "color",
+      "value": "#F6FBFA"
+    },
+    "texto-tenue": {
+      "type": "color",
+      "value": "#7FA0AE"
+    }
+  },
+  "fileToken": "7339c0a2-4229-4cc4-808d-95db4e6d6052"
+}

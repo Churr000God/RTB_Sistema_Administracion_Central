@@ -1,0 +1,37 @@
+# SCJ — producción. Override de docker-compose.yml: imágenes multi-stage sin
+# hot reload, frontend compilado y servido por nginx.
+#
+# Uso: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# (o ./scripts/desplegar.sh prod levantar)
+#
+# Las VITE_* son de BUILD -- se pasan como build.args, no como env_file. Si
+# cambian, hay que reconstruir la imagen (--build), reiniciar el contenedor no
+# basta. FRONTEND_URL en .env debe apuntar al puerto público del frontend
+# (8080 por defecto aquí) y coincidir con la lista de Redirect URLs del
+# dashboard de Supabase -- si no coinciden, el link de invitación/recuperación
+# de contraseña no aterriza en la app.
+
+services:
+  backend:
+    build:
+      context: ./backend
+      target: prod
+    volumes: !reset []
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      target: prod
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_CONTACTO_RH_CORREO: ${VITE_CONTACTO_RH_CORREO}
+        VITE_CONTACTO_SISTEMAS_CORREO: ${VITE_CONTACTO_SISTEMAS_CORREO}
+        VITE_CONTACTO_ADMINISTRACION_CORREO: ${VITE_CONTACTO_ADMINISTRACION_CORREO}
+        VITE_CONTACTO_DIRECCION_CORREO: ${VITE_CONTACTO_DIRECCION_CORREO}
+    ports: !override
+      - "8080:80"
+    volumes: !reset []
+    restart: unless-stopped

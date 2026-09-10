@@ -1,0 +1,864 @@
+{
+  "version": "2.17",
+  "children": [
+    {
+      "type": "frame",
+      "id": "WPxSt",
+      "x": 0,
+      "y": 0,
+      "name": "Verificar TOTP Kairos",
+      "clip": true,
+      "width": 1440,
+      "height": 1000,
+      "fill": "$blanco",
+      "children": [
+        {
+          "type": "frame",
+          "id": "x4prgE",
+          "name": "Panel Izquierdo",
+          "clip": true,
+          "width": 610,
+          "height": "fill_container",
+          "fill": {
+            "type": "gradient",
+            "gradientType": "linear",
+            "enabled": true,
+            "rotation": 150,
+            "size": {
+              "height": 1.25
+            },
+            "colors": [
+              {
+                "color": "$navy",
+                "position": 0
+              },
+              {
+                "color": "$navy-medio",
+                "position": 0.38
+              },
+              {
+                "color": "$teal",
+                "position": 0.72
+              },
+              {
+                "color": "$teal-claro",
+                "position": 1
+              }
+            ]
+          },
+          "layout": "vertical",
+          "gap": 40,
+          "padding": 56,
+          "justifyContent": "space_between",
+          "children": [
+            {
+              "type": "frame",
+              "id": "RGEHj",
+              "name": "Logotipo",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "AHdXc",
+                  "name": "Marco Icono",
+                  "width": 42,
+                  "height": 42,
+                  "fill": "#FFFFFF1F",
+                  "cornerRadius": 12,
+                  "stroke": "#FFFFFF3D",
+                  "strokeWidth": 1,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "I2cy5x",
+                      "name": "Icono Reloj",
+                      "width": 21,
+                      "height": 21,
+                      "icon": "clock-8",
+                      "library": "lucide",
+                      "fill": "$blanco"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "zZqDT",
+                  "name": "Nombre Marca",
+                  "fill": "$blanco",
+                  "content": "Kairos",
+                  "fontFamily": "$font-titulo",
+                  "fontSize": 27,
+                  "fontWeight": "700",
+                  "letterSpacing": 0.6
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "YnhWH",
+              "name": "Mensaje",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 26,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "l4eWz",
+                  "name": "Titular",
+                  "fill": "$blanco",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Un paso más para proteger tu jornada",
+                  "lineHeight": 1.14,
+                  "fontFamily": "$font-titulo",
+                  "fontSize": 54,
+                  "fontWeight": "600",
+                  "letterSpacing": -0.6
+                },
+                {
+                  "type": "rectangle",
+                  "id": "OHTTH",
+                  "name": "Regla Oro",
+                  "fill": "$oro",
+                  "width": 72,
+                  "height": 2
+                },
+                {
+                  "type": "text",
+                  "id": "hSDqi",
+                  "name": "Bajada",
+                  "fill": "#E4F4F2",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "La verificación en dos pasos confirma que eres tú antes de abrir el control de jornada. El código vive sólo 30 segundos en tu app autenticadora.",
+                  "lineHeight": 1.65,
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "O8BXS",
+              "name": "Pie Pagina",
+              "width": "fill_container",
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Th8NE",
+                  "name": "Pie Empresa",
+                  "fill": "#BFE4E0",
+                  "content": "Distribuidora Central, S.A. de C.V.",
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 12,
+                  "fontWeight": "normal",
+                  "letterSpacing": 0.4
+                },
+                {
+                  "type": "text",
+                  "id": "K2hjJN",
+                  "name": "Separador Pie",
+                  "fill": "#8FCCC6",
+                  "content": "·",
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "KSsOF",
+                  "name": "Pie Version",
+                  "fill": "#BFE4E0",
+                  "content": "v1.0",
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 12,
+                  "fontWeight": "normal",
+                  "letterSpacing": 0.4
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Kj2Aj",
+          "name": "Panel Derecho",
+          "clip": true,
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$blanco",
+          "padding": [
+            56,
+            72
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "gHDlh",
+              "name": "Tarjeta Verificacion",
+              "width": 520,
+              "fill": "$superficie",
+              "cornerRadius": 20,
+              "stroke": "#DDEFED",
+              "strokeWidth": 1,
+              "effect": [
+                {
+                  "type": "shadow",
+                  "shadowType": "outer",
+                  "color": "#002B5B14",
+                  "offset": {
+                    "x": 0,
+                    "y": 18
+                  },
+                  "blur": 44,
+                  "spread": -12
+                },
+                {
+                  "type": "shadow",
+                  "shadowType": "outer",
+                  "color": "#002B5B0A",
+                  "offset": {
+                    "x": 0,
+                    "y": 2
+                  },
+                  "blur": 6,
+                  "spread": -2
+                }
+              ],
+              "layout": "vertical",
+              "gap": 28,
+              "padding": [
+                44,
+                44,
+                36,
+                44
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "vcX92",
+                  "name": "Encabezado",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "ta0WW",
+                      "name": "Sello Escudo",
+                      "width": 48,
+                      "height": 48,
+                      "fill": {
+                        "type": "gradient",
+                        "gradientType": "linear",
+                        "enabled": true,
+                        "rotation": 120,
+                        "size": {
+                          "height": 1
+                        },
+                        "colors": [
+                          {
+                            "color": "$teal",
+                            "position": 0
+                          },
+                          {
+                            "color": "$teal-claro",
+                            "position": 1
+                          }
+                        ]
+                      },
+                      "cornerRadius": 14,
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "#15989540",
+                        "offset": {
+                          "x": 0,
+                          "y": 6
+                        },
+                        "blur": 14,
+                        "spread": -4
+                      },
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "Sj57g",
+                          "name": "Icono Escudo",
+                          "width": 23,
+                          "height": 23,
+                          "icon": "shield-check",
+                          "library": "lucide",
+                          "fill": "$blanco"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "D3HMg",
+                      "name": "Titulo",
+                      "fill": "$navy",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Verificación en dos pasos",
+                      "lineHeight": 1.1,
+                      "fontFamily": "$font-titulo",
+                      "fontSize": 35,
+                      "fontWeight": "600",
+                      "letterSpacing": -0.3
+                    },
+                    {
+                      "type": "text",
+                      "id": "f6gYv",
+                      "name": "Subtitulo",
+                      "fill": "$navy-medio",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Abre tu app autenticadora e ingresa el código de 6 dígitos que aparece para Kairos.",
+                      "lineHeight": 1.6,
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Cxqfa",
+                  "name": "Cuenta",
+                  "width": "fill_container",
+                  "fill": "$superficie",
+                  "cornerRadius": 999,
+                  "stroke": "#DCEEEC",
+                  "strokeWidth": 1,
+                  "gap": 9,
+                  "padding": [
+                    9,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "DhVuw",
+                      "name": "Icono Usuario",
+                      "width": 16,
+                      "height": 16,
+                      "icon": "user-round",
+                      "library": "lucide",
+                      "fill": "$teal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "pNqq4",
+                      "name": "Correo Cuenta",
+                      "fill": "$navy",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "nombre@distribuidoracentral.mx",
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "LBwtR",
+                      "name": "Enlace Cambiar",
+                      "fill": "$teal",
+                      "content": "Cambiar",
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 12,
+                      "fontWeight": "600",
+                      "letterSpacing": 0.2
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "ATzd3",
+                  "name": "Campo Codigo",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "iuTTc",
+                      "name": "Etiqueta Codigo",
+                      "fill": "$navy-medio",
+                      "content": "CÓDIGO DE VERIFICACIÓN",
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 12,
+                      "fontWeight": "600",
+                      "letterSpacing": 1.2
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Bd0c2",
+                      "name": "Digitos",
+                      "width": "fill_container",
+                      "gap": 10,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "p4Qko",
+                          "name": "Digito 1",
+                          "width": "fill_container",
+                          "height": 66,
+                          "fill": "$blanco",
+                          "cornerRadius": 12,
+                          "stroke": "#A8D4D0",
+                          "strokeWidth": 1,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "cs36W",
+                              "name": "Valor 1",
+                              "fill": "$navy",
+                              "content": "4",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 28,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "C46wgY",
+                          "name": "Digito 2",
+                          "width": "fill_container",
+                          "height": 66,
+                          "fill": "$blanco",
+                          "cornerRadius": 12,
+                          "stroke": "#A8D4D0",
+                          "strokeWidth": 1,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "OxeMp",
+                              "name": "Valor 2",
+                              "fill": "$navy",
+                              "content": "8",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 28,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "N8GvTo",
+                          "name": "Digito 3",
+                          "width": "fill_container",
+                          "height": 66,
+                          "fill": "$blanco",
+                          "cornerRadius": 12,
+                          "stroke": "#A8D4D0",
+                          "strokeWidth": 1,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "YW6Lx",
+                              "name": "Valor 3",
+                              "fill": "$navy",
+                              "content": "2",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 28,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "BnBWF",
+                          "name": "Digito 4",
+                          "width": "fill_container",
+                          "height": 66,
+                          "fill": "$blanco",
+                          "cornerRadius": 12,
+                          "stroke": "$teal",
+                          "strokeWidth": 2,
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "#1598953D",
+                            "blur": 2,
+                            "spread": 4
+                          },
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "rectangle",
+                              "id": "OdWBW",
+                              "name": "Cursor",
+                              "fill": "$teal",
+                              "width": 2,
+                              "height": 28
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "iFrwe",
+                          "name": "Digito 5",
+                          "width": "fill_container",
+                          "height": 66,
+                          "fill": "$superficie",
+                          "cornerRadius": 12,
+                          "stroke": "#DCEEEC",
+                          "strokeWidth": 1,
+                          "justifyContent": "center",
+                          "alignItems": "center"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "lXatZ",
+                          "name": "Digito 6",
+                          "width": "fill_container",
+                          "height": 66,
+                          "fill": "$superficie",
+                          "cornerRadius": 12,
+                          "stroke": "#DCEEEC",
+                          "strokeWidth": 1,
+                          "justifyContent": "center",
+                          "alignItems": "center"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "o5nul2",
+                  "name": "Temporizador",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "s3ksxj",
+                      "name": "Fila Tiempo",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "KmT8o",
+                          "name": "Etiqueta Tiempo",
+                          "gap": 7,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "P5u7CF",
+                              "name": "Icono Temporizador",
+                              "width": 15,
+                              "height": 15,
+                              "icon": "timer",
+                              "library": "lucide",
+                              "fill": "$teal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "CoD4w",
+                              "name": "Texto Expira",
+                              "fill": "$navy-medio",
+                              "content": "El código expira en",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "ZO0zG",
+                          "name": "Cuenta Regresiva",
+                          "fill": "$navy",
+                          "content": "00:24",
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 13,
+                          "fontWeight": "700",
+                          "letterSpacing": 0.6
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "AKcN2",
+                      "name": "Barra",
+                      "clip": true,
+                      "width": "fill_container",
+                      "height": 6,
+                      "fill": "#DCEEEC",
+                      "cornerRadius": 3,
+                      "children": [
+                        {
+                          "type": "rectangle",
+                          "cornerRadius": 3,
+                          "id": "efbWU",
+                          "name": "Progreso",
+                          "fill": {
+                            "type": "gradient",
+                            "gradientType": "linear",
+                            "enabled": true,
+                            "rotation": 90,
+                            "size": {
+                              "height": 1
+                            },
+                            "colors": [
+                              {
+                                "color": "$teal",
+                                "position": 0
+                              },
+                              {
+                                "color": "$teal-claro",
+                                "position": 1
+                              }
+                            ]
+                          },
+                          "width": 330,
+                          "height": "fill_container"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "Leioa",
+                      "name": "Nota Codigo",
+                      "fill": "#4E7F92",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "El código cambia cada 30 segundos.",
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "ugxlq",
+                  "name": "Recordar Dispositivo",
+                  "width": "fill_container",
+                  "gap": 11,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "P5H4LK",
+                      "name": "Casilla",
+                      "width": 20,
+                      "height": 20,
+                      "fill": "$teal",
+                      "cornerRadius": 6,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "JO29S",
+                          "name": "Icono Check",
+                          "width": 13,
+                          "height": 13,
+                          "icon": "check",
+                          "library": "lucide",
+                          "fill": "$blanco"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "w2dZ8O",
+                      "name": "Texto Recordar",
+                      "fill": "$navy-medio",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Confiar en este equipo por 30 días",
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Ppe9K",
+                  "name": "Boton Verificar",
+                  "width": "fill_container",
+                  "fill": "$teal",
+                  "cornerRadius": 12,
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "#15989566",
+                    "offset": {
+                      "x": 0,
+                      "y": 8
+                    },
+                    "blur": 20,
+                    "spread": -6
+                  },
+                  "gap": 10,
+                  "padding": [
+                    17,
+                    24
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "DUqKe",
+                      "name": "Texto Boton",
+                      "fill": "$blanco",
+                      "content": "Verificar",
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 15,
+                      "fontWeight": "600",
+                      "letterSpacing": 0.3
+                    },
+                    {
+                      "type": "icon",
+                      "id": "hYqpy",
+                      "name": "Icono Flecha",
+                      "width": 18,
+                      "height": 18,
+                      "icon": "arrow-right",
+                      "library": "lucide",
+                      "fill": "$blanco"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "j8MYd3",
+                  "name": "Ayuda",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "rectangle",
+                      "id": "McpqT",
+                      "name": "Separador",
+                      "fill": "#E6F2F1",
+                      "width": "fill_container",
+                      "height": 1
+                    },
+                    {
+                      "type": "text",
+                      "id": "LT66S",
+                      "name": "Enlace Respaldo",
+                      "fill": "$teal",
+                      "content": "Usar un código de respaldo",
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "IbFQY",
+                      "name": "Volver",
+                      "gap": 6,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "qT8qf",
+                          "name": "Icono Volver",
+                          "width": 14,
+                          "height": 14,
+                          "icon": "arrow-left",
+                          "library": "lucide",
+                          "fill": "$navy-medio"
+                        },
+                        {
+                          "type": "text",
+                          "id": "uzRja",
+                          "name": "Texto Volver",
+                          "fill": "$navy-medio",
+                          "content": "Volver al inicio de sesión",
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "teal": {
+      "type": "color",
+      "value": "#159895"
+    },
+    "teal-claro": {
+      "type": "color",
+      "value": "#57C5B6"
+    },
+    "blanco": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "superficie": {
+      "type": "color",
+      "value": "#EEF8F7"
+    },
+    "navy": {
+      "type": "color",
+      "value": "#002B5B"
+    },
+    "navy-medio": {
+      "type": "color",
+      "value": "#1A5F7A"
+    },
+    "oro": {
+      "type": "color",
+      "value": "#AD9551"
+    },
+    "borde": {
+      "type": "color",
+      "value": "#D3E7E5"
+    },
+    "font-titulo": {
+      "type": "string",
+      "value": "Playfair Display"
+    },
+    "font-cuerpo": {
+      "type": "string",
+      "value": "Inter"
+    },
+    "radio-tarjeta": {
+      "type": "number",
+      "value": 14
+    }
+  },
+  "fileToken": "34b61887-ff4b-4d40-b0fb-038945a679b0"
+}

@@ -1,0 +1,1137 @@
+{
+  "version": "2.17",
+  "children": [
+    {
+      "type": "frame",
+      "id": "hTx4C",
+      "x": 0,
+      "y": 0,
+      "name": "Completar Invitacion Kairos",
+      "clip": true,
+      "width": 1440,
+      "height": 1080,
+      "fill": "$blanco",
+      "children": [
+        {
+          "type": "frame",
+          "id": "aTXvx",
+          "name": "Panel Izquierdo",
+          "clip": true,
+          "width": 620,
+          "height": "fill_container",
+          "fill": {
+            "type": "gradient",
+            "gradientType": "linear",
+            "enabled": true,
+            "rotation": 158,
+            "size": {
+              "height": 1.15
+            },
+            "colors": [
+              {
+                "color": "$navy",
+                "position": 0
+              },
+              {
+                "color": "$teal",
+                "position": 0.6
+              },
+              {
+                "color": "$teal-claro",
+                "position": 1
+              }
+            ]
+          },
+          "layout": "vertical",
+          "gap": 40,
+          "padding": 56,
+          "justifyContent": "space_between",
+          "children": [
+            {
+              "type": "frame",
+              "id": "Fj5vO",
+              "name": "Bloque Marca",
+              "width": "fill_container",
+              "layout": "vertical",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "JhWOG",
+                  "name": "Logotipo",
+                  "gap": 12,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "tQXoY",
+                      "name": "Marco Icono",
+                      "width": 40,
+                      "height": 40,
+                      "fill": "#FFFFFF24",
+                      "cornerRadius": 12,
+                      "stroke": "#FFFFFF4D",
+                      "strokeWidth": 1,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "h5JPp",
+                          "name": "Icono Reloj",
+                          "width": 21,
+                          "height": 21,
+                          "icon": "clock-8",
+                          "library": "lucide",
+                          "fill": "$blanco"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "dml98",
+                      "name": "Nombre Marca",
+                      "fill": "$blanco",
+                      "content": "Kairos",
+                      "fontFamily": "$font-titulo",
+                      "fontSize": 28,
+                      "fontWeight": "700",
+                      "letterSpacing": 0.5
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "myUWy",
+              "name": "Bloque Discurso",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 26,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "ZrETr",
+                  "name": "Discurso",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 22,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "uzJdH",
+                      "name": "Titular",
+                      "fill": "$blanco",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Tu jornada en Kairos empieza aquí.",
+                      "lineHeight": 1.12,
+                      "fontFamily": "$font-titulo",
+                      "fontSize": 46,
+                      "fontWeight": "600",
+                      "letterSpacing": -0.6
+                    },
+                    {
+                      "type": "text",
+                      "id": "YpTLA",
+                      "name": "Bajada",
+                      "fill": "#D9F1EE",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Distribuidora Central te dio de alta. Define tu contraseña para activar la cuenta y empezar a registrar tus marcas de entrada y salida.",
+                      "lineHeight": 1.65,
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "rectangle",
+                  "id": "srYwq",
+                  "name": "Regla Oro",
+                  "fill": "$oro",
+                  "width": 72,
+                  "height": 2
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "I2qXWa",
+              "name": "Pie",
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "I0FkKg",
+                  "name": "Pie Distribuidora Central, S.A. de C.V.",
+                  "fill": "#CFE9E5",
+                  "content": "Distribuidora Central, S.A. de C.V.",
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 11.5,
+                  "fontWeight": "normal",
+                  "letterSpacing": 0.6
+                },
+                {
+                  "type": "text",
+                  "id": "uQ6rQ",
+                  "name": "Punto",
+                  "fill": "#8FC7C2",
+                  "content": "·",
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 11.5,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "VxTsM",
+                  "name": "Pie v1.0",
+                  "fill": "#AFDCD7",
+                  "content": "v1.0",
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 11.5,
+                  "fontWeight": "normal",
+                  "letterSpacing": 0.6
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "he48u",
+          "name": "Panel Derecho",
+          "clip": true,
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$blanco",
+          "layout": "vertical",
+          "padding": [
+            56,
+            64
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "ka14O",
+              "name": "Tarjeta Invitacion",
+              "width": 560,
+              "fill": "$superficie",
+              "cornerRadius": 20,
+              "stroke": "#D3E7E5",
+              "strokeWidth": 1,
+              "effect": [
+                {
+                  "type": "shadow",
+                  "shadowType": "outer",
+                  "color": "#002B5B14",
+                  "offset": {
+                    "x": 0,
+                    "y": 18
+                  },
+                  "blur": 44,
+                  "spread": -12
+                },
+                {
+                  "type": "shadow",
+                  "shadowType": "outer",
+                  "color": "#002B5B0D",
+                  "offset": {
+                    "x": 0,
+                    "y": 2
+                  },
+                  "blur": 6,
+                  "spread": -2
+                }
+              ],
+              "layout": "vertical",
+              "gap": 20,
+              "padding": [
+                36,
+                44,
+                32,
+                44
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "QKzJi",
+                  "name": "Sello Invitacion",
+                  "fill": "#E7F5F4",
+                  "cornerRadius": 999,
+                  "stroke": "#C7E7E4",
+                  "strokeWidth": 1,
+                  "gap": 7,
+                  "padding": [
+                    6,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "be1cK",
+                      "name": "Icono Sobre",
+                      "width": 15,
+                      "height": 15,
+                      "icon": "mail-check",
+                      "library": "lucide",
+                      "fill": "$teal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "fkiTR",
+                      "name": "Texto Sello",
+                      "fill": "#0E7C7A",
+                      "content": "Invitación válida · expira en 48 h",
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 11.5,
+                      "fontWeight": "600",
+                      "letterSpacing": 0.3
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "OU05v",
+                  "name": "Bienvenida",
+                  "width": "fill_container",
+                  "gap": 13,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "PTQ6Q",
+                      "name": "Avatar",
+                      "width": 44,
+                      "height": 44,
+                      "fill": {
+                        "type": "gradient",
+                        "gradientType": "linear",
+                        "enabled": true,
+                        "rotation": 135,
+                        "size": {
+                          "height": 1
+                        },
+                        "colors": [
+                          {
+                            "color": "$teal",
+                            "position": 0
+                          },
+                          {
+                            "color": "$teal-claro",
+                            "position": 1
+                          }
+                        ]
+                      },
+                      "cornerRadius": 999,
+                      "stroke": "$blanco",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "yuQiL",
+                          "name": "Iniciales",
+                          "fill": "$blanco",
+                          "content": "MO",
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 15,
+                          "fontWeight": "600",
+                          "letterSpacing": 0.5
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "gURS8",
+                      "name": "Datos Persona",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 2,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "dCOMe",
+                          "name": "Saludo",
+                          "fill": "$navy",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Hola, María Fernanda",
+                          "lineHeight": 1.3,
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 15,
+                          "fontWeight": "600",
+                          "letterSpacing": 0.1
+                        },
+                        {
+                          "type": "text",
+                          "id": "u77Ox",
+                          "name": "Correo",
+                          "fill": "#5E8A99",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "mf.ortega@distribuidoracentral.mx",
+                          "lineHeight": 1.4,
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 12.5,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "rectangle",
+                  "id": "xV3cs",
+                  "name": "Divisor Identidad",
+                  "fill": "#E4F1EF",
+                  "width": "fill_container",
+                  "height": 1
+                },
+                {
+                  "type": "frame",
+                  "id": "vtYyC",
+                  "name": "Encabezado",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 9,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "dJMol",
+                      "name": "Titulo",
+                      "fill": "$navy",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Define tu contraseña",
+                      "lineHeight": 1.1,
+                      "fontFamily": "$font-titulo",
+                      "fontSize": 33,
+                      "fontWeight": "600",
+                      "letterSpacing": -0.3
+                    },
+                    {
+                      "type": "text",
+                      "id": "b5wrdl",
+                      "name": "Subtitulo",
+                      "fill": "#4E7E8F",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Es la contraseña con la que entrarás a Kairos. Sólo tú la conoces: nadie de Recursos Humanos puede verla.",
+                      "lineHeight": 1.6,
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 13.5,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Z4MVsC",
+                  "name": "Pasos",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "ZYZeR",
+                      "name": "Paso 1",
+                      "width": "fill_container",
+                      "fill": "#E7F5F4",
+                      "cornerRadius": 10,
+                      "stroke": "#C7E7E4",
+                      "strokeWidth": 1,
+                      "gap": 11,
+                      "padding": [
+                        8,
+                        11
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "wOlXw",
+                          "name": "Numero 1",
+                          "width": 25,
+                          "height": 25,
+                          "fill": "$teal",
+                          "cornerRadius": 999,
+                          "stroke": "#FFFFFF00",
+                          "strokeWidth": 1,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "b2EoL6",
+                              "name": "Cifra",
+                              "fill": "$blanco",
+                              "content": "1",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "L7R8H",
+                          "name": "Texto Paso",
+                          "fill": "$navy",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Define tu contraseña",
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 12.5,
+                          "fontWeight": "600",
+                          "letterSpacing": 0.1
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "sKcWq",
+                      "name": "Paso 2",
+                      "width": "fill_container",
+                      "fill": "#FFFFFF00",
+                      "cornerRadius": 10,
+                      "stroke": "#FFFFFF00",
+                      "strokeWidth": 1,
+                      "gap": 11,
+                      "padding": [
+                        8,
+                        11
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "YByTD",
+                          "name": "Numero 2",
+                          "width": 25,
+                          "height": 25,
+                          "fill": "#F2F9F8",
+                          "cornerRadius": 999,
+                          "stroke": "#D3E7E5",
+                          "strokeWidth": 1,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "z4SNK0",
+                              "name": "Cifra",
+                              "fill": "#7FA0AE",
+                              "content": "2",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "zDbq6",
+                          "name": "Texto Paso",
+                          "fill": "#7FA0AE",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Configura tu segundo factor",
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 12.5,
+                          "fontWeight": "normal",
+                          "letterSpacing": 0.1
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "O7d0j1",
+                      "name": "Paso 3",
+                      "width": "fill_container",
+                      "fill": "#FFFFFF00",
+                      "cornerRadius": 10,
+                      "stroke": "#FFFFFF00",
+                      "strokeWidth": 1,
+                      "gap": 11,
+                      "padding": [
+                        8,
+                        11
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "Z6lsxd",
+                          "name": "Numero 3",
+                          "width": 25,
+                          "height": 25,
+                          "fill": "#F2F9F8",
+                          "cornerRadius": 999,
+                          "stroke": "#D3E7E5",
+                          "strokeWidth": 1,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "leIV5",
+                              "name": "Cifra",
+                              "fill": "#7FA0AE",
+                              "content": "3",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "dMREU",
+                          "name": "Texto Paso",
+                          "fill": "#7FA0AE",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Registra tu primera marca",
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 12.5,
+                          "fontWeight": "normal",
+                          "letterSpacing": 0.1
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "U2l5K",
+                  "name": "Campos",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 20,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "cyXgF",
+                      "name": "Campo Nueva",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 9,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "WdObH",
+                          "name": "Etiqueta Nueva",
+                          "fill": "$navy",
+                          "content": "Nueva contraseña",
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 12.5,
+                          "fontWeight": "600",
+                          "letterSpacing": 0.2
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Q1CDh",
+                          "name": "Entrada Nueva",
+                          "width": "fill_container",
+                          "fill": "#FBFEFE",
+                          "cornerRadius": 11,
+                          "stroke": "$teal",
+                          "strokeWidth": 1.5,
+                          "effect": {
+                            "type": "shadow",
+                            "shadowType": "outer",
+                            "color": "#15989526",
+                            "spread": 3
+                          },
+                          "gap": 12,
+                          "padding": [
+                            13,
+                            15
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "mOM3a",
+                              "name": "Icono Nueva",
+                              "width": 18,
+                              "height": 18,
+                              "icon": "lock",
+                              "library": "lucide",
+                              "fill": "$teal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "UybQS",
+                              "name": "Valor Nueva",
+                              "fill": "$navy",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "••••••••••••",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 14.5,
+                              "fontWeight": "normal",
+                              "letterSpacing": 2
+                            },
+                            {
+                              "type": "icon",
+                              "id": "nURR6",
+                              "name": "Ojo Nueva",
+                              "width": 18,
+                              "height": 18,
+                              "icon": "eye",
+                              "library": "lucide",
+                              "fill": "#7FA0AE"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "Q508uc",
+                          "name": "Fuerza Contrasena",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 7,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "g7p1a",
+                              "name": "Cabecera Fuerza",
+                              "width": "fill_container",
+                              "justifyContent": "space_between",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "SK1N4",
+                                  "name": "Etiqueta Fuerza",
+                                  "fill": "#5E8A99",
+                                  "content": "Seguridad de la contraseña",
+                                  "fontFamily": "$font-cuerpo",
+                                  "fontSize": 11.5,
+                                  "fontWeight": "500"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "vnGUk",
+                                  "name": "Nivel Fuerza",
+                                  "fill": "$teal",
+                                  "content": "Fuerte",
+                                  "fontFamily": "$font-cuerpo",
+                                  "fontSize": 11.5,
+                                  "fontWeight": "600",
+                                  "letterSpacing": 0.3
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "C9lb9g",
+                              "name": "Barras Fuerza",
+                              "width": "fill_container",
+                              "gap": 5,
+                              "children": [
+                                {
+                                  "type": "rectangle",
+                                  "cornerRadius": 2,
+                                  "id": "jDzZU",
+                                  "name": "Barra 1",
+                                  "fill": "$teal",
+                                  "width": "fill_container",
+                                  "height": 4
+                                },
+                                {
+                                  "type": "rectangle",
+                                  "cornerRadius": 2,
+                                  "id": "LP5KB",
+                                  "name": "Barra 2",
+                                  "fill": "$teal",
+                                  "width": "fill_container",
+                                  "height": 4
+                                },
+                                {
+                                  "type": "rectangle",
+                                  "cornerRadius": 2,
+                                  "id": "C1Pk67",
+                                  "name": "Barra 3",
+                                  "fill": "$teal-claro",
+                                  "width": "fill_container",
+                                  "height": 4
+                                },
+                                {
+                                  "type": "rectangle",
+                                  "cornerRadius": 2,
+                                  "id": "S3pVvh",
+                                  "name": "Barra 4",
+                                  "fill": "#D3E7E5",
+                                  "width": "fill_container",
+                                  "height": 4
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "rOFlU",
+                      "name": "Campo Confirmar",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 9,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "uawmC",
+                          "name": "Etiqueta Confirmar",
+                          "fill": "$navy",
+                          "content": "Confirmar contraseña",
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 12.5,
+                          "fontWeight": "600",
+                          "letterSpacing": 0.2
+                        },
+                        {
+                          "type": "frame",
+                          "id": "o0BpL",
+                          "name": "Entrada Confirmar",
+                          "width": "fill_container",
+                          "fill": "#F7FBFB",
+                          "cornerRadius": 11,
+                          "stroke": "#D3E7E5",
+                          "strokeWidth": 1,
+                          "gap": 12,
+                          "padding": [
+                            13,
+                            15
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "Z739c",
+                              "name": "Icono Confirmar",
+                              "width": 18,
+                              "height": 18,
+                              "icon": "lock",
+                              "library": "lucide",
+                              "fill": "$teal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "Zn7uo",
+                              "name": "Valor Confirmar",
+                              "fill": "$navy",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "••••••••••••",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 14.5,
+                              "fontWeight": "normal",
+                              "letterSpacing": 2
+                            },
+                            {
+                              "type": "icon",
+                              "id": "RI5Lf",
+                              "name": "Ojo Confirmar",
+                              "width": 18,
+                              "height": 18,
+                              "icon": "eye-off",
+                              "library": "lucide",
+                              "fill": "#7FA0AE"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "vRTXZ",
+                  "name": "Requisitos",
+                  "width": "fill_container",
+                  "fill": "#FFFFFF00",
+                  "stroke": "#FFFFFF00",
+                  "layout": "vertical",
+                  "gap": 9,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "v2uuh",
+                      "name": "Requisito Al menos 12 caracteres",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "e4BytF",
+                          "name": "Icono Requisito",
+                          "width": 15,
+                          "height": 15,
+                          "icon": "circle-check",
+                          "library": "lucide",
+                          "fill": "$teal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "jwBAz",
+                          "name": "Texto Requisito",
+                          "fill": "#4E7E8F",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Al menos 12 caracteres",
+                          "lineHeight": 1.35,
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "C2MQ2",
+                      "name": "Requisito Una mayúscula y una minúscula",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "xAstc",
+                          "name": "Icono Requisito",
+                          "width": 15,
+                          "height": 15,
+                          "icon": "circle-check",
+                          "library": "lucide",
+                          "fill": "$teal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "FLxYH",
+                          "name": "Texto Requisito",
+                          "fill": "#4E7E8F",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Una mayúscula y una minúscula",
+                          "lineHeight": 1.35,
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "jBney",
+                      "name": "Requisito Un número o símbolo",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "od1Ce",
+                          "name": "Icono Requisito",
+                          "width": 15,
+                          "height": 15,
+                          "icon": "circle-check",
+                          "library": "lucide",
+                          "fill": "$teal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "ekc0w",
+                          "name": "Texto Requisito",
+                          "fill": "#4E7E8F",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Un número o símbolo",
+                          "lineHeight": 1.35,
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Qev6g",
+                      "name": "Requisito Ambas contraseñas coinciden",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "H8kO6",
+                          "name": "Icono Requisito",
+                          "width": 15,
+                          "height": 15,
+                          "icon": "circle",
+                          "library": "lucide",
+                          "fill": "#A9C6C4"
+                        },
+                        {
+                          "type": "text",
+                          "id": "c68S6t",
+                          "name": "Texto Requisito",
+                          "fill": "#7FA0AE",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Ambas contraseñas coinciden",
+                          "lineHeight": 1.35,
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "MheWD",
+                  "name": "Boton Activar",
+                  "width": "fill_container",
+                  "fill": "$teal",
+                  "cornerRadius": 12,
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "#15989547",
+                    "offset": {
+                      "x": 0,
+                      "y": 8
+                    },
+                    "blur": 20,
+                    "spread": -6
+                  },
+                  "gap": 10,
+                  "padding": [
+                    17,
+                    24
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "tiFDx",
+                      "name": "Texto Boton",
+                      "fill": "$blanco",
+                      "content": "Activar mi cuenta",
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 15.5,
+                      "fontWeight": "600",
+                      "letterSpacing": 0.3
+                    },
+                    {
+                      "type": "icon",
+                      "id": "V2ji78",
+                      "name": "Icono Boton",
+                      "width": 18,
+                      "height": 18,
+                      "icon": "arrow-right",
+                      "library": "lucide",
+                      "fill": "$blanco"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "RIyef",
+                  "name": "Aviso Siguiente Paso",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "rectangle",
+                      "id": "JELvk",
+                      "name": "Separador",
+                      "fill": "#E4F1EF",
+                      "width": "fill_container",
+                      "height": 1
+                    },
+                    {
+                      "type": "text",
+                      "id": "gyHMQ",
+                      "name": "Texto Aviso",
+                      "fill": "#6B93A2",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Al continuar aceptas la política de uso interno. Después te pediremos configurar tu segundo factor.",
+                      "lineHeight": 1.55,
+                      "textAlign": "center",
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 11.5,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "teal": {
+      "type": "color",
+      "value": "#159895"
+    },
+    "teal-claro": {
+      "type": "color",
+      "value": "#57C5B6"
+    },
+    "blanco": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "superficie": {
+      "type": "color",
+      "value": "#EEF8F7"
+    },
+    "navy": {
+      "type": "color",
+      "value": "#002B5B"
+    },
+    "navy-medio": {
+      "type": "color",
+      "value": "#1A5F7A"
+    },
+    "oro": {
+      "type": "color",
+      "value": "#AD9551"
+    },
+    "borde": {
+      "type": "color",
+      "value": "#D3E7E5"
+    },
+    "font-titulo": {
+      "type": "string",
+      "value": "Playfair Display"
+    },
+    "font-cuerpo": {
+      "type": "string",
+      "value": "Inter"
+    },
+    "radio-tarjeta": {
+      "type": "number",
+      "value": 14
+    }
+  },
+  "fileToken": "56266d12-b5fb-4292-93e9-6d29519f699e"
+}

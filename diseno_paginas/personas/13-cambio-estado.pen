@@ -1,0 +1,2250 @@
+{
+  "version": "2.17",
+  "children": [
+    {
+      "type": "frame",
+      "id": "SgBhG",
+      "x": 0,
+      "y": 0,
+      "name": "Cambio de estado",
+      "clip": true,
+      "width": 1440,
+      "height": 1024,
+      "fill": "$white",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "mm4KB",
+          "name": "Topbar",
+          "width": "fill_container",
+          "height": 68,
+          "fill": "$white",
+          "stroke": "$border",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#002B5B0A",
+            "offset": {
+              "x": 0,
+              "y": 1
+            },
+            "blur": 3
+          },
+          "padding": [
+            0,
+            32
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "FCbwn",
+              "name": "Marca",
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Yt0zf",
+                  "name": "Marca Glifo",
+                  "width": 30,
+                  "height": 30,
+                  "fill": {
+                    "type": "gradient",
+                    "gradientType": "linear",
+                    "enabled": true,
+                    "rotation": 135,
+                    "size": {
+                      "height": 1
+                    },
+                    "colors": [
+                      {
+                        "color": "$teal",
+                        "position": 0
+                      },
+                      {
+                        "color": "$teal-light",
+                        "position": 1
+                      }
+                    ]
+                  },
+                  "cornerRadius": 9,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "ZpMLX",
+                      "name": "Icono Reloj",
+                      "width": 17,
+                      "height": 17,
+                      "icon": "schedule",
+                      "library": "Material Symbols Rounded",
+                      "weight": 500,
+                      "fill": "$white"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "gwPDr",
+                  "name": "Wordmark",
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "VJl7k",
+                      "name": "Kairos",
+                      "fill": "$navy",
+                      "content": "Kairos",
+                      "lineHeight": 1.15,
+                      "fontFamily": "$font-title",
+                      "fontSize": 21,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "q8WKZs",
+                      "name": "Tagline",
+                      "fill": "$navy-mid",
+                      "content": "Control de jornada",
+                      "lineHeight": 1.2,
+                      "fontFamily": "$font-body",
+                      "fontSize": 10,
+                      "fontWeight": "normal",
+                      "letterSpacing": 0.9
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "R8PIP",
+              "name": "Nav",
+              "gap": 28,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "rEyNA",
+                  "name": "Nav Jornada",
+                  "stroke": "#00000000",
+                  "strokeWidth": {
+                    "bottom": 2
+                  },
+                  "layout": "vertical",
+                  "padding": [
+                    0,
+                    0,
+                    6,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "rHCRn",
+                      "name": "Etiqueta",
+                      "fill": "$navy-mid",
+                      "content": "Jornada",
+                      "fontFamily": "$font-body",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "B9ja04",
+                  "name": "Nav Personas",
+                  "stroke": "$teal",
+                  "strokeWidth": {
+                    "bottom": 2
+                  },
+                  "layout": "vertical",
+                  "padding": [
+                    0,
+                    0,
+                    6,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "O1cQlR",
+                      "name": "Etiqueta",
+                      "fill": "$teal",
+                      "content": "Personas",
+                      "fontFamily": "$font-body",
+                      "fontSize": 14,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "W7urX",
+                  "name": "Nav Reportes",
+                  "stroke": "#00000000",
+                  "strokeWidth": {
+                    "bottom": 2
+                  },
+                  "layout": "vertical",
+                  "padding": [
+                    0,
+                    0,
+                    6,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "WqoTm",
+                      "name": "Etiqueta",
+                      "fill": "$navy-mid",
+                      "content": "Reportes",
+                      "fontFamily": "$font-body",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "cKowE",
+                  "name": "Nav Configuración",
+                  "stroke": "#00000000",
+                  "strokeWidth": {
+                    "bottom": 2
+                  },
+                  "layout": "vertical",
+                  "padding": [
+                    0,
+                    0,
+                    6,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "vG1Zh",
+                      "name": "Etiqueta",
+                      "fill": "$navy-mid",
+                      "content": "Configuración",
+                      "fontFamily": "$font-body",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "uw32c",
+              "name": "Usuario",
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "He7r4",
+                  "name": "Rol",
+                  "fill": "$navy-mid",
+                  "content": "Recursos Humanos",
+                  "fontFamily": "$font-body",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "n6hLg",
+                  "name": "Avatar",
+                  "width": 34,
+                  "height": 34,
+                  "fill": "$surface",
+                  "cornerRadius": 17,
+                  "stroke": "$teal-light",
+                  "strokeWidth": 1,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "NfOpb",
+                      "name": "Iniciales",
+                      "fill": "$teal",
+                      "content": "MR",
+                      "fontFamily": "$font-body",
+                      "fontSize": 12,
+                      "fontWeight": "600"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "O1Zmg9",
+          "name": "Contenido",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$surface",
+          "layout": "vertical",
+          "gap": 20,
+          "padding": [
+            26,
+            120,
+            28,
+            120
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "XqT2z",
+              "name": "Encabezado",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 10,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "HX8TW",
+                  "name": "Ruta",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "QLcZH",
+                      "name": "Ruta Personas",
+                      "fill": "$muted",
+                      "content": "Personas",
+                      "fontFamily": "$font-body",
+                      "fontSize": 12,
+                      "fontWeight": "normal",
+                      "letterSpacing": 0.4
+                    },
+                    {
+                      "type": "text",
+                      "id": "tDZWX",
+                      "name": "Sep",
+                      "fill": "$border-strong",
+                      "content": "/",
+                      "fontFamily": "$font-body",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "DYeCJ",
+                      "name": "Ruta Ficha",
+                      "fill": "$muted",
+                      "content": "Ana Sofía Miranda Cruz",
+                      "fontFamily": "$font-body",
+                      "fontSize": 12,
+                      "fontWeight": "normal",
+                      "letterSpacing": 0.4
+                    },
+                    {
+                      "type": "text",
+                      "id": "JWMeI",
+                      "name": "Sep",
+                      "fill": "$border-strong",
+                      "content": "/",
+                      "fontFamily": "$font-body",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Df8Kb",
+                      "name": "Ruta Cambio",
+                      "fill": "$navy",
+                      "content": "Cambio de estado",
+                      "fontFamily": "$font-body",
+                      "fontSize": 12,
+                      "fontWeight": "600",
+                      "letterSpacing": 0.4
+                    }
+                  ]
+                },
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 2,
+                  "id": "NNyNz",
+                  "name": "Filete Oro",
+                  "fill": "$gold",
+                  "width": 56,
+                  "height": 3
+                },
+                {
+                  "type": "text",
+                  "id": "p9wWbT",
+                  "name": "Título",
+                  "fill": "$navy",
+                  "content": "Cambio de estado",
+                  "lineHeight": 1.15,
+                  "fontFamily": "$font-title",
+                  "fontSize": 36,
+                  "fontWeight": "700",
+                  "letterSpacing": -0.6
+                },
+                {
+                  "type": "text",
+                  "id": "sI3dl",
+                  "name": "Bajada",
+                  "fill": "$navy-mid",
+                  "textGrowth": "fixed-width",
+                  "width": 620,
+                  "content": "Suspende, reactiva o da de baja a una persona. El motivo queda registrado en el historial y no puede editarse después.",
+                  "lineHeight": 1.55,
+                  "fontFamily": "$font-body",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "z9Dub",
+              "name": "Persona",
+              "width": "fill_container",
+              "fill": "$white",
+              "cornerRadius": 16,
+              "stroke": "$border",
+              "strokeWidth": 1,
+              "gap": 16,
+              "padding": [
+                18,
+                22
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "bEJvQ",
+                  "name": "Identidad",
+                  "gap": 14,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "l6oL8P",
+                      "name": "Avatar",
+                      "width": 48,
+                      "height": 48,
+                      "fill": {
+                        "type": "gradient",
+                        "gradientType": "linear",
+                        "enabled": true,
+                        "rotation": 135,
+                        "size": {
+                          "height": 1
+                        },
+                        "colors": [
+                          {
+                            "color": "$teal",
+                            "position": 0
+                          },
+                          {
+                            "color": "$teal-light",
+                            "position": 1
+                          }
+                        ]
+                      },
+                      "cornerRadius": 24,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "WFv8d",
+                          "name": "Iniciales",
+                          "fill": "$white",
+                          "content": "AM",
+                          "fontFamily": "$font-body",
+                          "fontSize": 15,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "NpQ4S",
+                      "name": "Datos",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "jRHUZ",
+                          "name": "Nombre",
+                          "fill": "$navy",
+                          "content": "Ana Sofía Miranda Cruz",
+                          "lineHeight": 1.2,
+                          "fontFamily": "$font-body",
+                          "fontSize": 18,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "r3EQCk",
+                          "name": "Meta",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "U3hse1",
+                              "name": "Empleado",
+                              "fill": "$navy-mid",
+                              "content": "No. 10428",
+                              "fontFamily": "$font-body",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "F6ward",
+                              "name": "Punto",
+                              "fill": "$border-strong",
+                              "content": "·",
+                              "fontFamily": "$font-body",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "E1ZkLe",
+                              "name": "Puesto",
+                              "fill": "$navy-mid",
+                              "content": "Analista de Nómina",
+                              "fontFamily": "$font-body",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "Y6wDJk",
+                              "name": "Punto",
+                              "fill": "$border-strong",
+                              "content": "·",
+                              "fontFamily": "$font-body",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "TxetS",
+                              "name": "Área",
+                              "fill": "$navy-mid",
+                              "content": "Administración",
+                              "fontFamily": "$font-body",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "fWQQR",
+                  "name": "Estado Actual",
+                  "layout": "vertical",
+                  "gap": 5,
+                  "alignItems": "end",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "CXeAm",
+                      "name": "Etiqueta",
+                      "fill": "$muted",
+                      "content": "ESTADO ACTUAL",
+                      "fontFamily": "$font-body",
+                      "fontSize": 10,
+                      "fontWeight": "600",
+                      "letterSpacing": 1.2
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Eda4q",
+                      "name": "Badge Activa",
+                      "fill": "$surface",
+                      "cornerRadius": 999,
+                      "stroke": "$teal-light",
+                      "strokeWidth": 1,
+                      "gap": 7,
+                      "padding": [
+                        6,
+                        13
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "TGVIy",
+                          "name": "Punto",
+                          "fill": "$teal",
+                          "width": 7,
+                          "height": 7
+                        },
+                        {
+                          "type": "text",
+                          "id": "Y8OqZ",
+                          "name": "Texto",
+                          "fill": "$teal",
+                          "content": "Activa",
+                          "fontFamily": "$font-body",
+                          "fontSize": 13,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "I4ElMu",
+              "name": "Columnas",
+              "width": "fill_container",
+              "gap": 26,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Pvcjy",
+                  "name": "Columna Principal",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 20,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "kv4r7",
+                      "name": "Tarjeta Formulario",
+                      "clip": true,
+                      "width": "fill_container",
+                      "fill": "$white",
+                      "cornerRadius": 16,
+                      "stroke": "$border",
+                      "strokeWidth": 1,
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "#002B5B14",
+                        "offset": {
+                          "x": 0,
+                          "y": 10
+                        },
+                        "blur": 30,
+                        "spread": -10
+                      },
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "B37Y3",
+                          "name": "Cuerpo",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 18,
+                          "padding": 22,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "CSnag",
+                              "name": "Campo Acción",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 10,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "S1SKiB",
+                                  "name": "Etiqueta",
+                                  "gap": 8,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "NymQP",
+                                      "name": "Texto",
+                                      "fill": "$navy",
+                                      "content": "Tipo de cambio",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 13.5,
+                                      "fontWeight": "600"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "j4pd6o",
+                                      "name": "Pill Requerido",
+                                      "fill": "#AD95511F",
+                                      "cornerRadius": 999,
+                                      "padding": [
+                                        3,
+                                        9
+                                      ],
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "ZVDzs",
+                                          "name": "Texto",
+                                          "fill": "$gold",
+                                          "content": "REQUERIDO",
+                                          "fontFamily": "$font-body",
+                                          "fontSize": 9.5,
+                                          "fontWeight": "700",
+                                          "letterSpacing": 0.8
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "J5YOz",
+                                  "name": "Opciones",
+                                  "width": "fill_container",
+                                  "layout": "vertical",
+                                  "gap": 8,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "a4dNT2",
+                                      "name": "Opción Suspensión temporal",
+                                      "width": "fill_container",
+                                      "fill": "$surface-tint",
+                                      "cornerRadius": 14,
+                                      "stroke": "$teal",
+                                      "strokeWidth": 2,
+                                      "effect": {
+                                        "type": "shadow",
+                                        "shadowType": "outer",
+                                        "color": "#1598951F",
+                                        "offset": {
+                                          "x": 0,
+                                          "y": 6
+                                        },
+                                        "blur": 18,
+                                        "spread": -6
+                                      },
+                                      "gap": 13,
+                                      "padding": [
+                                        13,
+                                        16
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "s18kT",
+                                          "name": "Radio",
+                                          "width": 19,
+                                          "height": 19,
+                                          "fill": "$teal",
+                                          "cornerRadius": 10,
+                                          "stroke": "$teal",
+                                          "strokeWidth": 1,
+                                          "justifyContent": "center",
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "ellipse",
+                                              "id": "e9FFyy",
+                                              "name": "Punto",
+                                              "fill": "$white",
+                                              "width": 7,
+                                              "height": 7
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "c4PCh",
+                                          "name": "Chip Icono",
+                                          "width": 36,
+                                          "height": 36,
+                                          "fill": "$teal",
+                                          "cornerRadius": 11,
+                                          "justifyContent": "center",
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "icon",
+                                              "id": "Y821l",
+                                              "name": "Icono",
+                                              "width": 18,
+                                              "height": 18,
+                                              "icon": "pause-circle",
+                                              "library": "lucide",
+                                              "fill": "$white"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "SF13M",
+                                          "name": "Texto",
+                                          "width": "fill_container",
+                                          "layout": "vertical",
+                                          "gap": 3,
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "QHwBZ",
+                                              "name": "Título",
+                                              "fill": "$navy",
+                                              "content": "Suspensión temporal",
+                                              "lineHeight": 1.25,
+                                              "fontFamily": "$font-body",
+                                              "fontSize": 15,
+                                              "fontWeight": "600"
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "ULBxE",
+                                              "name": "Descripción",
+                                              "fill": "$muted",
+                                              "textGrowth": "fixed-width",
+                                              "width": "fill_container",
+                                              "content": "La persona conserva su historial y deja de marcar jornada hasta su reactivación.",
+                                              "lineHeight": 1.5,
+                                              "fontFamily": "$font-body",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "XkVpQ",
+                                      "name": "Opción Reactivación",
+                                      "width": "fill_container",
+                                      "fill": "$white",
+                                      "cornerRadius": 14,
+                                      "stroke": "$border",
+                                      "strokeWidth": 1,
+                                      "gap": 13,
+                                      "padding": [
+                                        14,
+                                        17
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "l38H1",
+                                          "name": "Radio",
+                                          "width": 19,
+                                          "height": 19,
+                                          "fill": "$white",
+                                          "cornerRadius": 10,
+                                          "stroke": "$border-strong",
+                                          "strokeWidth": 1.5,
+                                          "justifyContent": "center",
+                                          "alignItems": "center"
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "SVogj",
+                                          "name": "Chip Icono",
+                                          "width": 36,
+                                          "height": 36,
+                                          "fill": "$surface",
+                                          "cornerRadius": 11,
+                                          "stroke": "$border",
+                                          "strokeWidth": 1,
+                                          "justifyContent": "center",
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "icon",
+                                              "id": "r4MPxh",
+                                              "name": "Icono",
+                                              "width": 18,
+                                              "height": 18,
+                                              "icon": "play-circle",
+                                              "library": "lucide",
+                                              "fill": "$navy-mid"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "rtlgS",
+                                          "name": "Texto",
+                                          "width": "fill_container",
+                                          "layout": "vertical",
+                                          "gap": 3,
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "wZAEC",
+                                              "name": "Título",
+                                              "fill": "$navy",
+                                              "content": "Reactivación",
+                                              "lineHeight": 1.25,
+                                              "fontFamily": "$font-body",
+                                              "fontSize": 15,
+                                              "fontWeight": "600"
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "D07UT",
+                                              "name": "Descripción",
+                                              "fill": "$muted",
+                                              "textGrowth": "fixed-width",
+                                              "width": "fill_container",
+                                              "content": "Devuelve a la persona al estado activo y habilita de nuevo el registro de marcas.",
+                                              "lineHeight": 1.5,
+                                              "fontFamily": "$font-body",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "a4t2Gc",
+                                      "name": "Opción Baja definitiva",
+                                      "width": "fill_container",
+                                      "fill": "$white",
+                                      "cornerRadius": 14,
+                                      "stroke": "$border",
+                                      "strokeWidth": 1,
+                                      "gap": 13,
+                                      "padding": [
+                                        14,
+                                        17
+                                      ],
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "frame",
+                                          "id": "QCUQW",
+                                          "name": "Radio",
+                                          "width": 19,
+                                          "height": 19,
+                                          "fill": "$white",
+                                          "cornerRadius": 10,
+                                          "stroke": "$border-strong",
+                                          "strokeWidth": 1.5,
+                                          "justifyContent": "center",
+                                          "alignItems": "center"
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "f059c",
+                                          "name": "Chip Icono",
+                                          "width": 36,
+                                          "height": 36,
+                                          "fill": "$surface",
+                                          "cornerRadius": 11,
+                                          "stroke": "$border",
+                                          "strokeWidth": 1,
+                                          "justifyContent": "center",
+                                          "alignItems": "center",
+                                          "children": [
+                                            {
+                                              "type": "icon",
+                                              "id": "skHkU",
+                                              "name": "Icono",
+                                              "width": 18,
+                                              "height": 18,
+                                              "icon": "user-minus",
+                                              "library": "lucide",
+                                              "fill": "$navy-mid"
+                                            }
+                                          ]
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "hiPYG",
+                                          "name": "Texto",
+                                          "width": "fill_container",
+                                          "layout": "vertical",
+                                          "gap": 3,
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "yl1Zx",
+                                              "name": "Título",
+                                              "fill": "$navy",
+                                              "content": "Baja definitiva",
+                                              "lineHeight": 1.25,
+                                              "fontFamily": "$font-body",
+                                              "fontSize": 15,
+                                              "fontWeight": "600"
+                                            },
+                                            {
+                                              "type": "text",
+                                              "id": "p7POZU",
+                                              "name": "Descripción",
+                                              "fill": "$muted",
+                                              "textGrowth": "fixed-width",
+                                              "width": "fill_container",
+                                              "content": "Cierra la relación laboral. El historial se conserva, pero no admite reactivación.",
+                                              "lineHeight": 1.5,
+                                              "fontFamily": "$font-body",
+                                              "fontSize": 13,
+                                              "fontWeight": "normal"
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "rectangle",
+                              "id": "SJQ9o",
+                              "name": "Hairline",
+                              "fill": "$border",
+                              "width": "fill_container",
+                              "height": 1
+                            },
+                            {
+                              "type": "frame",
+                              "id": "zhVA4",
+                              "name": "Fechas",
+                              "width": "fill_container",
+                              "gap": 16,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "aOZXw",
+                                  "name": "Campo Fecha de efecto",
+                                  "width": "fill_container",
+                                  "layout": "vertical",
+                                  "gap": 8,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "ZMTZQ",
+                                      "name": "Etiqueta",
+                                      "gap": 8,
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "iPRlv",
+                                          "name": "Texto",
+                                          "fill": "$navy",
+                                          "content": "Fecha de efecto",
+                                          "fontFamily": "$font-body",
+                                          "fontSize": 13.5,
+                                          "fontWeight": "600"
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "tIvA4",
+                                          "name": "Pill Requerido",
+                                          "fill": "#AD95511F",
+                                          "cornerRadius": 999,
+                                          "padding": [
+                                            3,
+                                            9
+                                          ],
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "A86tvp",
+                                              "name": "Texto",
+                                              "fill": "$gold",
+                                              "content": "REQUERIDO",
+                                              "fontFamily": "$font-body",
+                                              "fontSize": 9.5,
+                                              "fontWeight": "700",
+                                              "letterSpacing": 0.8
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "BXC20",
+                                      "name": "Input",
+                                      "width": "fill_container",
+                                      "fill": "$white",
+                                      "cornerRadius": 10,
+                                      "stroke": "$border",
+                                      "strokeWidth": 1,
+                                      "gap": 10,
+                                      "padding": [
+                                        13,
+                                        14
+                                      ],
+                                      "justifyContent": "space_between",
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "oFPn4",
+                                          "name": "Valor",
+                                          "fill": "$navy",
+                                          "content": "03 / 09 / 2026",
+                                          "fontFamily": "$font-body",
+                                          "fontSize": 14,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "icon",
+                                          "id": "T7Cdsc",
+                                          "name": "Icono",
+                                          "width": 17,
+                                          "height": 17,
+                                          "icon": "calendar-days",
+                                          "library": "lucide",
+                                          "fill": "$teal"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "g75wC",
+                                  "name": "Campo Reincorporación estimada",
+                                  "width": "fill_container",
+                                  "layout": "vertical",
+                                  "gap": 8,
+                                  "children": [
+                                    {
+                                      "type": "frame",
+                                      "id": "aine5",
+                                      "name": "Etiqueta",
+                                      "gap": 8,
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "ji1LT",
+                                          "name": "Texto",
+                                          "fill": "$navy",
+                                          "content": "Reincorporación estimada",
+                                          "fontFamily": "$font-body",
+                                          "fontSize": 13.5,
+                                          "fontWeight": "600"
+                                        },
+                                        {
+                                          "type": "frame",
+                                          "id": "JpauY",
+                                          "name": "Pill Opcional",
+                                          "fill": "#4E748814",
+                                          "cornerRadius": 999,
+                                          "padding": [
+                                            3,
+                                            9
+                                          ],
+                                          "children": [
+                                            {
+                                              "type": "text",
+                                              "id": "X6RCM",
+                                              "name": "Texto",
+                                              "fill": "$muted",
+                                              "content": "OPCIONAL",
+                                              "fontFamily": "$font-body",
+                                              "fontSize": 9.5,
+                                              "fontWeight": "700",
+                                              "letterSpacing": 0.8
+                                            }
+                                          ]
+                                        }
+                                      ]
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "sQyZ6",
+                                      "name": "Input",
+                                      "width": "fill_container",
+                                      "fill": "$white",
+                                      "cornerRadius": 10,
+                                      "stroke": "$border",
+                                      "strokeWidth": 1,
+                                      "gap": 10,
+                                      "padding": [
+                                        13,
+                                        14
+                                      ],
+                                      "justifyContent": "space_between",
+                                      "alignItems": "center",
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "A8uxZr",
+                                          "name": "Valor",
+                                          "fill": "$navy",
+                                          "content": "03 / 12 / 2026",
+                                          "fontFamily": "$font-body",
+                                          "fontSize": 14,
+                                          "fontWeight": "normal"
+                                        },
+                                        {
+                                          "type": "icon",
+                                          "id": "B2UtR",
+                                          "name": "Icono",
+                                          "width": 17,
+                                          "height": 17,
+                                          "icon": "calendar-clock",
+                                          "library": "lucide",
+                                          "fill": "$teal"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            },
+                            {
+                              "type": "rectangle",
+                              "id": "hbqE0",
+                              "name": "Hairline",
+                              "fill": "$border",
+                              "width": "fill_container",
+                              "height": 1
+                            },
+                            {
+                              "type": "frame",
+                              "id": "WNoVh",
+                              "name": "Campo Motivo",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 8,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "C4oWX",
+                                  "name": "Etiqueta",
+                                  "gap": 8,
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "qPOFl",
+                                      "name": "Texto",
+                                      "fill": "$navy",
+                                      "content": "Motivo del cambio",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 13.5,
+                                      "fontWeight": "600"
+                                    },
+                                    {
+                                      "type": "frame",
+                                      "id": "LQuIb",
+                                      "name": "Pill Requerido",
+                                      "fill": "#AD95511F",
+                                      "cornerRadius": 999,
+                                      "padding": [
+                                        3,
+                                        9
+                                      ],
+                                      "children": [
+                                        {
+                                          "type": "text",
+                                          "id": "KecFt",
+                                          "name": "Texto",
+                                          "fill": "$gold",
+                                          "content": "REQUERIDO",
+                                          "fontFamily": "$font-body",
+                                          "fontSize": 9.5,
+                                          "fontWeight": "700",
+                                          "letterSpacing": 0.8
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "IG8C8",
+                                  "name": "Área de texto",
+                                  "width": "fill_container",
+                                  "height": 80,
+                                  "fill": "$white",
+                                  "cornerRadius": 12,
+                                  "stroke": "$teal-light",
+                                  "strokeWidth": 1.5,
+                                  "layout": "vertical",
+                                  "padding": 14,
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "NNXbo",
+                                      "name": "Texto",
+                                      "fill": "$navy",
+                                      "textGrowth": "fixed-width",
+                                      "width": "fill_container",
+                                      "content": "Licencia sin goce de sueldo autorizada por Recursos Humanos, del 03/09/2026 al 03/12/2026. Oficio DC-RH-2026-118.",
+                                      "lineHeight": 1.55,
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 14,
+                                      "fontWeight": "normal"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "x3wit",
+                                  "name": "Ayuda",
+                                  "width": "fill_container",
+                                  "justifyContent": "space_between",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "qtemD",
+                                      "name": "Nota",
+                                      "fill": "$muted",
+                                      "content": "Queda asentado en el historial de la persona y no podrá editarse.",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "SDMDE",
+                                      "name": "Contador",
+                                      "fill": "$muted",
+                                      "content": "114 / 500",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "uInQ1",
+                          "name": "Acciones",
+                          "width": "fill_container",
+                          "fill": "$surface-tint",
+                          "stroke": "$border",
+                          "strokeWidth": {
+                            "top": 1
+                          },
+                          "gap": 12,
+                          "padding": [
+                            14,
+                            22
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "aj5k2",
+                              "name": "Aviso",
+                              "gap": 8,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "icon",
+                                  "id": "lhTy0",
+                                  "name": "Icono",
+                                  "width": 15,
+                                  "height": 15,
+                                  "icon": "info",
+                                  "library": "lucide",
+                                  "fill": "$muted"
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "ryl8E",
+                                  "name": "Texto",
+                                  "fill": "$muted",
+                                  "content": "El cambio surte efecto al confirmar.",
+                                  "fontFamily": "$font-body",
+                                  "fontSize": 12.5,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "XyyiI",
+                              "name": "Botones",
+                              "gap": 12,
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "qLN6E",
+                                  "name": "Cancelar",
+                                  "fill": "$white",
+                                  "cornerRadius": 10,
+                                  "stroke": "$border-strong",
+                                  "strokeWidth": 1,
+                                  "padding": [
+                                    13,
+                                    22
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "yQBbc",
+                                      "name": "Texto",
+                                      "fill": "$navy-mid",
+                                      "content": "Cancelar",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 14,
+                                      "fontWeight": "500"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "frame",
+                                  "id": "g1dqqB",
+                                  "name": "Confirmar",
+                                  "fill": {
+                                    "type": "gradient",
+                                    "gradientType": "linear",
+                                    "enabled": true,
+                                    "rotation": 135,
+                                    "size": {
+                                      "height": 1
+                                    },
+                                    "colors": [
+                                      {
+                                        "color": "$teal",
+                                        "position": 0
+                                      },
+                                      {
+                                        "color": "#0F7F7D",
+                                        "position": 1
+                                      }
+                                    ]
+                                  },
+                                  "cornerRadius": 10,
+                                  "effect": {
+                                    "type": "shadow",
+                                    "shadowType": "outer",
+                                    "color": "#15989566",
+                                    "offset": {
+                                      "x": 0,
+                                      "y": 6
+                                    },
+                                    "blur": 16,
+                                    "spread": -4
+                                  },
+                                  "gap": 9,
+                                  "padding": [
+                                    13,
+                                    24
+                                  ],
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "icon",
+                                      "id": "RLE3a",
+                                      "name": "Icono",
+                                      "width": 17,
+                                      "height": 17,
+                                      "icon": "check",
+                                      "library": "lucide",
+                                      "fill": "$white"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "W65ol",
+                                      "name": "Texto",
+                                      "fill": "$white",
+                                      "content": "Confirmar suspensión",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 14,
+                                      "fontWeight": "600"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "ciPrl",
+                  "name": "Columna Lateral",
+                  "width": 340,
+                  "layout": "vertical",
+                  "gap": 18,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "uMtfh",
+                      "name": "Resumen",
+                      "width": "fill_container",
+                      "fill": "$navy",
+                      "cornerRadius": 16,
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "#002B5B2E",
+                        "offset": {
+                          "x": 0,
+                          "y": 10
+                        },
+                        "blur": 26,
+                        "spread": -8
+                      },
+                      "layout": "vertical",
+                      "gap": 16,
+                      "padding": 22,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "RUSOE",
+                          "name": "Título",
+                          "fill": "$teal-light",
+                          "content": "RESUMEN DEL CAMBIO",
+                          "fontFamily": "$font-body",
+                          "fontSize": 10.5,
+                          "fontWeight": "700",
+                          "letterSpacing": 1.3
+                        },
+                        {
+                          "type": "frame",
+                          "id": "kd6BN",
+                          "name": "Transición",
+                          "width": "fill_container",
+                          "gap": 10,
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "E5b0EB",
+                              "name": "Estado Origen",
+                              "fill": "#FFFFFF00",
+                              "cornerRadius": 999,
+                              "stroke": "#FFFFFF52",
+                              "strokeWidth": 1,
+                              "gap": 7,
+                              "padding": [
+                                7,
+                                14
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "c91sM",
+                                  "name": "Punto",
+                                  "fill": "$teal-light",
+                                  "width": 7,
+                                  "height": 7
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "UeoE5",
+                                  "name": "Texto",
+                                  "fill": "$white",
+                                  "content": "Activa",
+                                  "fontFamily": "$font-body",
+                                  "fontSize": 13,
+                                  "fontWeight": "600"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "icon",
+                              "id": "jdjTo",
+                              "name": "Flecha",
+                              "width": 18,
+                              "height": 18,
+                              "icon": "arrow-right",
+                              "library": "lucide",
+                              "fill": "$gold"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "tGzGn",
+                              "name": "Estado Destino",
+                              "fill": "$teal",
+                              "cornerRadius": 999,
+                              "gap": 7,
+                              "padding": [
+                                7,
+                                14
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "QXtAa",
+                                  "name": "Punto",
+                                  "fill": "$white",
+                                  "width": 7,
+                                  "height": 7
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "QaIlD",
+                                  "name": "Texto",
+                                  "fill": "$white",
+                                  "content": "Suspendida",
+                                  "fontFamily": "$font-body",
+                                  "fontSize": 13,
+                                  "fontWeight": "600"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "rectangle",
+                          "id": "qOVeG",
+                          "name": "Divisoria",
+                          "fill": "#FFFFFF24",
+                          "width": "fill_container",
+                          "height": 1
+                        },
+                        {
+                          "type": "frame",
+                          "id": "A6UJqF",
+                          "name": "Dato Vigencia",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "e66QV",
+                              "name": "Clave",
+                              "fill": "#A9C4D2",
+                              "content": "Vigencia",
+                              "fontFamily": "$font-body",
+                              "fontSize": 12.5,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "SqwkW",
+                              "name": "Valor",
+                              "fill": "$white",
+                              "content": "03 sep 2026 — 03 dic 2026",
+                              "fontFamily": "$font-body",
+                              "fontSize": 12.5,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "LwIXX",
+                          "name": "Dato Registra",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "F51xul",
+                              "name": "Clave",
+                              "fill": "#A9C4D2",
+                              "content": "Registra",
+                              "fontFamily": "$font-body",
+                              "fontSize": 12.5,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "H5dLRC",
+                              "name": "Valor",
+                              "fill": "$white",
+                              "content": "María Rentería · RH",
+                              "fontFamily": "$font-body",
+                              "fontSize": 12.5,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "K1Uc7K",
+                          "name": "Dato Efecto en jornada",
+                          "width": "fill_container",
+                          "gap": 12,
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "vlXcY",
+                              "name": "Clave",
+                              "fill": "#A9C4D2",
+                              "content": "Efecto en jornada",
+                              "fontFamily": "$font-body",
+                              "fontSize": 12.5,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "dJgyS",
+                              "name": "Valor",
+                              "fill": "$white",
+                              "content": "Deja de marcar",
+                              "fontFamily": "$font-body",
+                              "fontSize": 12.5,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "zwT6U",
+                      "name": "Aviso Efectos",
+                      "width": "fill_container",
+                      "fill": "$white",
+                      "cornerRadius": 16,
+                      "stroke": "$gold",
+                      "strokeWidth": {
+                        "left": 3
+                      },
+                      "layout": "vertical",
+                      "gap": 10,
+                      "padding": [
+                        18,
+                        20
+                      ],
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "j5LxC",
+                          "name": "Encabezado",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "KqMfh",
+                              "name": "Icono",
+                              "width": 16,
+                              "height": 16,
+                              "icon": "alert-triangle",
+                              "library": "lucide",
+                              "fill": "$gold"
+                            },
+                            {
+                              "type": "text",
+                              "id": "G77tI",
+                              "name": "Texto",
+                              "fill": "$navy",
+                              "content": "AL CONFIRMAR",
+                              "fontFamily": "$font-body",
+                              "fontSize": 10.5,
+                              "fontWeight": "700",
+                              "letterSpacing": 1.3
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "ttxOR",
+                          "name": "Punto",
+                          "width": "fill_container",
+                          "gap": 8,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "sEDt7",
+                              "name": "Viñeta",
+                              "fill": "$gold",
+                              "content": "—",
+                              "lineHeight": 1.5,
+                              "fontFamily": "$font-body",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "aWaNP",
+                              "name": "Texto",
+                              "fill": "$navy-mid",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "Se cierra el acceso del usuario a Kairos.",
+                              "lineHeight": 1.5,
+                              "fontFamily": "$font-body",
+                              "fontSize": 12.5,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "xI7MM",
+                          "name": "Punto",
+                          "width": "fill_container",
+                          "gap": 8,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "Lde9P",
+                              "name": "Viñeta",
+                              "fill": "$gold",
+                              "content": "—",
+                              "lineHeight": 1.5,
+                              "fontFamily": "$font-body",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "LZYfl",
+                              "name": "Texto",
+                              "fill": "$navy-mid",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "Las marcas posteriores a la fecha de efecto quedan bloqueadas.",
+                              "lineHeight": 1.5,
+                              "fontFamily": "$font-body",
+                              "fontSize": 12.5,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "U4DPt",
+                          "name": "Punto",
+                          "width": "fill_container",
+                          "gap": 8,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "X9Dg9H",
+                              "name": "Viñeta",
+                              "fill": "$gold",
+                              "content": "—",
+                              "lineHeight": 1.5,
+                              "fontFamily": "$font-body",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "p4ia6N",
+                              "name": "Texto",
+                              "fill": "$navy-mid",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "El saldo del banco de horas se congela; no se pierde.",
+                              "lineHeight": 1.5,
+                              "fontFamily": "$font-body",
+                              "fontSize": 12.5,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "U3dhLu",
+                      "name": "Historial",
+                      "width": "fill_container",
+                      "fill": "$white",
+                      "cornerRadius": 16,
+                      "stroke": "$border",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "gap": 12,
+                      "padding": [
+                        20,
+                        20,
+                        18,
+                        20
+                      ],
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "djE9Z",
+                          "name": "Título",
+                          "fill": "$navy",
+                          "content": "HISTORIAL DE ESTADOS",
+                          "fontFamily": "$font-body",
+                          "fontSize": 10.5,
+                          "fontWeight": "700",
+                          "letterSpacing": 1.3
+                        },
+                        {
+                          "type": "frame",
+                          "id": "tj0nK",
+                          "name": "Evento 12 ene 2024",
+                          "width": "fill_container",
+                          "gap": 11,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "KY9bZ",
+                              "name": "Marcador",
+                              "layout": "vertical",
+                              "gap": 3,
+                              "padding": [
+                                5,
+                                0,
+                                0,
+                                0
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "KCvnk",
+                                  "name": "Punto",
+                                  "fill": "$teal",
+                                  "width": 8,
+                                  "height": 8
+                                },
+                                {
+                                  "type": "rectangle",
+                                  "id": "R20JX",
+                                  "name": "Línea",
+                                  "fill": "$border",
+                                  "width": 1,
+                                  "height": 24
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "ehUEV",
+                              "name": "Detalle",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 2,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "knw8J",
+                                  "name": "Cabecera",
+                                  "width": "fill_container",
+                                  "gap": 10,
+                                  "justifyContent": "space_between",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "Ry1JI",
+                                      "name": "Estado",
+                                      "fill": "$navy",
+                                      "content": "Activa",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 13,
+                                      "fontWeight": "600"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "zR5Cf",
+                                      "name": "Fecha",
+                                      "fill": "$muted",
+                                      "content": "12 ene 2024",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "BX9a8",
+                                  "name": "Nota",
+                                  "fill": "$navy-mid",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "Alta de la persona",
+                                  "lineHeight": 1.45,
+                                  "fontFamily": "$font-body",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "ZqE7B",
+                          "name": "Evento 04 jul 2023",
+                          "width": "fill_container",
+                          "gap": 11,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "ZEBVP",
+                              "name": "Marcador",
+                              "layout": "vertical",
+                              "gap": 3,
+                              "padding": [
+                                5,
+                                0,
+                                0,
+                                0
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "V7idO",
+                                  "name": "Punto",
+                                  "fill": "$border-strong",
+                                  "width": 8,
+                                  "height": 8
+                                },
+                                {
+                                  "type": "rectangle",
+                                  "id": "BPnwS",
+                                  "name": "Línea",
+                                  "fill": "$border",
+                                  "width": 1,
+                                  "height": 24
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "f7AeJ",
+                              "name": "Detalle",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 2,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "F6Zsgx",
+                                  "name": "Cabecera",
+                                  "width": "fill_container",
+                                  "gap": 10,
+                                  "justifyContent": "space_between",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "D216L",
+                                      "name": "Estado",
+                                      "fill": "$navy",
+                                      "content": "Suspendida",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 13,
+                                      "fontWeight": "600"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "eC88U",
+                                      "name": "Fecha",
+                                      "fill": "$muted",
+                                      "content": "04 jul 2023",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "qZtZO",
+                                  "name": "Nota",
+                                  "fill": "$navy-mid",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "Licencia de maternidad",
+                                  "lineHeight": 1.45,
+                                  "fontFamily": "$font-body",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "vO2dP",
+                          "name": "Evento 02 mar 2021",
+                          "width": "fill_container",
+                          "gap": 11,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "L6xgKs",
+                              "name": "Marcador",
+                              "layout": "vertical",
+                              "gap": 3,
+                              "padding": [
+                                5,
+                                0,
+                                0,
+                                0
+                              ],
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "ellipse",
+                                  "id": "g6pIK",
+                                  "name": "Punto",
+                                  "fill": "$border-strong",
+                                  "width": 8,
+                                  "height": 8
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "z6sYRQ",
+                              "name": "Detalle",
+                              "width": "fill_container",
+                              "layout": "vertical",
+                              "gap": 2,
+                              "children": [
+                                {
+                                  "type": "frame",
+                                  "id": "WmNag",
+                                  "name": "Cabecera",
+                                  "width": "fill_container",
+                                  "gap": 10,
+                                  "justifyContent": "space_between",
+                                  "alignItems": "center",
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "id": "Bxwvc",
+                                      "name": "Estado",
+                                      "fill": "$navy",
+                                      "content": "Activa",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 13,
+                                      "fontWeight": "600"
+                                    },
+                                    {
+                                      "type": "text",
+                                      "id": "ek3UJ",
+                                      "name": "Fecha",
+                                      "fill": "$muted",
+                                      "content": "02 mar 2021",
+                                      "fontFamily": "$font-body",
+                                      "fontSize": 12,
+                                      "fontWeight": "normal"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "TemOu",
+                                  "name": "Nota",
+                                  "fill": "$navy-mid",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
+                                  "content": "Reingreso",
+                                  "lineHeight": 1.45,
+                                  "fontFamily": "$font-body",
+                                  "fontSize": 12,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "teal": {
+      "type": "color",
+      "value": "#159895"
+    },
+    "teal-light": {
+      "type": "color",
+      "value": "#57C5B6"
+    },
+    "white": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "surface": {
+      "type": "color",
+      "value": "#EEF8F7"
+    },
+    "navy": {
+      "type": "color",
+      "value": "#002B5B"
+    },
+    "navy-mid": {
+      "type": "color",
+      "value": "#1A5F7A"
+    },
+    "gold": {
+      "type": "color",
+      "value": "#AD9551"
+    },
+    "font-title": {
+      "type": "string",
+      "value": "Playfair Display"
+    },
+    "font-body": {
+      "type": "string",
+      "value": "Inter"
+    },
+    "border": {
+      "type": "color",
+      "value": "#DCEDEB"
+    },
+    "border-strong": {
+      "type": "color",
+      "value": "#C3DBD8"
+    },
+    "muted": {
+      "type": "color",
+      "value": "#4E7488"
+    },
+    "surface-tint": {
+      "type": "color",
+      "value": "#F4FBFA"
+    }
+  },
+  "fileToken": "a64d8556-ff1c-46d1-b90e-2506599f6c63"
+}

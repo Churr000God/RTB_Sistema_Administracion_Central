@@ -1,0 +1,2244 @@
+:root {
+  --teal: #159895;
+  --teal-claro: #57c5b6;
+  --blanco: #ffffff;
+  --superficie: #eef8f7;
+  --navy-medio: #1a5f7a;
+  --navy: #002b5b;
+  --oro: #ad9551;
+  --font-titulo: "Playfair Display", serif;
+  --font-cuerpo: "Inter", system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radio-tarjeta: 14px;
+  --sombra-tarjeta: 0 2px 10px rgba(0, 43, 91, 0.05);
+  --ancho-tarjeta-auth: 26.25rem;
+  --ancho-panel-auth: 42%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-cuerpo);
+  color: var(--navy);
+  background: var(--superficie);
+}
+
+/* Estilo base: cubre todas las pantallas sin que cada página repita clases propias. */
+
+h1, h2, h3 {
+  font-family: var(--font-titulo);
+  margin: 0 0 0.5rem;
+}
+
+p {
+  margin: 0 0 1rem;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--teal);
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--navy-medio);
+  margin-bottom: 0.35rem;
+}
+
+input, select, textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid rgba(0, 43, 91, 0.15);
+  border-radius: 10px;
+  font-family: var(--font-cuerpo);
+  font-size: 0.95rem;
+  color: var(--navy);
+  background: var(--blanco);
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(21, 152, 149, 0.15);
+}
+
+textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+fieldset {
+  border: 1px solid rgba(0, 43, 91, 0.15);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+}
+
+button {
+  font-family: var(--font-cuerpo);
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  transition: background-color 150ms ease, transform 100ms ease;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+button:disabled {
+  cursor: default;
+}
+
+button[type="submit"] {
+  background: var(--teal);
+  color: var(--blanco);
+}
+
+button[type="submit"]:hover {
+  background: var(--navy-medio);
+}
+
+p[role="alert"] {
+  color: #b3261e;
+  background: #fdecea;
+  border-radius: 8px;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--blanco);
+  border-radius: var(--radio-tarjeta);
+  overflow: hidden;
+}
+
+th, td {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(0, 43, 91, 0.08);
+}
+
+tbody tr {
+  transition: background-color 120ms ease;
+}
+
+tbody tr:hover {
+  background: var(--superficie);
+}
+
+/* Fila de tabla clickeable (ej. cobertura de jornadas, fila expandible) -- tbody tr:hover de
+   arriba ya resalta el fondo de CUALQUIER fila, clickeable o no, así que por sí solo no avisa
+   que hay algo para hacer clic. Sólo el cursor distingue la interactiva de una fila normal. */
+.seleccionable {
+  cursor: pointer;
+}
+
+th {
+  color: var(--navy-medio);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Contenedor para las páginas internas (directorio, fichas, formularios de alta) — las
+   pantallas de autenticación no lo usan, tienen su propio layout de pantalla completa.
+   Padding reducido en móvil: stopgap del meta viewport (§layout auth) — el responsive
+   completo de AppShell y las tablas queda fuera de esta tanda. */
+.contenedor-pagina {
+  max-width: 720px;
+  margin: 2.5rem auto;
+  padding: 0 1rem;
+}
+
+@media (min-width: 48rem) {
+  .contenedor-pagina {
+    padding: 0 1.5rem;
+  }
+}
+
+.tabla-desplazable {
+  overflow-x: auto;
+}
+
+/* Lista o tabla dentro de una tarjeta que no debe crecer sin límite (ej. personas de un
+   departamento o de un puesto con muchas plazas) — scroll interno vertical en vez de estirar
+   toda la página. El buscador/título de la tarjeta quedan afuera de esta clase para seguir
+   siempre visibles arriba del scroll. Dos nombres para la misma regla: -lista- para un `<ul>`,
+   -bloque- para el envoltorio de una `<table>` (que además suele llevar .tabla-desplazable
+   para el scroll horizontal — son ejes distintos, no se pisan). */
+.lista-desplazable,
+.bloque-desplazable {
+  max-height: 24rem;
+  overflow-y: auto;
+}
+
+/* Un buscador (.campo-con-icono) suelto justo antes de una lista o de un mensaje de estado
+   (vacío/sin resultados), sin envolverlos en un form o .barra-filtros (que ya traen su propio
+   gap) — quedaban pegados sin ningún espacio contra el campo. Sólo afecta esa adyacencia
+   puntual, no toca .barra-filtros ni ningún otro uso de .campo-con-icono. */
+.campo-con-icono + .lista-historial-resumido,
+.campo-con-icono + .bloque-desplazable,
+.campo-con-icono + .bosque-organigrama,
+.campo-con-icono + p {
+  margin-top: 1rem;
+}
+
+/* Capa decorativa de las pantallas de autenticación — iconos en campos, badges,
+   medidor de fuerza, tarjeta de error — replicada de diseno_paginas/personas/. */
+
+.campo-con-icono {
+  position: relative;
+}
+
+.campo-con-icono svg.icono-campo {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--teal);
+  pointer-events: none;
+}
+
+.campo-con-icono input,
+.campo-con-icono select {
+  padding-left: 2.6rem;
+}
+
+.campo-con-icono button.boton-ojo {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  padding: 0.35rem;
+  color: var(--navy-medio);
+  cursor: pointer;
+  display: flex;
+}
+
+.campo-con-icono.invalido input {
+  border-color: #b3261e;
+}
+
+.campo-con-icono.invalido svg.icono-campo {
+  color: #b3261e;
+}
+
+.fila-etiqueta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.fila-etiqueta label {
+  margin-bottom: 0;
+}
+
+.enlace-etiqueta {
+  font-size: 0.85rem;
+}
+
+.hint-campo {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: -0.5rem 0 0;
+  font-size: 0.82rem;
+  color: #b3261e;
+}
+
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.wordmark .icono-reloj {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.insignia {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.insignia--clara {
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+}
+
+.insignia--exito {
+  background: rgba(21, 152, 149, 0.12);
+  color: var(--teal);
+}
+
+.insignia--neutra {
+  background: rgba(0, 43, 91, 0.08);
+  color: var(--navy-medio);
+}
+
+.insignia--aviso {
+  background: rgba(173, 149, 81, 0.15);
+  color: var(--oro);
+}
+
+.insignia--peligro {
+  background: rgba(179, 38, 30, 0.1);
+  color: #b3261e;
+}
+
+/* Modificador aparte (no embebido en --exito/--aviso/--neutra): una insignia en una celda de
+   tabla (DirectorioPersonasPage) no puede llevar este margen o desalinea las filas — sólo lo
+   llevan los usos "de pie" como los badges de RestablecerContrasenaPage. */
+.insignia--bloque {
+  margin-bottom: 1rem;
+}
+
+.tarjeta-error {
+  background: #fdecea;
+  border: 1px solid rgba(179, 38, 30, 0.2);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  color: #b3261e;
+}
+
+.tarjeta-error strong {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.tarjeta-error p {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.tarjeta-error .intentos-restantes {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(179, 38, 30, 0.15);
+  font-size: 0.82rem;
+  opacity: 0.85;
+}
+
+.tarjeta-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  background: var(--superficie);
+  border-radius: 8px;
+  padding: 0.7rem 0.85rem;
+  font-size: 0.85rem;
+  color: var(--navy-medio);
+}
+
+.tarjeta-info svg {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  color: var(--teal);
+}
+
+.texto-ayuda {
+  border-top: 1px solid rgba(0, 43, 91, 0.08);
+  margin-top: 0.5rem;
+  padding-top: 1rem;
+  font-size: 0.85rem;
+  color: var(--navy-medio);
+  text-align: center;
+}
+
+.boton-con-icono {
+  /* Sin scopear a button/a: ya se usaba en <p> para las líneas de "Cargando…"/"Generando
+     código…" con un ícono girando (Configurar2FAPage), pero el selector sólo cubría
+     button/a — el ícono y el texto nunca quedaban centrados en flex ahí, sólo caían en
+     flujo inline normal. Una clase, cualquier elemento. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+a.boton-con-icono {
+  text-decoration: none;
+}
+
+.boton-primario {
+  background: var(--teal);
+  color: var(--blanco);
+  padding: 0.65rem 1.1rem;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: background-color 150ms ease, transform 100ms ease;
+}
+
+.boton-primario:hover {
+  background: var(--navy-medio);
+}
+
+.boton-primario:active {
+  transform: scale(0.98);
+}
+
+.medidor-fuerza {
+  margin: -0.5rem 0 0;
+}
+
+.medidor-fuerza .barras {
+  display: flex;
+  gap: 0.3rem;
+  margin: 0.35rem 0;
+}
+
+.medidor-fuerza .barra {
+  height: 4px;
+  flex: 1;
+  border-radius: 2px;
+  background: rgba(0, 43, 91, 0.12);
+}
+
+.medidor-fuerza .barra.activa-debil {
+  background: #b3261e;
+}
+
+.medidor-fuerza .barra.activa-media {
+  background: var(--oro);
+}
+
+.medidor-fuerza .barra.activa-fuerte {
+  background: var(--teal);
+}
+
+.medidor-fuerza .etiqueta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--navy-medio);
+}
+
+.lista-requisitos {
+  list-style: none;
+  margin: 0;
+  padding: 0.75rem;
+  background: var(--superficie);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.lista-requisitos li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--navy-medio);
+}
+
+.lista-requisitos li.cumplido {
+  color: var(--navy);
+}
+
+.lista-requisitos li.cumplido svg {
+  color: var(--teal);
+}
+
+.lista-requisitos li svg {
+  color: rgba(0, 43, 91, 0.25);
+  flex-shrink: 0;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.icono-girando {
+  animation: girar 1s linear infinite;
+}
+
+/* ─── §movimiento ─── */
+/* Entrada de tarjetas/listas: un solo momento de aparición al cargar la página, no un efecto
+   por hover ni escalonado por fila — ver principios de motion del proyecto. Sólo corre si la
+   persona no pidió menos movimiento; si prefiere reducido, aparecen directo sin animación. */
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes aparecer {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .tarjeta-movimiento,
+  .tarjeta-resumen {
+    animation: aparecer 240ms ease-out both;
+  }
+}
+
+/* El spinner de carga transmite un estado real ("sigue trabajando") — no es decorativo, así
+   que sigue girando aunque el resto del movimiento no esencial se apague. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .icono-girando {
+    animation-duration: 1s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+
+/* ─── §layout auth ─── */
+/* Breakpoints: 48rem (768px, tablet) · 64rem (1024px, entra el split de dos columnas) ·
+   80rem (1280px, amplio). El split entra recién en 64rem por aritmética: a 768px el aside
+   al 42% deja 226px útiles tras su padding de 3rem, mientras la tarjeta necesita 500px en
+   los 446px restantes del panel — desborda. A 1024px entra con aire de sobra. */
+
+.pantalla-auth {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.panel-decorativo {
+  background: linear-gradient(160deg, var(--navy) 0%, var(--teal) 60%, var(--teal-claro) 100%);
+  color: white;
+  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.wordmark strong {
+  font-family: var(--font-titulo);
+  font-size: 1.25rem;
+}
+
+.titulo-panel {
+  font-size: clamp(1.35rem, 5vw, 2.5rem);
+  line-height: 1.15;
+  text-wrap: balance;
+  margin: 0 0 0.75rem;
+}
+
+.regla-dorada {
+  display: block;
+  width: 3rem;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--oro);
+  margin-bottom: 1rem;
+}
+
+.bajada-panel,
+.pie-panel {
+  display: none; /* copy de marketing: se recupera desde 48rem/64rem, no cabe en móvil */
+}
+
+.zona-formulario {
+  display: grid;
+  place-items: start center;
+  background: var(--blanco);
+  min-width: 0; /* el arreglo real: sin esto el ítem de grid no se encoge bajo su min-content */
+  padding: 2rem 1rem 3rem;
+}
+
+.tarjeta-auth {
+  background: var(--superficie);
+  border-radius: var(--radio-tarjeta);
+  box-shadow: var(--sombra-tarjeta);
+  padding: 1.75rem;
+  width: 100%;
+  max-width: var(--ancho-tarjeta-auth);
+  box-sizing: border-box;
+}
+
+.tarjeta-auth img {
+  max-width: 100%;
+  height: auto; /* el QR de Configurar2FA desbordaba sin este freno */
+}
+
+@media (min-width: 48rem) {
+  .bajada-panel {
+    display: block;
+  }
+  .panel-decorativo {
+    padding: 2.5rem 2rem;
+  }
+  .zona-formulario {
+    padding: 2.5rem 1.5rem 3rem;
+  }
+  .tarjeta-auth {
+    padding: 2.5rem;
+  }
+}
+
+@media (min-width: 64rem) {
+  .pantalla-auth {
+    grid-template-rows: none;
+    grid-template-columns: minmax(20rem, var(--ancho-panel-auth)) 1fr;
+  }
+  .panel-decorativo {
+    padding: 3rem;
+  }
+  .pie-panel {
+    display: block;
+  }
+  .zona-formulario {
+    /* Desde acá .zona-formulario ocupa toda la altura del viewport (columna del split) — con
+       "start" la tarjeta quedaba pegada arriba y dejaba un vacío grande abajo en pantallas
+       altas. En mobile/tablet "start" tenía sentido (la columna crece con el contenido, no con
+       el viewport), pero en el split de dos columnas conviene centrar en ambos ejes. */
+    place-items: center;
+  }
+}
+
+@media (min-width: 80rem) {
+  .panel-decorativo {
+    padding: 4rem;
+  }
+  .bajada-panel {
+    max-width: 32rem;
+  }
+}
+
+/* ─── §casillero ─── */
+/* Dos resets obligatorios: fieldset trae borde+padding (tokens.css §base) e input trae
+   width:100% (idem) — sin pisarlos las 6 celdas salen deformadas o apiladas. */
+
+.casillero-codigo {
+  border: none;
+  padding: 0;
+  margin: 0 0 0.5rem;
+}
+
+.etiqueta-casillero {
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--navy-medio);
+  margin-bottom: 0.5rem;
+}
+
+.casillero-codigo .celdas {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.casillero-codigo input {
+  width: clamp(2.25rem, 12vw, 3.25rem);
+  aspect-ratio: 1;
+  padding: 0;
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.casillero-codigo.invalido input {
+  border-color: #b3261e;
+}
+
+.temporizador-totp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+}
+
+.temporizador-totp .linea {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--navy-medio);
+}
+
+.temporizador-totp .cuenta-regresiva {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+.barra-progreso {
+  width: 100%;
+  max-width: 12rem;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(0, 43, 91, 0.12);
+  overflow: hidden;
+}
+
+.barra-progreso .relleno {
+  width: 100%;
+  height: 100%;
+  background: var(--teal);
+  transform-origin: left;
+  transition: transform 1s linear;
+}
+
+.temporizador-totp p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--navy-medio);
+  text-align: center;
+}
+
+.chip-correo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--superficie);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  margin-bottom: 1rem;
+  font-size: 0.82rem;
+  color: var(--navy-medio);
+  max-width: 100%;
+}
+
+.chip-correo .correo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.chip-correo button {
+  background: transparent;
+  border: none;
+  color: var(--teal);
+  font-weight: 600;
+  font-size: 0.8rem;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ─── §pasos totp (mockup 02-configurar-2fa) ─── */
+/* Mismo lenguaje visual que .icono-seccion/.icono-opcion (círculo var(--superficie) + texto
+   var(--teal)) — no una insignia nueva, sólo numerada en vez de un ícono. */
+
+.pasos-totp {
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.pasos-totp li {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.pasos-totp .numero-paso {
+  flex-shrink: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: var(--superficie);
+  color: var(--teal);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.pasos-totp strong {
+  display: block;
+  color: var(--navy);
+  font-size: 0.92rem;
+}
+
+.pasos-totp .detalle {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--navy-medio);
+  margin-top: 0.1rem;
+}
+
+.icono-tarjeta {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 12px;
+  background: var(--teal);
+  color: white;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 1rem;
+}
+
+/* ─── §formularios internos ─── */
+/* Fidelidad visual de los formularios de personas/usuarios (Tarea F, QA de mockups 11-13):
+   migas, agrupación en fieldset con ícono, rejilla de campos, opciones seleccionables (antes
+   radios sueltos) y la cabecera de persona de CambiarEstadoPage. */
+
+.migas {
+  font-size: 0.82rem;
+  color: var(--navy-medio);
+  margin-bottom: 0.5rem;
+}
+
+.migas a {
+  color: var(--navy-medio);
+  text-decoration: none;
+}
+
+.migas a:hover {
+  color: var(--teal);
+}
+
+.migas strong {
+  color: var(--navy);
+  font-weight: 600;
+}
+
+.subtitulo-pagina {
+  color: var(--navy-medio);
+  margin-top: -0.5rem;
+}
+
+.icono-seccion {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  background: var(--superficie);
+  color: var(--teal);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.encabezado-fieldset {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0;
+  font-family: var(--font-titulo);
+  font-size: 1.05rem;
+  color: var(--navy);
+  margin-bottom: 0.85rem;
+}
+
+.rejilla-campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.85rem;
+}
+
+/* fieldset base (§base) no es flex — sin esta clase los campos agrupados pierden el
+   gap:1rem que normalmente heredan de form y quedan apretados entre sí. Clase aparte
+   (no el selector fieldset a secas) para no afectar a .casillero-codigo. */
+.fieldset-formulario {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ayuda-campo {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--navy-medio);
+}
+
+.botonera {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.botonera a {
+  font-size: 0.9rem;
+}
+
+.opciones-seleccionables {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.opciones-seleccionables--compacta {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.opciones-seleccionables--compacta .opcion-seleccionable {
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.opcion-seleccionable {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border: 1px solid rgba(0, 43, 91, 0.15);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+}
+
+.opcion-seleccionable input[type="radio"],
+.opcion-seleccionable input[type="checkbox"] {
+  width: auto;
+  margin-top: 0.2rem;
+}
+
+.opcion-seleccionable:has(input:checked) {
+  border-color: var(--teal);
+  background: rgba(21, 152, 149, 0.06);
+}
+
+.opcion-seleccionable .icono-opcion {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  background: var(--superficie);
+  color: var(--teal);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.opcion-seleccionable:has(input:checked) .icono-opcion {
+  background: var(--teal);
+  color: var(--blanco);
+}
+
+.opcion-seleccionable .texto-opcion strong {
+  display: block;
+  color: var(--navy);
+  font-size: 0.92rem;
+}
+
+.opcion-seleccionable .texto-opcion small {
+  display: block;
+  color: var(--navy-medio);
+  font-size: 0.8rem;
+  margin-top: 0.15rem;
+}
+
+.avatar-iniciales {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 999px;
+  background: linear-gradient(160deg, var(--teal) 0%, var(--teal-claro) 100%);
+  color: white;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.cabecera-persona {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  background: var(--blanco);
+  border-radius: var(--radio-tarjeta);
+  box-shadow: var(--sombra-tarjeta);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.cabecera-persona .identidad {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.insignia-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.insignia-estado.activo {
+  background: rgba(21, 152, 149, 0.12);
+  color: var(--teal);
+}
+
+.insignia-estado.suspension {
+  background: rgba(173, 149, 81, 0.15);
+  color: var(--oro);
+}
+
+.insignia-estado.baja_definitiva {
+  background: rgba(179, 38, 30, 0.1);
+  color: #b3261e;
+}
+
+/* ─── §cuenta suspendida (mockup 08) ─── */
+
+.contenido-centrado {
+  text-align: center;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.85rem;
+  border: 1px solid rgba(173, 149, 81, 0.4);
+  border-radius: 999px;
+  color: var(--oro);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.eyebrow::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--oro);
+}
+
+.eyebrow-seccion {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--teal);
+  margin: 1.5rem 0 0.4rem;
+}
+
+.texto-siguiente-paso {
+  font-family: var(--font-titulo);
+  font-size: 1.15rem;
+  color: var(--navy);
+  margin: 0;
+}
+
+.tarjeta-contacto {
+  background: var(--superficie);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0 1rem;
+  text-align: left;
+}
+
+.tarjeta-contacto h3 {
+  font-family: var(--font-cuerpo);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--navy-medio);
+  margin: 0 0 0.5rem;
+}
+
+.tarjeta-contacto .fila {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid rgba(0, 43, 91, 0.08);
+}
+
+.tarjeta-contacto .fila:first-of-type {
+  border-top: none;
+}
+
+.tarjeta-contacto .etiqueta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--navy-medio);
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.tarjeta-contacto .valor {
+  font-weight: 600;
+  color: var(--navy);
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+/* ─── §directorio (mockup 09) ─── */
+
+.contenedor-pagina--ancho {
+  max-width: 1200px;
+}
+
+/* Monitores anchos (>=96rem/1536px): 1200px seguía fijo ahí para siempre y dejaba franjas
+   vacías a los costados en pantallas grandes — el resto de .contenedor-pagina (720px, para
+   fichas/formularios de un solo campo) se deja como está a propósito: ensanchar un formulario
+   angosto lo hace ver vacío, no lo mejora; esto sólo afecta a las pantallas tipo directorio/
+   historial que sí tienen contenido para llenar el ancho extra. */
+@media (min-width: 96rem) {
+  .contenedor-pagina--ancho {
+    max-width: 1440px;
+  }
+}
+
+.encabezado-pagina {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.encabezado-pagina .boton-con-icono {
+  flex-shrink: 0;
+}
+
+.banda-metricas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  background: var(--blanco);
+  border-radius: var(--radio-tarjeta);
+  box-shadow: var(--sombra-tarjeta);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.metrica {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.metrica strong {
+  font-family: var(--font-titulo);
+  font-size: 1.6rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--navy);
+}
+
+.etiqueta-metrica {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--navy-medio);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.detalle-metrica {
+  font-size: 0.78rem;
+  color: var(--navy-medio);
+}
+
+.punto {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.punto--exito {
+  background: var(--teal);
+}
+
+.punto--aviso {
+  background: var(--oro);
+}
+
+.punto--peligro {
+  background: #b3261e;
+}
+
+.barra-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.85rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.barra-filtros .campo-con-icono {
+  flex: 1 1 16rem;
+}
+
+.barra-filtros select,
+.barra-filtros input[type="date"] {
+  width: auto;
+  min-width: 10rem;
+}
+
+/* AsignacionesPage: 5 controles en la misma barra (buscador + estado + 2 fechas + orden) —
+   sin agrupar, el buscador (flex:1 1 16rem) domina la fila y los 4 controles auto/min-width
+   quedan sueltos detrás en el wrap. Agrupados en un solo bloque que envuelve junto, separado
+   del buscador por el gap normal de .barra-filtros. */
+.grupo-filtros-secundarios {
+  display: flex;
+  flex-wrap: wrap;
+  /* flex-end, no center: dos de estos controles (Vigente desde/hasta) son <Input> con label
+     arriba y son más altos que un <select>/<input> suelto sin label — centrarlos los dejaba
+     descolgados a distinta altura entre sí. Alineando el borde inferior, los controles
+     quedan a la misma altura real sin importar si alguno lleva label arriba o no. */
+  align-items: flex-end;
+  gap: 0.85rem;
+}
+
+/* Modificador para cuando el grupo vive en una columna angosta (ej. la tarjeta "Resumen" del
+   costado en PermisosPage) en vez de una barra de filtros ancha — una fila por control, cada
+   uno estirado al ancho disponible, en vez de intentar acomodarlos en la misma línea. */
+.grupo-filtros-secundarios--apilado {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
+.persona-celda {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-weight: 600;
+}
+
+.pie-tabla {
+  margin-top: 0.85rem;
+  font-size: 0.85rem;
+  color: var(--navy-medio);
+}
+
+/* ─── §bitácora (mockup 14) ─── */
+
+.cabecera-bitacora {
+  flex-wrap: wrap;
+  row-gap: 1rem;
+}
+
+.metricas-cabecera {
+  display: flex;
+  gap: 2rem;
+}
+
+.metricas-cabecera > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.metricas-cabecera strong {
+  font-family: var(--font-titulo);
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--navy);
+}
+
+.layout-bitacora {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 64rem) {
+  .layout-bitacora {
+    grid-template-columns: 2fr 1fr;
+    align-items: start;
+  }
+}
+
+/* A la par de .contenedor-pagina--ancho de arriba: en 96rem+ el costado (1fr) ya tiene sitio
+   de sobra dentro de 1440px, pero fijamos un piso (minmax) para que nunca vuelva a angostarse
+   tanto como para partir una etiqueta larga en dos líneas y empujar su badge de conteo abajo
+   (bug real visto en la tarjeta "Por puesto" de FichaDepartamentoPage). */
+@media (min-width: 96rem) {
+  .layout-bitacora {
+    grid-template-columns: 2fr minmax(20rem, 1fr);
+  }
+}
+
+/* Fila de tarjetas chicas (un dato suelto o un formulario de un campo cada una) dentro de un
+   contenedor ancho — sin esto, tres .tarjeta-resumen apiladas a lo largo de 1200px+ se ven
+   como restos angostos flotando en el medio de la pantalla en vez de aprovechar el ancho.
+   auto-fit + minmax en vez de un número fijo de columnas: en pantallas angostas cae solo a
+   una columna apilada, sin necesitar un breakpoint aparte. */
+.rejilla-tarjetas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1.5rem;
+  align-items: start;
+}
+
+/* .tarjeta-resumen trae margin-bottom:1.5rem para cuando se apila sola — acá el espaciado ya
+   lo da el gap de la grilla; sin este reset, el margin se suma al gap en la columna angosta
+   (mobile) y deja un hueco doble entre tarjetas apiladas. */
+.rejilla-tarjetas > .tarjeta-resumen {
+  margin-bottom: 0;
+}
+
+.grupo-anio {
+  margin-bottom: 1.5rem;
+}
+
+.titulo-anio {
+  font-size: 1.1rem;
+  color: var(--oro);
+  border-bottom: 2px solid rgba(173, 149, 81, 0.25);
+  padding-bottom: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.tarjeta-movimiento {
+  background: var(--blanco);
+  border-radius: var(--radio-tarjeta);
+  box-shadow: var(--sombra-tarjeta);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.fila-movimiento {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.fila-movimiento time {
+  font-size: 0.8rem;
+  color: var(--navy-medio);
+}
+
+.pildora-transicion {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tarjeta-movimiento p {
+  margin: 0 0 0.5rem;
+}
+
+.autor-movimiento {
+  font-size: 0.85rem;
+  color: var(--navy-medio);
+  border-top: 1px solid rgba(0, 43, 91, 0.08);
+  padding-top: 0.5rem;
+  margin: 0.5rem 0 0 !important;
+}
+
+.autor-movimiento strong {
+  color: var(--navy);
+}
+
+.tarjeta-resumen {
+  background: var(--blanco);
+  border-radius: var(--radio-tarjeta);
+  box-shadow: var(--sombra-tarjeta);
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.tarjeta-resumen h3 {
+  margin-bottom: 0.85rem;
+}
+
+.rejilla-resumen {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.rejilla-resumen strong {
+  display: block;
+  font-family: var(--font-titulo);
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--navy);
+}
+
+.rejilla-resumen span {
+  font-size: 0.75rem;
+  color: var(--navy-medio);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.primer-registro {
+  border-top: 1px solid rgba(0, 43, 91, 0.08);
+  padding-top: 0.85rem;
+  margin: 1rem 0 0;
+  font-size: 0.85rem;
+  color: var(--navy-medio);
+}
+
+.leyenda-estados {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.leyenda-estados li {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.leyenda-estados .punto {
+  margin-top: 0.35rem;
+}
+
+.leyenda-estados strong {
+  display: block;
+  color: var(--navy);
+  font-size: 0.9rem;
+}
+
+.leyenda-estados span.descripcion {
+  font-size: 0.8rem;
+  color: var(--navy-medio);
+}
+
+/* Modificador de .leyenda-estados para cuando vive en una sección de ancho completo en vez de
+   un <aside> angosto (PermisosPage, catálogo de permisos) — pasa de columna única a grilla
+   responsiva; se combina con .lista-desplazable para el límite de altura con scroll propio.
+   Cada ítem es su propia tarjeta bordeada (mismo tratamiento que .opcion-seleccionable) en vez
+   de texto suelto: la descripción de dos líneas de los permisos no heredables desalineaba la
+   grilla y daba sensación de amontonado sin un borde que absorbiera esa diferencia de alto. */
+.leyenda-estados--grilla {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 1rem 1.25rem;
+}
+
+.leyenda-estados--grilla li {
+  align-items: flex-start;
+  border: 1px solid rgba(0, 43, 91, 0.12);
+  border-radius: 10px;
+  padding: 0.75rem 0.9rem;
+}
+
+/* ─── §ficha (mockup 10) ─── */
+
+.cabecera-ficha .identidad {
+  align-items: flex-start;
+}
+
+.fila-nombre-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.fila-nombre-badge strong {
+  font-family: var(--font-titulo);
+  font-size: 1.3rem;
+  color: var(--navy);
+}
+
+.meta-ficha {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  color: var(--navy-medio);
+}
+
+.rejilla-datos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 1rem;
+}
+
+.dato span {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--navy-medio);
+  margin-bottom: 0.25rem;
+}
+
+.dato strong {
+  font-size: 0.95rem;
+  color: var(--navy);
+  font-weight: 600;
+}
+
+/* CURP/RFC/NSS son identificadores, no prosa — el mono + tracking los hace más fáciles de
+   leer/verificar carácter por carácter, tanto tipeándolos (formulario) como mostrándolos
+   (ficha). Mismo --font-mono que .pildora-monoespaciada, un solo lugar. */
+.campo-identificador {
+  font-family: var(--font-mono);
+  letter-spacing: 0.03em;
+}
+
+.pildora-monoespaciada {
+  display: inline-block;
+  font-family: var(--font-mono);
+  background: var(--superficie);
+  border: 1px solid rgba(0, 43, 91, 0.15);
+  border-radius: 8px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.9rem;
+  color: var(--navy);
+}
+
+.fila-cabecera-tarjeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.fila-cabecera-tarjeta h3 {
+  margin: 0;
+}
+
+.lista-historial-resumido {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.lista-historial-resumido li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(0, 43, 91, 0.08);
+}
+
+.lista-historial-resumido li:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.fecha-historial {
+  font-size: 0.82rem;
+  color: var(--navy-medio);
+}
+
+.autor-historial {
+  font-size: 0.82rem;
+  color: var(--navy-medio);
+  margin-left: auto;
+}
+
+.tarjeta-inmutable {
+  border: 1px solid rgba(21, 152, 149, 0.3);
+}
+
+.tarjeta-inmutable h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--teal);
+}
+
+.tarjeta-inmutable p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--navy-medio);
+}
+
+.estado-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 3rem 1rem;
+  color: rgba(0, 43, 91, 0.35);
+  text-align: center;
+}
+
+.estado-vacio p {
+  margin: 0;
+  color: var(--navy-medio);
+  max-width: 26rem;
+}
+
+/* ─── §app shell ─── */
+/* Migradas desde inline styles en AppShell.tsx — la propia migración que este comentario
+   dejaba pendiente en §sidebar agrupado de abajo. */
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.app-shell-cargando {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+}
+
+.app-shell-cargando p {
+  color: var(--navy-medio);
+}
+
+.app-shell-aside {
+  flex: 0 0 260px;
+  background: var(--navy);
+  color: white;
+  padding: 1.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell-wordmark {
+  font-family: var(--font-titulo);
+  font-size: 1.35rem;
+  display: block;
+  margin-bottom: 2rem;
+  padding: 0 0.5rem;
+}
+
+.app-shell-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell-footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  padding-top: 1rem;
+}
+
+.app-shell-correo {
+  margin: 0 0 0.75rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.app-shell-main {
+  flex: 1;
+  background: var(--superficie);
+}
+
+/* ─── §sidebar agrupado ─── */
+/* Sidebar de AppShell reestructurado en grupos desplegables (módulo → sus vistas) — el punto
+   donde después se engancha el filtrado por permisos de SCJ-PRO-05 (`disponible` por grupo e
+   ítem). Estilos movidos aquí desde inline: con grupos anidados (título + chevron + subitems)
+   ya no daba para seguir como objetos de estilo en AppShell.tsx. */
+
+.nav-item-plano {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  margin-bottom: 0.15rem;
+  font-size: 0.92rem;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.nav-grupo {
+  margin-bottom: 0.15rem;
+}
+
+.nav-grupo-titulo {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.nav-grupo-titulo--activo {
+  color: #fff;
+}
+
+.nav-grupo-titulo svg:last-child {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.nav-subitems {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.3rem 0 0.5rem 2.1rem;
+}
+
+.nav-subitem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.86rem;
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+}
+
+.nav-subitem--activo {
+  background: var(--teal);
+  color: #fff;
+  font-weight: 600;
+}
+
+.nav-subitem--atenuado {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.etiqueta-proximamente {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: rgba(173, 149, 81, 0.9);
+  border: 1px solid rgba(173, 149, 81, 0.4);
+  border-radius: 999px;
+  padding: 0.1rem 0.4rem;
+  white-space: nowrap;
+}
+
+.boton-cerrar-sesion {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+  width: 100%;
+  padding: 0.6rem;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-family: var(--font-cuerpo);
+}
+
+/* ─── §pestañas ─── */
+/* Primer control de pestañas del proyecto (organigrama vs. tabla en Asignaciones/Puestos) —
+   genérico a propósito, no específico de organigrama, por si otra pantalla necesita el mismo
+   patrón de vistas alternas más adelante. */
+
+.pestanas {
+  display: inline-flex;
+  gap: 0.2rem;
+  background: var(--blanco);
+  border: 1px solid rgba(0, 43, 91, 0.1);
+  border-radius: 999px;
+  padding: 0.3rem;
+  margin-bottom: 1.5rem;
+}
+
+.pestana {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1.2rem;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--navy-medio);
+  background: transparent;
+  border: none;
+  font-family: var(--font-cuerpo);
+  cursor: pointer;
+}
+
+.pestana--activa {
+  background: var(--teal);
+  color: white;
+}
+
+/* ─── §chip de filtro ─── */
+/* Filtro activo removible (ej. "Filtrado por: Gerencia Comercial y su equipo") — el click en
+   un nodo del organigrama que aterriza en la tabla ya filtrada necesita mostrar y poder
+   deshacer ese filtro sin volver al árbol. */
+
+.chip-filtro {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: rgba(21, 152, 149, 0.12);
+  color: var(--teal);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  margin-bottom: 1.25rem;
+}
+
+.chip-filtro button {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* ─── §organigrama ─── */
+/* Árbol de puestos armado desde reporta_a_id (mismo dato que backend/app/permisos.py usa para
+   la herencia de permisos) — SVG/CSS puro, sin librería de diagramas nueva: el árbol completo
+   del proyecto es chico (~15-20 puestos, ver mapa_hijos_por_puesto), no justifica una
+   dependencia pensada para grafos grandes con pan/zoom/drag. Recipe clásico de líneas
+   conectoras vía pseudo-elementos — cada nivel es un <ul>, cada puesto un <li>. */
+
+.bosque-organigrama {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.arbol-organigrama,
+.arbol-organigrama ul,
+.arbol-organigrama li {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+.arbol-organigrama {
+  display: flex;
+  overflow-x: auto;
+  padding: 0.5rem 1.5rem;
+}
+
+/* margin:auto en el hijo en vez de justify-content:center en el contenedor: centrado vía
+   justify-content en un flex con overflow dispareja el desborde hacia el lado de "inicio" y
+   los navegadores no lo dejan alcanzar con scroll (el árbol quedaba cortado del lado
+   izquierdo, con aire de sobra del derecho — bug real reportado). margin:auto sí reparte el
+   desborde simétrico y scrollable de los dos lados. */
+.arbol-organigrama > ul {
+  display: inline-flex;
+  margin: 0 auto;
+  padding-top: 0;
+}
+
+.arbol-organigrama ul ul {
+  display: flex;
+  padding-top: 24px;
+}
+
+.arbol-organigrama li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 12px 0 12px;
+}
+
+.arbol-organigrama li::before,
+.arbol-organigrama li::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 50%;
+  width: 50%;
+  height: 24px;
+  border-top: 2px solid rgba(0, 43, 91, 0.25);
+}
+
+.arbol-organigrama li::after {
+  right: auto;
+  left: 50%;
+  border-left: 2px solid rgba(0, 43, 91, 0.25);
+}
+
+.arbol-organigrama li:only-child::after,
+.arbol-organigrama li:only-child::before {
+  display: none;
+}
+
+.arbol-organigrama li:only-child {
+  padding-top: 0;
+}
+
+.arbol-organigrama li:first-child::before,
+.arbol-organigrama li:last-child::after {
+  border: 0 none;
+}
+
+.arbol-organigrama li:last-child::before {
+  border-right: 2px solid rgba(0, 43, 91, 0.25);
+  border-radius: 0 6px 0 0;
+}
+
+.arbol-organigrama li:first-child::after {
+  border-radius: 6px 0 0 0;
+}
+
+.arbol-organigrama ul ul::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  border-left: 2px solid rgba(0, 43, 91, 0.25);
+  width: 0;
+  height: 24px;
+}
+
+.nodo-organigrama {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--blanco);
+  border: 1px solid rgba(0, 43, 91, 0.15);
+  border-radius: 10px;
+  padding: 0.7rem 1rem;
+  box-shadow: 0 1px 4px rgba(0, 43, 91, 0.06);
+  min-width: 9rem;
+  cursor: pointer;
+}
+
+.nodo-organigrama:hover,
+.nodo-organigrama:focus-visible {
+  border-color: var(--teal);
+}
+
+.nodo-organigrama--raiz {
+  border-color: var(--oro);
+  background: rgba(173, 149, 81, 0.06);
+}
+
+.nodo-organigrama--inactivo {
+  opacity: 0.6;
+}
+
+.nodo-organigrama strong {
+  font-size: 0.86rem;
+  color: var(--navy);
+  text-align: center;
+}
+
+.nodo-organigrama-conteo {
+  font-size: 0.72rem;
+  color: var(--navy-medio);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─── §subsistema tiempo (pase visual, 2026-09-07) ─── */
+/* Las 4 pestañas de Tiempo (Jornadas/Marcas/Autorizaciones/Reportes) llegaron funcionales pero
+   sin la capa de jerarquía visual que ya tienen Personas/Estructura Organizacional
+   (.banda-metricas, tarjetas con ícono) — esto las nivela sin traer una librería nueva:
+   reusa el mismo lenguaje (tarjeta-resumen, superficie, teal) en dos piezas nuevas. */
+
+/* Grilla de acciones disparables (PanelCorridasBatchPage): antes 3 <Button> sueltos en una fila
+   con inline style — ahora una tarjeta por tipo de batch, con ícono propio y texto de apoyo,
+   mismo tratamiento visual que .opcion-seleccionable/.icono-seccion del resto de la app. */
+.rejilla-acciones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.tarjeta-accion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: var(--blanco);
+  border: 1px solid rgba(0, 43, 91, 0.1);
+  border-radius: var(--radio-tarjeta);
+  box-shadow: var(--sombra-tarjeta);
+  padding: 1.1rem 1.25rem;
+}
+
+.tarjeta-accion .icono-seccion {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 10px;
+}
+
+.tarjeta-accion strong {
+  display: block;
+  color: var(--navy);
+  font-size: 0.95rem;
+}
+
+.tarjeta-accion p {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--navy-medio);
+  flex: 1;
+}
+
+.tarjeta-accion .boton-primario {
+  justify-content: center;
+  width: 100%;
+}
+
+/* Apilado vertical simple con espaciado uniforme (BandejaAusenciasPage) — reemplaza el
+   `style={{ display: "flex", ... }}` inline que había quedado ahí. */
+.pila-tarjetas {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Indicador de refresco automático (RegistroMarcasPage) — mismo tratamiento tipográfico que
+   .ayuda-campo, sólo movido a su propia clase por no ser un campo de formulario. */
+.indicador-en-vivo {
+  color: var(--navy-medio);
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+/* Gráfica de barras horizontal, CSS puro (sin librería) — mismo recipe que .barra-progreso
+   (pista + relleno con transform:scaleX), sólo horizontal y con etiqueta+valor a los costados.
+   Usada en BancoDeHorasPage para el top de personas con más horas en deuda. */
+.grafica-barras {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.fila-grafica-barras {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.fila-grafica-barras .etiqueta-barra {
+  flex: 0 0 9rem;
+  font-size: 0.85rem;
+  color: var(--navy);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fila-grafica-barras .pista-barra {
+  flex: 1;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: rgba(0, 43, 91, 0.08);
+  overflow: hidden;
+}
+
+.fila-grafica-barras .relleno-barra {
+  height: 100%;
+  width: 100%;
+  transform-origin: left;
+  background: #b3261e;
+  border-radius: 999px;
+}
+
+.fila-grafica-barras .valor-barra {
+  flex: 0 0 auto;
+  min-width: 4.5rem;
+  text-align: right;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--navy-medio);
+}
+
+.lista-chips-personas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Calendario semanal de la jornada asignada (FichaPersonaPage) — 7 tarjetas de día, CSS grid
+   puro. auto-fit en vez de 7 columnas fijas: en angosto cae a menos columnas apiladas en vez de
+   comprimir cada día a un ancho inservible. */
+.calendario-semanal {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: 0.75rem;
+}
+
+.dia-calendario {
+  border: 1px solid rgba(0, 43, 91, 0.12);
+  border-radius: 10px;
+  padding: 0.75rem 0.5rem;
+  text-align: center;
+}
+
+.dia-calendario--trabaja {
+  border-color: rgba(21, 152, 149, 0.35);
+  background: rgba(21, 152, 149, 0.05);
+}
+
+.dia-calendario--libre {
+  opacity: 0.5;
+}
+
+.dia-calendario .nombre-dia {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--navy-medio);
+  margin-bottom: 0.5rem;
+}
+
+.dia-calendario .horario-dia {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+}
+
+.dia-calendario .comida-dia {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--navy-medio);
+  margin-top: 0.2rem;
+}
+
+/* Varias insignias en una misma celda de tabla (ParametrosTopeLegalPage: motivos de exceso de
+   tope legal, 1 a 3 chips por persona) — .insignia ya trae su propio padding/radio, esto sólo
+   resuelve el layout de la celda que las contiene. */
+.grupo-insignias {
+  display: flex;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+/* ─── §calendario días festivos ─── */
+/* Cabecera compartida por las dos sub-vistas de calendario (mensual/semanal) de
+   DiasFestivosPage — título del período + navegación Anterior/Hoy/Siguiente. */
+
+.cabecera-calendario {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.titulo-periodo-calendario {
+  margin: 0;
+  text-transform: capitalize;
+}
+
+/* Grid de 7 columnas FIJAS a propósito — a diferencia de .calendario-semanal (auto-fit, pensada
+   para caber en cualquier ancho), un mes deja de leerse como mes si las columnas se reacomodan
+   en angosto; acá preferimos scroll horizontal de la página antes que perder la grilla. */
+.calendario-mensual {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(6rem, 1fr));
+  gap: 0.5rem;
+}
+
+.cabecera-dia-mes {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--navy-medio);
+  padding-bottom: 0.4rem;
+}
+
+.celda-mes {
+  min-height: 4.5rem;
+  border: 1px solid rgba(0, 43, 91, 0.12);
+  border-radius: 10px;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.celda-mes .numero-dia {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--navy);
+}
+
+.celda-mes .nombre-festivo {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--oro);
+  line-height: 1.2;
+}
+
+.celda-mes--adyacente {
+  opacity: 0.4;
+}
+
+.celda-mes--festivo {
+  background: rgba(173, 149, 81, 0.08);
+  border-color: rgba(173, 149, 81, 0.4);
+}
+
+.celda-mes--hoy {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 1px var(--teal);
+}
+
+/* Modificadores nuevos sobre .dia-calendario (FichaPersonaPage) para la vista Semanal de
+   festivos — --trabaja/--libre (jornada) y --festivo/--hoy (festivos) no se combinan nunca en
+   la misma pantalla, así que no hace falta resolver precedencia entre ellos. */
+.dia-calendario--festivo {
+  border-color: rgba(173, 149, 81, 0.4);
+  background: rgba(173, 149, 81, 0.08);
+}
+
+.dia-calendario--hoy {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 1px var(--teal);
+}

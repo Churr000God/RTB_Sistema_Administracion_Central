@@ -1,0 +1,7 @@
+-- 01_indices.sql
+-- Índices del subsistema de Tiempo.
+-- Depende de: 02_tiempo.sql
+-- Justificación: SCJ-IDX-01 — cada índice tiene ahí la consulta que lo justifica
+--                y la medición antes y después.
+--
+-- Regla: ningún índice entra aquí sin una fila en SCJ-IDX-01.

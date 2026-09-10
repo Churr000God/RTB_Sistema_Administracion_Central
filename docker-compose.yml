@@ -1,0 +1,54 @@
+# SCJ — desarrollo. Levanta backend (FastAPI, hot reload) y frontend (Vite,
+# hot reload). No hay contenedor de base de datos: la BD es Supabase remoto
+# (ver CLAUDE.md, README.md §"Cómo levantar el proyecto") — backend y frontend
+# le hablan directo por internet, usando las credenciales de sus .env.
+#
+# Las VITE_* (incluidas VITE_CONTACTO_*, correos de contacto de la app) se
+# leen de frontend/.env vía env_file -- en prod van como build args, ver
+# docker-compose.prod.yml.
+#
+# Uso: ./scripts/desplegar.sh dev levantar   (o "docker compose up -d --build")
+
+services:
+  backend:
+    build:
+      context: ./backend
+      target: dev
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+      - backend-venv:/app/.venv
+    healthcheck:
+      test: ["CMD", "uv", "run", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/salud')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    ports:
+      - "5173:5173"
+    env_file:
+      - frontend/.env
+    volumes:
+      - ./frontend:/app
+      - frontend-node-modules:/app/node_modules
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5173"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  backend-venv:
+  frontend-node-modules:

@@ -1,0 +1,166 @@
+%% Modelo lógico del subsistema de Tiempo
+%% Documento: SCJ-MOD-02 · V2.2 · 5 de septiembre de 2026
+%% Exportar a: diagramas/export/logico.svg
+%% Export pendiente de regenerar (2026-09-05) — logico.svg sigue reflejando V1.1
+
+erDiagram
+    persona ||--o{ marca : produce
+    persona ||--o{ dia : acumula
+    persona ||--o{ jornada_asignada : tiene
+    persona ||--o{ ausencia : solicita
+    persona ||--|| banco_de_horas : acumula
+    ausencia ||--o{ aprobacion_ausencia : requiere
+    persona ||--o{ aprobacion_ausencia : aprueba
+
+    dia ||--o{ tramo : contiene
+    marca ||--|| tramo : "abre (marca_apertura_id)"
+    marca ||--o| tramo : "cierra (marca_cierre_id)"
+    tramo ||--|| clasificacion_de_tiempo : recibe
+
+    jornada_asignada ||--o{ patron_semanal : define
+
+    banco_de_horas ||--o{ movimiento_de_saldo : registra
+    clasificacion_de_tiempo ||--o{ movimiento_de_saldo : puede_generar
+
+    marca ||--o{ correccion : recibe
+    marca ||--o{ excepcion : "puede_generar (marca_id)"
+    dia ||--o{ excepcion : "puede_generar (dia_id)"
+
+    persona {
+        bigint id PK
+    }
+    marca {
+        bigint id PK
+        uuid evento_id UK
+        bigint persona_id FK
+        varchar terminal_id
+        bigint secuencia_local
+        timestamptz momento_dispositivo
+        varchar desfase_local
+        timestamptz momento_recepcion
+        varchar estado_reloj
+        varchar version_software
+        varchar origen
+        boolean requiere_revision
+    }
+    dia {
+        bigint id PK
+        bigint persona_id FK
+        date fecha
+        varchar estado
+        numeric horas_totales
+        varchar origen
+    }
+    tramo {
+        bigint id PK
+        bigint dia_id FK
+        bigint marca_apertura_id FK
+        bigint marca_cierre_id FK
+        timestamptz inicio
+        timestamptz fin
+        numeric minutos_trabajados
+    }
+    clasificacion_de_tiempo {
+        bigint id PK
+        bigint tramo_id FK
+        varchar tipo
+    }
+    jornada_asignada {
+        bigint id PK
+        bigint persona_id FK
+        varchar tipo_jornada
+        date vigente_desde
+        date vigente_hasta
+        boolean descuento_comida_fija
+        int minutos_descuento_comida_fija
+        numeric horas_semanales_calculadas
+        boolean genera_alerta_horario
+    }
+    patron_semanal {
+        bigint id PK
+        bigint jornada_asignada_id FK
+        varchar dia_semana
+        time hora_entrada
+        time hora_salida
+        int minutos_comida
+        numeric horas_efectivas
+    }
+    tope_legal {
+        bigint id PK
+        date vigente_desde UK
+        date vigente_hasta
+        numeric maximo_semanal
+        numeric maximo_extra
+    }
+    dia_festivo {
+        bigint id PK
+        date fecha UK
+        varchar nombre
+    }
+    corrida_batch {
+        bigint id PK
+        varchar tipo_batch
+        date fecha
+        varchar estado
+        smallint intentos
+        timestamptz iniciado_en
+        timestamptz terminado_en
+        text detalle
+    }
+    banco_de_horas {
+        bigint id PK
+        bigint persona_id FK
+        numeric monto
+        timestamptz vivo_desde
+        timestamptz actualizado_en
+    }
+    movimiento_de_saldo {
+        bigint id PK
+        bigint banco_de_horas_id FK
+        bigint clasificacion_de_tiempo_id FK
+        varchar tipo
+        numeric monto
+        text motivo
+        bigint autor_id FK
+        timestamptz creado_en
+    }
+    correccion {
+        bigint id PK
+        bigint marca_id FK
+        timestamptz valor_corregido
+        text motivo
+        bigint autor_id FK
+        timestamptz creado_en
+    }
+    ausencia {
+        bigint id PK
+        bigint persona_id FK
+        varchar tipo_de_ausencia
+        date fecha_inicio
+        date fecha_fin
+        varchar estado_autorizacion
+        varchar documento_ref
+    }
+    aprobacion_ausencia {
+        bigint id PK
+        bigint ausencia_id FK
+        smallint numero_paso
+        bigint aprobador_id FK
+        varchar decision
+        text motivo
+        timestamptz decidido_en
+    }
+    parametro {
+        bigint id PK
+        varchar clave
+        text valor
+        date vigente_desde
+    }
+    excepcion {
+        bigint id PK
+        bigint marca_id FK
+        bigint dia_id FK
+        text motivo_revision
+        varchar estado
+        timestamptz creado_en
+    }

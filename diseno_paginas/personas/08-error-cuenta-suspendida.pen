@@ -1,0 +1,710 @@
+{
+  "version": "2.17",
+  "children": [
+    {
+      "type": "frame",
+      "id": "xgNER",
+      "x": 0,
+      "y": 0,
+      "name": "Error - Cuenta suspendida",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "$blanco",
+      "children": [
+        {
+          "type": "frame",
+          "id": "h5eSDJ",
+          "name": "Panel Izquierdo",
+          "clip": true,
+          "width": 600,
+          "height": "fill_container",
+          "fill": {
+            "type": "gradient",
+            "gradientType": "linear",
+            "enabled": true,
+            "rotation": 145,
+            "size": {
+              "height": 1.25
+            },
+            "colors": [
+              {
+                "color": "$navy",
+                "position": 0
+              },
+              {
+                "color": "$teal",
+                "position": 0.62
+              },
+              {
+                "color": "$teal-claro",
+                "position": 1
+              }
+            ]
+          },
+          "layout": "vertical",
+          "padding": [
+            56,
+            60
+          ],
+          "justifyContent": "space_between",
+          "children": [
+            {
+              "type": "frame",
+              "id": "LdLn6",
+              "name": "Marca",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "cgWeE",
+                  "name": "Marca Simbolo",
+                  "width": 38,
+                  "height": 38,
+                  "fill": "#FFFFFF1F",
+                  "cornerRadius": 11,
+                  "stroke": "#FFFFFF4D",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "wu260",
+                      "name": "Icono Reloj",
+                      "width": 21,
+                      "height": 21,
+                      "icon": "clock-3",
+                      "library": "lucide",
+                      "weight": 500,
+                      "fill": "$blanco"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "S59rZ",
+                  "name": "Wordmark",
+                  "fill": "$blanco",
+                  "content": "Kairos",
+                  "fontFamily": "$font-titulo",
+                  "fontSize": 26,
+                  "fontWeight": "700"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "vpRuj",
+              "name": "Mensaje Marca",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 22,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "GT5jY",
+                  "name": "Titular",
+                  "fill": "$blanco",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Este acceso está en pausa",
+                  "lineHeight": 1.1,
+                  "fontFamily": "$font-titulo",
+                  "fontSize": 52,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "etlqN",
+                  "name": "Bajada",
+                  "fill": "#FFFFFFD9",
+                  "textGrowth": "fixed-width",
+                  "width": 440,
+                  "content": "La cuenta fue suspendida por Recursos Humanos. Nadie más puede reactivarla, y ninguna marca de jornada se registra mientras siga en ese estado.",
+                  "lineHeight": 1.7,
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 15,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "rectangle",
+                  "id": "u6p8Z",
+                  "name": "Regla Oro",
+                  "fill": "$oro",
+                  "width": 64,
+                  "height": 2
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "lJTgI",
+              "name": "Pie Panel",
+              "width": "fill_container",
+              "gap": 9,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "wnqJg",
+                  "name": "Pie Empresa",
+                  "fill": "#FFFFFFB3",
+                  "content": "Distribuidora Central, S.A. de C.V.",
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 11.5,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "Cb5OM",
+                  "name": "Pie Separador",
+                  "fill": "#FFFFFF80",
+                  "content": "·",
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 11.5,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "vFLT0",
+                  "name": "Pie Version",
+                  "fill": "#FFFFFFCC",
+                  "content": "v1.0",
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 11.5,
+                  "fontWeight": "600"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "uUhyK",
+          "name": "Panel Derecho",
+          "clip": true,
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$blanco",
+          "layout": "vertical",
+          "padding": [
+            48,
+            72
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "ExOso",
+              "name": "Tarjeta",
+              "width": 600,
+              "fill": "$blanco",
+              "cornerRadius": 20,
+              "stroke": "#15989524",
+              "strokeWidth": 1,
+              "strokeAlignment": "inner",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "color": "#002B5B1F",
+                "offset": {
+                  "x": 0,
+                  "y": 18
+                },
+                "blur": 44,
+                "spread": -12
+              },
+              "layout": "vertical",
+              "gap": 18,
+              "padding": [
+                38,
+                44
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "ZrtIx",
+                  "name": "Halo Icono",
+                  "width": 68,
+                  "height": 68,
+                  "fill": {
+                    "type": "gradient",
+                    "gradientType": "radial",
+                    "enabled": true,
+                    "rotation": 0,
+                    "size": {
+                      "width": 1,
+                      "height": 1
+                    },
+                    "colors": [
+                      {
+                        "color": "#57C5B633",
+                        "position": 0
+                      },
+                      {
+                        "color": "#57C5B600",
+                        "position": 1
+                      }
+                    ]
+                  },
+                  "cornerRadius": 34,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "gESi4",
+                      "name": "Disco Icono",
+                      "width": 50,
+                      "height": 50,
+                      "fill": "$superficie",
+                      "cornerRadius": 25,
+                      "stroke": "#1598953D",
+                      "strokeWidth": 1,
+                      "strokeAlignment": "inner",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "MHSXx",
+                          "name": "Icono Candado",
+                          "width": 23,
+                          "height": 23,
+                          "icon": "lock",
+                          "library": "lucide",
+                          "weight": 500,
+                          "fill": "$teal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "wvM9r",
+                  "name": "Badge Estado",
+                  "fill": "#AD95510F",
+                  "cornerRadius": 99,
+                  "stroke": "#AD955166",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "gap": 8,
+                  "padding": [
+                    7,
+                    13
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "ellipse",
+                      "id": "TB9bG",
+                      "name": "Punto Estado",
+                      "fill": "$oro",
+                      "width": 6,
+                      "height": 6
+                    },
+                    {
+                      "type": "text",
+                      "id": "xqhUq",
+                      "name": "Codigo",
+                      "fill": "#8A7538",
+                      "content": "ERROR 403 · ACCESO DENEGADO",
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 10.5,
+                      "fontWeight": "700",
+                      "letterSpacing": 1.7
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "qTDY4",
+                  "name": "Encabezado",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 14,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "mz2Ti",
+                      "name": "Titulo",
+                      "fill": "$navy",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Tu cuenta no está activa",
+                      "lineHeight": 1.14,
+                      "textAlign": "center",
+                      "fontFamily": "$font-titulo",
+                      "fontSize": 38,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "NqPNL",
+                      "name": "Explicacion",
+                      "fill": "$navy-medio",
+                      "textGrowth": "fixed-width",
+                      "width": 496,
+                      "content": "El acceso a Kairos fue suspendido para este usuario. Mientras la cuenta permanezca en ese estado no es posible iniciar sesión ni registrar marcas de jornada.",
+                      "lineHeight": 1.65,
+                      "textAlign": "center",
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 14.5,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "EibRe",
+                  "name": "Siguiente Paso",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "padding": [
+                    6,
+                    0,
+                    0,
+                    0
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "vrXLa",
+                      "name": "Kicker Accion",
+                      "fill": "$teal",
+                      "content": "SIGUIENTE PASO",
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 10.5,
+                      "fontWeight": "700",
+                      "letterSpacing": 1.7
+                    },
+                    {
+                      "type": "text",
+                      "id": "PmpGZ",
+                      "name": "Instruccion",
+                      "fill": "$navy",
+                      "textGrowth": "fixed-width",
+                      "width": 430,
+                      "content": "La reactivación sólo la puede realizar Recursos Humanos.",
+                      "lineHeight": 1.25,
+                      "textAlign": "center",
+                      "fontFamily": "$font-titulo",
+                      "fontSize": 22,
+                      "fontWeight": "700"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "hsjIb",
+                  "name": "Panel Contacto RH",
+                  "width": "fill_container",
+                  "fill": "$superficie",
+                  "cornerRadius": 16,
+                  "stroke": "#15989529",
+                  "strokeWidth": 1,
+                  "strokeAlignment": "inner",
+                  "layout": "vertical",
+                  "gap": 6,
+                  "padding": [
+                    20,
+                    22,
+                    8,
+                    22
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ertpC",
+                      "name": "Titulo Panel",
+                      "fill": "$teal",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "CONTACTA A RECURSOS HUMANOS",
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 10.5,
+                      "fontWeight": "700",
+                      "letterSpacing": 1.7
+                    },
+                    {
+                      "type": "frame",
+                      "id": "s8FQcQ",
+                      "name": "Datos Contacto",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "IRfXC",
+                          "name": "Fila Correo",
+                          "width": "fill_container",
+                          "gap": 14,
+                          "padding": [
+                            6,
+                            0,
+                            16,
+                            0
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "wW8Z4",
+                              "name": "Icono Correo",
+                              "width": 17,
+                              "height": 17,
+                              "icon": "mail",
+                              "library": "lucide",
+                              "weight": 500,
+                              "fill": "$navy-medio"
+                            },
+                            {
+                              "type": "text",
+                              "id": "iU05M",
+                              "name": "Etiqueta Correo",
+                              "fill": "$navy-medio",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "Correo",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "E24G8",
+                              "name": "Valor Correo",
+                              "fill": "$navy",
+                              "content": "rh@distribuidoracentral.com.sv",
+                              "textAlign": "right",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 14.5,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "rectangle",
+                          "id": "A9wKRg",
+                          "name": "Separador 1",
+                          "fill": "#15989524",
+                          "width": "fill_container",
+                          "height": 1
+                        },
+                        {
+                          "type": "frame",
+                          "id": "xRWz8",
+                          "name": "Fila Extensión",
+                          "width": "fill_container",
+                          "gap": 14,
+                          "padding": [
+                            16,
+                            0
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "LcpeF",
+                              "name": "Icono Extensión",
+                              "width": 17,
+                              "height": 17,
+                              "icon": "phone",
+                              "library": "lucide",
+                              "weight": 500,
+                              "fill": "$navy-medio"
+                            },
+                            {
+                              "type": "text",
+                              "id": "j6T9dB",
+                              "name": "Etiqueta Extensión",
+                              "fill": "$navy-medio",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "Extensión",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "kF4m1",
+                              "name": "Valor Extensión",
+                              "fill": "$navy",
+                              "content": "2250-1100 ext. 214",
+                              "textAlign": "right",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 14.5,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "rectangle",
+                          "id": "Z8si7e",
+                          "name": "Separador 2",
+                          "fill": "#15989524",
+                          "width": "fill_container",
+                          "height": 1
+                        },
+                        {
+                          "type": "frame",
+                          "id": "FlcJy",
+                          "name": "Fila Horario de atención",
+                          "width": "fill_container",
+                          "gap": 14,
+                          "padding": [
+                            16,
+                            0,
+                            6,
+                            0
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "pwcri",
+                              "name": "Icono Horario de atención",
+                              "width": 17,
+                              "height": 17,
+                              "icon": "timer",
+                              "library": "lucide",
+                              "weight": 500,
+                              "fill": "$navy-medio"
+                            },
+                            {
+                              "type": "text",
+                              "id": "pJOVj",
+                              "name": "Etiqueta Horario de atención",
+                              "fill": "$navy-medio",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "Horario de atención",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "Cgkxz",
+                              "name": "Valor Horario de atención",
+                              "fill": "$navy",
+                              "content": "Lunes a viernes, 8:00 a 17:00",
+                              "textAlign": "right",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 14.5,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "OdSev",
+                  "name": "Nota Caja",
+                  "width": "fill_container",
+                  "gap": 10,
+                  "padding": [
+                    0,
+                    4
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "ONnn3",
+                      "name": "Icono Nota",
+                      "width": 16,
+                      "height": 16,
+                      "icon": "info",
+                      "library": "lucide",
+                      "weight": 500,
+                      "fill": "$oro"
+                    },
+                    {
+                      "type": "text",
+                      "id": "hBfrz",
+                      "name": "Nota Identificador",
+                      "fill": "$navy-medio",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Al escribir, indica tu código de empleado para agilizar la revisión.",
+                      "lineHeight": 1.55,
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 12.5,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "gKD67",
+                  "name": "Pie Aviso",
+                  "fill": "#1A5F7A99",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Esta pantalla no permite reintentar el inicio de sesión.",
+                  "textAlign": "center",
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 11.5,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "teal": {
+      "type": "color",
+      "value": "#159895"
+    },
+    "teal-claro": {
+      "type": "color",
+      "value": "#57C5B6"
+    },
+    "blanco": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "superficie": {
+      "type": "color",
+      "value": "#EEF8F7"
+    },
+    "navy": {
+      "type": "color",
+      "value": "#002B5B"
+    },
+    "navy-medio": {
+      "type": "color",
+      "value": "#1A5F7A"
+    },
+    "oro": {
+      "type": "color",
+      "value": "#AD9551"
+    },
+    "font-titulo": {
+      "type": "string",
+      "value": "Playfair Display"
+    },
+    "font-cuerpo": {
+      "type": "string",
+      "value": "Inter"
+    }
+  },
+  "fileToken": "a6e4320c-d2ec-4272-832c-4a3fd43d8c8d"
+}

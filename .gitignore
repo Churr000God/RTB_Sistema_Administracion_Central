@@ -1,0 +1,56 @@
+# Credenciales y entorno
+.env
+.env.*
+!.env.example
+*.pgpass
+credenciales*
+conexion*
+
+# Datos generados
+db/seeds/*.sql
+db/seeds/*.csv
+!db/seeds/.gitkeep
+*.dump
+*.backup
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.coverage
+
+# Cobertura de tests / build info (artefactos generados, no se versionan)
+coverage/
+*.tsbuildinfo
+
+# Worktrees de trabajo aislado (superpowers:using-git-worktrees)
+.worktrees/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Editores
+.idea/
+.vscode/
+*.swp
+
+# Documentos de planeación con folio RTB- (identifican a la empresa · RTB-ACA-01 §VI)
+RTB-*.md
+
+# Node / frontend
+node_modules/
+dist/
+build/
+.vite/
+npm-debug.log*
+
+# Estado local de skills/agentes (no es parte del código del proyecto)
+.impeccable/
+.superpowers/
+
+# Capturas de QA manual (sólo el reporte .md se versiona)
+qa/capturas/*
+!qa/capturas/.gitkeep

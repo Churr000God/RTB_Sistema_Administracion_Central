@@ -1,0 +1,37 @@
+%% Modelo conceptual del sistema completo
+%% Documento: SCJ-MOD-01 · Sesión J1.1 · preparado 29 de agosto de 2026
+%% Exportar a: diagramas/export/conceptual.svg
+
+erDiagram
+    %% --- Subsistema PERSONAS (silueta) ---
+    PERSONA ||--o{ EXPEDIENTE : tiene
+    PERSONA ||--o{ ASIGNACION : ocupa
+    PUESTO  ||--o{ ASIGNACION : es_ocupado_por
+    PERSONA ||--o| USUARIO : puede_tener
+    USUARIO ||--o{ PERMISO : otorga
+
+    %% --- La frontera: único punto de contacto ---
+    PERSONA ||--|| PERSONA_STUB : "persona_id + fecha_ingreso (excepción, SCJ-FRO-01 §V)"
+
+    %% --- Subsistema TIEMPO ---
+    PERSONA_STUB ||--o{ MARCA : produce
+    PERSONA_STUB ||--o{ DIA : acumula
+    PERSONA_STUB ||--o{ JORNADA_ASIGNADA : tiene
+    PERSONA_STUB ||--o{ AUSENCIA : solicita
+    PERSONA_STUB ||--|| SALDO : acumula
+
+    MARCA ||--o{ DIA : compone
+    DIA ||--o{ TRAMO : contiene
+    DIA ||--o{ EXCEPCION : puede_generar
+    MARCA ||--o{ EXCEPCION : puede_generar
+    MARCA ||--o{ CORRECCION : recibe
+
+    %% DIA_FESTIVO: catálogo sin relación declarada — se cruza por fecha, no por FK.
+    %% Agregado 2026-09-02, no estaba en la versión original de este diagrama.
+
+    JORNADA_ASIGNADA ||--o{ PATRON_SEMANAL : define
+    TRAMO ||--|| CLASIFICACION_DE_TIEMPO : recibe
+    JORNADA_ASIGNADA ||--o{ TOPE_LEGAL : valida_contra
+
+    SALDO ||--o{ MOVIMIENTO_DE_SALDO : registra
+    CLASIFICACION_DE_TIEMPO ||--o{ MOVIMIENTO_DE_SALDO : puede_generar

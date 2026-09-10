@@ -1,0 +1,600 @@
+{
+  "version": "2.17",
+  "children": [
+    {
+      "type": "frame",
+      "id": "hNGHF",
+      "x": 0,
+      "y": 0,
+      "name": "Olvide Contrasena Kairos",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "$blanco",
+      "children": [
+        {
+          "type": "frame",
+          "id": "SDoWi",
+          "layoutPosition": "absolute",
+          "x": 648,
+          "y": 40,
+          "name": "Volver",
+          "fill": "$superficie",
+          "cornerRadius": 999,
+          "stroke": "$borde",
+          "strokeWidth": 1,
+          "gap": 8,
+          "padding": [
+            8,
+            14,
+            8,
+            12
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "Y872M",
+              "name": "Icono Volver",
+              "width": 16,
+              "height": 16,
+              "icon": "arrow-left",
+              "library": "lucide",
+              "fill": "$teal"
+            },
+            {
+              "type": "text",
+              "id": "LX1BX",
+              "name": "Texto Volver",
+              "fill": "$teal",
+              "content": "Volver a iniciar sesión",
+              "fontFamily": "$font-cuerpo",
+              "fontSize": 13,
+              "fontWeight": "500"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "B0rZI",
+          "name": "Panel Izquierdo",
+          "clip": true,
+          "width": 604,
+          "height": "fill_container",
+          "fill": {
+            "type": "gradient",
+            "gradientType": "linear",
+            "enabled": true,
+            "rotation": 152,
+            "size": {
+              "height": 1
+            },
+            "colors": [
+              {
+                "color": "$navy",
+                "position": 0
+              },
+              {
+                "color": "$teal",
+                "position": 0.58
+              },
+              {
+                "color": "$teal-claro",
+                "position": 1
+              }
+            ]
+          },
+          "layout": "vertical",
+          "gap": 40,
+          "padding": [
+            52,
+            56
+          ],
+          "justifyContent": "space_between",
+          "children": [
+            {
+              "type": "frame",
+              "id": "Tl9PM",
+              "name": "Logotipo",
+              "gap": 14,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "c8Thw",
+                  "name": "Marco Icono",
+                  "width": 42,
+                  "height": 42,
+                  "fill": "#FFFFFF26",
+                  "cornerRadius": 12,
+                  "stroke": "#FFFFFF4D",
+                  "strokeWidth": 1,
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "#002B5B33",
+                    "offset": {
+                      "x": 0,
+                      "y": 8
+                    },
+                    "blur": 18,
+                    "spread": -6
+                  },
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "M7ugEk",
+                      "name": "Icono Reloj",
+                      "width": 22,
+                      "height": 22,
+                      "icon": "clock-8",
+                      "library": "lucide",
+                      "fill": "$blanco"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "vmbIW",
+                  "name": "Nombre Marca",
+                  "fill": "$blanco",
+                  "content": "Kairos",
+                  "fontFamily": "$font-titulo",
+                  "fontSize": 30,
+                  "fontWeight": "700",
+                  "letterSpacing": 0.5
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "oPsq4",
+              "name": "Bloque Mensaje",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 24,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "KkYCS",
+                  "name": "Titular",
+                  "fill": "$blanco",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Recupera el acceso a tu jornada",
+                  "lineHeight": 1.1,
+                  "fontFamily": "$font-titulo",
+                  "fontSize": 52,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 2,
+                  "id": "G3NTNw",
+                  "name": "Regla Oro",
+                  "fill": "$oro",
+                  "width": 72,
+                  "height": 3
+                },
+                {
+                  "type": "text",
+                  "id": "o9STiB",
+                  "name": "Bajada",
+                  "fill": "#FFFFFFD6",
+                  "textGrowth": "fixed-width",
+                  "width": 420,
+                  "content": "Te enviamos un enlace seguro a tu correo corporativo para que restablezcas tu contraseña y vuelvas a registrar tus marcas de entrada y salida sin interrupciones.",
+                  "lineHeight": 1.65,
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 15.5,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "LDJfU",
+              "name": "Pie",
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ZHo9W",
+                  "name": "Pie Distribuidora Central, S.A. de C.V.",
+                  "fill": "#FFFFFFB8",
+                  "content": "Distribuidora Central, S.A. de C.V.",
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 12,
+                  "fontWeight": "normal",
+                  "letterSpacing": 0.3
+                },
+                {
+                  "type": "ellipse",
+                  "id": "CPbTs",
+                  "name": "Punto Pie",
+                  "fill": "#FFFFFF80",
+                  "width": 3,
+                  "height": 3
+                },
+                {
+                  "type": "text",
+                  "id": "SMKes",
+                  "name": "Pie v1.0",
+                  "fill": "#FFFFFFB8",
+                  "content": "v1.0",
+                  "fontFamily": "$font-cuerpo",
+                  "fontSize": 12,
+                  "fontWeight": "normal",
+                  "letterSpacing": 0.3
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "V0JXk0",
+          "name": "Panel Derecho",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$blanco",
+          "layout": "vertical",
+          "padding": [
+            56,
+            64
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "ZE8Ge",
+              "name": "Tarjeta Recuperacion",
+              "width": 472,
+              "fill": "$superficie",
+              "cornerRadius": 18,
+              "stroke": "$borde-suave",
+              "strokeWidth": 1,
+              "effect": [
+                {
+                  "type": "shadow",
+                  "shadowType": "outer",
+                  "color": "#002B5B14",
+                  "offset": {
+                    "x": 0,
+                    "y": 18
+                  },
+                  "blur": 44,
+                  "spread": -12
+                },
+                {
+                  "type": "shadow",
+                  "shadowType": "outer",
+                  "color": "#002B5B0F",
+                  "offset": {
+                    "x": 0,
+                    "y": 2
+                  },
+                  "blur": 6,
+                  "spread": -2
+                }
+              ],
+              "layout": "vertical",
+              "gap": 26,
+              "padding": 44,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "D46MuJ",
+                  "name": "Insignia Llave",
+                  "width": 52,
+                  "height": 52,
+                  "fill": "#15989514",
+                  "cornerRadius": 16,
+                  "stroke": "#15989526",
+                  "strokeWidth": 1,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "c6PER",
+                      "name": "Icono Llave",
+                      "width": 24,
+                      "height": 24,
+                      "icon": "key-round",
+                      "library": "lucide",
+                      "fill": "$teal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "CMOJl",
+                  "name": "Encabezado",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "o4TGD",
+                      "name": "Titulo",
+                      "fill": "$navy",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "¿Olvidaste tu contraseña?",
+                      "lineHeight": 1.12,
+                      "fontFamily": "$font-titulo",
+                      "fontSize": 32,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "zpE1a",
+                      "name": "Subtitulo",
+                      "fill": "#3D7A91",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Escribe tu correo corporativo y te enviaremos un enlace para crear una nueva.",
+                      "lineHeight": 1.55,
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "KtntK",
+                  "name": "Formulario",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "VMpkX",
+                      "name": "Campo Correo",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 9,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "A5WZY",
+                          "name": "Etiqueta Correo",
+                          "fill": "$navy-medio",
+                          "content": "CORREO ELECTRÓNICO",
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 12,
+                          "fontWeight": "600",
+                          "letterSpacing": 0.6
+                        },
+                        {
+                          "type": "frame",
+                          "id": "CJ4kS",
+                          "name": "Entrada Correo",
+                          "width": "fill_container",
+                          "fill": "$blanco",
+                          "cornerRadius": 12,
+                          "stroke": "$borde",
+                          "strokeWidth": 1,
+                          "gap": 12,
+                          "padding": [
+                            15,
+                            16
+                          ],
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "JKr9c",
+                              "name": "Icono Correo",
+                              "width": 18,
+                              "height": 18,
+                              "icon": "mail",
+                              "library": "lucide",
+                              "fill": "#8AA9B5"
+                            },
+                            {
+                              "type": "text",
+                              "id": "fgEuM",
+                              "name": "Valor Correo",
+                              "fill": "#8AA9B5",
+                              "textGrowth": "fixed-width",
+                              "width": "fill_container",
+                              "content": "nombre@distribuidoracentral.mx",
+                              "fontFamily": "$font-cuerpo",
+                              "fontSize": 14.5,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "tM0qE",
+                      "name": "Boton Enviar Enlace",
+                      "width": "fill_container",
+                      "fill": "$teal",
+                      "cornerRadius": 12,
+                      "effect": {
+                        "type": "shadow",
+                        "shadowType": "outer",
+                        "color": "#15989547",
+                        "offset": {
+                          "x": 0,
+                          "y": 8
+                        },
+                        "blur": 20,
+                        "spread": -6
+                      },
+                      "gap": 10,
+                      "padding": [
+                        17,
+                        24
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "GBWAR",
+                          "name": "Texto Boton",
+                          "fill": "$blanco",
+                          "content": "Enviar enlace de recuperación",
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 15,
+                          "fontWeight": "600",
+                          "letterSpacing": 0.3
+                        },
+                        {
+                          "type": "icon",
+                          "id": "m9sVEB",
+                          "name": "Icono Enviar",
+                          "width": 18,
+                          "height": 18,
+                          "icon": "send",
+                          "library": "lucide",
+                          "fill": "$blanco"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Kj1Qm",
+                      "name": "Aviso Caducidad",
+                      "width": "fill_container",
+                      "fill": "$blanco",
+                      "cornerRadius": 12,
+                      "stroke": "$borde",
+                      "gap": 11,
+                      "padding": [
+                        13,
+                        16
+                      ],
+                      "children": [
+                        {
+                          "type": "icon",
+                          "id": "K7aEhj",
+                          "name": "Icono Reloj Aviso",
+                          "width": 16,
+                          "height": 16,
+                          "icon": "timer",
+                          "library": "lucide",
+                          "fill": "$teal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "d7HmO",
+                          "name": "Texto Aviso",
+                          "fill": "#3D7A91",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "El enlace caduca en 30 minutos y sólo puede usarse una vez.",
+                          "lineHeight": 1.5,
+                          "fontFamily": "$font-cuerpo",
+                          "fontSize": 12.5,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "UxiGq",
+                  "name": "Ayuda",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 16,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "rectangle",
+                      "id": "Rg0Nk",
+                      "name": "Separador",
+                      "fill": "$borde-suave",
+                      "width": "fill_container",
+                      "height": 1
+                    },
+                    {
+                      "type": "text",
+                      "id": "CWJds",
+                      "name": "Texto Ayuda",
+                      "fill": "#5C8A9D",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "¿No recibes el correo? Revisa tu bandeja de no deseados o escribe a Recursos Humanos.",
+                      "lineHeight": 1.6,
+                      "textAlign": "center",
+                      "fontFamily": "$font-cuerpo",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "teal": {
+      "type": "color",
+      "value": "#159895"
+    },
+    "teal-claro": {
+      "type": "color",
+      "value": "#57C5B6"
+    },
+    "blanco": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "superficie": {
+      "type": "color",
+      "value": "#EEF8F7"
+    },
+    "navy": {
+      "type": "color",
+      "value": "#002B5B"
+    },
+    "navy-medio": {
+      "type": "color",
+      "value": "#1A5F7A"
+    },
+    "oro": {
+      "type": "color",
+      "value": "#AD9551"
+    },
+    "borde": {
+      "type": "color",
+      "value": "#D3E7E5"
+    },
+    "font-titulo": {
+      "type": "string",
+      "value": "Playfair Display"
+    },
+    "font-cuerpo": {
+      "type": "string",
+      "value": "Inter"
+    },
+    "radio-tarjeta": {
+      "type": "number",
+      "value": 14
+    },
+    "borde-suave": {
+      "type": "color",
+      "value": "#E6F2F1"
+    }
+  },
+  "fileToken": "6d8f7572-289a-45c3-af93-c9d9be44d01e"
+}
