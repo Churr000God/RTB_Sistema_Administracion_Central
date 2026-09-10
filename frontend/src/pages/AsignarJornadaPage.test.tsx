@@ -103,7 +103,7 @@ describe("AsignarJornadaPage", () => {
     expect(cuerpo.confirma_cierre_vigente).toBeUndefined();
   });
 
-  it("se queda en la pestaña tras guardar y limpia el formulario para asignar otra", async () => {
+  it("se queda en la pestaña tras guardar pero cierra el formulario", async () => {
     mockApiFetch({});
 
     const { container } = render(<AsignarJornadaPage />);
@@ -115,10 +115,8 @@ describe("AsignarJornadaPage", () => {
         /jornada asignada a\s*persona ficticia uno/i,
       ),
     );
-    // Sigue en la misma pestaña — el formulario (con la etiqueta "Persona") sigue montado.
-    expect(screen.getByLabelText(/^persona$/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^persona$/i)).toHaveValue("");
-    expect(screen.queryByRole("checkbox", { name: /lunes/i, checked: true })).not.toBeInTheDocument();
+    // Sigue en la misma pestaña, pero el formulario se cierra -- hay que reabrirlo desde una fila.
+    expect(screen.queryByLabelText(/^persona$/i)).not.toBeInTheDocument();
   });
 
   it("muestra el diálogo de confirmación en 409 (SCJ01) y reintenta con confirma_cierre_vigente:true", async () => {

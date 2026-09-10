@@ -141,13 +141,15 @@ export function AsignarJornadaPage() {
       });
       if (respuesta.ok) {
         // Se queda en la pestaña de asignación de jornadas (pedido del usuario) en vez de
-        // redirigir a la ficha de la persona — permite asignar la siguiente sin salir de acá.
+        // redirigir a la ficha de la persona, pero el formulario se cierra -- para asignar la
+        // siguiente hay que volver a abrirlo desde el "Asignar"/"Renovar" de una fila.
         const persona = personas.find((p) => p.id === payload.persona_id);
         setExito({ nombrePersona: persona ? `${persona.primer_nombre} ${persona.apellido_paterno}` : "la persona" });
         setPersonaId("");
         setDiasSeleccionados(new Set());
         setPayloadPendiente(null);
         setFormKey((anterior) => anterior + 1);
+        setFormAbierto(false);
         cargarPersonas(); // refresca la cobertura de abajo: esta persona ya cuenta como "con jornada"
         return;
       }
