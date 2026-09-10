@@ -373,16 +373,7 @@ export function AsignarJornadaPage() {
       )}
 
       <div className="contenedor-pagina">
-        <nav className="migas">
-          <strong>Asignación de jornada</strong>
-        </nav>
         <div className="encabezado-pagina">
-          <div>
-            <h1>Asignar jornada</h1>
-            <p className="subtitulo-pagina">
-              Da de alta o renueva la jornada y el patrón semanal de una persona.
-            </p>
-          </div>
           <Button
             type="button"
             icono={formAbierto ? ChevronDown : ChevronRight}
