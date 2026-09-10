@@ -54,7 +54,7 @@ describe("LoginPage", () => {
     } as never);
 
     render(<LoginPage />);
-    expect(screen.getByText("Entregamos confianza.")).toBeInTheDocument();
+    expect(screen.getByText("Entregamos confianza,")).toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText(/correo/i), "mariana@example.com");
     await userEvent.type(screen.getByLabelText("Contraseña"), "malacontrasena");
@@ -64,7 +64,7 @@ describe("LoginPage", () => {
       expect(screen.getByText("No pudimos verificar tu acceso.")).toBeInTheDocument()
     );
     expect(
-      screen.queryByText("Entregamos confianza.")
+      screen.queryByText("Entregamos confianza,")
     ).not.toBeInTheDocument();
   });
 

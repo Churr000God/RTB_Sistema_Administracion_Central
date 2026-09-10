@@ -86,11 +86,11 @@ export function LoginPage() {
 
   return (
     <AuthLayout
-      titulo={error ? "No pudimos verificar tu acceso." : "Entregamos confianza."}
+      titulo={error ? "No pudimos verificar tu acceso." : "Entregamos confianza,"}
       bajada={
         error
           ? "Revisa tu correo corporativo y tu contraseña antes de volver a intentarlo. Tras cinco intentos fallidos la cuenta se bloquea de forma temporal por seguridad."
-          : "No sólo refacciones."
+          : "no sólo refacciones."
       }
     >
       <h2>Iniciar sesión</h2>
