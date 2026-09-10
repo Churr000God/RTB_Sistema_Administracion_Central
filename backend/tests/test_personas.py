@@ -646,6 +646,33 @@ def test_actualizar_persona_curp_duplicada_devuelve_409():
     assert response.status_code == 409
 
 
+def test_actualizar_persona_documento_ref_formato_invalido_devuelve_422():
+    fake_client = _fake_client_patch_gate(
+        rpc_side_effect=APIError(
+            {
+                "code": "23514",
+                "message": (
+                    'new row for relation "expediente" violates check constraint '
+                    '"ck_expediente_documento_ref_formato"'
+                ),
+            }
+        )
+    )
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+
+    client = TestClient(app)
+    response = client.patch(
+        f"/api/personas/{PERSONA_ID}",
+        json={"tipo_contrato": "indefinido", "documento_ref": "carpeta-suelta-1"},
+        headers={"Authorization": "Bearer fake-token"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 422
+    assert "RTB-RH-EIT" in response.json()["detail"]
+
+
 def test_actualizar_persona_normaliza_curp_a_mayusculas_y_devuelve_ficha_actualizada():
     fila_persona = {
         "id": PERSONA_ID,

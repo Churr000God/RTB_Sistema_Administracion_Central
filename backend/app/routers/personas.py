@@ -26,6 +26,11 @@ MENSAJE_DUPLICADO = "CURP, RFC, NSS o número de documento ya está en uso por o
 MENSAJE_EXPEDIENTE_INCOMPLETO = (
     "Esta persona no tiene expediente todavía -- mandá tipo_contrato y documento_ref juntos."
 )
+CODIGO_VIOLACION_CHECK = "23514"
+MENSAJE_DOCUMENTO_REF_FORMATO = (
+    "El folio del expediente debe tener el formato RTB-RH-EIT-<año>-<número> "
+    "(ej. RTB-RH-EIT-2026-06)."
+)
 
 
 def _resolver_personas_con_jornada_vigente(db: Client, persona_ids: list[str]) -> set[str]:
@@ -210,6 +215,10 @@ def actualizar_persona(
     except APIError as error:
         if error.code == CODIGO_PERSONA_NO_ENCONTRADA:
             raise HTTPException(status.HTTP_404_NOT_FOUND, MENSAJE_PERSONA_NO_ENCONTRADA) from error
+        if error.code == CODIGO_VIOLACION_CHECK and "documento_ref_formato" in (error.message or ""):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_DOCUMENTO_REF_FORMATO
+            ) from error
         manejar_violacion_unicidad(error, MENSAJE_DUPLICADO)
 
     return _construir_ficha_persona(db, persona_id)
