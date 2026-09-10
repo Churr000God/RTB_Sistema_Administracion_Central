@@ -29,7 +29,7 @@ export function AuthLayout({ titulo, bajada, insignia, children }: Props) {
       <aside className="panel-decorativo">
         <div className="marca-hero">
           <img src="/logo-rtb.png" alt="Refacciones Tomás Badillo" className="logo-hero" />
-          <span className="antetitulo-marca">Sistema de control de jornada</span>
+          <span className="antetitulo-marca">Sistema de Administración Central</span>
           <p className="nombre-marca">Refacciones Tomás Badillo</p>
           <p className="legal-marca">S.A. de C.V.</p>
           <ReglaDorada />

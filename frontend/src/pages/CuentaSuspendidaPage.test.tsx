@@ -53,7 +53,7 @@ describe("CuentaSuspendidaPage", () => {
 
   it("suspension (default) muestra el contacto de RH", () => {
     render(<CuentaSuspendidaPage />);
-    expect(screen.getByText("tbadillob@refacrtb.com.mx")).toBeInTheDocument();
+    expect(screen.getByText("recursos_humanos@refacrtb.com.mx")).toBeInTheDocument();
     expect(screen.getByText(/no permite reintentar el inicio de sesión/i)).toBeInTheDocument();
   });
 
@@ -62,7 +62,7 @@ describe("CuentaSuspendidaPage", () => {
 
     render(<CuentaSuspendidaPage />);
 
-    expect(screen.getByText("tbadillob@refacrtb.com.mx")).toBeInTheDocument();
+    expect(screen.getByText("recursos_humanos@refacrtb.com.mx")).toBeInTheDocument();
     expect(screen.queryByText("sistemas@refacrtb.com.mx")).not.toBeInTheDocument();
   });
 });

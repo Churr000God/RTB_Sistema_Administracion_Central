@@ -90,7 +90,7 @@ export function LoginPage() {
       bajada={
         error
           ? "Revisa tu correo corporativo y tu contraseña antes de volver a intentarlo. Tras cinco intentos fallidos la cuenta se bloquea de forma temporal por seguridad."
-          : "Control de jornada, marcas, banco de horas y gestión de personas en una sola plataforma."
+          : "Entregamos confianza, no sólo refacciones."
       }
     >
       <h2>Iniciar sesión</h2>

@@ -1,10 +1,10 @@
 // Correos de contacto que la app muestra en pantallas de error/ayuda. Configurables por
 // variable de entorno (VITE_* — de build, no de runtime, mismo gotcha que supabaseClient); ver
-// CLAUDE.md. Fallbacks: buzones reales de RTB (RTB-TIN-13), provisional hasta que existan rh@/direccion@.
+// CLAUDE.md. Fallbacks: buzones reales de RTB (RTB-TIN-13); direccion@ provisional hasta que exista.
 export const CONTACTOS = {
   rh: {
     nombre: "Recursos Humanos",
-    correo: import.meta.env.VITE_CONTACTO_RH_CORREO ?? "tbadillob@refacrtb.com.mx",
+    correo: import.meta.env.VITE_CONTACTO_RH_CORREO ?? "recursos_humanos@refacrtb.com.mx",
   },
   sistemas: {
     nombre: "Sistemas",
