@@ -1,9 +1,7 @@
 -- 13_departamento_migracion_inicial.sql
--- Seed de personas.departamento con 6 departamentos reales del organigrama, ya anonimizados:
--- nombres genéricos de industria que no identifican a Distribuidora Central, S.A. de C.V. — no
--- violan SCJ-ANO-01.
--- Fuente: organigrama externo no versionado (no entra al repo). Sólo se tomaron los 6 nombres de
--- departamento y su área — nada de personas, puestos, ni razón social.
+-- Seed de personas.departamento con los 6 departamentos reales del organigrama de RTB.
+-- Fuente: RTB-ORG-01 §III (Nextcloud/Sistemas/04-Organizacion-RH/RTB-ORG/). Estructura ya
+-- correcta desde el proyecto académico, sólo se corrige esta cabecera.
 -- Depende de: 11_area_migracion_inicial.sql, 12_personas_departamento.sql
 
 INSERT INTO personas.departamento (area_id, nombre_departamento)

@@ -1,9 +1,8 @@
 -- 16_puesto_migracion_inicial.sql
--- Seed de personas.puesto con 12 de los 13 puestos marcados "Actual" en el organigrama (no se
--- siembran los "Previsto"/"Crecimiento" — estructura aspiracional, fuera de alcance de este
--- corte). Fuente: organigrama externo no versionado (no entra al repo). Sólo se tomaron los
--- nombres de puesto, su departamento, nivel y jerarquía de reporte — nada de personas, ni razón
--- social.
+-- Seed de personas.puesto con 12 de los 13 puestos marcados "Actual" en RTB-ORG-01 §III/§IV (no
+-- se siembran los "Previsto"/"Crecimiento" — estructura aspiracional, fuera de alcance de este
+-- corte). Fuente: RTB-ORG-01 (Nextcloud/Sistemas/04-Organizacion-RH/RTB-ORG/), organigrama y
+-- catálogo de puestos reales de Refacciones Tomás Badillo, S.A. de C.V.
 --
 -- Nota de resolución: el organigrama lista a "Gerente de Adm. y Finanzas" dos veces (cabeza de
 -- área y, de nuevo, como titular actual de Finanzas y Tesorería). Se modela como UN SOLO puesto

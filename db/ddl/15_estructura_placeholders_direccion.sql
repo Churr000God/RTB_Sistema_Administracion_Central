@@ -1,5 +1,5 @@
 -- 15_estructura_placeholders_direccion.sql
--- Placeholders de Dirección: el organigrama real no tiene un departamento propio para el Gerente
+-- Placeholders de Dirección: RTB-ORG-01 no tiene un departamento propio para el Gerente
 -- de cada área (reportan directo al Gerente General) ni para el puesto tope en sí, pero
 -- personas.puesto.departamento_id es NOT NULL. Se agrega una 6ª área "Dirección General" y un
 -- departamento placeholder por cada una de las 5 áreas (las 4 reales + la nueva), sólo para que

@@ -1,8 +1,9 @@
 -- 11_area_migracion_inicial.sql
--- Seed de personas.area con las 5 áreas reales de la empresa, ya anonimizadas: nombres genéricos
--- de industria que no identifican a Distribuidora Central, S.A. de C.V. — no violan SCJ-ANO-01.
--- Fuente: organigrama externo no versionado (no entra al repo). Sólo se tomaron los 5 nombres de
--- área — nada de personas, departamentos, puestos, ni razón social.
+-- Seed de personas.area con las 5 áreas reales de Refacciones Tomás Badillo, S.A. de C.V.
+-- Fuente: RTB-ORG-01 §II/§III (organigrama y catálogo de puestos, Nextcloud/Sistemas/
+-- 04-Organizacion-RH/RTB-ORG/). Los mismos 5 nombres ya se usaban en el proyecto académico
+-- (que los tomó de este organigrama, anonimizando sólo personas y razón social) — no hace falta
+-- reescribir la estructura, sólo esta cabecera.
 -- Depende de: 10_personas_area.sql
 
 INSERT INTO personas.area (nombre_area) VALUES
