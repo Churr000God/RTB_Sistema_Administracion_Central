@@ -373,17 +373,6 @@ export function AsignarJornadaPage() {
       )}
 
       <div className="contenedor-pagina">
-        <div className="encabezado-pagina">
-          <Button
-            type="button"
-            icono={formAbierto ? ChevronDown : ChevronRight}
-            aria-expanded={formAbierto}
-            onClick={() => setFormAbierto((anterior) => !anterior)}
-          >
-            {formAbierto ? "Ocultar formulario" : "Asignar o renovar jornada"}
-          </Button>
-        </div>
-
         {exito && (
           <div className="tarjeta-info">
             <CheckCircle2 size={16} aria-hidden="true" />

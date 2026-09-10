@@ -57,9 +57,10 @@ function mockApiFetch(opciones: {
 }
 
 async function abrirFormulario() {
-  await userEvent.click(
-    await screen.findByRole("button", { name: /asignar o renovar jornada/i }),
-  );
+  // El formulario ya no tiene un botón genérico para abrirlo -- se abre desde el "Asignar"/
+  // "Renovar" de una fila de la tabla de cobertura. PERSONAS_ACTIVAS tiene una sola persona, sin
+  // jornada vigente, así que hay un único botón "Asignar" en toda la página.
+  await userEvent.click(await screen.findByRole("button", { name: /^asignar$/i }));
 }
 
 async function llenarFormularioBasico() {
@@ -185,7 +186,7 @@ describe("AsignarJornadaPage", () => {
     render(<AsignarJornadaPage />);
 
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /asignar o renovar jornada/i })).toBeInTheDocument(),
+      expect(screen.getByRole("button", { name: /^asignar$/i })).toBeInTheDocument(),
     );
     expect(screen.queryByText(/^jornadas$/i)).not.toBeInTheDocument();
   });
@@ -235,12 +236,12 @@ describe("AsignarJornadaPage", () => {
     });
   });
 
-  it("el formulario arranca cerrado y el botón lo abre", async () => {
+  it("el formulario arranca cerrado y el botón de la fila lo abre", async () => {
     mockApiFetch({});
 
     render(<AsignarJornadaPage />);
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /asignar o renovar jornada/i })).toBeInTheDocument(),
+      expect(screen.getByRole("button", { name: /^asignar$/i })).toBeInTheDocument(),
     );
     expect(screen.queryByLabelText(/^persona$/i)).not.toBeInTheDocument();
 
