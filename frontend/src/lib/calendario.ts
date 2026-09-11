@@ -71,3 +71,28 @@ export function semanaDeDias(ancla: Date): DiaGrilla[] {
   }
   return dias;
 }
+
+/** Hoy en hora local, "YYYY-MM-DD" -- nunca toISOString() (ver cabecera del archivo). */
+export function hoyISO(): string {
+  return aFechaISO(new Date());
+}
+
+/** `fechaISO` es estrictamente posterior a `hoy` (por defecto, hoy real). Comparación lexicográfica
+ * -- válida porque ambas son "YYYY-MM-DD". */
+export function esFutura(fechaISO: string, hoy: string = hoyISO()): boolean {
+  return fechaISO > hoy;
+}
+
+/** `fechaISO` es hoy o anterior. */
+export function esPasadaOhoy(fechaISO: string, hoy: string = hoyISO()): boolean {
+  return fechaISO <= hoy;
+}
+
+/** `fechaISO` desplazada `dias` (positivo o negativo) vía getters/setters locales de Date --
+ * cruza fin de mes/año y bisiestos sin caso especial. */
+export function sumarDiasISO(fechaISO: string, dias: number): string {
+  const [anio, mes, dia] = fechaISO.split("-").map(Number);
+  const fecha = new Date(anio, mes - 1, dia);
+  fecha.setDate(fecha.getDate() + dias);
+  return aFechaISO(fecha);
+}

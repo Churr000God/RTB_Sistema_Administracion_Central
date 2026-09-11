@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { aFechaISO, grillaDelMes, semanaDeDias } from "./calendario";
+import {
+  aFechaISO,
+  esFutura,
+  esPasadaOhoy,
+  grillaDelMes,
+  hoyISO,
+  semanaDeDias,
+  sumarDiasISO,
+} from "./calendario";
 
 function aplanar<T>(semanas: T[][]): T[] {
   return semanas.flat();
@@ -146,5 +154,53 @@ describe("semanaDeDias", () => {
 describe("aFechaISO", () => {
   it("formatea con ceros a la izquierda", () => {
     expect(aFechaISO(new Date(2026, 0, 5))).toBe("2026-01-05");
+  });
+});
+
+describe("sumarDiasISO", () => {
+  it("suma días cruzando fin de mes", () => {
+    expect(sumarDiasISO("2026-01-31", 1)).toBe("2026-02-01");
+  });
+
+  it("resta días cruzando inicio de mes", () => {
+    expect(sumarDiasISO("2026-03-01", -1)).toBe("2026-02-28");
+  });
+
+  it("cruza fin de año", () => {
+    expect(sumarDiasISO("2026-12-31", 1)).toBe("2027-01-01");
+  });
+
+  it("año bisiesto -- llega al 29 de febrero y lo cruza", () => {
+    expect(sumarDiasISO("2024-02-28", 1)).toBe("2024-02-29");
+    expect(sumarDiasISO("2024-03-01", -1)).toBe("2024-02-29");
+  });
+
+  it("año no bisiesto -- salta directo de 28 de febrero a 1 de marzo", () => {
+    expect(sumarDiasISO("2025-02-28", 1)).toBe("2025-03-01");
+    expect(sumarDiasISO("2025-03-01", -1)).toBe("2025-02-28");
+  });
+
+  it("dias=0 devuelve la misma fecha", () => {
+    expect(sumarDiasISO("2026-06-15", 0)).toBe("2026-06-15");
+  });
+});
+
+describe("esFutura / esPasadaOhoy", () => {
+  it("esFutura sólo es true si la fecha es estrictamente posterior a hoy", () => {
+    expect(esFutura("2026-09-12", "2026-09-11")).toBe(true);
+    expect(esFutura("2026-09-11", "2026-09-11")).toBe(false);
+    expect(esFutura("2026-09-10", "2026-09-11")).toBe(false);
+  });
+
+  it("esPasadaOhoy es true si la fecha es hoy o anterior", () => {
+    expect(esPasadaOhoy("2026-09-11", "2026-09-11")).toBe(true);
+    expect(esPasadaOhoy("2026-09-10", "2026-09-11")).toBe(true);
+    expect(esPasadaOhoy("2026-09-12", "2026-09-11")).toBe(false);
+  });
+});
+
+describe("hoyISO", () => {
+  it("coincide con aFechaISO(new Date())", () => {
+    expect(hoyISO()).toBe(aFechaISO(new Date()));
   });
 });

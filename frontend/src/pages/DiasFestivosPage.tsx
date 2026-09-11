@@ -11,7 +11,7 @@ import {
 
 import { apiFetch } from "../lib/apiClient";
 import { AppShell } from "../layouts/AppShell";
-import { aFechaISO, grillaDelMes, semanaDeDias, type DiaGrilla } from "../lib/calendario";
+import { esPasadaOhoy, grillaDelMes, hoyISO, semanaDeDias, type DiaGrilla } from "../lib/calendario";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
@@ -104,7 +104,7 @@ export function DiasFestivosPage() {
 
   useEffect(cargar, []);
 
-  const hoyIso = useMemo(() => aFechaISO(new Date()), []);
+  const hoyIso = useMemo(() => hoyISO(), []);
 
   const festivosPorFecha = useMemo(() => {
     const mapa = new Map<string, Festivo>();
@@ -395,7 +395,7 @@ export function DiasFestivosPage() {
                   </thead>
                   <tbody>
                     {festivosFiltrados.map((festivo) => {
-                      const esPasadoOhoy = festivo.fecha <= hoyIso;
+                      const esPasadoOhoy = esPasadaOhoy(festivo.fecha, hoyIso);
                       return (
                         <Fragment key={festivo.id}>
                           <tr>
