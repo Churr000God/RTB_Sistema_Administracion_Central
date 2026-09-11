@@ -2,6 +2,7 @@ from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 from postgrest.exceptions import APIError
+from supabase_auth.errors import AuthApiError, AuthUnknownError
 
 from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
 from app.main import app
@@ -160,6 +161,114 @@ def test_alta_usuario_carrera_en_insert_revierte_invitacion_y_devuelve_409():
     app.dependency_overrides.clear()
     assert response.status_code == 409
     fake_client.auth.admin.delete_user.assert_called_once_with(AUTH_USER_ID)
+
+
+def test_alta_usuario_invitacion_redirect_no_permitido_devuelve_422():
+    """Bug real (2026-09-11): redirect_to fuera de la allowlist de Redirect URLs de Supabase Auth
+    da 403 -- antes subía como 500 crudo sin capturar, reproducido en vivo desde el Pi de
+    pruebas."""
+    fake_client = _fake_client_sin_usuario_existente()
+    fake_client.auth.admin.invite_user_by_email.side_effect = AuthApiError(
+        "Redirect not allowed", 403, "redirect_url_not_allowed"
+    )
+    app.dependency_overrides[get_service_client] = lambda: fake_client
+    _override_gate()
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/usuarios",
+        json={
+            "persona_id": PERSONA_ID,
+            "correo": "mariana.alcantara@example.com",
+            "nombre_usuario": "mariana.alcantara",
+        },
+        headers={"Authorization": "Bearer fake-token"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"] == (
+        "No se pudo enviar la invitación: la URL de redirect no está permitida en la "
+        "configuración de Supabase Auth (Authentication > URL Configuration > Redirect URLs)."
+    )
+    fake_client.postgrest.schema.return_value.table.return_value.insert.assert_not_called()
+
+
+def test_alta_usuario_invitacion_correo_invalido_devuelve_422():
+    """422 de AuthApiError (Supabase Auth ya rechazó el correo -- ej. dominio inexistente,
+    formato que Pydantic sí acepta pero GoTrue no) -- distinto del 422 que ya tira Pydantic para
+    un correo sintácticamente inválido, que ni siquiera llega a este código."""
+    fake_client = _fake_client_sin_usuario_existente()
+    fake_client.auth.admin.invite_user_by_email.side_effect = AuthApiError(
+        "Unable to validate email address", 422, "validation_failed"
+    )
+    app.dependency_overrides[get_service_client] = lambda: fake_client
+    _override_gate()
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/usuarios",
+        json={
+            "persona_id": PERSONA_ID,
+            "correo": "mariana.alcantara@dominio-inexistente.example",
+            "nombre_usuario": "mariana.alcantara",
+        },
+        headers={"Authorization": "Bearer fake-token"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"] == "El correo no es válido o ya tiene una cuenta de acceso."
+
+
+def test_alta_usuario_invitacion_limite_excedido_devuelve_422():
+    fake_client = _fake_client_sin_usuario_existente()
+    fake_client.auth.admin.invite_user_by_email.side_effect = AuthApiError(
+        "Email rate limit exceeded", 429, "over_email_send_rate_limit"
+    )
+    app.dependency_overrides[get_service_client] = lambda: fake_client
+    _override_gate()
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/usuarios",
+        json={
+            "persona_id": PERSONA_ID,
+            "correo": "mariana.alcantara@example.com",
+            "nombre_usuario": "mariana.alcantara",
+        },
+        headers={"Authorization": "Bearer fake-token"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 422, response.text
+    assert "límite" in response.json()["detail"]
+
+
+def test_alta_usuario_invitacion_error_desconocido_devuelve_422_catch_all():
+    """AuthUnknownError -- el cuerpo de la respuesta no era JSON (ej. un 403 crudo de un proxy
+    delante de GoTrue). No expone `.status`, cae al mensaje catch-all."""
+    fake_client = _fake_client_sin_usuario_existente()
+    fake_client.auth.admin.invite_user_by_email.side_effect = AuthUnknownError(
+        "algo raro pasó", RuntimeError("cuerpo no era JSON")
+    )
+    app.dependency_overrides[get_service_client] = lambda: fake_client
+    _override_gate()
+
+    client = TestClient(app)
+    response = client.post(
+        "/api/usuarios",
+        json={
+            "persona_id": PERSONA_ID,
+            "correo": "mariana.alcantara@example.com",
+            "nombre_usuario": "mariana.alcantara",
+        },
+        headers={"Authorization": "Bearer fake-token"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"] == "No se pudo enviar la invitación de acceso."
 
 
 def test_alta_usuario_sin_permiso_devuelve_403():

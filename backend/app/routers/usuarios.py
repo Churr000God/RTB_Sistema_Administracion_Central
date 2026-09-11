@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from postgrest.exceptions import APIError
 from supabase import Client
+from supabase_auth.errors import AuthError
 
 from app.config import Settings, get_settings, parse_frontend_urls
 from app.deps import get_caller_client, get_service_client
@@ -11,6 +12,45 @@ from app.schemas.usuarios import UsuarioCreate, UsuarioOut
 router = APIRouter(prefix="/api/usuarios", tags=["usuarios"])
 
 MENSAJE_USUARIO_DUPLICADO = "Esta persona ya tiene un usuario asociado."
+MENSAJE_INVITACION_REDIRECT_NO_PERMITIDO = (
+    "No se pudo enviar la invitación: la URL de redirect no está permitida en la configuración "
+    "de Supabase Auth (Authentication > URL Configuration > Redirect URLs)."
+)
+MENSAJE_INVITACION_DATOS_INVALIDOS = "El correo no es válido o ya tiene una cuenta de acceso."
+MENSAJE_INVITACION_LIMITE_EXCEDIDO = (
+    "Se alcanzó el límite de envíos de invitación de Supabase Auth -- reintentá en unos minutos."
+)
+MENSAJE_INVITACION_FALLIDA = "No se pudo enviar la invitación de acceso."
+
+
+def _lanzar_error_invitacion(error: AuthError) -> None:
+    """invite_user_by_email puede tirar AuthApiError (con .status/.code reales del API de
+    GoTrue) o AuthUnknownError (si el cuerpo de la respuesta no es JSON -- ej. un 403 crudo de
+    un proxy/WAF delante de GoTrue que nunca llega al manejo normal de error de la API) -- ambas
+    heredan de AuthError, se capturan juntas acá. Sólo AuthApiError expone `.status` de forma
+    confiable (AuthUnknownError no), por eso se usa `getattr` en vez de asumirlo.
+
+    Bug real encontrado 2026-09-11: `redirect_to` fuera de la allowlist de Supabase Auth
+    (Redirect URLs, gotcha ya documentado en CLAUDE.md sobre actualizarla al pasar de entorno)
+    da 403 y subía como 500 crudo sin capturar -- reproducido en vivo desde el Pi de pruebas
+    (100.115.160.115:8080), ausente del dashboard. Se mapean por `.status` (siempre HTTP
+    estándar, confiable) en vez de por `.code` (string específico de Supabase que no se
+    verificó para cada caso -- no vale la pena adivinar mensajes más finos sin evidencia real de
+    qué código manda cada escenario)."""
+    status_http = getattr(error, "status", None)
+    if status_http == status.HTTP_403_FORBIDDEN:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_INVITACION_REDIRECT_NO_PERMITIDO
+        ) from error
+    if status_http == status.HTTP_422_UNPROCESSABLE_ENTITY:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_INVITACION_DATOS_INVALIDOS
+        ) from error
+    if status_http == status.HTTP_429_TOO_MANY_REQUESTS:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_INVITACION_LIMITE_EXCEDIDO
+        ) from error
+    raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_INVITACION_FALLIDA) from error
 
 
 @router.post("", status_code=201, response_model=UsuarioOut)
@@ -47,10 +87,13 @@ def alta_usuario(
         raise HTTPException(status.HTTP_409_CONFLICT, MENSAJE_USUARIO_DUPLICADO)
 
     frontend_url = parse_frontend_urls(settings.frontend_url)[0]
-    invite = db.auth.admin.invite_user_by_email(
-        datos.correo,
-        {"redirect_to": f"{frontend_url}/completar-invitacion"},
-    )
+    try:
+        invite = db.auth.admin.invite_user_by_email(
+            datos.correo,
+            {"redirect_to": f"{frontend_url}/completar-invitacion"},
+        )
+    except AuthError as error:
+        _lanzar_error_invitacion(error)
 
     try:
         usuario = (
