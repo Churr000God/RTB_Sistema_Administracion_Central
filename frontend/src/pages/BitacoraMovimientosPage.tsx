@@ -4,6 +4,7 @@ import { ArrowRight, Loader2, Lock, Search } from "lucide-react";
 
 import { apiFetch } from "../lib/apiClient";
 import { AppShell } from "../layouts/AppShell";
+import { formatearHoraMexico } from "../lib/calendario";
 import { derivarTransiciones, resumenBitacora, type Estado, type Movimiento } from "../lib/movimientos";
 
 type Persona = {
@@ -43,7 +44,7 @@ function formatearFecha(fecha: string): string {
 function formatearFechaHora(fecha: string): string {
   const valor = new Date(fecha);
   if (Number.isNaN(valor.getTime())) return "—";
-  return valor.toLocaleString("es-MX", {
+  return formatearHoraMexico(valor, {
     day: "2-digit",
     month: "short",
     year: "numeric",

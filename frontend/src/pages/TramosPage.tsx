@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Loader2, Search } from "lucide-react";
 
 import { apiFetch } from "../lib/apiClient";
+import { formatearHoraMexico } from "../lib/calendario";
 import { AppShell } from "../layouts/AppShell";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
@@ -41,7 +42,7 @@ function formatearHora(fecha: string | null): string {
   if (!fecha) return "—";
   const valor = new Date(fecha);
   if (Number.isNaN(valor.getTime())) return "—";
-  return valor.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+  return formatearHoraMexico(valor, { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatearMinutos(minutos: number | null): string {

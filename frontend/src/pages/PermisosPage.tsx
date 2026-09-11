@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, ArrowRight, Info, Loader2, Plus, Search, ShieldCheck } from "lucide-react";
 
 import { apiFetch } from "../lib/apiClient";
+import { formatearHoraMexico } from "../lib/calendario";
 import { AppShell } from "../layouts/AppShell";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
@@ -50,7 +51,7 @@ function normalizar(texto: string): string {
 function formatearFechaHora(fecha: string): string {
   const valor = new Date(fecha);
   if (Number.isNaN(valor.getTime())) return "—";
-  return valor.toLocaleString("es-MX", {
+  return formatearHoraMexico(valor, {
     day: "2-digit",
     month: "short",
     year: "numeric",

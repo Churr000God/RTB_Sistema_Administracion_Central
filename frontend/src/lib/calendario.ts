@@ -96,3 +96,18 @@ export function sumarDiasISO(fechaISO: string, dias: number): string {
   fecha.setDate(fecha.getDate() + dias);
   return aFechaISO(fecha);
 }
+
+const TIME_ZONE_NEGOCIO = "America/Mexico_City";
+
+/**
+ * Caso inverso a los helpers de arriba: éstos manipulan fechas de CALENDARIO ("qué día es hoy",
+ * sin hora) con getters locales, a propósito para no depender de ningún TZ fijo. Esta función
+ * formatea un INSTANTE real (un timestamp UTC de la DB -- una marca, un movimiento, una corrida
+ * de batch) para mostrarlo siempre en hora de México, sin importar el TZ del navegador/entorno
+ * donde corre. `toLocaleString`/`toLocaleTimeString` sin `timeZone` explícito usan el TZ del
+ * sistema -- eso hacía que un mismo timestamp se viera distinto según el dispositivo (mismo bug
+ * ya corregido en backend con `ZoneInfo("America/Mexico_City")`, ver CLAUDE.md 2026-09-11).
+ */
+export function formatearHoraMexico(fecha: Date, opciones: Intl.DateTimeFormatOptions): string {
+  return fecha.toLocaleString("es-MX", { ...opciones, timeZone: TIME_ZONE_NEGOCIO });
+}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Loader2, RadioTower, Search, Wrench } from "lucide-react";
 
 import { apiFetch } from "../lib/apiClient";
+import { formatearHoraMexico } from "../lib/calendario";
 import { etiquetaMotivo } from "../lib/motivosRevision";
 import { AppShell } from "../layouts/AppShell";
 import { Badge } from "../components/Badge";
@@ -77,7 +78,7 @@ const VARIANTE_ESTADO_REVISION: Record<"pendiente" | "resuelta", "aviso" | "exit
 function formatearFechaHora(fecha: string): string {
   const valor = new Date(fecha);
   if (Number.isNaN(valor.getTime())) return "—";
-  return valor.toLocaleString("es-MX", {
+  return formatearHoraMexico(valor, {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -88,7 +89,7 @@ function formatearFechaHora(fecha: string): string {
 }
 
 function formatearHoraCorta(fecha: Date): string {
-  return fecha.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return formatearHoraMexico(fecha, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 export function RegistroMarcasPage() {

@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { CheckCircle2, Fingerprint, Info } from "lucide-react";
 
 import { apiFetch } from "../lib/apiClient";
+import { formatearHoraMexico } from "../lib/calendario";
 import { generarUuidV4 } from "../lib/uuid";
 import { etiquetaMotivo } from "../lib/motivosRevision";
 import { AppShell } from "../layouts/AppShell";
@@ -53,7 +54,7 @@ async function mensajeDeError(respuesta: Response, generico: string): Promise<st
 function formatearHoraServidor(fecha: string): string {
   const valor = new Date(fecha);
   if (Number.isNaN(valor.getTime())) return fecha;
-  return valor.toLocaleString("es-MX", {
+  return formatearHoraMexico(valor, {
     day: "2-digit",
     month: "short",
     year: "numeric",

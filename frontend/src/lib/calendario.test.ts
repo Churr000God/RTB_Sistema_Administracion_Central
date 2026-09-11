@@ -4,6 +4,7 @@ import {
   aFechaISO,
   esFutura,
   esPasadaOhoy,
+  formatearHoraMexico,
   grillaDelMes,
   hoyISO,
   semanaDeDias,
@@ -202,5 +203,30 @@ describe("esFutura / esPasadaOhoy", () => {
 describe("hoyISO", () => {
   it("coincide con aFechaISO(new Date())", () => {
     expect(hoyISO()).toBe(aFechaISO(new Date()));
+  });
+});
+
+describe("formatearHoraMexico", () => {
+  it("convierte un instante UTC a hora de México -- fuerza timeZone, no depende del TZ del entorno", () => {
+    // 09:00 UTC = 03:00 CST (UTC-6). A diferencia de toLocaleString/toLocaleTimeString sin
+    // timeZone explícito (el bug real: RegistroMarcasPage/TramosPage antes de este fix), acá el
+    // resultado no puede variar según dónde corra el proceso -- timeZone va siempre fijo.
+    const instante = new Date("2026-09-07T09:00:00Z");
+    const opciones: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", second: "2-digit" };
+
+    expect(formatearHoraMexico(instante, opciones)).toContain("03:00:00");
+  });
+
+  it("respeta las opciones -- fecha + hora completas", () => {
+    const instante = new Date("2026-09-07T20:30:00Z"); // 20:30 UTC = 14:30 CST
+    const resultado = formatearHoraMexico(instante, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    expect(resultado).toContain("07 sep 2026");
+    expect(resultado).toContain("02:30");
   });
 });

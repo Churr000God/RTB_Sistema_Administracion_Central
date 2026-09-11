@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { AlertCircle, ChevronDown, ChevronRight, Loader2, Search } from "lucide-react";
 
 import { apiFetch } from "../lib/apiClient";
+import { formatearHoraMexico } from "../lib/calendario";
 import { AppShell } from "../layouts/AppShell";
 import {
   TRAMOS_ANTIGUEDAD,
@@ -131,7 +132,7 @@ function formatearFechaHora(fecha: string | null): string {
   if (!fecha) return "—";
   const valor = new Date(fecha);
   if (Number.isNaN(valor.getTime())) return "—";
-  return valor.toLocaleString("es-MX", {
+  return formatearHoraMexico(valor, {
     day: "2-digit",
     month: "short",
     year: "numeric",
