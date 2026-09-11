@@ -173,8 +173,19 @@ COMMENT ON FUNCTION tiempo.fn_jornada_asignada_protege_borrado() IS
 -- jornada que ya empezó no se puede modificar ni borrar. INSERT queda deliberadamente FUERA: no
 -- rompe el POST existente que puede insertar patrón de una jornada retroactiva
 -- (fn_jornada_asignar_renovar no valida que vigente_desde sea futura). Residual conocido y
--- aceptado, fuera de alcance de este corte: alguien con patron_semanal_edicion podría AGREGAR
--- (nunca modificar/borrar) un día de patrón a una jornada en curso vía PostgREST directo.
+-- aceptado, fuera de alcance de este corte -- pero NO es benigno, ver incidente real abajo:
+-- alguien con patron_semanal_edicion puede INSERT un día de patrón sobre una jornada YA
+-- vigente (vigente_desde <= hoy) vía PostgREST directo, sin que el INSERT lo bloquee nada. Esa
+-- fila queda, para siempre, IMPOSIBLE de corregir ni borrar por la vía normal: el propio trigger
+-- (BEFORE UPDATE OR DELETE) la protege igual que a cualquier otra fila de una jornada ya
+-- vigente, y la jornada que ya empezó nunca "deja de haber empezado" -- no hay ningún camino de
+-- reversión, ni con service_role (RLS no aplica a superusuario, pero el trigger sí, siempre). La
+-- única forma de limpiarla es `ALTER TABLE ... DISABLE TRIGGER` con acceso de superusuario
+-- directo a Postgres, borrar la fila a mano, y volver a habilitar el trigger -- exactamente lo
+-- que hizo falta hacer con una fila real (patron_semanal id=21, jornada_asignada_id=3, domingo
+-- 09:00-14:00) que dejó una prueba de `security` el 2026-09-11, porque este Supabase no respeta
+-- `Prefer: tx=rollback`. Si se decide cerrar este hueco en un corte futuro, agregar el trigger
+-- también a BEFORE INSERT (con la misma condición) sería la forma más simple.
 -- ============================================================================
 
 CREATE FUNCTION tiempo.fn_patron_semanal_solo_jornada_futura()
@@ -207,7 +218,10 @@ REVOKE EXECUTE ON FUNCTION tiempo.fn_patron_semanal_solo_jornada_futura() FROM P
 COMMENT ON FUNCTION tiempo.fn_patron_semanal_solo_jornada_futura() IS
   'BEFORE UPDATE OR DELETE en tiempo.patron_semanal. Bloquea tocar/borrar una fila de patrón que '
   'cuelga de una jornada_asignada con vigente_desde <= hoy. INSERT deliberadamente sin este '
-  'trigger -- residual conocido, ver cabecera de 75_*.sql.';
+  'trigger -- residual conocido, NO benigno: una fila insertada así sobre una jornada ya vigente '
+  'queda irreversible por la vía normal, el propio trigger bloquea su propia corrección/borrado '
+  '-- sólo se limpia con DISABLE TRIGGER de superusuario. Incidente real 2026-09-11 (patron_'
+  'semanal id=21). Ver cabecera de 75_*.sql para el detalle completo.';
 
 -- ============================================================================
 -- 4) trg_jornada_asignada_valida_cadena -- CONSTRAINT TRIGGER, DEFERRABLE INITIALLY DEFERRED
