@@ -223,6 +223,9 @@ export function AsignarJornadaPage() {
         });
         limpiarFormulario();
         cargarPersonas(); // refresca la cobertura de abajo: esta persona ya cuenta como "con jornada"
+        // invalida la cadena cacheada -- si la fila de esta persona está (o queda) expandida,
+        // que muestre la jornada recién creada/renovada sin recargar la página entera.
+        cargarCadenaDePersona(payload.persona_id);
         return;
       }
       if (respuesta.status === 409 && !payload.confirma_cierre_vigente) {

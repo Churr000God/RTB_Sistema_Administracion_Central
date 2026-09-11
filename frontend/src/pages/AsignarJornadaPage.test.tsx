@@ -193,6 +193,18 @@ describe("AsignarJornadaPage", () => {
     expect(screen.queryByLabelText(/^persona$/i)).not.toBeInTheDocument();
   });
 
+  it("tras un POST exitoso, invalida la cadena cacheada de esa persona (refetch de /jornadas)", async () => {
+    mockApiFetch({});
+
+    render(<AsignarJornadaPage />);
+    await llenarFormularioBasico();
+    await userEvent.click(screen.getByRole("button", { name: /registrar/i }));
+
+    await waitFor(() =>
+      expect(apiFetch).toHaveBeenCalledWith("/api/personas/persona-ficticia-1/jornadas"),
+    );
+  });
+
   it("muestra el diálogo de confirmación en 409 (SCJ01) y reintenta con confirma_cierre_vigente:true", async () => {
     mockApiFetch({
       post: [
@@ -355,7 +367,7 @@ describe("AsignarJornadaPage", () => {
       tipo_jornada: "normal",
       vigente_desde: "2026-01-01",
       vigente_hasta: null,
-      horas_semanales_calculadas: 45,
+      horas_semanales_calculadas: null, // siempre NULL en la DB real -- se calcula del patrón
       patron_semanal: [
         { dia_semana: "lunes", hora_entrada: "09:00:00", hora_salida: "18:00:00", minutos_comida: 60 },
       ],
@@ -388,7 +400,9 @@ describe("AsignarJornadaPage", () => {
 
     await userEvent.click(fila);
     await waitFor(() => expect(screen.getByText(/vigente desde/i)).toBeInTheDocument());
-    expect(screen.getByText(/45\.0 h\/semana/)).toBeInTheDocument();
+    // lunes 09:00-18:00 con 60min de comida -- 9h - 1h = 8h, calculado del patrón, no del
+    // campo horas_semanales_calculadas (siempre NULL en la DB real).
+    expect(screen.getByText(/8\.0 h\/semana esperadas/)).toBeInTheDocument();
 
     // colapsar la oculta
     await userEvent.click(fila);

@@ -51,6 +51,18 @@ function formatearHora(hora: string): string {
   return hora.slice(0, 5);
 }
 
+// jornada.horas_semanales_calculadas siempre llega NULL (columna derivada sin escritor real en
+// la DB) -- se calcula acá con la misma fórmula que backend/app/routers/jornada_asignada.py::
+// _horas_patron: por día, (hora_salida - hora_entrada) en horas, menos minutos_comida/60.
+export function calcularHorasSemana(patron: PatronDia[]): number {
+  return patron.reduce((total, dia) => {
+    const [horaEntrada, minutoEntrada] = dia.hora_entrada.split(":").map(Number);
+    const [horaSalida, minutoSalida] = dia.hora_salida.split(":").map(Number);
+    const minutosTrabajados = horaSalida * 60 + minutoSalida - (horaEntrada * 60 + minutoEntrada);
+    return total + minutosTrabajados / 60 - dia.minutos_comida / 60;
+  }, 0);
+}
+
 // Cuerpo de la tarjeta "Jornada asignada" -- extraído de FichaPersonaPage para reusarlo también
 // en la fila expandible de AsignarJornadaPage (SCJ-PRA-01, mockup B elegido). No incluye el
 // encabezado (título + link Asignar/Renovar): cada consumidor lo arma distinto (FichaPersonaPage
@@ -74,15 +86,16 @@ export function DetalleJornadaAsignada({ estado, jornada }: Props) {
     return <p>Sin jornada vigente asignada.</p>;
   }
 
+  const horasSemana = calcularHorasSemana(jornada.patron_semanal);
+
   return (
     <>
       <p className="meta-ficha">
         <span className="insignia insignia--neutra">
           {ETIQUETA_TIPO_JORNADA[jornada.tipo_jornada] ?? jornada.tipo_jornada}
         </span>{" "}
-        vigente desde {formatearFecha(jornada.vigente_desde)}
-        {jornada.horas_semanales_calculadas != null &&
-          ` · ${jornada.horas_semanales_calculadas.toFixed(1)} h/semana`}
+        vigente desde {formatearFecha(jornada.vigente_desde)} · ≈ {horasSemana.toFixed(1)} h/semana
+        esperadas
       </p>
       <div className="calendario-semanal">
         {DIAS_SEMANA.map(({ valor, etiqueta }) => {
