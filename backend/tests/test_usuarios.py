@@ -163,13 +163,19 @@ def test_alta_usuario_carrera_en_insert_revierte_invitacion_y_devuelve_409():
     fake_client.auth.admin.delete_user.assert_called_once_with(AUTH_USER_ID)
 
 
-def test_alta_usuario_invitacion_redirect_no_permitido_devuelve_422():
-    """Bug real (2026-09-11): redirect_to fuera de la allowlist de Redirect URLs de Supabase Auth
-    da 403 -- antes subía como 500 crudo sin capturar, reproducido en vivo desde el Pi de
-    pruebas."""
+def test_alta_usuario_invitacion_bloqueo_cloudflare_devuelve_422_catch_all():
+    """Bug real (2026-09-11), reproducido en vivo desde el Pi de pruebas: la IP pública del Pi
+    está bloqueada por reputación en el Cloudflare que protege a Supabase, específico de
+    /auth/v1/invite -- un 403 con página HTML de Cloudflare, no un error JSON de GoTrue. Eso
+    revienta el parseo de error.response.json() dentro del SDK y llega como AuthUnknownError
+    (sin .status confiable), no como AuthApiError -- cae al catch-all genérico, sin prometer una
+    causa (ni mencionar "redirect URL", primera hipótesis que se descartó con evidencia real).
+    Nada que el código de este repo pueda arreglar -- sólo evita el 500 crudo."""
     fake_client = _fake_client_sin_usuario_existente()
-    fake_client.auth.admin.invite_user_by_email.side_effect = AuthApiError(
-        "Redirect not allowed", 403, "redirect_url_not_allowed"
+    fake_client.auth.admin.invite_user_by_email.side_effect = AuthUnknownError(
+        "Client error '403 Forbidden' for url "
+        "'https://lzueucmdqjacaemdfxad.supabase.co/auth/v1/invite'",
+        RuntimeError("cuerpo de la respuesta no es JSON (página HTML de Cloudflare)"),
     )
     app.dependency_overrides[get_service_client] = lambda: fake_client
     _override_gate()
@@ -188,8 +194,7 @@ def test_alta_usuario_invitacion_redirect_no_permitido_devuelve_422():
     app.dependency_overrides.clear()
     assert response.status_code == 422, response.text
     assert response.json()["detail"] == (
-        "No se pudo enviar la invitación: la URL de redirect no está permitida en la "
-        "configuración de Supabase Auth (Authentication > URL Configuration > Redirect URLs)."
+        "No se pudo enviar la invitación -- intentá de nuevo o contactá a Sistemas."
     )
     fake_client.postgrest.schema.return_value.table.return_value.insert.assert_not_called()
 
@@ -268,7 +273,9 @@ def test_alta_usuario_invitacion_error_desconocido_devuelve_422_catch_all():
 
     app.dependency_overrides.clear()
     assert response.status_code == 422, response.text
-    assert response.json()["detail"] == "No se pudo enviar la invitación de acceso."
+    assert response.json()["detail"] == (
+        "No se pudo enviar la invitación -- intentá de nuevo o contactá a Sistemas."
+    )
 
 
 def test_alta_usuario_sin_permiso_devuelve_403():

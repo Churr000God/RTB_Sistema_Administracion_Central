@@ -12,36 +12,30 @@ from app.schemas.usuarios import UsuarioCreate, UsuarioOut
 router = APIRouter(prefix="/api/usuarios", tags=["usuarios"])
 
 MENSAJE_USUARIO_DUPLICADO = "Esta persona ya tiene un usuario asociado."
-MENSAJE_INVITACION_REDIRECT_NO_PERMITIDO = (
-    "No se pudo enviar la invitación: la URL de redirect no está permitida en la configuración "
-    "de Supabase Auth (Authentication > URL Configuration > Redirect URLs)."
-)
 MENSAJE_INVITACION_DATOS_INVALIDOS = "El correo no es válido o ya tiene una cuenta de acceso."
 MENSAJE_INVITACION_LIMITE_EXCEDIDO = (
     "Se alcanzó el límite de envíos de invitación de Supabase Auth -- reintentá en unos minutos."
 )
-MENSAJE_INVITACION_FALLIDA = "No se pudo enviar la invitación de acceso."
+MENSAJE_INVITACION_FALLIDA = "No se pudo enviar la invitación -- intentá de nuevo o contactá a Sistemas."
 
 
 def _lanzar_error_invitacion(error: AuthError) -> None:
     """invite_user_by_email puede tirar AuthApiError (con .status/.code reales del API de
-    GoTrue) o AuthUnknownError (si el cuerpo de la respuesta no es JSON -- ej. un 403 crudo de
-    un proxy/WAF delante de GoTrue que nunca llega al manejo normal de error de la API) -- ambas
-    heredan de AuthError, se capturan juntas acá. Sólo AuthApiError expone `.status` de forma
-    confiable (AuthUnknownError no), por eso se usa `getattr` en vez de asumirlo.
+    GoTrue) o AuthUnknownError (si el cuerpo de la respuesta no es JSON) -- ambas heredan de
+    AuthError, se capturan juntas acá. Sólo AuthApiError expone `.status` de forma confiable
+    (AuthUnknownError no), por eso se usa `getattr` en vez de asumirlo.
 
-    Bug real encontrado 2026-09-11: `redirect_to` fuera de la allowlist de Supabase Auth
-    (Redirect URLs, gotcha ya documentado en CLAUDE.md sobre actualizarla al pasar de entorno)
-    da 403 y subía como 500 crudo sin capturar -- reproducido en vivo desde el Pi de pruebas
-    (100.115.160.115:8080), ausente del dashboard. Se mapean por `.status` (siempre HTTP
-    estándar, confiable) en vez de por `.code` (string específico de Supabase que no se
-    verificó para cada caso -- no vale la pena adivinar mensajes más finos sin evidencia real de
-    qué código manda cada escenario)."""
+    Bug real encontrado 2026-09-11, reproducido en vivo desde el Pi de pruebas
+    (100.115.160.115:8080): un 500 crudo sin capturar. Causa real, confirmada con curl directo
+    (no adivinada) -- NO es un problema de redirect_to/config de Supabase (primera hipótesis,
+    descartada): es un bloqueo de reputación de IP de Cloudflare específico de la IP pública del
+    Pi contra /auth/v1/invite en particular (403 con página HTML de Cloudflare, no un error JSON
+    de GoTrue -- por eso llega como AuthUnknownError, sin `.status`, el parseo de
+    error.response.json() revienta contra el HTML). Fuera del control de este repo/código --
+    sólo se captura para dar un 422 legible en vez de un 500 crudo, sin prometer una causa que no
+    se puede afirmar desde acá. Los 422/429 sí son semántica HTTP estándar verificada, se
+    mantienen distinguidos; todo lo demás (incluido este caso real) cae al catch-all genérico."""
     status_http = getattr(error, "status", None)
-    if status_http == status.HTTP_403_FORBIDDEN:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_INVITACION_REDIRECT_NO_PERMITIDO
-        ) from error
     if status_http == status.HTTP_422_UNPROCESSABLE_ENTITY:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_INVITACION_DATOS_INVALIDOS
