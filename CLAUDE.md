@@ -361,6 +361,24 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   lo diferido (protocolo de lotes, reintentos con backoff, lector real, etc.) documentado en el
   `README.md` de ese repo, no acá. Ver
   `bitacora/2026-09-09_checador_fisico_subproyecto_creado.md`.
+- **Cuatro bugs de horario/tramos + editar/eliminar jornadas futuras (11 de septiembre de 2026):**
+  cadena de 4 bugs independientes encontrados investigando una sola marca real mal etiquetada
+  "fuera de horario": trigger que ignoraba `genera_alerta_horario` (`72_*.sql`); causa raíz real,
+  `_desfase_local_en()` en `routers/marcas.py` calculaba el offset horario con
+  `datetime.astimezone()` sin argumento — resolvía la zona del *contenedor* (siempre UTC, ningún
+  Dockerfile fija `TZ`), no la de México, afectando el 100% de capturas manuales — fix con
+  `ZoneInfo("America/Mexico_City")` + `tzdata` agregado incondicional a `pyproject.toml`; columnas
+  ambiguas en `fn_dia_calcular_armado_tramos` (`65_*.sql`, nunca detectado porque nunca había
+  corrido con un tramo huérfano real) bloqueaban tanto la previsualización como "Revisar",
+  corregido en `73_*.sql`; excepciones "de día" (`marca_id=NULL`, motivo `paridad_impar`) nunca se
+  auto-resolvían al revisar un día, quedaban pendientes para siempre sin ruta de salida — fix en
+  `fn_dia_revisar` (`74_*.sql`). Después, feature nueva de punta a punta: editar/eliminar jornadas
+  futuras de `tiempo.jornada_asignada` (antes sólo `INSERT` vía `fn_jornada_asignar_renovar`) — 4
+  triggers nuevos (`75_*.sql`) que cierran un hueco de RLS real (las policies de `39_*.sql`
+  permitían `UPDATE`/`DELETE` sin restricción de fecha a cualquiera con el permiso) más 3 RPCs
+  nuevos (`76_*.sql`). Ver gotchas nuevos abajo (residual de `patron_semanal` irreversible sin
+  superusuario, y `Prefer: tx=rollback` no respetado por este Supabase) y
+  `bitacora/2026-09-11_jornada_edicion_futura_y_fixes_horario.md` para el detalle completo.
 
 ## Arquitectura y módulos
 
@@ -405,7 +423,7 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   `http://localhost:5173` fijo a mano — esa configuración no vive en este repositorio. Al pasar a
   producción (`docker compose … prod`, frontend en `:8080`) hay que actualizarla ahí también, o
   los links de invitación/recuperación de contraseña no aterrizan en la app.
-- El DDL corre hasta `db/ddl/70_*.sql` (71 archivos, `00` a `70`). `personas.permiso`
+- El DDL corre hasta `db/ddl/76_*.sql` (77 archivos, `00` a `76`). `personas.permiso`
   es la única tabla del proyecto con clave natural (`codigo varchar PRIMARY KEY`) en vez de `uuid`
   — decisión deliberada, fiel a la redacción literal de `SCJ-PRO-05`, no un descuido a corregir.
 - Las tablas de bitácora inmutables (`bitacora_movimiento_persona`,
@@ -541,6 +559,33 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   no-`SECURITY DEFINER` necesita, desde el diseño inicial, evaluar si además hace falta un trigger
   `BEFORE UPDATE` con columnas explícitas — no asumir que el permiso más amplio del `OR` sólo se va
   a usar para lo que se diseñó.
+- **Un trigger `BEFORE UPDATE/DELETE` que protege una fila puede volverse imposible de revertir
+  por la vía normal, incluido `service_role`.** Descubierto por `security` el 11 de septiembre de
+  2026 verificando los triggers de `75_tiempo_jornada_asignada_proteccion_vigencias.sql`: el
+  residual conocido de "se puede `INSERT` un día nuevo en `patron_semanal` de una jornada ya en
+  curso" (aceptado a propósito, sólo cubre `UPDATE`/`DELETE`) generó una fila real de prueba que
+  **nadie podía borrar después** — el mismo trigger que protege la tabla bloquea también la
+  corrección de su propio residual, sin excepción de rol. Sólo se limpió con
+  `ALTER TABLE ... DISABLE TRIGGER` de superusuario + `DELETE` puntual + reactivación. **Lección:**
+  documentar un hueco de este tipo como "puede agregar algo de más" suena benigno pero esconde que
+  ese "algo de más" puede quedar pegado para siempre — decir explícito "y no hay forma de
+  quitarlo sin acceso de superusuario" en el comentario del trigger, no sólo describir qué permite.
+- **`Prefer: tx=rollback` no lo respeta este proyecto de Supabase/PostgREST** — lo ignora en
+  silencio y hace `COMMIT` igual. Encontrado por `security` el 11 de septiembre de 2026 probando
+  bypass de RLS/triggers: sus pruebas de rechazo (que levantan excepción) no dejaron residuo
+  porque Postgres aborta la transacción por su cuenta, pero la única prueba que debía tener éxito
+  sí commiteó una fila real de prueba. **Lección:** ninguna prueba futura contra esta BD puede
+  asumir que ese header alcanza para "no dejar cambios permanentes" — sólo los casos que rechazan
+  con excepción son inherentemente seguros sin él; cualquier caso de éxito necesita limpieza
+  manual explícita después, o correrse dentro de una transacción real con `ROLLBACK` por `psql`.
+- **Los triggers/RPCs de vigencia nuevos evalúan "hoy" con `CURRENT_DATE`, que en esta base corre
+  en UTC** (confirmado con `SHOW timezone`), no en hora real de México (UTC-6) — hay una ventana
+  de hasta 6 horas (medianoche a las 6am CDMX) donde el servidor ya considera "mañana" mientras en
+  México sigue siendo "hoy". Mismo tipo de problema que el de `desfase_local` (ver bitácora del
+  11 de septiembre de 2026), pero en el calendario de vigencias de jornada en vez de la hora de una
+  marca puntual. No corregido en ese corte — decisión pendiente si hace falta fijar el timezone de
+  la sesión o usar `(now() AT TIME ZONE 'America/Mexico_City')::date` en los chequeos de fecha de
+  `75_*.sql`/`76_*.sql`.
 
 ## Historial de decisiones
 
