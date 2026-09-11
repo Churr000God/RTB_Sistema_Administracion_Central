@@ -318,7 +318,7 @@ export function AsignarJornadaPage() {
     setPayloadPendiente(null);
   }
 
-  function handleCancelarEdicion() {
+  function handleCancelarFormulario() {
     limpiarFormulario();
   }
 
@@ -908,13 +908,9 @@ export function AsignarJornadaPage() {
 
         {error && <p role="alert">{error}</p>}
         <div className="botonera">
-          {modoEdicion ? (
-            <Button type="button" onClick={handleCancelarEdicion}>
-              Cancelar
-            </Button>
-          ) : (
-            <a href="/personas">Cancelar</a>
-          )}
+          <Button type="button" onClick={handleCancelarFormulario}>
+            Cancelar
+          </Button>
           <Button
             type="submit"
             icono={modoEdicion ? undefined : ArrowRight}

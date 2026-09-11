@@ -333,6 +333,19 @@ describe("AsignarJornadaPage", () => {
     expect(screen.getByLabelText(/^persona$/i)).toBeInTheDocument();
   });
 
+  it('"Cancelar" cierra el formulario en la misma pestaña, sin navegar afuera', async () => {
+    mockApiFetch({});
+
+    render(<AsignarJornadaPage />);
+    await abrirFormulario();
+    expect(screen.getByLabelText(/^persona$/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /^cancelar$/i }));
+
+    expect(screen.queryByLabelText(/^persona$/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^cancelar$/i })).not.toBeInTheDocument();
+  });
+
   it("click en Asignar/Renovar de una fila abre el formulario si estaba cerrado", async () => {
     const personas = [
       { id: "persona-1", primer_nombre: "Ana", apellido_paterno: "Con Jornada", estado: "activo", tiene_jornada_vigente: true },

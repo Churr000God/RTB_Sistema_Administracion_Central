@@ -2204,6 +2204,26 @@ a.boton-con-icono {
   margin-top: 0.2rem;
 }
 
+/* Cadena completa de jornadas (AsignarJornadaPage, fila expandida de la tabla de cobertura) --
+   sin esto, el <td colSpan> quedaba con sólo el padding de celda (0.75rem) de arriba, pegado
+   visualmente a la fila de la persona en vez de leerse como una sección aparte; y las jornadas
+   de la cadena (pasada/en curso/futura) quedaban una pegada contra la otra sin separación. */
+.lista-jornadas-cadena {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.25rem 0;
+}
+
+.tarjeta-jornada-cadena {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: var(--superficie);
+  border-radius: var(--radio-tarjeta);
+  padding: 1rem 1.25rem;
+}
+
 /* Varias insignias en una misma celda de tabla (ParametrosTopeLegalPage: motivos de exceso de
    tope legal, 1 a 3 chips por persona) — .insignia ya trae su propio padding/radio, esto sólo
    resuelve el layout de la celda que las contiene. */
