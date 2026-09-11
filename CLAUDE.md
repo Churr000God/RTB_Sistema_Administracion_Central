@@ -379,6 +379,18 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   nuevos (`76_*.sql`). Ver gotchas nuevos abajo (residual de `patron_semanal` irreversible sin
   superusuario, y `Prefer: tx=rollback` no respetado por este Supabase) y
   `bitacora/2026-09-11_jornada_edicion_futura_y_fixes_horario.md` para el detalle completo.
+- **Fix de zona horaria del lado frontend + healthcheck de Docker en prod (11 de septiembre de
+  2026, corte posterior):** `routers/marcas.py` ya usaba `ZoneInfo` para México, pero 10 pantallas
+  del frontend formateaban timestamps con `toLocaleString`/`toLocaleTimeString` sin `timeZone`
+  explícito — dependían del TZ del navegador/entorno donde corrieran, mismo bug de fondo que el de
+  `_desfase_local_en` pero del lado de UI. Corregido con un helper compartido
+  `formatearHoraMexico` en `calendario.ts`. De paso, el healthcheck de Docker del `frontend` en
+  `docker-compose.prod.yml` apuntaba al puerto de Vite dev (5173) en vez de nginx real (80) —
+  corregido, y de paso se encontró que `wget` dentro del contenedor resuelve `localhost` a `::1`
+  antes que a `0.0.0.0` (IPv4, donde escucha nginx) — fix usa `127.0.0.1` explícito. Descubierto un
+  bug real de red aparte, sin relación con código: desde el Pi de pruebas no se pueden enviar
+  invitaciones de usuario (bloqueo de IP en el WAF de Cloudflare de Supabase) — ver gotcha nuevo
+  abajo. Commits `25bf72e`/`6787146`/`2ac523b`/`0b0665f`.
 
 ## Arquitectura y módulos
 
@@ -586,6 +598,23 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   marca puntual. No corregido en ese corte — decisión pendiente si hace falta fijar el timezone de
   la sesión o usar `(now() AT TIME ZONE 'America/Mexico_City')::date` en los chequeos de fecha de
   `75_*.sql`/`76_*.sql`.
+- **Desde el Pi de pruebas (`raspberrypi-serverpruebas`) no se pueden enviar invitaciones de
+  usuario — bloqueo de red, no bug de código.** Encontrado el 11 de septiembre de 2026: dar de
+  alta un usuario tiraba `500` al invitar. Diagnóstico con `curl` directo (no adivinado): la IP
+  pública de salida del Pi está bloqueada por el WAF de Cloudflare específicamente para
+  `POST /auth/v1/invite` del proyecto Supabase — la respuesta es la página HTML de bloqueo de
+  Cloudflare ("Sorry, you have been blocked"), no un error JSON de GoTrue. Confirmado que NO es
+  redirect URL mal configurada (ya estaba en la allowlist) ni problema de código: desde esa misma
+  IP, otros endpoints de Supabase (`/rest/v1/`, `/auth/v1/admin/users`) responden 200 normal; desde
+  otra IP, la misma llamada a `/auth/v1/invite` con las mismas credenciales funciona. Se abrió
+  ticket con soporte de Supabase (plan free, sin SLA), sin resolver al cierre de esa sesión.
+  **Lección:** `routers/usuarios.py::alta_usuario` capturaba el error de `invite_user_by_email`
+  como un `AuthUnknownError` (no `AuthApiError`) porque el SDK no puede parsear el cuerpo HTML del
+  bloqueo como JSON — corregido para no subir como `500` crudo (commits `2ac523b`/`0b0665f`), pero
+  el mensaje debe quedarse genérico ("no se pudo enviar, intentá de nuevo o contactá a Sistemas")
+  porque la causa real (bloqueo de IP) no es diagnosticable de forma confiable sólo con el
+  `.status` del error — no inventar una causa específica en el mensaje sin evidencia real de qué
+  código/status manda cada escenario.
 
 ## Historial de decisiones
 
