@@ -289,12 +289,21 @@ def previsualizar_tramos(
 ) -> dict:
     """Sólo lectura -- tiempo.fn_dia_calcular_armado_tramos no escribe nada, simula cómo
     quedarían los tramos si se revisara el día ahora mismo (db/ddl/65_*.sql). Mismo gate que
-    revisar_dia: si no podés revisar, tampoco tiene sentido que veas la previsualización."""
-    resultado = (
-        db.postgrest.schema("tiempo")
-        .rpc("fn_dia_calcular_armado_tramos", {"p_dia_id": dia_id})
-        .execute()
-    )
+    revisar_dia: si no podés revisar, tampoco tiene sentido que veas la previsualización.
+
+    A diferencia de revisar_dia, esta función no declara ningún ERRCODE propio (nunca señala "el
+    día no existe", ver comentario de 65_*.sql) -- cualquier APIError que llegue acá es un error
+    real de Postgres/RLS sin traducción específica posible, se propaga como 422 legible en vez de
+    reventar sin capturar (bug real encontrado 2026-09-11: un error de SQL sin capturar acá salía
+    como 500 sin headers CORS)."""
+    try:
+        resultado = (
+            db.postgrest.schema("tiempo")
+            .rpc("fn_dia_calcular_armado_tramos", {"p_dia_id": dia_id})
+            .execute()
+        )
+    except APIError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, error.message) from error
     filas = resultado.data
     minutos_calculados = sum(
         fila["minutos_trabajados"]

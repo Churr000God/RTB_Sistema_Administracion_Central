@@ -1,10 +1,14 @@
+import logging
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import parse_frontend_urls
 from app.scheduler import lifespan
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="SCJ — Personas y Usuarios", lifespan=lifespan)
 
@@ -13,12 +17,33 @@ app = FastAPI(title="SCJ — Personas y Usuarios", lifespan=lifespan)
 # módulo — eso rompería la colección de pruebas cuando no hay .env con esas llaves.
 # FRONTEND_URL admite varios orígenes separados por coma (localhost + IP de Tailscale al mismo
 # tiempo, por ejemplo) -- parse_frontend_urls los separa; un solo valor sigue funcionando igual.
+ORIGENES_PERMITIDOS = parse_frontend_urls(os.getenv("FRONTEND_URL", "http://localhost:5173"))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=parse_frontend_urls(os.getenv("FRONTEND_URL", "http://localhost:5173")),
+    allow_origins=ORIGENES_PERMITIDOS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def manejador_excepciones_no_capturadas(request: Request, exc: Exception) -> JSONResponse:
+    """Starlette trata un handler de Exception/500 como caso especial: lo conecta a
+    ServerErrorMiddleware, que en el stack de middlewares queda POR FUERA de CORSMiddleware (no
+    a ExceptionMiddleware, que sí queda adentro) -- verificado con una app mínima antes de
+    confiar en esto, la respuesta de un handler así NUNCA lleva headers CORS aunque se registre.
+    Por eso hay que agregarlos a mano acá, replicando lo que CORSMiddleware haría (bug real
+    encontrado 2026-09-11 en /api/dias/{id}/previsualizar-tramos, ver bitácora: sin esto, el
+    navegador reporta cualquier 500 no anticipado como bloqueo de CORS en vez del error real)."""
+    logger.exception("Excepción no capturada en %s %s", request.method, request.url.path)
+    respuesta = JSONResponse(status_code=500, content={"detail": "Error interno del servidor."})
+    origen = request.headers.get("origin")
+    if origen in ORIGENES_PERMITIDOS:
+        respuesta.headers["Access-Control-Allow-Origin"] = origen
+        respuesta.headers["Vary"] = "Origin"
+    return respuesta
+
 
 from app.routers import personas  # noqa: E402
 from app.routers import usuarios  # noqa: E402
