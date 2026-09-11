@@ -12,6 +12,7 @@ capturista_id ni ningún campo de quién capturó: ese dato vive en el esquema O
 alcance (SCJ-ESP-01 §I.4 regla 4, mismo criterio que genera_alerta_horario en SCJ-PRO-09)."""
 
 from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from postgrest.exceptions import APIError
@@ -27,6 +28,8 @@ from app.schemas.marcas import (
 )
 
 router = APIRouter(prefix="/api/marcas", tags=["marcas"])
+
+ZONA_OPERACION = ZoneInfo("America/Mexico_City")
 
 UNIQUE_VIOLATION = "23505"
 LIMITE_DEFECTO = 50
@@ -101,11 +104,13 @@ def _armar_respuesta(db: Client, marca_fila: dict, duplicado: bool) -> dict:
 
 def _desfase_local_en(momento: datetime) -> str:
     """Desfase UTC vigente EN momento (no el de 'ahora'), formato '+HH:MM'/'-HH:MM'
-    (ck_marca_desfase_local) -- SCJ-CDT-01 §VII.1. astimezone() sin argumento resuelve el offset
-    real de la zona horaria del proceso para ESE instante puntual (no uno fijo cacheado al
-    arrancar), relevante si algún día vuelve el horario de verano -- hoy en México da lo mismo,
-    pero la firma correcta evita tener que migrar datos entonces."""
-    offset = momento.astimezone().utcoffset()
+    (ck_marca_desfase_local) -- SCJ-CDT-01 §VII.1. Se resuelve contra ZONA_OPERACION
+    (America/Mexico_City) explícita, NUNCA contra la zona del proceso/contenedor --
+    astimezone() sin argumento usaba la del sistema operativo, que en Docker (dev y prod) es UTC
+    por defecto al no fijar TZ, así que grababa '+00:00' sin importar la hora real de CDMX (bug
+    real encontrado 2026-09-11, ver bitácora). Pasar la zona explícita para ESE instante puntual
+    (no uno fijo cacheado) sigue siendo correcto si algún día vuelve el horario de verano."""
+    offset = momento.astimezone(ZONA_OPERACION).utcoffset()
     total_minutos = int(offset.total_seconds() // 60)
     signo = "+" if total_minutos >= 0 else "-"
     horas, minutos = divmod(abs(total_minutos), 60)
