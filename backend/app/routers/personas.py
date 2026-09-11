@@ -4,6 +4,8 @@ Gate de permisos: GET (listado, ficha) sin cambio -- no existe código de lectur
 módulo, sigue el gate débil de sólo get_caller_client (RLS) a propósito. POST (alta) exige
 además requiere_permiso("alta_personas_usuarios") (app/permisos.py)."""
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from postgrest.exceptions import APIError
 from supabase import Client
@@ -37,15 +39,22 @@ def _resolver_personas_con_jornada_vigente(db: Client, persona_ids: list[str]) -
     """Cruza a tiempo.jornada_asignada (la única dirección que puede ir sin romper la frontera --
     SCJ-FRO-01 sólo prohíbe que un atributo de identidad cruce de personas a tiempo, no una
     lectura de conveniencia en sentido contrario). Un solo IN por lote en vez de una consulta por
-    persona -- mismo criterio que el resto de los resolvers de nombre cruzado del proyecto."""
+    persona -- mismo criterio que el resto de los resolvers de nombre cruzado del proyecto.
+
+    Bug real encontrado 2026-09-11 (misma forma que jornada_asignada.py::jornada_vigente_de_
+    persona): filtrar por `vigente_hasta IS NULL` cuenta como "con jornada vigente" a alguien
+    cuya única jornada es una futura precargada que todavía no empieza. Mismo criterio de
+    resolución "vigente hoy" que ya usan corte_quincenal.py/alertas_horario.py."""
     if not persona_ids:
         return set()
+    hoy_iso = date.today().isoformat()
     filas = (
         db.postgrest.schema("tiempo")
         .table("jornada_asignada")
         .select("persona_id")
         .in_("persona_id", persona_ids)
-        .is_("vigente_hasta", "null")
+        .lte("vigente_desde", hoy_iso)
+        .or_(f"vigente_hasta.is.null,vigente_hasta.gte.{hoy_iso}")
         .execute()
         .data
     )

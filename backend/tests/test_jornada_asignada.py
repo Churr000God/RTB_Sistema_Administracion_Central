@@ -1,10 +1,13 @@
+from datetime import date, timedelta
 from unittest.mock import MagicMock
 
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from postgrest.exceptions import APIError
 
 from app.deps import CallerIdentity, get_caller_client, get_caller_identity
 from app.main import app
+from app.routers.jornada_asignada import ERRORES_ACTUALIZAR, _lanzar_error_rpc
 
 PERSONA_ID = "aaaaaaaa-0000-0000-0000-000000000001"
 JORNADA_ID = 10
@@ -44,6 +47,18 @@ def _tabla_select_simple(datos):
 def _tabla_select_eq_is(datos):
     tabla = MagicMock()
     tabla.select.return_value.eq.return_value.is_.return_value.execute.return_value.data = datos
+    return tabla
+
+
+def _tabla_select_eq_lte_or(datos):
+    """jornada_vigente_de_persona (fix del bug de 'vigente hoy'): select().eq(persona_id)
+    .lte(vigente_desde).or_(...).execute() -- mismo shape que corte_quincenal.py/
+    alertas_horario.py."""
+    tabla = MagicMock()
+    (
+        tabla.select.return_value.eq.return_value.lte.return_value.or_.return_value
+        .execute.return_value.data
+    ) = datos
     return tabla
 
 
@@ -439,7 +454,7 @@ def test_jornada_vigente_de_persona_devuelve_jornada_y_patron():
     fake_client = _fake_client_secuencia(
         _entradas_gate_or()
         + [
-            ("jornada_asignada", _tabla_select_eq_is([_fila_jornada_vigente()])),
+            ("jornada_asignada", _tabla_select_eq_lte_or([_fila_jornada_vigente()])),
             ("patron_semanal", _tabla_select_simple([_fila_patron_semanal()])),
         ]
     )
@@ -462,7 +477,7 @@ def test_jornada_vigente_de_persona_devuelve_jornada_y_patron():
 
 def test_jornada_vigente_de_persona_sin_jornada_devuelve_404():
     fake_client = _fake_client_secuencia(
-        _entradas_gate_or() + [("jornada_asignada", _tabla_select_eq_is([]))]
+        _entradas_gate_or() + [("jornada_asignada", _tabla_select_eq_lte_or([]))]
     )
     app.dependency_overrides[get_caller_client] = lambda: fake_client
     _override_identidad()
@@ -475,3 +490,404 @@ def test_jornada_vigente_de_persona_sin_jornada_devuelve_404():
 
     app.dependency_overrides.clear()
     assert response.status_code == 404
+
+
+def test_jornada_vigente_de_persona_filtra_por_vigente_hoy_no_por_fila_abierta():
+    """Regresión del bug real (2026-09-11): antes filtraba sólo vigente_hasta IS NULL, lo que
+    devolvía una jornada futura precargada como si fuera la vigente hoy. Verifica que la query
+    real use vigente_desde <= hoy (no sólo "sin fecha de término")."""
+    tabla_jornada = _tabla_select_eq_lte_or([_fila_jornada_vigente()])
+    fake_client = _fake_client_secuencia(
+        _entradas_gate_or()
+        + [
+            ("jornada_asignada", tabla_jornada),
+            ("patron_semanal", _tabla_select_simple([_fila_patron_semanal()])),
+        ]
+    )
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+
+    client = TestClient(app)
+    response = client.get(
+        f"/api/personas/{PERSONA_ID}/jornada-vigente",
+        headers={"Authorization": "Bearer fake-token"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200, response.text
+    hoy_iso = date.today().isoformat()
+    tabla_jornada.select.return_value.eq.return_value.lte.assert_called_once_with(
+        "vigente_desde", hoy_iso
+    )
+    tabla_jornada.select.return_value.eq.return_value.lte.return_value.or_.assert_called_once_with(
+        f"vigente_hasta.is.null,vigente_hasta.gte.{hoy_iso}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /api/personas/{id}/jornadas -- cadena completa con flags
+# ---------------------------------------------------------------------------
+
+
+def _tabla_select_eq_order(datos):
+    tabla = MagicMock()
+    tabla.select.return_value.eq.return_value.order.return_value.execute.return_value.data = datos
+    return tabla
+
+
+def _tabla_select_in(datos):
+    tabla = MagicMock()
+    tabla.select.return_value.in_.return_value.execute.return_value.data = datos
+    return tabla
+
+
+def test_listar_jornadas_de_persona_vacio_devuelve_200():
+    fake_client = _fake_client_secuencia(
+        _entradas_gate_or() + [("jornada_asignada", _tabla_select_eq_order([]))]
+    )
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+
+    client = TestClient(app)
+    response = client.get(
+        f"/api/personas/{PERSONA_ID}/jornadas", headers={"Authorization": "Bearer fake-token"}
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200, response.text
+    assert response.json() == []
+
+
+def test_listar_jornadas_de_persona_calcula_flags_de_cadena():
+    hoy = date.today()
+    id_pasada, id_en_curso, id_futura = 1, 2, 3
+    jornadas = [
+        _fila_jornada(
+            id=id_pasada,
+            vigente_desde=(hoy - timedelta(days=60)).isoformat(),
+            vigente_hasta=(hoy - timedelta(days=31)).isoformat(),
+        ),
+        _fila_jornada(
+            id=id_en_curso,
+            vigente_desde=(hoy - timedelta(days=30)).isoformat(),
+            vigente_hasta=(hoy + timedelta(days=30)).isoformat(),
+        ),
+        _fila_jornada(
+            id=id_futura,
+            vigente_desde=(hoy + timedelta(days=31)).isoformat(),
+            vigente_hasta=None,
+        ),
+    ]
+    fake_client = _fake_client_secuencia(
+        _entradas_gate_or()
+        + [
+            ("jornada_asignada", _tabla_select_eq_order(jornadas)),
+            ("patron_semanal", _tabla_select_in([])),
+        ]
+    )
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+
+    client = TestClient(app)
+    response = client.get(
+        f"/api/personas/{PERSONA_ID}/jornadas", headers={"Authorization": "Bearer fake-token"}
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200, response.text
+    por_id = {fila["id"]: fila for fila in response.json()}
+
+    pasada = por_id[id_pasada]
+    assert pasada["estado_vigencia"] == "pasada"
+    assert pasada["es_ultima_de_cadena"] is False
+    assert pasada["puede_editarse"] is False
+    assert pasada["puede_eliminarse"] is False
+    assert pasada["puede_mover_limite"] is False
+
+    en_curso = por_id[id_en_curso]
+    assert en_curso["estado_vigencia"] == "en_curso"
+    assert en_curso["es_ultima_de_cadena"] is False
+    assert en_curso["puede_editarse"] is False
+    assert en_curso["puede_eliminarse"] is False
+    assert en_curso["puede_mover_limite"] is True
+
+    futura = por_id[id_futura]
+    assert futura["estado_vigencia"] == "futura"
+    assert futura["es_ultima_de_cadena"] is True
+    assert futura["puede_editarse"] is True
+    assert futura["puede_eliminarse"] is True
+    assert futura["puede_mover_limite"] is False
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/jornadas-asignadas/{id} -- editar la jornada futura terminal
+# ---------------------------------------------------------------------------
+
+
+def _payload_actualizar(**overrides):
+    payload = {
+        "tipo_jornada": "normal",
+        "vigente_desde": "2026-12-01",
+        "descuento_comida_fija": False,
+        "minutos_descuento_comida_fija": None,
+        "patron_semanal": [
+            {
+                "dia_semana": "lunes",
+                "hora_entrada": "09:00:00",
+                "hora_salida": "18:00:00",
+                "minutos_comida": 60,
+            },
+        ],
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_actualizar_jornada_futura_exitosa():
+    fake_client = _fake_client_secuencia(
+        _entradas_gate()
+        + [
+            ("tope_legal", _tabla_tope_legal([{"maximo_semanal": "48.00", "vigente_hasta": None}])),
+            ("patron_semanal", _tabla_select_simple(_fila_patron())),
+        ]
+    )
+    fake_client.postgrest.schema.return_value.rpc.return_value.execute.return_value.data = (
+        _fila_jornada(vigente_desde="2026-12-01")
+    )
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+
+    client = TestClient(app)
+    response = client.patch(
+        f"/api/jornadas-asignadas/{JORNADA_ID}",
+        json=_payload_actualizar(),
+        headers={"Authorization": "Bearer fake-token"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200, response.text
+    fake_client.postgrest.schema.return_value.rpc.assert_called_once_with(
+        "fn_jornada_futura_actualizar",
+        {
+            "p_jornada_id": JORNADA_ID,
+            "p_tipo_jornada": "normal",
+            "p_vigente_desde": "2026-12-01",
+            "p_patron_semanal": [
+                {
+                    "dia_semana": "lunes",
+                    "hora_entrada": "09:00:00",
+                    "hora_salida": "18:00:00",
+                    "minutos_comida": 60,
+                }
+            ],
+            "p_descuento_comida_fija": False,
+            "p_minutos_descuento_comida_fija": None,
+        },
+    )
+
+
+def _test_actualizar_error(codigo, status_esperado):
+    fake_client = _fake_client_secuencia(
+        _entradas_gate()
+        + [("tope_legal", _tabla_tope_legal([{"maximo_semanal": "48.00", "vigente_hasta": None}]))]
+    )
+    fake_client.postgrest.schema.return_value.rpc.return_value.execute.side_effect = APIError(
+        {"code": codigo, "message": f"error {codigo}"}
+    )
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+
+    client = TestClient(app)
+    response = client.patch(
+        f"/api/jornadas-asignadas/{JORNADA_ID}",
+        json=_payload_actualizar(),
+        headers={"Authorization": "Bearer fake-token"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == status_esperado, response.text
+
+
+def test_actualizar_jornada_futura_no_existe_devuelve_404():
+    _test_actualizar_error("SCJ01", 404)
+
+
+def test_actualizar_jornada_futura_ya_empezo_devuelve_422():
+    _test_actualizar_error("SCJ02", 422)
+
+
+def test_actualizar_jornada_futura_no_es_ultima_de_cadena_devuelve_422():
+    _test_actualizar_error("SCJ03", 422)
+
+
+def test_actualizar_jornada_futura_fecha_no_futura_devuelve_422():
+    _test_actualizar_error("SCJ04", 422)
+
+
+def test_actualizar_jornada_futura_pisa_predecesora_devuelve_422():
+    _test_actualizar_error("SCJ05", 422)
+
+
+def test_actualizar_jornada_futura_patron_vacio_devuelve_422_antes_de_llegar_al_rpc():
+    """patron_semanal vacío ya lo rechaza Pydantic (mismo validador que JornadaAsignadaCreate) --
+    nunca llega a invocar el RPC, así que SCJ06 (el ERRCODE real de
+    fn_jornada_futura_actualizar para este caso) es inalcanzable por esta vía. Se prueba aparte,
+    directo sobre _lanzar_error_rpc, para no dejar ese código del diccionario sin cobertura."""
+    fake_client = _fake_client_secuencia(_entradas_gate())
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+
+    client = TestClient(app)
+    response = client.patch(
+        f"/api/jornadas-asignadas/{JORNADA_ID}",
+        json=_payload_actualizar(patron_semanal=[]),
+        headers={"Authorization": "Bearer fake-token"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 422, response.text
+
+
+def test_lanzar_error_rpc_mapea_scj06_de_actualizar():
+    error = APIError({"code": "SCJ06", "message": "patrón vacío"})
+    try:
+        _lanzar_error_rpc(error, ERRORES_ACTUALIZAR)
+        assert False, "debía lanzar HTTPException"
+    except HTTPException as excepcion:
+        assert excepcion.status_code == 422
+        assert excepcion.detail == "El patrón semanal debe tener al menos un día."
+
+
+def test_lanzar_error_rpc_codigo_no_mapeado_cae_a_422_con_mensaje_crudo():
+    error = APIError({"code": "P0001", "message": "algo que no está en el diccionario"})
+    try:
+        _lanzar_error_rpc(error, ERRORES_ACTUALIZAR)
+        assert False, "debía lanzar HTTPException"
+    except HTTPException as excepcion:
+        assert excepcion.status_code == 422
+        assert excepcion.detail == "algo que no está en el diccionario"
+
+
+# ---------------------------------------------------------------------------
+# PATCH /api/jornadas-asignadas/{id}/limite -- mover el límite de la jornada en curso
+# ---------------------------------------------------------------------------
+
+
+def test_mover_limite_jornada_en_curso_exitosa():
+    fake_client = _fake_client_secuencia(
+        _entradas_gate() + [("patron_semanal", _tabla_select_simple(_fila_patron()))]
+    )
+    fake_client.postgrest.schema.return_value.rpc.return_value.execute.return_value.data = (
+        _fila_jornada(vigente_hasta="2026-12-31")
+    )
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+
+    client = TestClient(app)
+    response = client.patch(
+        f"/api/jornadas-asignadas/{JORNADA_ID}/limite",
+        json={"vigente_hasta": "2026-12-31"},
+        headers={"Authorization": "Bearer fake-token"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200, response.text
+    fake_client.postgrest.schema.return_value.rpc.assert_called_once_with(
+        "fn_jornada_en_curso_mover_limite",
+        {"p_jornada_id": JORNADA_ID, "p_vigente_hasta": "2026-12-31"},
+    )
+
+
+def _test_mover_limite_error(codigo, status_esperado):
+    fake_client = _fake_client_secuencia(_entradas_gate())
+    fake_client.postgrest.schema.return_value.rpc.return_value.execute.side_effect = APIError(
+        {"code": codigo, "message": f"error {codigo}"}
+    )
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+
+    client = TestClient(app)
+    response = client.patch(
+        f"/api/jornadas-asignadas/{JORNADA_ID}/limite",
+        json={"vigente_hasta": "2026-12-31"},
+        headers={"Authorization": "Bearer fake-token"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == status_esperado, response.text
+
+
+def test_mover_limite_no_existe_devuelve_404():
+    _test_mover_limite_error("SCJ01", 404)
+
+
+def test_mover_limite_no_es_vigente_hoy_devuelve_422():
+    _test_mover_limite_error("SCJ02", 422)
+
+
+def test_mover_limite_sin_sucesora_devuelve_422():
+    _test_mover_limite_error("SCJ03", 422)
+
+
+def test_mover_limite_fecha_no_futura_devuelve_422():
+    _test_mover_limite_error("SCJ04", 422)
+
+
+def test_mover_limite_sucesora_no_es_ultima_devuelve_422():
+    _test_mover_limite_error("SCJ05", 422)
+
+
+def test_mover_limite_cadena_inconsistente_devuelve_422():
+    _test_mover_limite_error("SCJ06", 422)
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/jornadas-asignadas/{id} -- eliminar la jornada futura terminal
+# ---------------------------------------------------------------------------
+
+
+def test_eliminar_jornada_futura_exitosa():
+    fake_client = _fake_client_secuencia(_entradas_gate())
+    fake_client.postgrest.schema.return_value.rpc.return_value.execute.return_value.data = None
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+
+    client = TestClient(app)
+    response = client.delete(
+        f"/api/jornadas-asignadas/{JORNADA_ID}", headers={"Authorization": "Bearer fake-token"}
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 204, response.text
+    fake_client.postgrest.schema.return_value.rpc.assert_called_once_with(
+        "fn_jornada_futura_eliminar", {"p_jornada_id": JORNADA_ID}
+    )
+
+
+def _test_eliminar_error(codigo, status_esperado):
+    fake_client = _fake_client_secuencia(_entradas_gate())
+    fake_client.postgrest.schema.return_value.rpc.return_value.execute.side_effect = APIError(
+        {"code": codigo, "message": f"error {codigo}"}
+    )
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+
+    client = TestClient(app)
+    response = client.delete(
+        f"/api/jornadas-asignadas/{JORNADA_ID}", headers={"Authorization": "Bearer fake-token"}
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == status_esperado, response.text
+
+
+def test_eliminar_jornada_futura_no_existe_devuelve_404():
+    _test_eliminar_error("SCJ01", 404)
+
+
+def test_eliminar_jornada_futura_ya_empezo_devuelve_422():
+    _test_eliminar_error("SCJ02", 422)
+
+
+def test_eliminar_jornada_futura_no_es_ultima_de_cadena_devuelve_422():
+    _test_eliminar_error("SCJ03", 422)

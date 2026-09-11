@@ -1,3 +1,4 @@
+from datetime import date
 from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
@@ -268,9 +269,10 @@ def test_listar_personas_incluye_tiene_jornada_vigente():
                 },
             ]
         elif nombre_tabla == "jornada_asignada":
-            tabla.select.return_value.in_.return_value.is_.return_value.execute.return_value.data = [
-                {"persona_id": persona_con_jornada}
-            ]
+            (
+                tabla.select.return_value.in_.return_value.lte.return_value.or_.return_value
+                .execute.return_value.data
+            ) = [{"persona_id": persona_con_jornada}]
         return tabla
 
     fake_client = MagicMock()
@@ -284,6 +286,60 @@ def test_listar_personas_incluye_tiene_jornada_vigente():
     cuerpo = {p["id"]: p for p in response.json()}
     assert cuerpo[persona_con_jornada]["tiene_jornada_vigente"] is True
     assert cuerpo[persona_sin_jornada]["tiene_jornada_vigente"] is False
+
+
+def test_listar_personas_jornada_vigente_filtra_por_vigente_hoy_no_por_fila_abierta():
+    """Regresión del bug real (2026-09-11): antes filtraba sólo vigente_hasta IS NULL, lo que
+    marcaba a alguien con sólo una jornada futura precargada como "con jornada vigente". Verifica
+    que la query real use vigente_desde <= hoy, no sólo "sin fecha de término"."""
+    persona_id = "11111111-1111-1111-1111-111111111111"
+    tabla_jornada = MagicMock()
+
+    def side_effect(nombre_tabla):
+        if nombre_tabla == "persona":
+            tabla = MagicMock()
+            tabla.select.return_value.execute.return_value.data = [
+                {
+                    "id": persona_id,
+                    "primer_nombre": "Mariana",
+                    "segundo_nombre": None,
+                    "apellido_paterno": "Alcántara",
+                    "apellido_materno": None,
+                    "curp": "AARM910427MDFLVR03",
+                    "rfc": "AARM910427H8A",
+                    "nss": "62119145338",
+                    "fecha_nacimiento": "1991-04-27",
+                    "fecha_ingreso": "2026-01-01",
+                    "fecha_baja": None,
+                    "estado": "activo",
+                },
+            ]
+            return tabla
+        if nombre_tabla == "jornada_asignada":
+            (
+                tabla_jornada.select.return_value.in_.return_value.lte.return_value.or_
+                .return_value.execute.return_value.data
+            ) = []
+            return tabla_jornada
+        return MagicMock()
+
+    fake_client = MagicMock()
+    fake_client.postgrest.schema.return_value.table.side_effect = side_effect
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+
+    client = TestClient(app)
+    response = client.get("/api/personas", headers={"Authorization": "Bearer fake-token"})
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200, response.text
+    assert response.json()[0]["tiene_jornada_vigente"] is False
+    hoy_iso = date.today().isoformat()
+    tabla_jornada.select.return_value.in_.return_value.lte.assert_called_once_with(
+        "vigente_desde", hoy_iso
+    )
+    tabla_jornada.select.return_value.in_.return_value.lte.return_value.or_.assert_called_once_with(
+        f"vigente_hasta.is.null,vigente_hasta.gte.{hoy_iso}"
+    )
 
 
 PERSONA_ID = "11111111-1111-1111-1111-111111111111"
@@ -311,9 +367,10 @@ def _fake_db_ficha(
                 filas_asignacion or []
             )
         elif nombre_tabla == "jornada_asignada":
-            tabla.select.return_value.in_.return_value.is_.return_value.execute.return_value.data = (
-                filas_jornada_asignada or []
-            )
+            (
+                tabla.select.return_value.in_.return_value.lte.return_value.or_.return_value
+                .execute.return_value.data
+            ) = (filas_jornada_asignada or [])
         return tabla
 
     tabla_mock.side_effect = side_effect
@@ -567,9 +624,10 @@ def test_actualizar_persona_expediente_incompleto_con_expediente_previo_no_bloqu
             return tabla
         if nombre_tabla == "jornada_asignada":
             tabla = MagicMock()
-            tabla.select.return_value.in_.return_value.is_.return_value.execute.return_value.data = (
-                []
-            )
+            (
+                tabla.select.return_value.in_.return_value.lte.return_value.or_.return_value
+                .execute.return_value.data
+            ) = []
             return tabla
         if nombre_tabla == "asignacion":
             tabla = MagicMock()
@@ -722,7 +780,10 @@ def test_actualizar_persona_normaliza_curp_a_mayusculas_y_devuelve_ficha_actuali
                 {"puesto_id": GATE_PUESTO_ID}
             ]
         elif nombre_tabla == "jornada_asignada":
-            tabla.select.return_value.in_.return_value.is_.return_value.execute.return_value.data = []
+            (
+                tabla.select.return_value.in_.return_value.lte.return_value.or_.return_value
+                .execute.return_value.data
+            ) = []
         return tabla
 
     fake_client = MagicMock()
