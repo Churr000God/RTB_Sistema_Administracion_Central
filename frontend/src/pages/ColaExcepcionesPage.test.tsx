@@ -30,7 +30,7 @@ const EXCEPCIONES = [
     id: 2,
     marca_id: null,
     dia_id: 5,
-    motivo_revision: "dia_sin_marca",
+    motivo_revision: "paridad_impar",
     estado: "pendiente",
     creado_en: "2026-09-05T08:00:00Z",
     persona_nombre: null,
@@ -53,15 +53,17 @@ function mockApiFetch(listado?: Response) {
 }
 
 describe("ColaExcepcionesPage", () => {
-  it("lista sólo las excepciones con marca_id (las de dia_id las resuelve la bandeja de ausencias)", async () => {
+  it("lista también las excepciones de día (dia_id, sin persona_nombre/momento_dispositivo)", async () => {
     mockApiFetch();
 
     render(<ColaExcepcionesPage />);
 
     await waitFor(() => expect(screen.getByText("Persona Ficticia")).toBeInTheDocument());
-    expect(within(screen.getByRole("table")).getByText("Fuera de horario")).toBeInTheDocument();
-    expect(screen.queryByText("dia_sin_marca")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /corregir/i })).toHaveAttribute(
+    const tabla = screen.getByRole("table");
+    expect(within(tabla).getByText("Fuera de horario")).toBeInTheDocument();
+    expect(within(tabla).getByText("Paridad impar de marcas")).toBeInTheDocument();
+    expect(within(tabla).getByText("Excepción de día")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /corregir/i })[0]).toHaveAttribute(
       "href",
       "/tiempo/excepciones/1/corregir",
     );
@@ -88,7 +90,7 @@ describe("ColaExcepcionesPage", () => {
 
     render(<ColaExcepcionesPage />);
     const tabla = await screen.findByRole("table");
-    expect(within(tabla).getAllByRole("row")).toHaveLength(3); // encabezado + 2 filas
+    expect(within(tabla).getAllByRole("row")).toHaveLength(4); // encabezado + 3 filas
 
     await userEvent.type(screen.getByLabelText(/buscar por persona/i), "otra");
     await waitFor(() => expect(within(tabla).getAllByRole("row")).toHaveLength(2));

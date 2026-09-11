@@ -59,10 +59,10 @@ export function ColaExcepcionesPage() {
         return respuesta.json();
       })
       .then((datos: Excepcion[]) => {
-        // El servidor ya filtra a estado='pendiente'. marca_id != null: excepciones de un día
-        // sin checada (dia_id) las resuelve la bandeja de ausencias (SCJ-PRO-08) al
-        // aprobar/rechazar — se cierran solas por trigger, no tienen corrección propia acá.
-        setExcepciones(datos.filter((e) => e.marca_id !== null));
+        // El servidor ya filtra a estado='pendiente'. Se muestran todas -- incluidas las de
+        // dia_id (paridad_impar, sin marca_id ni persona_nombre/momento_dispositivo resueltos
+        // por el backend, ver ColaExcepcionesPage.test.tsx).
+        setExcepciones(datos);
         setEstadoCarga("listo");
       })
       .catch(() => setEstadoCarga("error"));
@@ -247,7 +247,10 @@ export function ColaExcepcionesPage() {
               <tbody>
                 {filtradas.map((excepcion) => (
                   <tr key={excepcion.id}>
-                    <td>{excepcion.persona_nombre ?? "—"}</td>
+                    <td>
+                      {excepcion.persona_nombre ??
+                        (excepcion.dia_id !== null ? "Excepción de día" : "—")}
+                    </td>
                     <td>{formatearFechaHora(excepcion.momento_dispositivo)}</td>
                     <td>
                       <Badge variante="aviso">
