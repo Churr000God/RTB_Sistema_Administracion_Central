@@ -295,7 +295,12 @@ def previsualizar_tramos(
     día no existe", ver comentario de 65_*.sql) -- cualquier APIError que llegue acá es un error
     real de Postgres/RLS sin traducción específica posible, se propaga como 422 legible en vez de
     reventar sin capturar (bug real encontrado 2026-09-11: un error de SQL sin capturar acá salía
-    como 500 sin headers CORS)."""
+    como 500 sin headers CORS).
+
+    fn_dia_calcular_armado_tramos, por contrato, sólo devuelve los tramos que CAMBIARÍAN si se
+    revisara el día ahora -- nunca los que ya están cerrados y completos en tiempo.tramo. Hay que
+    sumarlos aparte (bug real encontrado por `db` 2026-09-11: día con un tramo ya cerrado más uno
+    que la RPC cierra sumaba sólo el segundo)."""
     try:
         resultado = (
             db.postgrest.schema("tiempo")
@@ -309,6 +314,17 @@ def previsualizar_tramos(
         fila["minutos_trabajados"]
         for fila in filas
         if fila["accion"] in ACCIONES_TRAMO_CON_HORAS
+    )
+    tramos_ya_cerrados = (
+        db.postgrest.schema("tiempo")
+        .table("tramo")
+        .select("minutos_trabajados")
+        .eq("dia_id", dia_id)
+        .not_.is_("marca_cierre_id", "null")
+        .execute()
+    )
+    minutos_calculados += sum(
+        fila["minutos_trabajados"] for fila in tramos_ya_cerrados.data
     )
     tiene_huerfana = any(fila["accion"] == ACCION_HUERFANA_SIN_PAREJA for fila in filas)
     return {

@@ -38,6 +38,13 @@ def _tabla_select_doble_eq(datos):
     return tabla
 
 
+def _tabla_tramo_cerrados(datos):
+    """tabla.select(...).eq("dia_id", ...).not_.is_("marca_cierre_id", "null").execute()"""
+    tabla = MagicMock()
+    tabla.select.return_value.eq.return_value.not_.is_.return_value.execute.return_value.data = datos
+    return tabla
+
+
 def _entradas_gate_or():
     """requiere_permiso (OR) -- basta una vuelta de asignacion/puesto_permiso."""
     return [
@@ -643,7 +650,9 @@ def _pedir_previsualizar(dia_id=DIA_ID):
 
 
 def test_previsualizar_tramos_cerrarian_calcula_horas_sin_huerfana():
-    fake_client = _fake_caller_client_secuencia(_entradas_gate_or())
+    fake_client = _fake_caller_client_secuencia(
+        _entradas_gate_or() + [("tramo", _tabla_tramo_cerrados([]))]
+    )
     fake_client.postgrest.schema.return_value.rpc.return_value.execute.return_value.data = [
         _fila_armado("cerrar_existente", minutos=480.0),
         _fila_armado("nuevo", minutos=60.0),
@@ -664,7 +673,9 @@ def test_previsualizar_tramos_cerrarian_calcula_horas_sin_huerfana():
 
 
 def test_previsualizar_tramos_con_huerfana_sobrante():
-    fake_client = _fake_caller_client_secuencia(_entradas_gate_or())
+    fake_client = _fake_caller_client_secuencia(
+        _entradas_gate_or() + [("tramo", _tabla_tramo_cerrados([]))]
+    )
     fake_client.postgrest.schema.return_value.rpc.return_value.execute.return_value.data = [
         _fila_armado("cerrar_existente", minutos=480.0),
         _fila_armado("huerfana_sin_pareja", minutos=None, fin=None),
@@ -679,6 +690,27 @@ def test_previsualizar_tramos_con_huerfana_sobrante():
     cuerpo = response.json()
     assert cuerpo["horas_calculadas"] == 8.0
     assert cuerpo["tiene_huerfana_sin_pareja"] is True
+
+
+def test_previsualizar_tramos_suma_ademas_los_tramos_ya_cerrados():
+    """Bug real 2026-09-11: fn_dia_calcular_armado_tramos sólo devuelve tramos que cambiarían --
+    un tramo ya cerrado y completo en tiempo.tramo no aparece ahí y hay que sumarlo aparte."""
+    fake_client = _fake_caller_client_secuencia(
+        _entradas_gate_or() + [("tramo", _tabla_tramo_cerrados([{"minutos_trabajados": 435.0}]))]
+    )
+    fake_client.postgrest.schema.return_value.rpc.return_value.execute.return_value.data = [
+        _fila_armado("cerrar_existente", minutos=310.0),
+    ]
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+
+    response = _pedir_previsualizar()
+
+    _limpiar()
+    assert response.status_code == 200, response.text
+    cuerpo = response.json()
+    assert cuerpo["horas_calculadas"] == (435.0 + 310.0) / 60.0
+    assert cuerpo["tiene_huerfana_sin_pareja"] is False
 
 
 def test_previsualizar_tramos_sin_permiso_devuelve_403():
