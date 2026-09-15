@@ -30,6 +30,7 @@ type Dia = {
   alerta_entrada: "retardo" | "entrada_anticipada" | null;
   alerta_salida: "salida_anticipada" | "salida_tardia" | null;
   excepciones_pendientes: number;
+  tiene_marcas_por_armar: boolean | null;
 };
 
 type RespuestaDias = { total: number; dias: Dia[] };
@@ -89,14 +90,18 @@ async function mensajeDeError(respuesta: Response, generico: string): Promise<st
   return generico;
 }
 
-// Mismo patrón literal que TramosPage.tsx: "abierto"/"cerrado" son el ciclo de vida normal del
-// día, sin badge — sólo "bloqueado" (SCJ-DEC-06) y "revisado" son desvíos con aviso visual.
+// "abierto" sigue siendo ciclo de vida normal sin badge. "bloqueado" (SCJ-DEC-06) y "revisado"
+// son desvíos con aviso visual. "cerrado" también admite "Revisar" ahora (db/ddl/77_*.sql --
+// marca tardía sobre día ya cerrado), por eso gana badge neutro: sin él, el botón de acción
+// aparecería junto a un "—" que sugiere que no hay nada que hacer.
 const ETIQUETA_ESTADO: Partial<Record<EstadoDia, string>> = {
+  cerrado: "Cerrado",
   bloqueado: "Bloqueado — necesita revisión",
   revisado: "Revisado",
 };
 
-const VARIANTE_ESTADO: Partial<Record<EstadoDia, "peligro" | "exito">> = {
+const VARIANTE_ESTADO: Partial<Record<EstadoDia, "peligro" | "exito" | "neutra">> = {
+  cerrado: "neutra",
   bloqueado: "peligro",
   revisado: "exito",
 };
@@ -298,8 +303,9 @@ export function DiasPage() {
             <h1>Días</h1>
             <p className="subtitulo-pagina">
               Consulta por persona y fecha, con la primera y última marca efectivas (con
-              corrección aplicada) y sus alertas de horario. Un día bloqueado necesita revisión
-              manual — es la única transición que se puede hacer a mano.
+              corrección aplicada) y sus alertas de horario. Un día bloqueado o cerrado con una
+              marca tardía necesita revisión manual — es la única transición que se puede hacer a
+              mano.
             </p>
           </div>
         </div>
@@ -496,7 +502,8 @@ export function DiasPage() {
                           )}
                         </td>
                         <td>
-                          {dia.estado === "bloqueado" && (
+                          {(dia.estado === "bloqueado" ||
+                            (dia.estado === "cerrado" && dia.tiene_marcas_por_armar === true)) && (
                             <Button
                               type="button"
                               aria-label={`Marcar como revisado — ${dia.persona_nombre ?? "sin nombre"}, ${formatearFecha(dia.fecha)}`}

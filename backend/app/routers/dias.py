@@ -1,5 +1,5 @@
 """API de tiempo.dia (pantalla de sólo lectura + la única transición manual que permite
-SCJ-DEC-06: bloqueado -> revisado). tiempo.dia nunca tuvo pantalla propia -- sólo se leía desde
+SCJ-DEC-06: bloqueado/cerrado -> revisado). tiempo.dia nunca tuvo pantalla propia -- sólo se leía desde
 adentro del sistema (alertas_de_retardo.py, tope_legal.py, el embed de tramos.py) y la escriben
 los batches con service_role. Este router suma la primera pieza de escritura humana sobre esta
 tabla (db/ddl/62_tiempo_dia_revision.sql: columnas de auditoría + permiso dia_revision_edicion +
@@ -13,7 +13,9 @@ dos códigos, no cierra ninguna puerta real.
 
 POST /api/dias/{dia_id}/revisar usa get_caller_client (NUNCA service_role) +
 requiere_permiso("dia_revision_edicion") -- la policy dia_update_revision (RLS) es la
-autorización real, este 403 sólo da un mensaje legible antes de llegar a la BD."""
+autorización real, este 403 sólo da un mensaje legible antes de llegar a la BD. Admite tanto
+bloqueado como cerrado (db/ddl/77_*.sql) -- una marca tardía sobre un día ya cerrado también
+puede necesitar revisión humana, no sólo el caso original de paridad impar."""
 
 from datetime import date
 from typing import Literal
@@ -46,7 +48,7 @@ CODIGO_HUERFANA_SIN_PAREJA = "SCJ09"
 
 MENSAJE_DIA_NO_ENCONTRADO = "El día no existe."
 MENSAJE_DIA_NO_BLOQUEADO = (
-    "Este día ya no está bloqueado -- alguien más se te adelantó, o nunca lo estuvo."
+    "Este día ya no está bloqueado ni cerrado -- alguien más se te adelantó, o nunca lo estuvo."
 )
 MENSAJE_HORAS_INVALIDAS = "Horas trabajadas inválidas -- debe estar entre 0 y 24."
 MENSAJE_HUERFANA_SIN_PAREJA = (
@@ -142,6 +144,30 @@ def _resolver_excepciones_pendientes(
     return por_clave, por_dia_directo
 
 
+def _resolver_tiene_marcas_por_armar(db_servicio: Client, dia_ids_cerrados: list[int]) -> dict[int, bool]:
+    """Sólo para días `cerrado` de la página (bloqueado sigue mostrando el botón "Revisar" sin
+    este chequeo -- ver revisar_dia). No usar tiempo.excepcion.estado como señal: puede quedar
+    en 'resuelto' sin resolución real (anomalía real encontrada 2026-09-15, en investigación
+    aparte por `security`) y escondería el botón justo en el caso que hay que resolver.
+    tiempo.fn_dia_calcular_armado_tramos es la fuente de verdad -- STABLE, sólo SELECT, por
+    contrato devuelve una fila por cada tramo que CAMBIARÍA si se revisara el día ahora (65_*.sql)
+    -- al menos una fila = de verdad hay algo sin armar. N llamadas acotadas al tamaño de la
+    página ya paginada (LIMITE_MAXIMO=200), no a la tabla completa."""
+    resultado: dict[int, bool] = {}
+    for dia_id in dia_ids_cerrados:
+        try:
+            filas = (
+                db_servicio.postgrest.schema("tiempo")
+                .rpc("fn_dia_calcular_armado_tramos", {"p_dia_id": dia_id})
+                .execute()
+                .data
+            )
+        except APIError as error:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, error.message) from error
+        resultado[dia_id] = bool(filas)
+    return resultado
+
+
 def _enriquecer_pagina(db_servicio: Client, filas: list[dict]) -> list[dict]:
     """Ventana min(fecha)..max(fecha) de la página YA paginada (nota de rendimiento: con orden
     por fecha -- el default -- la ventana es mínima; con orden por horas y sin filtro de fecha
@@ -161,6 +187,9 @@ def _enriquecer_pagina(db_servicio: Client, filas: list[dict]) -> list[dict]:
     tolerancias = alertas_horario.resolver_tolerancias(db_servicio, hasta)
     excepciones_por_clave, excepciones_por_dia_id = _resolver_excepciones_pendientes(
         db_servicio, marcas, [fila["id"] for fila in filas]
+    )
+    marcas_por_armar_por_dia_id = _resolver_tiene_marcas_por_armar(
+        db_servicio, [fila["id"] for fila in filas if fila["estado"] == "cerrado"]
     )
 
     resultado: list[dict] = []
@@ -200,6 +229,7 @@ def _enriquecer_pagina(db_servicio: Client, filas: list[dict]) -> list[dict]:
                 "alerta_entrada": alerta_entrada,
                 "alerta_salida": alerta_salida,
                 "excepciones_pendientes": excepciones_pendientes,
+                "tiene_marcas_por_armar": marcas_por_armar_por_dia_id.get(fila["id"]),
             }
         )
     return resultado
@@ -340,8 +370,9 @@ def revisar_dia(
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(requiere_permiso("dia_revision_edicion")),
 ) -> dict:
-    """SCJ-DEC-06: bloqueado -> revisado. horas_totales las escribe RH a mano -- un día bloqueado
-    es, por definición, un caso que el sistema no puede calcular solo. Actor y momento se
+    """SCJ-DEC-06: bloqueado/cerrado -> revisado. horas_totales las escribe RH a mano -- un día
+    bloqueado o cerrado con marcas tardías es, por definición, un caso que el sistema no puede
+    calcular solo. Actor y momento se
     resuelven dentro de fn_dia_revisar (auth.uid()/now()), no se mandan desde acá -- mismo patrón
     que fn_ausencia_resolver. dia_update_revision (RLS) es la autorización real; este endpoint
     sólo traduce los ERRCODE del RPC a HTTP legible."""

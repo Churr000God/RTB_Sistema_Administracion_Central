@@ -22,6 +22,7 @@ class DiaListaItem(BaseModel):
     alerta_entrada: AlertaEntrada | None = None
     alerta_salida: AlertaSalida | None = None
     excepciones_pendientes: int = 0
+    tiene_marcas_por_armar: bool | None = None
 
 
 class DiaListaOut(BaseModel):
