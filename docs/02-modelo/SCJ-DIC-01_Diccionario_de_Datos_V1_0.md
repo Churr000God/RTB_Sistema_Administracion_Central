@@ -1366,6 +1366,8 @@ Observaciones verificadas en el catálogo:
 
 ### Discrepancias entre el DDL y SCJ-MOD-03 (V1.5)
 
+> **Estado (5-oct-2026):** las discrepancias 1 a 12 se corrigieron en `SCJ-MOD-03` V1.6. Siguen abiertas la 13 (cuenta de tablas en `SCJ-MOD-02`) y la 14 (los `COMMENT ON` obsoletos viven en el DDL: corregirlos exige un script nuevo).
+
 1. **Alcance:** `SCJ-MOD-03` sólo cubre `tiempo` y llega a `02`/`03`; no menciona el esquema `personas` (11 tablas), RLS (70 policies), las RPC ni los scripts `04` a `79`. Su pie dice "V1.1" aunque el encabezado dice V1.5.
 2. **§I archivos:** lista `00`-`03` y `db/indices/01_indices.sql`; el DDL real son 80 scripts, y los índices de FK están además en `30_indices_fk.sql`.
 3. **§II `btree_gist`:** se declara extensión requerida, pero ningún script ejecuta `CREATE EXTENSION` (el comentario de `00_esquemas.sql` dice "y las extensiones requeridas", sin crearlas) y no hay ninguna restricción `EXCLUDE`.
