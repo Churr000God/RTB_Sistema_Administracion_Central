@@ -598,17 +598,23 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   marca puntual. No corregido en ese corte — decisión pendiente si hace falta fijar el timezone de
   la sesión o usar `(now() AT TIME ZONE 'America/Mexico_City')::date` en los chequeos de fecha de
   `75_*.sql`/`76_*.sql`.
-- **Desde el Pi de pruebas (`raspberrypi-serverpruebas`) no se pueden enviar invitaciones de
-  usuario — bloqueo de red, no bug de código.** Encontrado el 11 de septiembre de 2026: dar de
-  alta un usuario tiraba `500` al invitar. Diagnóstico con `curl` directo (no adivinado): la IP
-  pública de salida del Pi está bloqueada por el WAF de Cloudflare específicamente para
-  `POST /auth/v1/invite` del proyecto Supabase — la respuesta es la página HTML de bloqueo de
-  Cloudflare ("Sorry, you have been blocked"), no un error JSON de GoTrue. Confirmado que NO es
-  redirect URL mal configurada (ya estaba en la allowlist) ni problema de código: desde esa misma
-  IP, otros endpoints de Supabase (`/rest/v1/`, `/auth/v1/admin/users`) responden 200 normal; desde
-  otra IP, la misma llamada a `/auth/v1/invite` con las mismas credenciales funciona. Se abrió
-  ticket con soporte de Supabase (plan free, sin SLA), sin resolver al cierre de esa sesión.
-  **Lección:** `routers/usuarios.py::alta_usuario` capturaba el error de `invite_user_by_email`
+- **[RESUELTO el 22 de septiembre de 2026] Desde el Pi de pruebas (`raspberrypi-serverpruebas`)
+  no se podían enviar invitaciones de usuario — bloqueo de red, no bug de código.** Encontrado el
+  11 de septiembre de 2026: dar de alta un usuario tiraba `500` al invitar. Diagnóstico con `curl`
+  directo (no adivinado): la IP pública de salida del Pi estaba bloqueada por el WAF de Cloudflare
+  específicamente para `POST /auth/v1/invite` del proyecto Supabase — la respuesta era la página
+  HTML de bloqueo de Cloudflare ("Sorry, you have been blocked"), no un error JSON de GoTrue.
+  Confirmado que NO era redirect URL mal configurada (ya estaba en la allowlist) ni problema de
+  código: desde esa misma IP, otros endpoints de Supabase (`/rest/v1/`, `/auth/v1/admin/users`)
+  respondían 200 normal; desde otra IP, la misma llamada a `/auth/v1/invite` con las mismas
+  credenciales funcionaba. Se abrió ticket con soporte de Supabase (plan free, sin SLA), sin
+  resolver al cierre de esa sesión. **Verificado resuelto el 22 de septiembre de 2026**
+  (`devops`, vía `team-orchestrator`): misma IP de salida del Pi (`201.141.17.29`, sin cambio),
+  `POST /auth/v1/invite` con apikey anon ya devuelve JSON real de GoTrue (`401
+  no_authorization`, headers `sb-project-ref`/`sb-request-id` presentes) en vez del HTML de
+  bloqueo — la request llega al backend, no al WAF. No se investigó si fue el ticket de soporte
+  el que lo resolvió o si Cloudflare lo liberó solo. **Lección:** `routers/usuarios.py::alta_usuario`
+  capturaba el error de `invite_user_by_email`
   como un `AuthUnknownError` (no `AuthApiError`) porque el SDK no puede parsear el cuerpo HTML del
   bloqueo como JSON — corregido para no subir como `500` crudo (commits `2ac523b`/`0b0665f`), pero
   el mensaje debe quedarse genérico ("no se pudo enviar, intentá de nuevo o contactá a Sistemas")
