@@ -2,7 +2,7 @@
 # Especificación funcional — Subsistema de Tiempo
 
 **Distribuidora Central, S.A. de C.V. · Sistema de Control de Jornada (SCJ)**
-Folio SCJ-ESP-01 · Versión 2.1 · 5 de septiembre de 2026 · Ciudad de México
+Folio SCJ-ESP-01 · Versión 3.0 · 6 de octubre de 2026 · Ciudad de México
 
 Documento de entrada del proyecto. Define **qué debe poder representar el modelo de datos**, sin
 prescribir cómo. Junto con `SCJ-CTX-01`, `SCJ-CDT-01` y `SCJ-FRO-01` es todo lo que hace falta para
@@ -13,7 +13,26 @@ empezar `C1.1`.
 > **ejemplos y parámetros**, no valores de operación. Las reglas de anonimización están en
 > `SCJ-ANO-01`.
 
-> **Cambio de versión (V1.0 → V2.0, mayor):** el valor de `origen` para el registro asistido pasa
+> **Cambio de versión (V2.1 → V3.0, mayor):** la terminal biométrica Hikvision (`SCJ-DEC-11`,
+> `SCJ-DEC-12`, `SCJ-PRO-11 V3.0`, `SCJ-CDT-01 V3.0`) obliga a **contradecir dos cosas ya escritas**,
+> por eso el cambio es mayor (`CONVENCIONES.md §I`): (1) §II daba el **enrolamiento** como fuera de
+> alcance y §I.4 regla 5 mandaba apartar la marca irresoluble "en Operación"; ahora el **mapeo
+> `employee_no` ↔ `persona_id` y su bitácora de enrolamiento viven en el esquema de Tiempo**
+> (`tiempo.terminal`, `tiempo.terminal_usuario`, `tiempo.bitacora_movimiento_terminal_usuario`,
+> `SCJ-DEC-11`), y la evidencia de una marca rechazada se conserva en `tiempo.marca_rechazada`
+> (`SCJ-DEC-12`), no en Operación; (2) §I.4 reglas 1 y 3 y §VII.2 decían que sólo `persona_id`
+> existe como identificador y que ningún número del módulo lector vive en Tiempo; ahora el
+> **`employee_no`** —id del usuario en la terminal, **no** un dato de identidad de la persona— existe
+> en Tiempo **sólo** como enlace en `terminal_usuario` y como identificador de **transporte** de la
+> marca de terminal, y **nunca se almacena en `tiempo.marca`**. Cambia además §VII.3 (el servidor
+> puede empeorar —nunca mejorar— el `estado_reloj` declarado).
+>
+> **Lo que NO cambia:** `tiempo.marca` (columnas y restricciones); la frontera de `SCJ-FRO-01`
+> (desde Personas sigue cruzando un solo valor, `persona_id`; `employee_no` no viene de Personas, lo
+> genera Tiempo); el cálculo de jornada, tramos, días, banco de horas y cortes. La captura de la
+> huella y la plantilla biométrica siguen **fuera** de alcance y dentro del aparato.
+
+> **Cambio de versión anterior (V1.0 → V2.0, mayor):** el valor de `origen` para el registro asistido pasa
 > de `asistido` a **`captura_manual`**, para que coincida con `SCJ-CDT-01 V2.0` y con `SCJ-MOD-02`/
 > el DDL, que ya usaban ese nombre sin que este documento se hubiera actualizado. `origen` sigue
 > siendo exactamente 2 valores — se descarta cualquier tercer valor (`contingencia`) que había
@@ -71,17 +90,29 @@ diseño.
 1. **`persona_id` es el único valor que cruza la frontera**, salvo la excepción documentada en
    `SCJ-FRO-01 §V` (`fecha_ingreso`, de sólo lectura, resuelta el 29 de agosto de 2026). Ningún
    otro atributo de identidad entra al subsistema de Tiempo, en ninguna forma, ni siquiera
-   desnormalizado "para conveniencia de reportes".
+   desnormalizado "para conveniencia de reportes". *(V3.0)* El `employee_no` de la terminal **no es
+   un atributo de identidad de la persona y no cruza desde Personas**: lo genera Tiempo
+   (`tiempo.seq_terminal_employee_no`) y sólo sirve para enlazar un usuario del aparato con su
+   `persona_id` en `tiempo.terminal_usuario` (`SCJ-DEC-11`). Es, además, el identificador de
+   **transporte** de la marca de terminal (`SCJ-CDT-01 V3.0`): se resuelve a `persona_id` en el
+   límite de ingreso y **nunca se almacena en `tiempo.marca`**.
 2. **Ningún dato biométrico cruza.** Ni huella, ni plantilla, ni imagen, ni derivado. Las plantillas
    viven dentro del chip del módulo lector y no llegan a la base. Las plantillas nunca salen del chip del módulo.
-3. **`plantilla_num` no existe en Tiempo.** Es un identificador interno del módulo lector; vive en
-   Operación.
+3. **`plantilla_num` no existe en Tiempo.** Es un identificador interno del módulo lector (R503Pro);
+   vive en Operación. *(V3.0)* La terminal Hikvision no usa `plantilla_num`: usa `employee_no`, que
+   **sí** existe en Tiempo pero únicamente en `tiempo.terminal_usuario` y su bitácora de enrolamiento
+   (`SCJ-DEC-11`) — nunca en `tiempo.marca` ni en ninguna tabla de cálculo. La huella y la plantilla
+   biométrica siguen viviendo sólo dentro del aparato.
 4. **No hay un segundo identificador de persona.** `capturista_id` —quién de RH capturó un registro
    asistido— vive en Operación, ligado por `evento_id`. Meterlo en Tiempo introduciría una segunda
    referencia a persona y rompería la frontera.
 5. **`persona_id` nunca es nulo dentro de Tiempo.** Una marca cuya persona no se puede resolver
-   queda apartada en Operación hasta que RH la resuelva; se inserta en Tiempo después, con el mismo
-   `evento_id`. Esta regla es la que mantiene limpio el subsistema.
+   queda apartada hasta que RH la resuelva; se inserta en Tiempo después, con el mismo `evento_id`.
+   Esta regla es la que mantiene limpio el subsistema. *(V3.0)* Para la terminal, una marca cuyo
+   `employee_no` no resuelve a una alta utilizable (`no_enrolado`, `SCJ-CDT-01 V3.0 §IX.6`) **se
+   rechaza en el límite de ingreso y no entra a `tiempo.marca`**; su evidencia se conserva **fuera de
+   la marca**: en la cola del puente (`pendiente_intervencion`) y en `tiempo.marca_rechazada`
+   (`SCJ-DEC-12`), tabla de evidencia que **no entra al cálculo**. Ya no se aparta "en Operación".
 6. **Tiempo no escribe en Personas.** La relación es de sólo lectura y por referencia.
 7. **La frontera no se cruza "temporalmente".** No hay vista, materialización, ni tabla de apoyo que
    junte identidad con marcas dentro del alcance de este subsistema.
@@ -98,13 +129,20 @@ diseño.
 | Topes legales con vigencia anual | Cálculo de nómina y timbrado |
 | Clasificación del tiempo trabajado | Autenticación de usuarios y permisos |
 | Banco de horas y sus saldos | Protocolo de sincronización y cola del kiosco |
-| Correcciones y su historia | Caché de plantillas del terminal |
-| Ausencias y su autorización | Enrolamiento y borrado de plantillas |
+| Correcciones y su historia | Caché del puente de la terminal |
+| Ausencias y su autorización | Captura de huellas y plantillas biométricas (dentro del aparato) |
 | Cola de excepciones de la marca | Tablero de alertas a TI |
 | Parámetros de configuración del cálculo | Parámetros del dispositivo (supresión, NTP) |
 
 **Regla de lectura de esta tabla:** lo que está fuera existe y funciona, pero no se modela aquí y no
 condiciona el modelo. El subsistema de Tiempo recibe marcas ya formadas y trabaja con ellas.
+
+*(V3.0)* **También dentro, sin entrar al cálculo de jornada:** el **mapeo `employee_no` ↔
+`persona_id`** de la terminal y la **bitácora inmutable de enrolamiento y baja** de usuarios del
+aparato (`tiempo.terminal`, `tiempo.terminal_usuario`,
+`tiempo.bitacora_movimiento_terminal_usuario`; `SCJ-DEC-11`, `SCJ-PRO-15`), y la evidencia de marcas
+rechazadas (`tiempo.marca_rechazada`, `SCJ-DEC-12`). En V2.1 el enrolamiento se daba por fuera; sigue
+fuera **la captura de la huella** y la plantilla, que nunca salen del aparato.
 
 ---
 
@@ -213,7 +251,8 @@ está mal.
 3. **La hora del dispositivo es el dato; la hora de llegada es evidencia.**
 4. **La evidencia nunca se pierde por un error del sistema.** Un dato irresoluble se aparta para
    intervención humana; nunca se descarta.
-5. **Ningún dato biométrico ni de identidad cruza.** Sólo `persona_id`.
+5. **Ningún dato biométrico ni de identidad cruza.** Sólo `persona_id` se almacena en Tiempo
+   *(V3.0: `employee_no` es identificador de transporte y de enlace, no de identidad; ver §I.4)*.
 
 ---
 
@@ -425,6 +464,12 @@ el repositorio académico, sin excepción.
 Valores de `motivo_revision`: `reloj_no_sincronizado`, `plantilla_desconocida`, `persona_inactiva`,
 `fuera_de_horario`, `dia_cerrado`.
 
+> *(V3.0)* **Esta tabla es lo que Tiempo recibe y almacena.** En el **transporte** de una marca de
+> terminal, `persona_id` se sustituye por `employee_no` (y `origen`, `requiere_revision` y
+> `motivo_revision` los fija o calcula el servidor): el servidor lo resuelve a `persona_id` antes de
+> escribir aquí, y `employee_no` **no es una columna de `tiempo.marca`** (`SCJ-CDT-01 V3.0 §V.1`).
+> `plantilla_desconocida` queda **reservado sin emisor desde la terminal**.
+
 > **Sobre el campo `flujo`.** El contrato de transporte lleva un discriminador `flujo` con valores
 > `marca` y `evento`. **Es un campo de transporte, no de modelo:** dentro del subsistema de Tiempo
 > todo es `marca` por construcción. No se modela.
@@ -435,6 +480,7 @@ Valores de `motivo_revision`: `reloj_no_sincronizado`, `plantilla_desconocida`, 
 |---|---|
 | Tipo de evento (entrada / salida) | Se deriva de la posición ordinal. §VI.1 |
 | `plantilla_num` | Identificador del módulo lector. Vive en Operación |
+| `employee_no` *(V3.0)* | Identificador del usuario en la terminal Hikvision. Viaja en el transporte, se resuelve a `persona_id` y **no se almacena aquí**; sólo existe en `tiempo.terminal_usuario` y su bitácora (`SCJ-DEC-11`) |
 | `capturista_id` | Segundo identificador de persona. Rompería la frontera |
 | `tipo_evento`, `evento_ref`, `detalle` | Campos del flujo de bitácora. Vive en Operación |
 | Nombre, foto, cualquier atributo de identidad | §I.3. Si un requisito parece necesitarlo, el requisito está mal planteado |
@@ -471,6 +517,10 @@ decreto, o puede aparecer una segunda sucursal, y el dato ya está ahí sin migr
 - **El orden de llegada no determina el orden de los eventos.** Ese lo fija `momento_dispositivo`, y
   en caso de empate, `secuencia_local`
 - **`momento_recepcion` nunca entra al cálculo.** Sólo mide retraso de sincronización
+- *(V3.0)* **El servidor puede empeorar el `estado_reloj` declarado, nunca mejorarlo.** Una marca
+  declarada `sincronizado` con `momento_dispositivo` más de 5 minutos posterior a la recepción, o más
+  de 7 días anterior, se guarda como `deriva` (valores iniciales, ajustables). No se rechaza; sólo se
+  señala. `momento_recepcion` sigue sin entrar al **cálculo de jornada** (`SCJ-CDT-01 V3.0 §VII.2`)
 - El día al que pertenece una marca es el del **origen**, no el de la recepción. Un retraso de
   veintisiete minutos —o de tres días— no cambia a qué día pertenece
 
@@ -501,7 +551,7 @@ Una marca puede entrar **señalada** sin dejar de ser válida. `requiere_revisio
 | `motivo_revision` | Qué ocurrió |
 |---|---|
 | `reloj_no_sincronizado` | El reloj del origen no estaba confiable |
-| `plantilla_desconocida` | El módulo devolvió un número que la caché no resolvió |
+| `plantilla_desconocida` | El módulo devolvió un número que la caché no resolvió. *(V3.0)* Reservado, sin emisor desde la terminal: un `employee_no` que no resuelve se rechaza antes de entrar a Tiempo |
 | `persona_inactiva` | La persona ya estaba de baja o suspendida al marcar |
 | `fuera_de_horario` | La marca cae fuera del patrón esperado |
 | `dia_cerrado` | Llegó sobre un día ya cerrado. §VI.2 |
@@ -698,6 +748,8 @@ especificación exige representar.
 | `persona_id` nunca nulo dentro de Tiempo | §I.4 regla 5 | ✓ |
 | Registro asistido como fuente ordinaria | §IV.2 | ✓ |
 | `capturista_id` y `plantilla_num` fuera de Tiempo | §I.4, §VII.2 | ✓ |
+| `employee_no` (V3.0): transporte y enlace, **no** en `tiempo.marca` | §I.4 reglas 1, 3 y 5, §VII.1–§VII.2 | ✓ |
+| El servidor sólo empeora `estado_reloj` (V3.0) | §VII.3 | ✓ |
 | Convenciones de nombres | §X | ✓ |
 | Marca nunca se modifica ni elimina | §V.1, §VI.7 | ✓ |
 

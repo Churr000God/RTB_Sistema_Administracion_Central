@@ -827,12 +827,12 @@ tabla no cambia. Al no persistir `employee_no`, la marca no guarda cuál fue el 
 no se reutiliza, la reconstrucción es posible. Agregar una columna a `tiempo.marca` tras el
 congelamiento **no se propone**.
 
-**Documentos que quedan por revisar por el cambio (no se editan aquí):** `SCJ-ESP-01` (§I.4 reglas 1,
-3 y 5, y §VII.3: ya estaban en tensión con `tiempo.terminal_usuario` de `SCJ-DEC-11`, que guarda
-`employee_no` dentro del esquema de Tiempo), `SCJ-PRO-11 V2.0 §II.1` (dice que el puente entrega a
-Tiempo un `persona_id` ya resuelto) y la nota de `momento_recepcion` en `SCJ-DIC-01` (cita §V.4 en
-vez de §VII.3). `SCJ-ESP-01` y `SCJ-PRO-07` mencionan "`SCJ-CDT-01 V2.0`" como referencia histórica;
-no se modifican.
+**Documentos alineados después de la aceptación (6 de octubre de 2026):** `SCJ-ESP-01` → **V3.0**
+(§I.4 reglas 1, 3 y 5, §II, §VII; estaban en tensión con `tiempo.terminal_usuario` de `SCJ-DEC-11`),
+`SCJ-PRO-11` → **V3.0** (§II.1 decía que el puente entrega `persona_id` ya resuelto; §III y §IV
+precisados) y `SCJ-DIC-01` (nota de `momento_recepcion`: §V.4 → §VII.3, corrección de referencia sin
+subir versión). `SCJ-ESP-01` y `SCJ-PRO-07` mencionan "`SCJ-CDT-01 V2.0`" como referencia histórica;
+no se modifican. El proceso de enrolamiento completo es `SCJ-PRO-15`.
 
 ---
 

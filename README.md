@@ -32,7 +32,7 @@ el subsistema de Tiempo referencia a las personas **exclusivamente por un identi
 ## Por dónde empezar a leer
 
 1. [`SCJ-CTX-01`](docs/00-contexto/SCJ-CTX-01_Contexto_y_Alcance_V1_0.md) — el caso y su alcance
-2. [`SCJ-ESP-01`](docs/00-contexto/SCJ-ESP-01_Especificacion_Funcional_V2_1.md) — **qué debe poder representar el modelo**
+2. [`SCJ-ESP-01`](docs/00-contexto/SCJ-ESP-01_Especificacion_Funcional_V3_0.md) — **qué debe poder representar el modelo**
 3. [`SCJ-MOD-01`](docs/01-analisis/SCJ-MOD-01_Modelo_Conceptual_V1_0.md) — modelo conceptual
 4. [`SCJ-MOD-02`](docs/02-modelo/SCJ-MOD-02_Modelo_Logico_V1_0.md) — modelo lógico
 5. [`docs/03-decisiones/`](docs/03-decisiones/) — **las nueve decisiones de diseño** *(lo más sustancioso del proyecto)*

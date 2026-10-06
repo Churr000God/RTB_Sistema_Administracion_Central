@@ -8,7 +8,7 @@ Folio SCJ-CDT-01 · Versión 3.0 · 6 de octubre de 2026 · Ciudad de México
 > **ejemplos y parámetros**, no valores definitivos de operación.
 
 > **Cambio de versión (V2.0 → V3.0, mayor):** la terminal biométrica Hikvision reemplaza al lector
-> R503Pro (`SCJ-PRO-11 V2.0`, `SCJ-DEC-11`, `SCJ-DEC-12`) y el Raspberry Pi que la une al servidor
+> R503Pro (`SCJ-PRO-11 V3.0`, `SCJ-DEC-11`, `SCJ-DEC-12`) y el Raspberry Pi que la une al servidor
 > **no conoce a las personas**: el mapeo `employeeNo` ↔ `persona_id` vive en el servidor. Por eso
 > **la marca de terminal viaja con `employee_no` en lugar de `persona_id`** y el servidor resuelve la
 > persona al recibirla. Se contradicen cosas ya escritas —por eso el cambio es **mayor** y no menor
@@ -26,11 +26,12 @@ Folio SCJ-CDT-01 · Versión 3.0 · 6 de octubre de 2026 · Ciudad de México
 > `employee_no` es un identificador de **transporte** que se resuelve y se descarta en el límite de
 > ingreso. `captura_manual` no cambia (sigue `persona_id`).
 >
-> **Documentos a revisar por este cambio (no se editan aquí):** `SCJ-ESP-01` (§I.4 reglas 1, 3 y 5, y
-> su §VII.1 repiten "sólo `persona_id` cruza" y "`plantilla_num` vive en Operación"; ya estaban en
-> tensión con `tiempo.terminal_usuario` de `SCJ-DEC-11`, que guarda `employee_no` dentro del esquema
-> de Tiempo), `SCJ-PRO-11 V2.0` (§II.1 dice que el puente entrega a Tiempo `persona_id` resuelto) y
-> `SCJ-DIC-01` (la nota de `momento_recepcion` cita §V.4 en vez de §VII.3).
+> **Documentos alineados con este cambio (6 de octubre de 2026):** `SCJ-ESP-01` pasó a **V3.0** (§I.4
+> reglas 1, 3 y 5, §II y §VII repetían "sólo `persona_id` cruza", "`plantilla_num` vive en
+> Operación" y "el enrolamiento está fuera"; ya estaban en tensión con `tiempo.terminal_usuario` de
+> `SCJ-DEC-11`), `SCJ-PRO-11` pasó a **V3.0** (§II.1 decía que el puente entrega a Tiempo un
+> `persona_id` ya resuelto) y `SCJ-DIC-01` recibió una corrección de referencia sin subir versión
+> (la nota de `momento_recepcion` citaba §V.4 en vez de §VII.3).
 
 > **Cambio de versión anterior (V1.1 → V2.0, mayor):** el valor de `origen` para el registro asistido pasa
 > de `asistido` a **`captura_manual`** — nombre definitivo, ya usado en `SCJ-MOD-02`/DDL desde el
@@ -505,7 +506,7 @@ Ningún software corrige un procedimiento mal hecho. Estas dos secuencias son pa
 
 > **Nota V3.0:** el mecanismo concreto de alta y baja con la terminal Hikvision (`employee_no`
 > asignado por el servidor, cola de trabajo, bitácora inmutable, `baja_confirmada`) vive en
-> `SCJ-DEC-11`, `SCJ-DEC-12` y `SCJ-PRO-11 V2.0`. **Los principios de esta sección siguen vigentes**:
+> `SCJ-DEC-11`, `SCJ-DEC-12` y `SCJ-PRO-11 V3.0`. **Los principios de esta sección siguen vigentes**:
 > la baja nace en el expediente; la tarea de borrado sólo se cierra con la confirmación del aparato
 > (`baja_confirmada` equivale al antiguo `borrado_plantilla`); el servidor señala, no rechaza, la
 > marca de alguien recién dado de baja. Los pasos con "caché" y `enrolamiento` describen el R503Pro.
