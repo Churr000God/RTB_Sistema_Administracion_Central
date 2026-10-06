@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/aplicar_ddl.sh
 #
-# Aplica todo el DDL de RTB-CRM-APP (db/ddl/00_*.sql a db/ddl/70_*.sql, 71 archivos) contra una
+# Aplica todo el DDL de RTB-CRM-APP (db/ddl/00_*.sql a db/ddl/81_*.sql, 82 archivos) contra una
 # base de Supabase VACÍA. NO es idempotente — pensado para una sola corrida sobre schema limpio.
 # Si algo falla a mitad, el script corta (no sigue aplicando a ciegas) y la salida es:
 #   DROP SCHEMA personas CASCADE; DROP SCHEMA tiempo CASCADE; DROP ROLE terminal_checador;

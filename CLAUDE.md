@@ -391,6 +391,24 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   bug real de red aparte, sin relación con código: desde el Pi de pruebas no se pueden enviar
   invitaciones de usuario (bloqueo de IP en el WAF de Cloudflare de Supabase) — ver gotcha nuevo
   abajo. Commits `25bf72e`/`6787146`/`2ac523b`/`0b0665f`.
+- **Terminal Hikvision y modelo de datos de enrolamiento (5 de octubre de 2026):** el R503Pro se
+  descartó; el checador pasa a ser una terminal Hikvision DS-K1A8503EF-B (firmware V1.3.0) con el
+  Pi como puente sin pantalla. Auditoría de solo lectura por ISAPI (Digest): CRUD de usuarios,
+  hasta 10 huellas por usuario, `AcsEvent`, push por `httpHosts` (vacío); sin HTTPS (solo HTTP en
+  claro + SDK 8000), hora en `CST-8:00` manual y sin NTP, DHCP activo. Decisiones del usuario: el
+  mapeo `employeeNo` ↔ `persona_id` vive en el servidor y el Pi sólo lo cachea; la captura de
+  huella es siempre presencial; el Pi accede por endpoints del backend con **credencial propia de
+  terminal** (no el secreto JWT de Supabase) y las marcas suben por el backend; una sola terminal
+  por ahora. `db/ddl/80_*.sql`/`81_*.sql` (aplicados el 5 de octubre de 2026 desde el SQL Editor):
+  `tiempo.terminal`, `tiempo.terminal_usuario` (tabla viva, la escribe sólo el trigger) y
+  `tiempo.bitacora_movimiento_terminal_usuario` (inmutable, fuente de verdad), permisos
+  `terminal_usuario_lectura` (heredable) y `terminal_usuario_edicion` (**no** heredable, biometría),
+  `ERRCODE SCJ11`/`SCJ12` con `HINT` estable. Ensayo previo con `ROLLBACK` 61/61, revisado por
+  `security` (sin críticos). La alta de la terminal real es un `INSERT` puntual fuera del repo.
+  **Pendiente:** diseño del backend (autenticación del Pi, endpoints web y de terminal, ruta de
+  marcas), del puente (polling+push, reloj/NTP) y pantalla de enrolamiento; baja de persona debe
+  emitir `baja_solicitada`. Ver `SCJ-DEC-11` y
+  `bitacora/2026-10-05_checador_hikvision_auditoria_y_modelo.md`.
 
 ## Arquitectura y módulos
 
@@ -435,7 +453,7 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   `http://localhost:5173` fijo a mano — esa configuración no vive en este repositorio. Al pasar a
   producción (`docker compose … prod`, frontend en `:8080`) hay que actualizarla ahí también, o
   los links de invitación/recuperación de contraseña no aterrizan en la app.
-- El DDL corre hasta `db/ddl/76_*.sql` (77 archivos, `00` a `76`). `personas.permiso`
+- El DDL corre hasta `db/ddl/81_*.sql` (82 archivos, `00` a `81`). `personas.permiso`
   es la única tabla del proyecto con clave natural (`codigo varchar PRIMARY KEY`) en vez de `uuid`
   — decisión deliberada, fiel a la redacción literal de `SCJ-PRO-05`, no un descuido a corregir.
 - Las tablas de bitácora inmutables (`bitacora_movimiento_persona`,
