@@ -26,6 +26,7 @@ Folio SCJ-DEC-00 · Versión 1.0 · Agosto de 2026
 | `SCJ-DEC-09` | ¿Cómo se aplica la unicidad de `terminal_id` + `secuencia_local`, condicional a `origen`? | Aceptada | 2026-09-02 |
 | `SCJ-DEC-10` | ¿Cómo se calcula la alerta de retardo por jornada normal? | Aceptada | 2026-09-07 |
 | `SCJ-DEC-11` | ¿Dónde vive el mapeo `employeeNo` ↔ persona de la terminal biométrica, y cómo se audita? | Aceptada | 2026-10-05 |
+| `SCJ-DEC-12` | ¿Cómo se autentica el puente de la terminal ante el backend, y por qué ruta suben las marcas y los movimientos de enrolamiento? | Aceptada | 2026-10-06 |
 
 ### Estados
 

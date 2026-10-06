@@ -1,13 +1,38 @@
 # Contrato de datos de la marca
 
 **Distribuidora Central, S.A. de C.V. · Sistema de Control de Jornada (SCJ)**
-Folio SCJ-CDT-01 · Versión 2.0 · 5 de septiembre de 2026 · Ciudad de México
+Folio SCJ-CDT-01 · Versión 3.0 · 6 de octubre de 2026 · Ciudad de México
 
 > **Este documento no contiene datos reales.** Ni nombres, ni CURP, RFC, NSS o salarios, ni
 > políticas internas, ni información de negocio. Los valores numéricos que aparecen son
 > **ejemplos y parámetros**, no valores definitivos de operación.
 
-> **Cambio de versión (V1.1 → V2.0, mayor):** el valor de `origen` para el registro asistido pasa
+> **Cambio de versión (V2.0 → V3.0, mayor):** la terminal biométrica Hikvision reemplaza al lector
+> R503Pro (`SCJ-PRO-11 V2.0`, `SCJ-DEC-11`, `SCJ-DEC-12`) y el Raspberry Pi que la une al servidor
+> **no conoce a las personas**: el mapeo `employeeNo` ↔ `persona_id` vive en el servidor. Por eso
+> **la marca de terminal viaja con `employee_no` en lugar de `persona_id`** y el servidor resuelve la
+> persona al recibirla. Se contradicen cosas ya escritas —por eso el cambio es **mayor** y no menor
+> (`CONVENCIONES.md §I`; se había previsto como V2.1, pero la regla manda): (1) §V.1 obligaba
+> `persona_id` en toda marca; (2) §II.6 y §V.2 decían que lo único que viaja es `persona_id` y que el
+> número de plantilla no viaja en la marca; (3) §IX.4 definía el rechazo definitivo por
+> `persona_id` desconocido; (4) §XI y §XV asumían una caché con `persona_id` y la marca de plantilla
+> desconocida con `persona_id` nulo. Cambia además §VII.2 (el servidor puede **empeorar** el
+> `estado_reloj` declarado, nunca mejorarlo), §IX (lista cerrada de códigos de rechazo y regla de
+> `secuencia_duplicada`) y §X.
+>
+> **Lo que NO cambia:** `tiempo.marca` (tabla, columnas, restricciones) queda **exactamente igual**:
+> sigue guardando `persona_id NOT NULL` y **nunca** guarda `employee_no`. La frontera de
+> `SCJ-FRO-01` queda **intacta**: hacia el subsistema de Tiempo sigue cruzando un solo `persona_id`;
+> `employee_no` es un identificador de **transporte** que se resuelve y se descarta en el límite de
+> ingreso. `captura_manual` no cambia (sigue `persona_id`).
+>
+> **Documentos a revisar por este cambio (no se editan aquí):** `SCJ-ESP-01` (§I.4 reglas 1, 3 y 5, y
+> su §VII.1 repiten "sólo `persona_id` cruza" y "`plantilla_num` vive en Operación"; ya estaban en
+> tensión con `tiempo.terminal_usuario` de `SCJ-DEC-11`, que guarda `employee_no` dentro del esquema
+> de Tiempo), `SCJ-PRO-11 V2.0` (§II.1 dice que el puente entrega a Tiempo `persona_id` resuelto) y
+> `SCJ-DIC-01` (la nota de `momento_recepcion` cita §V.4 en vez de §VII.3).
+
+> **Cambio de versión anterior (V1.1 → V2.0, mayor):** el valor de `origen` para el registro asistido pasa
 > de `asistido` a **`captura_manual`** — nombre definitivo, ya usado en `SCJ-MOD-02`/DDL desde el
 > 2 de septiembre; este documento no se había actualizado. Se elimina cualquier tercer valor de
 > `origen` (`contingencia` apareció sin respaldo en el modelo lógico y el DDL, nunca en este
@@ -38,7 +63,7 @@ tablas. El cálculo vive en `SCJ-ESP-01`; el modelo lógico es entregable `C1.1`
 | Documento | Relación |
 |---|---|
 | `SCJ-ESP-01` | Incorpora este contrato en su §VII de integridad temporal. Su §XII verifica la correspondencia campo por campo. Consume las marcas; ninguna regla de cálculo se define aquí |
-| `SCJ-FRO-01` | Impone que `persona_id` es lo único que cruza la frontera. Este contrato lo hace estructuralmente imposible de romper: ningún otro atributo de identidad tiene dónde viajar |
+| `SCJ-FRO-01` | Impone que `persona_id` es lo único que cruza la frontera. Este contrato lo hace estructuralmente imposible de romper: ningún otro atributo de identidad tiene dónde **guardarse** en Tiempo. (V3.0: en el transporte desde la terminal viaja `employee_no`, que se resuelve en el servidor y no se persiste; la frontera no se modifica) |
 | `SCJ-ANO-01` | Ningún dato biométrico ni de identidad real aparece en este documento ni en los datos de ejemplo |
 
 ---
@@ -58,8 +83,12 @@ Todo lo demás se deriva de estos. Si una decisión futura contradice alguno, la
    La segunda sirve para medir retrasos y detectar anomalías.
 5. **La evidencia nunca se pierde por un error del sistema.** Un rechazo, una caché vieja o un dato
    irresoluble apartan la marca para intervención humana. Nunca la descartan.
-6. **Ningún dato biométrico ni de identidad cruza.** Lo único que viaja hacia el subsistema de Tiempo
-   es `persona_id`. No viaja huella, plantilla, nombre, CURP, RFC, NSS ni salario.
+6. **Ningún dato biométrico ni de identidad cruza.** Lo único que **se almacena** en el subsistema
+   de Tiempo es `persona_id`. No viaja huella, plantilla, nombre, CURP, RFC, NSS ni salario.
+   *(V3.0)* La marca de terminal viaja desde el aparato con `employee_no` —el identificador del
+   usuario en la terminal, que no es un dato de identidad de la persona— y **el servidor lo resuelve a
+   `persona_id` en el límite de ingreso, antes de escribir en Tiempo; `employee_no` no se persiste en
+   `tiempo.marca`**. El aparato y el puente nunca conocen `persona_id`.
 
 ---
 
@@ -74,7 +103,7 @@ invariante de paridad.
 | Destino | Subsistema de **Tiempo** | Bitácora de **Operación** |
 | Entra al cálculo de jornada | **Sí, y es lo único que entra** | Nunca |
 | Lo ve este repositorio | Sí | **No. Fuera de alcance por `SCJ-ESP-01 §II`** |
-| Puede identificar persona | Siempre, por `persona_id` | A veces. Un fallo de lectura no identifica a nadie |
+| Puede identificar persona | Siempre: por `employee_no` (terminal) o por `persona_id` (captura manual) | A veces. Un fallo de lectura no identifica a nadie |
 
 **Un solo canal, una sola cola, un solo protocolo.** Los dos flujos viajan en el mismo sobre y por
 el mismo endpoint. Un discriminador decide a qué esquema escribe el servidor. El software del kiosco
@@ -122,20 +151,28 @@ Además del sobre común:
 
 | Campo | Tipo | Obligatorio | Descripción |
 |---|---|---|---|
-| `persona_id` | UUID | Sí | Referencia opaca. **Lo único que cruza la frontera** |
-| `origen` | enum | Sí | `terminal` \| `captura_manual` |
-| `requiere_revision` | booleano | Sí | Verdadero si la marca entra señalada |
-| `motivo_revision` | enum \| nulo | Condicional | Obligatorio si `requiere_revision` es verdadero |
+| `persona_id` | UUID | Condicional | Referencia opaca. **Lo único que se almacena en Tiempo.** Obligatorio si `origen = captura_manual`; **no viaja** si `origen = terminal` (lo resuelve el servidor) |
+| `employee_no` | entero (1–99999999) | Condicional | *(V3.0)* Identificador del usuario en la terminal. Obligatorio si `origen = terminal`; **no viaja** en `captura_manual`. **Exactamente uno** de `persona_id` / `employee_no` por marca. **Se resuelve en el servidor y no se persiste en `tiempo.marca`** |
+| `origen` | enum | Sí | `terminal` \| `captura_manual`. *(V3.0)* Para la terminal lo **fija el servidor** según la credencial; lo que el aparato mande se ignora |
+| `requiere_revision` | booleano | Sí | Verdadero si la marca entra señalada. *(V3.0)* Lo calcula el servidor; el aparato no lo manda |
+| `motivo_revision` | enum \| nulo | Condicional | Obligatorio si `requiere_revision` es verdadero. *(V3.0)* Lo calcula el servidor |
 
 Valores de `motivo_revision`: `reloj_no_sincronizado`, `plantilla_desconocida`, `persona_inactiva`,
-`fuera_de_horario`, `dia_cerrado`.
+`fuera_de_horario`, `dia_cerrado`. *(V3.0)* `plantilla_desconocida` **queda reservado sin emisor
+desde la terminal**: un `employee_no` que no resuelve ya no entra a Tiempo (§XI.3).
+
+**Resolución en el servidor *(V3.0)*.** Para `origen = terminal` el servidor resuelve `persona_id`
+con el par `(terminal, employee_no)`. Como un `employee_no` **nunca se reutiliza**, la resolución es
+inequívoca incluso para un alta ya dada de baja: una marca legítima encolada antes de la baja se
+atribuye a la persona correcta. Tiempo guarda el `persona_id` resultante; **`tiempo.marca` no cambia**
+y no incorpora ninguna columna nueva.
 
 ### V.2 Lo que la marca NO lleva, y por qué
 
 | No lleva | Razón |
 |---|---|
 | Tipo de evento (entrada / salida) | Se deriva de la posición ordinal. §V.3 |
-| Número de plantilla | Es un identificador del módulo, no del subsistema de Tiempo. Vive en la bitácora |
+| Número de plantilla | Es un identificador del módulo, no del subsistema de Tiempo. Vive en la bitácora. *(V3.0)* No se confunde con `employee_no`: éste **sí viaja** en la marca de terminal como identificador de transporte, pero **no se almacena en `tiempo.marca`**; sólo lo resuelve el servidor |
 | Identificador de quien captura | Segundo identificador de persona. Rompería la frontera. Vive en la bitácora |
 | Nombre, foto, cualquier atributo de identidad | `SCJ-FRO-01 §I`. Si un requisito parece necesitarlo, el requisito está mal planteado |
 | Plantilla, imagen o cualquier derivado de la huella | La plantilla se almacena y se compara dentro del módulo lector y nunca sale de ahí |
@@ -176,8 +213,9 @@ Además del sobre común:
 | Campo | Tipo | Obligatorio | Descripción |
 |---|---|---|---|
 | `tipo_evento` | enum | Sí | Ver tabla siguiente |
-| `persona_id` | UUID \| nulo | No | Cuando el evento identifica a alguien |
-| `plantilla_num` | entero \| nulo | No | Número devuelto por el módulo |
+| `persona_id` | UUID \| nulo | No | Cuando el evento identifica a alguien. *(V3.0)* La terminal no lo manda: no lo conoce |
+| `employee_no` | entero \| nulo | No | *(V3.0)* Identificador del usuario en la terminal, cuando el evento identifica a alguien |
+| `plantilla_num` | entero \| nulo | No | Número devuelto por el módulo (lector R503Pro; la terminal Hikvision usa `employee_no`) |
 | `capturista_id` | UUID \| nulo | No | Quién de RH ejecutó la acción |
 | `evento_ref` | UUID \| nulo | No | Apunta al `evento_id` de la marca relacionada |
 | `detalle` | JSON | No | Datos específicos del tipo de evento |
@@ -236,6 +274,18 @@ decreto, o puede aparecer una segunda sucursal, y el dato ya está ahí sin migr
 
 Toda marca con estado distinto de `sincronizado` entra con `requiere_revision = true` y
 `motivo_revision = reloj_no_sincronizado`.
+
+**El servidor sólo puede empeorar el estado, nunca mejorarlo *(V3.0)*.** El `estado_reloj` lo
+declara el origen, pero el servidor lo contrasta con su propio reloj: si una marca declarada
+`sincronizado` tiene `momento_dispositivo` **más de 5 minutos posterior** a `momento_recepcion`, o
+**más de 7 días anterior**, el servidor la guarda como `deriva` (y por tanto entra señalada con
+`reloj_no_sincronizado`). Nunca convierte `deriva` o `sin_sincronizar` en `sincronizado`. **No se
+rechaza**: es evidencia (§II.5). Esto es **el único uso de `momento_recepcion` para decidir algo** y
+no contradice §II.4 ni §VII.3: la hora de llegada sigue sin entrar al **cálculo de jornada**; sólo
+sirve para señalar una marca cuyo reloj no es creíble. Los umbrales (5 min, 7 días) son
+**parámetros iniciales, ajustables**, no valores definitivos. Aparte, un instante absurdo (anterior
+al **2024-01-01** o posterior a **un año** de la recepción) sí se rechaza como `forma_invalida`
+(§IX.6).
 
 ### VII.3 Reglas duras
 
@@ -328,7 +378,8 @@ recibido y guardado, pero se haya perdido la confirmación de regreso. Desde el 
 a que nunca llegó. El diseño no depende de saber la diferencia — reintenta, y la idempotencia limpia.
 
 **Rechazo definitivo** es cuando reintentar nunca va a funcionar. Los casos reales son dos: evento
-mal formado, o `persona_id` que el servidor no reconoce.
+mal formado, o identidad que el servidor no reconoce: `employee_no` no enrolado en esa terminal
+(*V3.0*; en `captura_manual`, `persona_id` desconocido). La lista cerrada de códigos está en §IX.6.
 
 > **Una marca rechazada nunca se descarta.** Esa persona sí puso el dedo en el aparato, y esa
 > evidencia no se puede perder porque el servidor no supo qué hacer con ella. Sale de reintentos
@@ -344,6 +395,35 @@ problemas administrativos en un lugar de paso, por la misma razón por la que no
 `modulo_sin_respuesta` y las marcas en `pendiente_intervencion` aparecen en un tablero que se revisa
 **al día siguiente**. Ninguno de estos casos exige reacción en minutos, y una alerta que suena
 demasiado se acaba ignorando.
+
+
+### IX.6 Códigos de rechazo y reglas de reintento *(V3.0)*
+
+La respuesta individual lleva, además del estado, un `codigo` de **lista cerrada** (nunca texto de
+excepción del servidor):
+
+| Estado | `codigo` | Cuándo |
+|---|---|---|
+| `rechazo_definitivo` | `forma_invalida` | Campo mal formado, fuera de rango, o instante absurdo (antes de 2024-01-01 o más de 1 año en el futuro) |
+| `rechazo_definitivo` | `no_enrolado` | El `employee_no` no tiene alta en esa terminal, **o su alta sigue en `pendiente_alta`** (el aparato no puede haber creado ese usuario: se trata como falsificación probable) |
+| `rechazo_definitivo` | `secuencia_duplicada` | `(terminal_id, secuencia_local)` ya existe con otro `evento_id` |
+| `rechazo_definitivo` | `secuencia_fuera_de_rango` | `secuencia_local` excede la última recibida + 1 000 000 |
+| `rechazo_definitivo` | `conflicto_evento` | Mismo `evento_id` que una marca existente pero con contenido distinto |
+| `rechazo_transitorio` | `tope_terminal`, `error_interno` | Límite de tasa por terminal o error no previsto del servidor |
+
+- **`secuencia_duplicada` no manda la marca a `pendiente_intervencion`:** el terminal **renumera**
+  los eventos afectados a partir de la última secuencia recibida + 1 (que el servidor informa) y los
+  reenvía con **el mismo `evento_id`**. El contador local se persiste y **nunca baja**, ni siquiera
+  tras reinstalar.
+- **Reintentos transitorios acotados:** tras **50 intentos o 24 horas** (lo primero) un evento con
+  rechazo transitorio pasa a `pendiente_intervencion`, igual que uno definitivo. *Valores iniciales,
+  ajustables.*
+- Un evento con el mismo `evento_id` y el mismo contenido (`terminal_id`, persona resuelta,
+  `momento_dispositivo`, `secuencia_local`) es `duplicado`; si el contenido difiere, es
+  `conflicto_evento`.
+- Un `employee_no` no enrolado **se rechaza y su evidencia se conserva fuera de Tiempo**
+  (`tiempo.marca_rechazada`, `SCJ-DEC-12`); no se inserta con una persona inventada porque
+  `tiempo.marca.persona_id` es `NOT NULL` y cualquier persona asignada sería falsa.
 
 ---
 
@@ -363,8 +443,9 @@ demasiado se acaba ignorando.
 **Dimensionado para 30 días desconectado.** Con ocho personas y cuatro marcas diarias son ~32 eventos
 al día: menos de mil en un mes. La capacidad no es una restricción.
 
-**Si la caché no existe o está corrupta:** el aparato **sigue marcando**. Registra con
-`plantilla_desconocida` y confirma en pantalla sin nombre. Ver §XI.3.
+**Si la caché no existe o está corrupta:** el aparato **sigue marcando** *(V3.0)*: la terminal
+identifica al usuario por su `employee_no` por sí misma y el puente lo manda tal cual; lo resuelve el
+servidor. Ver §XI.3.
 
 **Prioridad al recuperar la red:** primero el flujo `marca`, después el flujo `evento`, ambos en
 orden de `secuencia_local`.
@@ -373,49 +454,61 @@ orden de `secuencia_local`.
 
 ## XI. La caché de plantillas
 
+> **V3.0:** esta sección describe la caché del puente con la terminal Hikvision. El texto de V2.0
+> (caché con `persona_id`, nombre y foto) se **sustituye**: el mapeo vive en el servidor
+> (`SCJ-DEC-11`) y el puente no debe conocer personas.
+
 ### XI.1 Qué contiene
 
 | Contiene | No contiene |
 |---|---|
-| `plantilla_num` (entero) | Ningún dato biométrico |
-| `persona_id` | Ninguna imagen de huella |
-| Nombre para mostrar | CURP, RFC, NSS, salario |
-| Foto de expediente | Nada del subsistema de Tiempo |
+| `employee_no` (entero) | Ningún dato biométrico |
+| Estado del alta (`pendiente_alta`, `esperando_huella`, `activo`, `pendiente_baja`) | Ninguna imagen de huella |
+| Número de huellas capturadas | **`persona_id`, nombre, foto**, CURP, RFC, NSS, salario |
 
-La plantilla vive **dentro del módulo**. La caché sólo guarda un entero, un nombre y una foto.
+La huella vive **dentro de la terminal**. La caché sólo guarda enteros y un estado.
 
 ### XI.2 Cómo se mantiene
 
-El terminal consulta al servidor **cada 15 minutos** si hay una versión más nueva de la lista. Cada
-versión lleva un **sello**; el terminal guarda cuál tiene.
-
-**Si hay una más nueva, baja la lista completa y reemplaza la suya entera.** Con ocho personas el
-archivo es diminuto, así que no hay razón para hacer nada incremental — y reemplazar completo es
-mucho más difícil de romper que ir aplicando cambios uno por uno. Genera evento `cache_actualizada`.
+El puente consulta al servidor **periódicamente** (`SCJ-DEC-12 §3`, `GET /api/terminal/mapa`) y
+**reemplaza su lista entera**: con unas decenas de usuarios el archivo es diminuto, así que no hay
+razón para hacer nada incremental — y reemplazar completo es mucho más difícil de romper que ir
+aplicando cambios uno por uno. Genera evento `cache_actualizada`. *(V3.0: el sello de versión de
+V2.0 no se usa en el mapa; el reemplazo es siempre completo.)*
 
 > **La caché es lo único que el terminal puede darse el lujo de perder**, porque se reconstruye desde
 > el servidor en cualquier momento. Las marcas no. Si algo tiene que fallar, falla la caché.
 
-### XI.3 Plantilla desconocida
+### XI.3 `employee_no` no enrolado *(V3.0, sustituye a "plantilla desconocida")*
 
-Si el módulo devuelve un número que la caché no resuelve —típicamente alguien recién enrolado con la
-caché desactualizada—:
+Si la terminal reporta un `employee_no` que el servidor no resuelve a una alta utilizable —no existe
+en esa terminal, o su alta sigue en `pendiente_alta`—:
 
-1. El terminal **registra la marca de todos modos**.
-2. Viaja con `persona_id` nulo, y el `plantilla_num` va en el evento de bitácora asociado.
-3. Entra con `motivo_revision = plantilla_desconocida`.
-4. La pantalla **confirma sin nombre**. La persona no tiene por qué enterarse de un problema interno.
-5. El servidor la resuelve al recibirla, porque él sí tiene la correspondencia completa.
-6. Si tampoco el servidor puede resolverla, queda en `pendiente_intervencion` **en el esquema de
-   operación**, no en Tiempo. Cuando RH la resuelve, se inserta en Tiempo con el mismo `evento_id`.
+1. El puente **sube la marca de todos modos**, con su `employee_no`.
+2. La pantalla de la terminal **confirma sin nombre**. La persona no tiene por qué enterarse de un
+   problema interno.
+3. El servidor **la rechaza como `rechazo_definitivo` / `no_enrolado`** (§IX.6) y **no la inserta en
+   Tiempo**: `tiempo.marca.persona_id` es `NOT NULL` y no hay persona a quien atribuirla sin falsear
+   la identidad.
+4. La evidencia **se conserva fuera de Tiempo**: el puente la deja en `pendiente_intervencion` y el
+   servidor la registra en `tiempo.marca_rechazada` (`SCJ-DEC-12 §6`), de donde RH la resuelve.
+   Cuando RH la resuelve, se inserta en Tiempo con el mismo `evento_id`.
 
-El punto 6 es lo que mantiene limpio el subsistema de Tiempo: `persona_id` nunca es nulo ahí dentro.
+**`persona_id` nunca es nulo dentro de Tiempo** y **no existe** `motivo_revision = plantilla_desconocida`
+generado por la terminal: lo que no se puede resolver nunca llega a `tiempo.marca`.
 
 ---
 
 ## XII. Los procesos que sostienen el contrato
 
 Ningún software corrige un procedimiento mal hecho. Estas dos secuencias son parte del contrato.
+
+> **Nota V3.0:** el mecanismo concreto de alta y baja con la terminal Hikvision (`employee_no`
+> asignado por el servidor, cola de trabajo, bitácora inmutable, `baja_confirmada`) vive en
+> `SCJ-DEC-11`, `SCJ-DEC-12` y `SCJ-PRO-11 V2.0`. **Los principios de esta sección siguen vigentes**:
+> la baja nace en el expediente; la tarea de borrado sólo se cierra con la confirmación del aparato
+> (`baja_confirmada` equivale al antiguo `borrado_plantilla`); el servidor señala, no rechaza, la
+> marca de alguien recién dado de baja. Los pasos con "caché" y `enrolamiento` describen el R503Pro.
 
 ### XII.1 Alta — el orden importa
 
@@ -524,10 +617,15 @@ argumento a favor del inglés — y evita el híbrido de tabla en español con c
 
 ## XV. Ejemplo completo de intercambio
 
+> **V3.0:** el ejemplo corresponde a la terminal Hikvision. Los eventos de marca llevan `employee_no`
+> y **no** llevan `persona_id`, `origen`, `requiere_revision` ni `motivo_revision` (los fija el
+> servidor). El endpoint es configurable; en este proyecto es `POST /api/terminal/marcas`
+> (`SCJ-DEC-12`), con `terminal_id` en el lote.
+
 ### Petición — lote de tres eventos
 
 ```json
-POST /marcas/lote
+POST /api/terminal/marcas
 {
   "terminal_id": "kiosco-01",
   "version_software": "1.0.0",
@@ -539,10 +637,7 @@ POST /marcas/lote
       "momento_dispositivo": "2026-08-17T15:03:00Z",
       "desfase_local": "-06:00",
       "estado_reloj": "sincronizado",
-      "persona_id": "a1b2c3d4-0000-4000-8000-000000000007",
-      "origen": "terminal",
-      "requiere_revision": false,
-      "motivo_revision": null
+      "employee_no": 7
     },
     {
       "evento_id": "77c0e5aa-1d34-4c8f-bb21-90f4e6d2a115",
@@ -551,10 +646,7 @@ POST /marcas/lote
       "momento_dispositivo": "2026-08-17T15:04:20Z",
       "desfase_local": "-06:00",
       "estado_reloj": "sin_sincronizar",
-      "persona_id": null,
-      "origen": "terminal",
-      "requiere_revision": true,
-      "motivo_revision": "plantilla_desconocida"
+      "employee_no": 99
     },
     {
       "evento_id": "b93d17f2-5e60-4a9c-8d77-11aa4c30e2b8",
@@ -563,8 +655,8 @@ POST /marcas/lote
       "momento_dispositivo": "2026-08-17T15:04:20Z",
       "desfase_local": "-06:00",
       "estado_reloj": "sin_sincronizar",
-      "tipo_evento": "plantilla_desconocida",
-      "plantilla_num": 12,
+      "tipo_evento": "no_enrolada",
+      "employee_no": 99,
       "evento_ref": "77c0e5aa-1d34-4c8f-bb21-90f4e6d2a115"
     }
   ]
@@ -578,15 +670,18 @@ POST /marcas/lote
   "momento_recepcion": "2026-08-17T15:31:02Z",
   "resultados": [
     {
+      "indice": 0,
       "evento_id": "3f2a91c4-8b7e-4d1a-9f03-2c5e7a1b8d40",
       "estado": "duplicado"
     },
     {
+      "indice": 1,
       "evento_id": "77c0e5aa-1d34-4c8f-bb21-90f4e6d2a115",
-      "estado": "confirmado",
-      "resolucion": "persona_id asignado, en cola de excepciones"
+      "estado": "rechazo_definitivo",
+      "codigo": "no_enrolado"
     },
     {
+      "indice": 2,
       "evento_id": "b93d17f2-5e60-4a9c-8d77-11aa4c30e2b8",
       "estado": "confirmado"
     }
@@ -595,10 +690,12 @@ POST /marcas/lote
 ```
 
 **Cómo se lee.** El primero ya había llegado en un envío anterior cuya confirmación se perdió: el
-servidor responde `duplicado` y el terminal lo cierra sin crear nada. El segundo llegó con la caché
-desactualizada; el servidor lo resolvió y lo mandó a excepciones. El tercero es su evento de bitácora,
-que lleva el `plantilla_num` que la marca no puede llevar. **El retraso de 27 minutos entre
-`momento_dispositivo` y `momento_recepcion` no afecta el cálculo: el día es el del terminal.**
+servidor responde `duplicado` y el terminal lo cierra sin crear nada. El segundo trae un `employee_no`
+(99) que no tiene alta en esa terminal: el servidor lo rechaza como `no_enrolado` y **no lo inserta
+en Tiempo**; el terminal lo aparta en `pendiente_intervencion` y el servidor conserva la evidencia
+fuera de Tiempo (§XI.3). El tercero es su evento de bitácora (flujo B, fuera de Tiempo), que sí se
+confirma. **El retraso de 27 minutos entre `momento_dispositivo` y `momento_recepcion` no afecta el
+cálculo: el día es el del terminal** (y queda lejos de los umbrales de §VII.2).
 
 ---
 
@@ -623,6 +720,8 @@ representar.
 | `persona_id` nunca nulo dentro de Tiempo | §I.4 regla 5 | ✓ |
 | Registro asistido como fuente ordinaria | §IV.2 | ✓ |
 | `capturista_id` y `plantilla_num` fuera de Tiempo | §I.4, §VII.2 | ✓ |
+| `employee_no` (V3.0): viaja en el transporte, se resuelve en el servidor, **no se persiste en `tiempo.marca`** | §I.4 reglas 1, 3 y 5 | **A revisar** — la especificación dice "sólo `persona_id` cruza" y "`plantilla_num` vive en Operación"; la frontera de almacenamiento no cambia, pero la redacción debe aclarar el identificador de transporte (y ya convive con `tiempo.terminal_usuario`, `SCJ-DEC-11`) |
+| El servidor sólo empeora `estado_reloj` (V3.0) | §VII.3 | **A revisar** — `momento_recepcion` ahora decide un estado, aunque no entra al cálculo de jornada |
 | Convenciones de nombres | §X | ✓ |
 | Marca nunca se modifica ni elimina | §V.1, §VI.7 | ✓ |
 
@@ -665,7 +764,10 @@ Decisiones tomadas en sesión de diseño, con su alternativa descartada.
 | 12 | Español, `snake_case`, sin acentos en identificadores | Inglés, o híbrido |
 | 13 | Plantilla desconocida registra marca sin nombre en pantalla | Descartar la lectura no resuelta |
 | 14 | La baja nace en el expediente; el borrado de plantilla es tarea pendiente | Que la baja nazca en la terminal |
-| 15 | Caché por reemplazo completo con sello de versión | Actualización incremental |
+| 15 | Caché por reemplazo completo con sello de versión *(V3.0: reemplazo completo, sin sello)* | Actualización incremental |
+| 16 | *(V3.0)* La marca de terminal viaja con `employee_no`; el servidor resuelve `persona_id` y no persiste `employee_no` | Que el puente conozca `persona_id` y lo mande (amplía lo que un aparato comprometido puede unir con una persona) |
+| 17 | *(V3.0)* Un `employee_no` no enrolado se rechaza (`no_enrolado`) y su evidencia se conserva fuera de Tiempo | Insertar la marca con una persona inventada o nula (`persona_id` es `NOT NULL`: falsearía la paridad de alguien) |
+| 18 | *(V3.0)* El servidor sólo puede empeorar el `estado_reloj` declarado (5 min futuro / 7 días pasado); nunca rechaza por tiempo salvo instantes absurdos | Rechazar marcas con reloj dudoso (perdería evidencia) o confiar ciegamente en lo declarado |
 
 ---
 
@@ -678,11 +780,15 @@ Decisiones tomadas en sesión de diseño, con su alternativa descartada.
 - [ ] Diseñar la pantalla de captura asistida (RH) con la generación de `evento_id` al abrir
 - [ ] Diseñar el tablero de excepciones y su revisión diaria
 - [ ] Confirmar el **plazo de conservación** de las marcas, conforme a `SCJ-ANO-01`
+- [ ] *(V3.0)* Revisar `SCJ-ESP-01` (§I.4 reglas 1, 3 y 5; §VII.3), `SCJ-PRO-11 §II.1` y `SCJ-DIC-01`
+  (nota de `momento_recepcion`) a la luz de este cambio
+- [ ] *(V3.0)* Confirmar los valores iniciales de §VII.2 (5 min / 7 días) y §IX.6 (50 intentos /
+  24 h) tras un mes de datos reales
 
 ---
 
-*Contrato de datos de la marca · Distribuidora Central, S.A. de C.V. · Folio SCJ-CDT-01 · V1.1 ·
-18 de agosto de 2026*
+*Contrato de datos de la marca · Distribuidora Central, S.A. de C.V. · Folio SCJ-CDT-01 · V3.0 ·
+6 de octubre de 2026*
 
 *Este documento no constituye asesoría legal. Las obligaciones en materia de datos personales y de
 conservación de registros deben confirmarse con asesoría legal profesional.*
