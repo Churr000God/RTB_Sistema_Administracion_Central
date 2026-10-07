@@ -48,8 +48,14 @@ Folio SCJ-MOD-03 · Versión 1.8 · 6 de octubre de 2026
 > nuevas `SECURITY DEFINER` con su ACL; y se aclaran dos filas de V1.7 (el trigger de la bitácora ahora toma la
 > terminal `FOR SHARE` en `asignado`). Lo escrito se contrastó con la base real de Supabase en solo lectura
 > (privilegios, `EXECUTE`, `search_path`, triggers, índices, restricciones). No se contradice nada de lo anterior.
-> Hallazgo del contraste, fuera del alcance de este cambio: el script `78_` no está aplicado en esa base
-> (ver `SCJ-DIC-01` V1.3, nota de método).
+> Hallazgo del contraste, cerrado: el script `78_` no estaba aplicado en esa base el 6-oct-2026; el usuario lo
+> aplicó el 7-oct sin ensayo previo, pero cubría únicamente el `UPDATE` suelto de una excepción `dia_cerrado` y
+> `security` identificó dos evasiones. El script `86_tiempo_excepcion_protege_dia_cerrado_v2.sql` (ensayado, revisado
+> y aplicado el 7-oct-2026) las cierra: protege las columnas de `excepcion`, exige revisar el día en la misma
+> transacción o un descarte auditado (`tiempo.excepcion_descarte`, permiso `excepcion_dia_cerrado_descarte`), y valida
+> la coherencia de `tramo` (`SCJ15`). Residual aceptado: `dia_update_revision` deja a quien tenga
+> `dia_revision_edicion` pasar un día a `revisado` sin armar tramos (auditado; revisar al endurecer `tiempo.dia`).
+> Ver `SCJ-DIC-01` V1.3, nota de método.
 
 Correspondencia entre el modelo lógico y el DDL: tipos elegidos, restricciones activas y su
 justificación. Entregable E3 de `SCJ-ESP-01`.
@@ -72,8 +78,9 @@ justificación. Entregable E3 de `SCJ-ESP-01`.
 | `db/ddl/02_tiempo.sql` | Tablas del subsistema de Tiempo |
 | `db/ddl/03_parametros_ejemplo.sql` | Parámetros con **valores de ejemplo** |
 | `db/ddl/04` a `36` | *(V1.6)* Esquema `personas`: personas, estructura organizacional, asignaciones, permisos y bitácoras |
-| `db/ddl/37` a `79` | *(V1.6)* RLS, permisos y funciones de Tiempo, y las correcciones posteriores (los scripts son acumulativos: el estado final es la suma de los 86) |
+| `db/ddl/37` a `79` | *(V1.6)* RLS, permisos y funciones de Tiempo, y las correcciones posteriores (los scripts son acumulativos: el estado final es la suma de los 87) |
 | `db/ddl/80` y `81` | *(V1.7)* Terminal biométrica: `tiempo.terminal` y `tiempo.terminal_usuario` con la secuencia del `employeeNo` y los permisos `terminal_usuario_lectura`/`terminal_usuario_edicion` (`80`), y la bitácora inmutable con su trigger de transiciones (`81`). `SCJ-DEC-11` |
+| `db/ddl/86` | *(V1.8)* Cierre del hallazgo sobre `78_`: trigger de columnas de `excepcion`, constraint trigger `dia_cerrado` recreado (revisión en la misma transacción o descarte), trigger de coherencia de `tramo`, tabla inmutable `excepcion_descarte`, RPC `fn_excepcion_dia_cerrado_descartar`, permiso `excepcion_dia_cerrado_descarte` (`SCJ15`) |
 | `db/ddl/82` a `85` | *(V1.8)* Autenticación de la terminal y ruta de marcas: `terminal_credencial` y 4 columnas de estado en `terminal` (`82`); los RPC del puente, el trigger `SCJ13` de desactivación, el trigger `SCJ14` de revocación y el reemplazo de `fn_bitacora_terminal_usuario_aplica` con `FOR SHARE` (`83`); `marca_rechazada` y su purga (`84`); la caducidad de altas en `esperando_huella` (`85`). `SCJ-DEC-12` |
 | `db/ddl/30_indices_fk.sql` | *(V1.6)* Índices de llaves foráneas |
 | `db/indices/01_indices.sql` | Índices del subsistema de Tiempo. *(El documento `SCJ-IDX-01`, que iba a justificarlos, se quitó el 5-oct-2026: ya no hay un documento aparte para esto)* |

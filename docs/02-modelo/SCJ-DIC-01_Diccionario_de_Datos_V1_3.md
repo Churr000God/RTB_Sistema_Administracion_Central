@@ -3,7 +3,7 @@
 **Sistema de Control de Jornada · Esquemas `personas` y `tiempo`**
 Folio SCJ-DIC-01 · Versión 1.3 · 6 de octubre de 2026
 
-> **Cambio de versión (V1.2 → V1.3, menor):** se agregan lo que dejan los scripts `82` a `85` (`SCJ-DEC-12`, autenticación de la terminal, ruta de marcas y caducidad de altas): las tablas `tiempo.terminal_credencial` y `tiempo.marca_rechazada`, las 4 columnas de estado de `tiempo.terminal` (`reloj_desfase_seg`, `terminal_alcanzable`, `version_pi`, `marcas_pendientes`), 11 funciones nuevas (6 RPC para el puente, 1 de purga, 1 de caducidad, 1 interna de rechazos y 2 de trigger), 3 triggers de seguridad (`SCJ13`, `SCJ14`) y 1 policy; y se recalcula: **33 tablas** (11 en `personas`, 22 en `tiempo`), 24 columnas con dominio cerrado por `CHECK`, **50 funciones según los scripts (49 en la base real: ver la nota de método)**, 75 policies RLS, 51 permisos y **86 scripts (`00` a `85`)**. Esta vez lo documentado se contrastó contra la base real de Supabase en solo lectura (columnas, restricciones, índices, triggers, privilegios y EXECUTE por función), no sólo contra los archivos. No se contradice nada de lo ya escrito.
+> **Cambio de versión (V1.2 → V1.3, menor):** se agregan lo que dejan los scripts `82` a `85` (`SCJ-DEC-12`, autenticación de la terminal, ruta de marcas y caducidad de altas): las tablas `tiempo.terminal_credencial` y `tiempo.marca_rechazada`, las 4 columnas de estado de `tiempo.terminal` (`reloj_desfase_seg`, `terminal_alcanzable`, `version_pi`, `marcas_pendientes`), 11 funciones nuevas (6 RPC para el puente, 1 de purga, 1 de caducidad, 1 interna de rechazos y 2 de trigger), 3 triggers de seguridad (`SCJ13`, `SCJ14`) y 1 policy; y se recalcula: **34 tablas** (11 en `personas`, 23 en `tiempo`), 24 columnas con dominio cerrado por `CHECK`, **56 funciones (coinciden los scripts y la base real)**, 76 policies RLS, 52 permisos y **87 scripts (`00` a `86`)**. El script `86` (cierre del hallazgo de `security` sobre `78_`, aplicado el 7-oct-2026) suma la tabla `tiempo.excepcion_descarte`, 6 funciones, 4 triggers, 1 policy, el permiso `excepcion_dia_cerrado_descarte` y el código `SCJ15`. Esta vez lo documentado se contrastó contra la base real de Supabase en solo lectura (columnas, restricciones, índices, triggers, privilegios y EXECUTE por función), no sólo contra los archivos. No se contradice nada de lo ya escrito.
 > **Cambio de versión (V1.1 → V1.2, menor):** se agregan las 3 tablas de la terminal biométrica Hikvision (`tiempo.terminal`, `tiempo.terminal_usuario`, `tiempo.bitacora_movimiento_terminal_usuario`, scripts `80` y `81`, `SCJ-DEC-11`): 31 tablas en total (11 en `personas`, 20 en `tiempo`), 23 columnas con dominio cerrado por `CHECK`, 39 funciones, 74 policies RLS y 51 permisos. No se contradice nada de lo ya escrito. Además se corrige el nombre del archivo, que seguía en `V1_0` aunque el encabezado decía 1.1 (`CONVENCIONES.md §I`).
 
 > **Cambio de versión (V1.0 → V1.1, menor):** el diccionario deja de documentar sólo `tiempo.persona` y se reconstruye contra el esquema real que dejan los scripts `db/ddl/00` a `79`: 28 tablas (11 en `personas`, 17 en `tiempo`), sin enumerados nativos (20 columnas con dominio cerrado por `CHECK`), 8 parámetros, 36 funciones y 70 policies RLS. Se elimina la columna "filas esperadas de 6 meses" (era del proyecto escolar) y se agrega la lista de discrepancias contra `SCJ-MOD-03`.
@@ -34,7 +34,7 @@ Subsistema de Personas: identidad, expediente, estructura organizacional, asigna
 | `puesto_permiso` | 6 | 4 | Estado vigente de "qué permiso tiene cada puesto" — snapshot derivado y mantenido por trg_puesto_permiso_sincroniza (24_puesto_permiso_trigger.sql) a partir de bitacora_… |
 | `bitacora_movimiento_puesto_permiso` | 8 | 2 | Fuente de verdad de puesto_permiso.activo (SCJ-PRO-05). |
 
-### Esquema `tiempo` — 22 tablas
+### Esquema `tiempo` — 23 tablas
 
 Subsistema de Tiempo: marcas, jornadas, días, tramos, banco de horas, ausencias, excepciones y corridas de batch. Sin atributos de identidad (`SCJ-FRO-01`).
 
@@ -62,8 +62,9 @@ Subsistema de Tiempo: marcas, jornadas, días, tramos, banco de horas, ausencias
 | `bitacora_movimiento_terminal_usuario` | 11 | 2 | Fuente de verdad de tiempo.terminal_usuario (SCJ-DEC-11). Sólo inserción: inmutable en 3 capas. |
 | `terminal_credencial` | 10 | 0 | Llave opaca del puente de una terminal (SCJ-DEC-12 §1): sólo el hash SHA-256. |
 | `marca_rechazada` | 10 | 1 | Evidencia de un rechazo DEFINITIVO de fn_marca_terminal_registrar (SCJ-DEC-12 §6). |
+| `excepcion_descarte` | 6 | 1 | Auditoría de fn_excepcion_dia_cerrado_descartar (86_): quién descartó una marca tardía sobre un día ya revisado, cuándo y por qué. |
 
-Total: **33 tablas** (11 + 22), coincide con lo que espera `db/verificar_ddl.sql` (personas = 11, tiempo = 22) y con la base real. Ninguna vista, ninguna vista materializada, ningún tipo `ENUM`. `tiempo.persona` es el stub de la frontera (`SCJ-FRO-01`); sin él, `tiempo` tendría 21 tablas propias.
+Total: **34 tablas** (11 + 23), coincide con lo que espera `db/verificar_ddl.sql` (personas = 11, tiempo = 23) y con la base real. Ninguna vista, ninguna vista materializada, ningún tipo `ENUM`. `tiempo.persona` es el stub de la frontera (`SCJ-FRO-01`); sin él, `tiempo` tendría 22 tablas propias.
 
 ---
 
@@ -412,7 +413,8 @@ Leyenda de privilegios por rol: `D` DELETE, `I` INSERT, `S` SELECT, `U` UPDATE (
 **Restricciones CHECK de varias columnas:** 
 - `ck_tramo_fin_posterior_a_inicio`: `(fin IS NULL) OR (fin > inicio)`
 
-**Triggers:** —
+**Triggers:**
+- `trg_tramo_valida_coherencia`: BEFORE INSERT OR UPDATE, por fila → `tiempo.fn_tramo_valida_coherencia()` *(86_)* — las marcas de apertura y cierre deben ser de la persona del día y con fecha local efectiva igual a la del día (en UPDATE sólo si cambian `dia_id` o las marcas); `SCJ15` / `tramo_incoherente`
 
 **Referenciada por:** `tiempo.clasificacion_de_tiempo`.`tramo_id`
 
@@ -692,7 +694,8 @@ Leyenda de privilegios por rol: `D` DELETE, `I` INSERT, `S` SELECT, `U` UPDATE (
 - `ck_excepcion_marca_o_dia`: `(marca_id IS NOT NULL) <> (dia_id IS NOT NULL)`
 
 **Triggers:** 
-- `trg_excepcion_protege_dia_cerrado`: AFTER UPDATE → `tiempo.fn_excepcion_protege_dia_cerrado()` (CONSTRAINT TRIGGER, DEFERRABLE) — **no existe en la base real al 6-oct-2026** (`78_*.sql` no aplicado; ver la nota de método V1.3)
+- `trg_excepcion_protege_columnas`: BEFORE UPDATE, por fila → `tiempo.fn_excepcion_protege_columnas()` *(86_)* — `marca_id`, `dia_id` y `creado_en` inmutables; `motivo_revision` sólo cambia al resolver y sólo agregando un sufijo ` — …` al motivo anterior (`SCJ15`: `excepcion_columna_inmutable` | `excepcion_motivo_inmutable`)
+- `trg_excepcion_protege_dia_cerrado`: AFTER UPDATE → `tiempo.fn_excepcion_protege_dia_cerrado()` (CONSTRAINT TRIGGER, DEFERRABLE INITIALLY DEFERRED, `WHEN (OLD.motivo_revision LIKE 'dia\_cerrado%' AND pendiente → resuelto)`) — *(86_ reemplaza al de `78_`)* sólo acepta la resolución si el día de la marca se revisó en la MISMA transacción (con un tramo que contiene la marca, de la misma persona y fecha local efectiva) o si hay un descarte de esa excepción creado en esa transacción; si no, `SCJ15` / `dia_cerrado_requiere_revision` al `COMMIT`
 
 **Referenciada por:** — (ninguna FK la referencia)
 
@@ -968,6 +971,42 @@ Los movimientos con `origen = 'terminal'` sólo los inserta `service_role` (que 
 | Policy | Comando | Roles | USING / WITH CHECK |
 |---|---|---|---|
 | `marca_rechazada_select_lectura` | SELECT | authenticated | `USING (personas.fn_caller_activo() AND (personas.fn_caller_tiene_permiso('terminal_usuario_lectura') OR personas.fn_caller_tiene_permiso('terminal_usuario_edicion')))` |
+
+---
+
+### `tiempo.excepcion_descarte`
+
+> Auditoría de fn_excepcion_dia_cerrado_descartar (86_): quién descartó una marca tardía sobre un día ya revisado, cuándo y por qué. Sólo la escribe el RPC; sin INSERT/UPDATE/DELETE/TRUNCATE para la API. El constraint trigger de dia_cerrado acepta la resolución de una excepción si hay aquí un descarte de ella creado en la misma transacción.
+
+| Columna | Tipo | Nulo | Predeterminado | Dominio / CHECK | Descripción |
+|---|---|---|---|---|---|
+| `id` | `bigint` | No | `IDENTITY (GENERATED ALWAYS)` | — | — (sin `COMMENT ON` en el DDL) |
+| `excepcion_id` | `bigint` | No | — | FK → tiempo.excepcion | Excepción descartada. Sin UNIQUE: una excepción reabierta y descartada otra vez deja una fila nueva por cada descarte. |
+| `dia_id` | `bigint` | No | — | FK → tiempo.dia | Día (revisado) al que pertenece la marca tardía. |
+| `persona_id` | `uuid` | No | — | FK → tiempo.persona | Quien descartó (vía frontera SCJ-FRO-01), derivado de auth.uid() dentro del RPC; nunca un parámetro. |
+| `motivo` | `character varying(500)` | No | — | `char_length(btrim(motivo)) >= 1` (`ck_excepcion_descarte_motivo`) | Motivo saneado (sin caracteres de control), 1 a 500 caracteres. |
+| `creado_en` | `timestamp with time zone` | No | `now()` | — | Inicio de la transacción del descarte (now()); el constraint trigger lo compara con now() para exigir que sea de ESTA transacción. |
+
+**Claves:**
+
+- PK `id`
+- FK `excepcion_id` → `tiempo.excepcion(id)`; FK `dia_id` → `tiempo.dia(id)`; FK `persona_id` → `tiempo.persona(id)`
+
+**Índices** (sin contar PK):
+
+- `ix_excepcion_descarte_excepcion_id`, `ix_excepcion_descarte_dia_id`, `ix_excepcion_descarte_persona_id` (ninguno UNIQUE)
+
+**Triggers:**
+- `trg_excepcion_descarte_inmutable`: BEFORE UPDATE OR DELETE, por fila → aborta (incluido `service_role` y el dueño)
+- `trg_excepcion_descarte_truncate`: BEFORE TRUNCATE, por sentencia → aborta
+
+**Referenciada por:** — (ninguna FK la referencia)
+
+**RLS:** habilitada; privilegios de tabla — anon:— authenticated:S service_role:S. Nadie de la API inserta, actualiza, borra ni trunca: la escribe `fn_excepcion_dia_cerrado_descartar` (`SECURITY DEFINER`, como dueño). Inmutable en 3 capas (REVOKE, RLS sin policy de escritura, triggers). Secuencia identity sin privilegios. Creada en `86_tiempo_excepcion_protege_dia_cerrado_v2.sql`.
+
+| Policy | Comando | Roles | USING / WITH CHECK |
+|---|---|---|---|
+| `excepcion_descarte_select_lectura` | SELECT | authenticated | `USING (personas.fn_caller_activo() AND (personas.fn_caller_tiene_permiso('excepcion_lectura') OR personas.fn_caller_tiene_permiso('excepcion_edicion')))` |
 
 ---
 
@@ -1507,7 +1546,7 @@ Las columnas "backend" se apoyan en comentarios del DDL, en `CLAUDE.md` y en `SC
 
 ## V. Funciones, RPC y políticas RLS
 
-### V.1 Funciones (50 según los scripts; 49 en la base real)
+### V.1 Funciones (56)
 
 Ejecutable por: roles con `EXECUTE` entre `anon`, `authenticated`, `service_role`, `terminal_checador`; `público` = el privilegio por omisión de `PUBLIC` sigue activo. SD = `SECURITY DEFINER`.
 
@@ -1537,7 +1576,13 @@ Ejecutable por: roles con `EXECUTE` entre `anon`, `authenticated`, `service_role
 | `tiempo.fn_corte_quincenal_aplicar_persona(p_persona_id uuid, p_clasificaciones jsonb, p_movimientos jsonb, p_motivo text)` | RPC | no | service_role | RPC transaccional de "aplicar corte quincenal a una persona" (SCJ-PRO-13): inserta todas las clasificaciones del periodo, resuelve/crea banco_de_horas, e inserta todos los movimientos de saldo corres… |
 | `tiempo.fn_dia_calcular_armado_tramos(p_dia_id bigint)` | RPC | no | authenticated,service_role | Calcula (sin escribir) qué haría fn_dia_revisar al armar los tramos faltantes de un día: una fila por acción -- cerrar_existente (cierra un tramo abierto con una huérfana), nuevo (arma un tramo nuevo… |
 | `tiempo.fn_dia_revisar(p_dia_id bigint, p_horas_totales numeric)` | RPC | no | authenticated | RPC de "marcar día como revisado" (SCJ-DEC-06), con horas trabajadas capturadas a mano por RH. |
-| `tiempo.fn_excepcion_protege_dia_cerrado()` | trigger | sí | ninguno explícito (dueño) | Constraint trigger de sólo motivo dia_cerrado: bloquea (revirtiendo toda la transacción, por DEFERRABLE INITIALLY DEFERRED) cualquier pendiente -> resuelto que no sea efecto colateral real de fn_dia_… **(Definida por `78_*.sql`, pero NO existe en la base real al 6-oct-2026: ese script no se aplicó. Contrastado en solo lectura contra el catálogo.)** |
+| `tiempo.fn_excepcion_protege_dia_cerrado()` | trigger | sí | ninguno (dueño) | *(86_, reemplaza a la de 78_)* Constraint trigger de sólo motivo dia_cerrado%: acepta pendiente -> resuelto únicamente con la revisión del día en esta misma transacción (tramo de la misma persona y fecha local efectiva) o con un descarte de la excepción creado en ella; si no, SCJ15 / dia_cerrado_requiere_revision. SECURITY DEFINER, search_path = tiempo, pg_temp. |
+| `tiempo.fn_excepcion_dia_cerrado_descartar(p_excepcion_id bigint, p_motivo text)` | RPC | sí | authenticated | 86_. Descarta una marca tardía sobre un día YA revisado: exige persona activa y el permiso de acción excepcion_dia_cerrado_descarte (no heredable) dentro de la función, deriva quién descarta de auth.uid(), registra quién/cuándo/por qué en tiempo.excepcion_descarte y resuelve la excepción con el sufijo ' — descartada por <persona_id>: <motivo>'. Idempotente (ya_descartada). SECURITY DEFINER, search_path = tiempo, personas, pg_temp. |
+| `tiempo.fn_excepcion_descarte_inmutable()` | trigger | no | ninguno (dueño) | Aborta UPDATE/DELETE sobre tiempo.excepcion_descarte, incluido service_role y el dueño. |
+| `tiempo.fn_excepcion_descarte_truncate()` | trigger | no | ninguno (dueño) | Aborta TRUNCATE sobre tiempo.excepcion_descarte (trigger por statement). |
+| `tiempo.fn_excepcion_protege_columnas()` | trigger | no | ninguno (dueño) | 86_. marca_id, dia_id y creado_en inmutables; motivo_revision sólo cambia al resolver agregando un sufijo ' — …'. SCJ15 (excepcion_columna_inmutable | excepcion_motivo_inmutable). |
+| `tiempo.fn_marca_fecha_local(p_marca_id bigint)` | interna | no | ninguno (dueño) | 86_. Fecha local EFECTIVA de una marca (corrección más reciente si existe, si no momento_dispositivo; más desfase_local). Mismo criterio que fn_dia_calcular_armado_tramos y cierre_dia. |
+| `tiempo.fn_tramo_valida_coherencia()` | trigger | sí | ninguno (dueño) | 86_. Las marcas de un tramo deben ser de la persona del día y con fecha local efectiva igual a la del día. SCJ15 / tramo_incoherente. SECURITY DEFINER, search_path = tiempo, pg_temp. |
 | `tiempo.fn_jornada_asignada_protege_borrado()` | trigger | no | ninguno explícito (dueño) | BEFORE DELETE en tiempo.jornada_asignada. |
 | `tiempo.fn_jornada_asignada_protege_vigencias()` | trigger | no | ninguno explícito (dueño) | BEFORE UPDATE en tiempo.jornada_asignada. |
 | `tiempo.fn_jornada_asignada_valida_cadena()` | trigger | no | ninguno explícito (dueño) | CONSTRAINT TRIGGER (DEFERRABLE INITIALLY DEFERRED) sobre tiempo.jornada_asignada -- red de seguridad final al hacer COMMIT: cada persona con al menos una jornada debe quedar con exactamente una fila … |
@@ -1568,7 +1613,7 @@ Las funciones con `público` = no revocado incluyen triggers (no se invocan dire
 
 ### V.2 Políticas RLS
 
-Las 33 tablas tienen RLS habilitada y ninguna la tiene forzada (`FORCE`). El detalle de cada policy (comando, roles, condición, truncada a 260 caracteres) está en la sección de su tabla en II. Resumen:
+Las 34 tablas tienen RLS habilitada y ninguna la tiene forzada (`FORCE`). El detalle de cada policy (comando, roles, condición, truncada a 260 caracteres) está en la sección de su tabla en II. Resumen:
 
 | Tabla | Policies |
 |---|---|
@@ -1594,6 +1639,7 @@ Las 33 tablas tienen RLS habilitada y ninguna la tiene forzada (`FORCE`). El det
 | `tiempo.bitacora_movimiento_terminal_usuario` | 2 (1 INSERT, 1 SELECT) |
 | `tiempo.terminal_credencial` | 0 — sin policy: nadie de la API la lee (sólo `service_role`, que no pasa por RLS) |
 | `tiempo.marca_rechazada` | 1 (1 SELECT) |
+| `tiempo.excepcion_descarte` | 1 (1 SELECT) |
 | `personas.persona` | 4 (1 DELETE, 1 INSERT, 1 SELECT, 1 UPDATE) |
 | `personas.expediente` | 4 (1 DELETE, 1 INSERT, 1 SELECT, 1 UPDATE) |
 | `personas.usuario` | 4 (1 DELETE, 1 INSERT, 1 SELECT, 1 UPDATE) |
@@ -1627,6 +1673,12 @@ El DDL define sus propios `SQLSTATE` para que el backend distinga el caso sin le
 | `SCJ12` | `terminal_no_valida` | `fn_bitacora_terminal_usuario_aplica`, `fn_marca_terminal_registrar`, `fn_terminal_latido` | La terminal no existe o no está activa |
 | `SCJ13` | `terminal_con_altas_vigentes` | `fn_terminal_valida_desactivacion` (trigger) | No se puede desactivar una terminal con altas no-`baja` |
 | `SCJ14` | `credencial_revocada_inmutable` | `fn_terminal_credencial_revocacion_inmutable` (trigger) | Una revocación de llave ya fijada no se puede deshacer ni cambiar |
+| `SCJ15` | `dia_cerrado_requiere_revision` | `fn_excepcion_protege_dia_cerrado` (constraint trigger, al `COMMIT`) | Una excepción `dia_cerrado` sólo se resuelve revisando el día en la misma transacción o descartando la marca tardía. Backend: 409 |
+| `SCJ15` | `excepcion_columna_inmutable` / `excepcion_motivo_inmutable` | `fn_excepcion_protege_columnas` (trigger) | Se intentó cambiar `marca_id`/`dia_id`/`creado_en`, o el motivo de otra forma que agregando un sufijo al resolver |
+| `SCJ15` | `tramo_incoherente` | `fn_tramo_valida_coherencia` (trigger) | Un tramo con marcas de otra persona o de otra fecha local efectiva que su día. Backend: 422 |
+| `SCJ15` | `dia_no_revisado` / `excepcion_no_descartable` | `fn_excepcion_dia_cerrado_descartar` | El día de la marca no está revisado, o la excepción no es una `dia_cerrado` de marca pendiente (o ya está resuelta por otra vía). Backend: 409 |
+| `42501` | `sin_permiso` | `fn_excepcion_dia_cerrado_descartar` | Falta persona activa o el permiso `excepcion_dia_cerrado_descarte`. Backend: 403 |
+| `22023` | `motivo_invalido` | `fn_excepcion_dia_cerrado_descartar` | Motivo vacío. Backend: 422 |
 | `22023` | `lote_invalido` | `fn_marca_terminal_registrar` | El lote no es un arreglo, está vacío o excede 200 eventos |
 | `22023` | `huellas_invalidas` | `fn_terminal_movimiento_registrar` | Conteo de huellas fuera de 1-10 |
 | `22023` | `retencion_invalida` | `fn_marca_rechazada_purgar` | Retención menor al mínimo de 7 días |
@@ -1644,7 +1696,7 @@ El DDL define sus propios `SQLSTATE` para que el backend distinga el caso sin le
 4. **No se verificó contra una BD viva** (producción/dev): el estado es el que produce el DDL, no el de la base real. Los stubs de Supabase pueden diferir de la plataforma (privilegios por omisión de `anon`/`authenticated` en esquemas nuevos, `search_path`, extensiones). Los privilegios por tabla reportados son los del contenedor de prueba tras aplicar los scripts. No se leyó el código del backend: las notas de "consumo en backend" vienen de comentarios y documentos. Las expresiones `CHECK`/`USING` se muestran simplificadas (se quitaron casts).
 
 5. **V1.2 (6-oct-2026):** las secciones de `tiempo.terminal`, `tiempo.terminal_usuario` y `tiempo.bitacora_movimiento_terminal_usuario` se escribieron a partir de los scripts `80` y `81` y de sus `COMMENT ON`, y se contrastaron con la base real de Supabase (no con un contenedor desechable) mediante `db/verificar_ddl.sql` y un ensayo con `ROLLBACK` (61 casos, 61 aprobados); el resto del diccionario no se regeneró y conserva el método de V1.1. Los conteos globales (39 funciones, 74 policies, 23 dominios cerrados, 51 permisos) suman lo que aportan `80` y `81` a los de V1.1.
-6. **V1.3 (6-oct-2026):** las secciones de `tiempo.terminal_credencial` y `tiempo.marca_rechazada`, las 4 columnas nuevas de `tiempo.terminal` y las 11 funciones nuevas se escribieron a partir de los scripts `82` a `85` Y se contrastaron contra la base real de Supabase en solo lectura: columnas, tipos, nulos y predeterminados (`information_schema`), restricciones, índices y triggers (`pg_constraint`, `pg_indexes`, `pg_trigger`), privilegios de tabla y de columna (`has_table_privilege`, `has_column_privilege`), `EXECUTE`, `SECURITY DEFINER` y `proconfig` por función (`pg_proc`), y las 75 policies (`pg_policies`). Las descripciones de columnas y funciones son los `COMMENT ON` leídos de la base. **Hallazgo del contraste:** el catálogo real tiene 49 funciones en `personas` y `tiempo`, no 50: falta `tiempo.fn_excepcion_protege_dia_cerrado` y su trigger `trg_excepcion_protege_dia_cerrado` (definidos por `78_tiempo_excepcion_protege_dia_cerrado.sql`), así que ese script no se aplicó en esa base (`77_` y `79_` sí: la policy `dia_update_revision` admite `cerrado` y `service_role` ejecuta `fn_dia_calcular_armado_tramos`). El resto del diccionario no se regeneró y conserva el método de V1.1. Las 24 columnas con dominio cerrado suman la nueva de `marca_rechazada.codigo` a las 23 de V1.2.
+6. **V1.3 (6-oct-2026):** las secciones de `tiempo.terminal_credencial` y `tiempo.marca_rechazada`, las 4 columnas nuevas de `tiempo.terminal` y las 11 funciones nuevas se escribieron a partir de los scripts `82` a `85` Y se contrastaron contra la base real de Supabase en solo lectura: columnas, tipos, nulos y predeterminados (`information_schema`), restricciones, índices y triggers (`pg_constraint`, `pg_indexes`, `pg_trigger`), privilegios de tabla y de columna (`has_table_privilege`, `has_column_privilege`), `EXECUTE`, `SECURITY DEFINER` y `proconfig` por función (`pg_proc`), y las 75 policies (`pg_policies`). Las descripciones de columnas y funciones son los `COMMENT ON` leídos de la base. **Hallazgo del contraste y su cierre:** el 6-oct el catálogo real tenía 49 funciones, no 50: faltaba `78_tiempo_excepcion_protege_dia_cerrado.sql`, que el usuario aplicó el 7-oct sin ensayo; cubría sólo el `UPDATE` suelto de una excepción `dia_cerrado` y `security` identificó dos evasiones (cambiar primero el motivo y resolver después; sembrar un tramo falso por la vía de escritura de `tramo`). El cierre es `86_tiempo_excepcion_protege_dia_cerrado_v2.sql`: ensayado con `BEGIN … ROLLBACK` (100 casos, 100 aprobados), revisado por `security` y aplicado por el usuario el 7-oct-2026; tras aplicarlo, `db/verificar_ddl.sql` completo dio 0 filas en todas las secciones y el diagnóstico de solo lectura dio 0 `dia_cerrado` resueltas sin tramo ni descarte y 0 motivos alterados. **Residuales aceptados (B2 de `security`):** `dia_update_revision` (`62_`/`77_`) deja a quien tenga `dia_revision_edicion` pasar un día bloqueado/cerrado a `revisado` por PostgREST directo sin armar tramos; quien tenga además `excepcion_dia_cerrado_descarte` puede marcar el día revisado y descartar la marca tardía. Queda auditado (`revisado_por`/`revisado_en` y la fila de `excepcion_descarte`) y exige dos permisos explícitos; revisar cuando se endurezca `tiempo.dia`. Además, una marca con DOS excepciones pendientes (p. ej. `reloj_no_sincronizado` y `dia_cerrado`) no se puede corregir hasta revisar el día. Conteos finales: 34 tablas, 56 funciones, 76 policies, 52 permisos, 87 scripts. El resto del diccionario no se regeneró y conserva el método de V1.1. Las 24 columnas con dominio cerrado suman la nueva de `marca_rechazada.codigo` a las 23 de V1.2.
 
 ### Discrepancias entre el DDL y SCJ-MOD-03 (V1.5; hoy V1.8, ver nota de estado)
 

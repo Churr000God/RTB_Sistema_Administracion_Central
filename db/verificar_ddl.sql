@@ -11,7 +11,7 @@
 -- ============================================================================
 
 -- 1) Tablas por esquema.
--- Esperado: personas = 11, tiempo = 22 (20 + terminal_credencial de 82_ + marca_rechazada de 84_).
+-- Esperado: personas = 11, tiempo = 23 (20 + terminal_credencial de 82_ + marca_rechazada de 84_ + excepcion_descarte de 86_).
 SELECT table_schema, count(*)
 FROM information_schema.tables
 WHERE table_schema IN ('personas', 'tiempo') AND table_type = 'BASE TABLE'
@@ -606,3 +606,156 @@ UNION ALL
 SELECT 'más de una función con ese nombre'
 WHERE (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
        WHERE n.nspname = 'tiempo' AND p.proname = 'fn_terminal_baja_por_caducidad') > 1;
+
+-- ============================================================================
+-- FASE CIERRE DE DIA CERRADO (después de 86_*.sql, hallazgo de security 2026-10-07)
+-- ============================================================================
+
+-- 41) tiempo.excepcion_descarte (86_): RLS habilitada; authenticated y service_role sólo SELECT (ningún otro privilegio
+-- de tabla ni de columna); anon y terminal_checador nada; su secuencia identity sin privilegios; una sola policy de
+-- SELECT para authenticated.
+-- Esperado: 0 filas.
+SELECT 'sin RLS' AS problema, NULL::text AS detalle
+WHERE NOT EXISTS (SELECT 1 FROM pg_class c WHERE c.oid = 'tiempo.excepcion_descarte'::regclass AND c.relrowsecurity)
+UNION ALL
+SELECT 'privilegio de tabla de más', r.rol || ':' || p.priv
+FROM (VALUES ('anon'), ('authenticated'), ('service_role'), ('terminal_checador')) AS r(rol)
+CROSS JOIN (VALUES ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) AS p(priv)
+WHERE has_table_privilege(r.rol, 'tiempo.excepcion_descarte', p.priv)
+  AND NOT (p.priv = 'SELECT' AND r.rol IN ('authenticated', 'service_role'))
+UNION ALL
+SELECT 'privilegio de columna de más', r.rol || ':' || p.priv || ':' || a.attname
+FROM pg_attribute a
+CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role'), ('terminal_checador')) AS r(rol)
+CROSS JOIN (VALUES ('INSERT'), ('UPDATE'), ('REFERENCES')) AS p(priv)
+WHERE a.attrelid = 'tiempo.excepcion_descarte'::regclass AND a.attnum > 0 AND NOT a.attisdropped
+  AND has_column_privilege(r.rol, 'tiempo.excepcion_descarte', a.attname, p.priv)
+UNION ALL
+SELECT 'secuencia con privilegio', r.rol || ':' || p.priv
+FROM (VALUES ('anon'), ('authenticated'), ('service_role')) AS r(rol)
+CROSS JOIN (VALUES ('USAGE'), ('SELECT'), ('UPDATE')) AS p(priv)
+WHERE has_sequence_privilege(r.rol, 'tiempo.excepcion_descarte_id_seq', p.priv)
+UNION ALL
+SELECT 'policy distinta de la esperada', policyname || ':' || cmd || ':' || roles::text
+FROM pg_policies
+WHERE schemaname = 'tiempo' AND tablename = 'excepcion_descarte'
+  AND NOT (policyname = 'excepcion_descarte_select_lectura' AND cmd = 'SELECT' AND roles::text = '{authenticated}')
+UNION ALL
+SELECT 'falta la policy de SELECT', NULL
+WHERE NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'tiempo' AND tablename = 'excepcion_descarte'
+                  AND policyname = 'excepcion_descarte_select_lectura')
+UNION ALL
+-- La expresión debe ser exactamente la esperada (como §34): una policy degradada a USING (true) o "... OR true" no pasa.
+-- Misma normalización que §34 (se quitan casts de tipo y paréntesis).
+SELECT 'la expresión de la policy no es exactamente la esperada',
+       regexp_replace(regexp_replace(COALESCE(qual, ''), '::(character varying|varchar|text|name|uuid|bigint|integer|boolean)', '', 'g'), '[()]', '', 'g')
+FROM pg_policies
+WHERE schemaname = 'tiempo' AND tablename = 'excepcion_descarte' AND policyname = 'excepcion_descarte_select_lectura'
+  AND regexp_replace(regexp_replace(COALESCE(qual, ''), '::(character varying|varchar|text|name|uuid|bigint|integer|boolean)', '', 'g'), '[()]', '', 'g')
+      IS DISTINCT FROM 'personas.fn_caller_activo AND personas.fn_caller_tiene_permiso''excepcion_lectura'' OR personas.fn_caller_tiene_permiso''excepcion_edicion'''
+UNION ALL
+SELECT 'la policy tiene with_check', with_check
+FROM pg_policies
+WHERE schemaname = 'tiempo' AND tablename = 'excepcion_descarte' AND policyname = 'excepcion_descarte_select_lectura'
+  AND with_check IS NOT NULL;
+
+-- 42) Funciones de 86_: (a) fn_excepcion_dia_cerrado_descartar es SECURITY DEFINER con search_path exacto y
+-- EXECUTE sólo para authenticated (no PUBLIC, no anon, no service_role, no terminal_checador); (b) las 6 funciones
+-- internas/de trigger no son ejecutables por nadie de la API ni por PUBLIC; (c) fn_excepcion_protege_dia_cerrado y
+-- fn_tramo_valida_coherencia son SECURITY DEFINER con search_path exacto 'tiempo, pg_temp'; las demás internas tienen
+-- search_path fijo (INVOKER); (d) el dueño de todas es el de tiempo.marca.
+-- Esperado: 0 filas.
+WITH f(proname, rol_esperado, definer, search_path) AS (VALUES
+  ('fn_excepcion_dia_cerrado_descartar', 'authenticated', true,  'search_path=tiempo, personas, pg_temp'),
+  ('fn_marca_fecha_local',               NULL,            false, 'search_path=tiempo, pg_temp'),
+  ('fn_excepcion_protege_columnas',      NULL,            false, 'search_path=tiempo, pg_temp'),
+  ('fn_excepcion_protege_dia_cerrado',   NULL,            true,  'search_path=tiempo, pg_temp'),
+  ('fn_tramo_valida_coherencia',         NULL,            true,  'search_path=tiempo, pg_temp'),
+  ('fn_excepcion_descarte_inmutable',    NULL,            false, 'search_path=tiempo, pg_temp'),
+  ('fn_excepcion_descarte_truncate',     NULL,            false, 'search_path=tiempo, pg_temp'))
+SELECT f.proname, 'falta la función' AS problema
+FROM f WHERE NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                         WHERE n.nspname = 'tiempo' AND p.proname = f.proname)
+UNION ALL
+SELECT f.proname, 'SECURITY DEFINER distinto de lo esperado'
+FROM f JOIN pg_proc p ON p.proname = f.proname JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'tiempo'
+WHERE p.prosecdef IS DISTINCT FROM f.definer
+UNION ALL
+SELECT f.proname, 'search_path distinto de ' || f.search_path
+FROM f JOIN pg_proc p ON p.proname = f.proname JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'tiempo'
+WHERE p.proconfig IS DISTINCT FROM ARRAY[f.search_path]
+UNION ALL
+SELECT f.proname, 'EXECUTE a PUBLIC'
+FROM f JOIN pg_proc p ON p.proname = f.proname JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'tiempo'
+WHERE EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a
+              WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')
+UNION ALL
+SELECT f.proname, 'EXECUTE inesperado para ' || r.rol
+FROM f JOIN pg_proc p ON p.proname = f.proname JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'tiempo'
+CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role'), ('terminal_checador')) AS r(rol)
+WHERE has_function_privilege(r.rol, p.oid, 'EXECUTE') AND r.rol IS DISTINCT FROM f.rol_esperado
+UNION ALL
+SELECT f.proname, 'falta EXECUTE para ' || f.rol_esperado
+FROM f JOIN pg_proc p ON p.proname = f.proname JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'tiempo'
+WHERE f.rol_esperado IS NOT NULL AND NOT has_function_privilege(f.rol_esperado, p.oid, 'EXECUTE')
+UNION ALL
+SELECT f.proname, 'dueño distinto del de tiempo.marca'
+FROM f JOIN pg_proc p ON p.proname = f.proname JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'tiempo'
+WHERE p.proowner <> (SELECT relowner FROM pg_class WHERE oid = 'tiempo.marca'::regclass)
+UNION ALL
+-- Condiciones críticas en el cuerpo (como el 'FOR SHARE' de §37): una versión que conserve la estructura pero pierda la
+-- condición no pasaría. Cada fila es (función, fragmento que debe aparecer en prosrc).
+SELECT c.proname, 'el cuerpo no contiene: ' || c.fragmento
+FROM (VALUES
+  ('fn_excepcion_protege_dia_cerrado', 'd.revisado_en = now()'),
+  ('fn_excepcion_protege_dia_cerrado', 'x.creado_en = now()'),
+  ('fn_excepcion_protege_dia_cerrado', 'fn_marca_fecha_local'),
+  ('fn_excepcion_protege_columnas',    'starts_with'),
+  ('fn_tramo_valida_coherencia',       'fn_marca_fecha_local'),
+  ('fn_excepcion_dia_cerrado_descartar', 'fn_caller_tiene_permiso'),
+  ('fn_excepcion_dia_cerrado_descartar', 'excepcion_dia_cerrado_descarte'),
+  ('fn_excepcion_dia_cerrado_descartar', 'auth.uid()')
+) AS c(proname, fragmento)
+WHERE NOT EXISTS (
+  SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'tiempo' AND p.proname = c.proname AND strpos(p.prosrc, c.fragmento) > 0);
+
+-- 43) Triggers de 86_: trg_excepcion_protege_columnas (BEFORE UPDATE por fila, tgtype 19), el constraint trigger
+-- recreado (AFTER UPDATE, DEFERRABLE INITIALLY DEFERRED, tgtype 17, con WHEN sobre el PREFIJO dia\_cerrado: la
+-- igualdad exacta de 78_ ya no debe aparecer), trg_tramo_valida_coherencia (BEFORE INSERT OR UPDATE por fila,
+-- tgtype 23) y los dos de inmutabilidad de excepcion_descarte (27 y 34). Todos habilitados (tgenabled = 'O').
+-- Esperado: 0 filas.
+SELECT e.tgname AS trigger_esperado, t.tgenabled, t.tgtype, e.tipo_esperado
+FROM (VALUES ('tiempo.excepcion', 'trg_excepcion_protege_columnas', 19),
+             ('tiempo.excepcion', 'trg_excepcion_protege_dia_cerrado', 17),
+             ('tiempo.tramo', 'trg_tramo_valida_coherencia', 23),
+             ('tiempo.excepcion_descarte', 'trg_excepcion_descarte_inmutable', 27),
+             ('tiempo.excepcion_descarte', 'trg_excepcion_descarte_truncate', 34)) AS e(tabla, tgname, tipo_esperado)
+LEFT JOIN pg_trigger t ON t.tgname = e.tgname AND t.tgrelid = e.tabla::regclass AND NOT t.tgisinternal
+WHERE t.oid IS NULL OR t.tgenabled <> 'O' OR t.tgtype <> e.tipo_esperado
+UNION ALL
+SELECT t.tgname, t.tgenabled, t.tgtype, NULL
+FROM pg_trigger t
+WHERE t.tgname = 'trg_excepcion_protege_dia_cerrado' AND t.tgrelid = 'tiempo.excepcion'::regclass
+  AND NOT (t.tgconstraint <> 0 AND t.tgdeferrable AND t.tginitdeferred
+           AND strpos(pg_get_triggerdef(t.oid), 'dia\_cerrado%') > 0
+           AND strpos(pg_get_triggerdef(t.oid), '= ''dia_cerrado''') = 0);
+
+-- 44) Permiso de acción excepcion_dia_cerrado_descarte (86_): existe, NO heredable, y activo para los 3 puestos
+-- acordados (el administrador genérico incluido, explícito).
+-- Esperado: 0 filas.
+SELECT 'permiso inexistente o heredable' AS problema, NULL::text AS detalle
+WHERE NOT EXISTS (SELECT 1 FROM personas.permiso WHERE codigo = 'excepcion_dia_cerrado_descarte' AND heredable = false)
+UNION ALL
+SELECT 'puesto sin el permiso activo', pu.nombre_puesto
+FROM (VALUES ('Responsable de Recursos Humanos'), ('Gerente General'), ('Gerente o Encargado de TI')) AS pu(nombre_puesto)
+WHERE NOT EXISTS (
+  SELECT 1 FROM personas.puesto p
+  JOIN personas.puesto_permiso pp ON pp.puesto_id = p.id AND pp.codigo = 'excepcion_dia_cerrado_descarte' AND pp.activo
+  WHERE p.nombre_puesto = pu.nombre_puesto)
+UNION ALL
+SELECT 'el puesto administrador genérico no lo tiene', p.nombre_puesto
+FROM personas.puesto p
+WHERE p.es_administrador_generico
+  AND NOT EXISTS (SELECT 1 FROM personas.puesto_permiso pp
+                  WHERE pp.puesto_id = p.id AND pp.codigo = 'excepcion_dia_cerrado_descarte' AND pp.activo);

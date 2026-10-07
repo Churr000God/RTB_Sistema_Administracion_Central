@@ -405,10 +405,40 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   `terminal_usuario_lectura` (heredable) y `terminal_usuario_edicion` (**no** heredable, biometría),
   `ERRCODE SCJ11`/`SCJ12` con `HINT` estable. Ensayo previo con `ROLLBACK` 61/61, revisado por
   `security` (sin críticos). La alta de la terminal real es un `INSERT` puntual fuera del repo.
-  **Pendiente:** diseño del backend (autenticación del Pi, endpoints web y de terminal, ruta de
-  marcas), del puente (polling+push, reloj/NTP) y pantalla de enrolamiento; baja de persona debe
-  emitir `baja_solicitada`. Ver `SCJ-DEC-11` y
+  **Seguimiento (6-7 de octubre de 2026):** `SCJ-DEC-12` aceptada (llave opaca `scjt_` por
+  terminal con hash SHA-256 en `tiempo.terminal_credencial`; marcas por RPC `SECURITY DEFINER` con
+  `service_role` — el backend no guarda el secreto JWT de Supabase; el Pi manda `employee_no` y el
+  servidor resuelve `persona_id`; contrato `SCJ-CDT-01` V3.0). Decisión del usuario: la huella se
+  enrola en el menú del propio aparato, **ninguna plantilla sale de la terminal** (el Pi nunca
+  llama `CaptureFingerPrint`), TI custodia la contraseña admin. `db/ddl/82_*` a `85_*`
+  (credencial, RPC, `marca_rechazada`, caducidad de altas) aplicados, cada uno con ensayo
+  `BEGIN…ROLLBACK` contra Supabase (230/230 y 31/31) y revisión de `security`. Corte 1 del
+  backend (autenticación de terminal + latido, `backend/app/terminal_auth.py`) commiteado, 601
+  pruebas. **Pendiente:** cortes 2+ de `SCJ-DEC-12` §8.3 (ruta de marcas, movimientos, mapa,
+  hook de baja por persona inactiva, job de caducidad), puente del Pi, pantallas de
+  enrolamiento (`SCJ-PRO-15`), TLS del despliegue (`devops`: HTTPS Certificates de Tailscale, `sudo`
+  en el Pi de pruebas), escrituras de configuración en la terminal (zona horaria `CST+6:00:00`,
+  NTP, IP fija, red punto a punto, borrar usuario de prueba) y alta de la primera llave por TI.
+  Ver `SCJ-DEC-11`/`SCJ-DEC-12`, `SCJ-PRO-15` y
   `bitacora/2026-10-05_checador_hikvision_auditoria_y_modelo.md`.
+- **`78_*.sql` nunca se había aplicado y su fix era evadible; cerrado con `86_*.sql` (7 de octubre
+  de 2026):** al documentar el DDL, `db` contrastó los scripts con la base real y encontró 49
+  funciones contra 50 definidas: `78_*` (constraint trigger que impide resolver a mano una
+  excepción `dia_cerrado`) no estaba aplicado. El usuario lo aplicó sin ensayo; `security` lo
+  revisó después y encontró dos evasiones reales — cambiar primero `motivo_revision` (el `WHEN`
+  comparaba igualdad exacta) y sembrar un tramo falso por la policy de escritura de
+  `tiempo.tramo`. Diagnóstico de solo lectura de los datos reales: 0 resoluciones directas, 10
+  tramos coherentes. `86_*` cierra ambas: trigger de columnas inmutables en `tiempo.excepcion`,
+  constraint trigger por prefijo que exige revisión del día **en la misma transacción**
+  (`revisado_en = now()`) o un descarte registrado, trigger de coherencia en `tiempo.tramo`,
+  permiso de acción `excepcion_dia_cerrado_descarte` (no heredable) y RPC de descarte con
+  auditoría inmutable (`tiempo.excepcion_descarte`). Ensayo 100/100. `ERRCODE SCJ15`. La
+  corrección sobre una marca con excepción `dia_cerrado` pendiente ahora falla a propósito:
+  **backend debe mapear `SCJ15` y frontend debe ocultar el botón "Corregir" en esas marcas**
+  (pendiente). **Lección:** un fix de seguridad que nadie ensayó contra la base real da una
+  falsa sensación de cierre — y un `WHEN` con igualdad exacta sobre una columna que el mismo
+  actor puede editar es evadible; las migraciones versionadas deben contrastarse contra la base
+  real después de cada tanda (`verificar_ddl.sql`).
 
 ## Arquitectura y módulos
 
@@ -453,7 +483,7 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   `http://localhost:5173` fijo a mano — esa configuración no vive en este repositorio. Al pasar a
   producción (`docker compose … prod`, frontend en `:8080`) hay que actualizarla ahí también, o
   los links de invitación/recuperación de contraseña no aterrizan en la app.
-- El DDL corre hasta `db/ddl/85_*.sql` (86 archivos, `00` a `85`). `personas.permiso`
+- El DDL corre hasta `db/ddl/86_*.sql` (87 archivos, `00` a `86`). `personas.permiso`
   es la única tabla del proyecto con clave natural (`codigo varchar PRIMARY KEY`) en vez de `uuid`
   — decisión deliberada, fiel a la redacción literal de `SCJ-PRO-05`, no un descuido a corregir.
 - Las tablas de bitácora inmutables (`bitacora_movimiento_persona`,
