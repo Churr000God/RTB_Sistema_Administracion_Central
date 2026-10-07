@@ -2,7 +2,19 @@
 
 **Estado:** Aceptada
 **Fecha de la decisión:** 2026-10-06
-**Última revisión:** 2026-10-06 (de "Propuesta" a "Aceptada" el mismo día: incorpora la revisión de security, las decisiones del usuario y la verificación de `db` contra el DDL real; ver §10 y §11)
+**Última revisión:** 2026-10-06 (V2.0: enrolamiento de huella en el menú del aparato y biometría que el Pi no puede tocar; ver §12. Antes: de "Propuesta" a "Aceptada" el mismo día, con la revisión de security, las decisiones del usuario y la verificación de `db`; ver §10 y §11)
+
+> **Cambio de versión (V1.0 → V2.0, mayor):** el usuario decidió (2026-10-06) que **la persona se
+> enrola en el menú de la propia terminal** y que **ninguna plantilla biométrica sale del aparato**,
+> ni hacia el Pi ni hacia el servidor (`SCJ-DEC-11 V1.1`). Se contradice **una cosa ya escrita**:
+> §8.1 punto 9 decía que la contraseña de administrador ISAPI de la terminal vive en el `.env` del
+> Pi; ahora **TI custodia** esa contraseña y la credencial que usa el Pi es **distinta**, de mínimo
+> privilegio si el firmware lo permite (§12.4). Se añaden, sin contradecir lo anterior: el contrato
+> del Pi que **prohíbe** `CaptureFingerPrint` y todo endpoint que devuelva `fingerData`, la lectura
+> **sólo del conteo** de huellas, la reconciliación obligatoria también para usuarios creados en el
+> menú, el polling acotado mientras el alta está en `esperando_huella`, la **caducidad** de altas en
+> `esperando_huella` (24 h) y las verificaciones de CI. **§1–§11 se conservan**; los puntos
+> afectados de §8 se actualizan.
 
 ---
 
@@ -472,7 +484,8 @@ trigger. Debe quedar anotado como excepción en el encabezado del `84_*.sql` y e
 
 ### Relación con APScheduler
 
-Un solo job nuevo: la reconciliación de bajas (§5). El **cálculo de contacto y del tablero no tiene
+Jobs nuevos: la reconciliación de bajas (§5) y *(V2.0)* la caducidad de altas en `esperando_huella`
+(§12.7), ambos idempotentes. El **cálculo de contacto y del tablero no tiene
 job**: se calcula al leer. No hay canal de alerta saliente en el proyecto (`SCJ-CDT-01 §IX.5`:
 "tablero, no correo inmediato"). Un job de empuje de alertas se difiere.
 
@@ -568,22 +581,30 @@ no se puede apagar mientras haya altas vigentes, así que nunca queda una alta a
    tener cualquier llave de Supabase y deja de conocer `persona_id`.**
 5. **Procesador de la cola:** `pendiente_alta` → crear usuario en la terminal por ISAPI con
    `employeeNo` (nombre = rótulo derivado de `employee_no`, Q6) → `usuario_creado`;
-   `esperando_huella` → al detectar huellas → `huella_capturada` con el conteo; `pendiente_baja` →
+   `esperando_huella` → **la persona se enrola en el menú de la terminal** (el Pi **no** dispara
+   la captura); el Pi sólo **lee el conteo** de huellas del usuario, con el polling de §12.5, y al
+   haber ≥1 reporta `huella_capturada` con el conteo (§12.1–§12.2); `pendiente_baja` →
    borrar el usuario (**si ya no existe, es éxito**) → `baja_confirmada`. Falla → `error` con
    `codigo` corto y `detalle` **sin cuerpos ISAPI ni cabeceras**. `200 ya_aplicado` = éxito. Ante
    `409` (`transicion_invalida`) el Pi **relee la cola** y no reintenta a ciegas.
-6. **Reconciliación (M8):** periódicamente comparar los usuarios que existen en la terminal con
-   `GET /mapa`; **borrar los huérfanos** (en la terminal pero no en el mapa o ya en `baja`) y
-   reportar `error` con `codigo=usuario_no_mapeado` (+ `employee_no`, sin más). Detecta tanto
-   residuos como usuarios creados a mano en el aparato.
+6. **Reconciliación (M8), obligatoria:** periódicamente comparar los usuarios que existen en la
+   terminal con `GET /mapa`; **borrar los huérfanos** (en la terminal pero no en el mapa o ya en
+   `baja`) y reportar `error` con `codigo=usuario_no_mapeado` (+ `employee_no`, sin más). Cubre
+   residuos **y las altas hechas localmente en el menú del aparato** (§12.3).
 7. **Latido cada 60 s** con `terminal_alcanzable`, `reloj_sincronizado`, `version_pi`, `hora_terminal`
    y `marcas_pendientes` (la cuenta de la cola local, para el procedimiento de §6).
 8. **`401`:** dejar de reintentar agresivamente, registrar local, seguir con latido lento (la cola se
    conserva). **HTTPS** hacia el backend (§7).
-9. **Activo más delicado del Pi (M8):** la **contraseña de administrador ISAPI** de la terminal
-   (permite crear usuarios y huellas directamente). Debe vivir sólo en el `.env` (`600`), con una
-   contraseña única por terminal, nunca en logs ni en el repositorio, y el reset físico de §6 la
-   renueva.
+9. **Credenciales del aparato *(reescrito en V2.0; V1.0 decía que la contraseña de administrador
+   vivía en el `.env` del Pi)*:** la **contraseña de administrador de la terminal la custodia TI** y
+   **no está en el Pi** (§12.4, `SCJ-DEC-11 V1.1`, `SCJ-PRO-15 §IV.5`). La credencial que usa el Pi
+   contra el aparato es **otra**, de mínimo privilegio si el firmware lo permite; vive **sólo en su
+   `.env`** (`600`), única por terminal, nunca en logs, en el repositorio ni en el respaldo, y el
+   reset físico de §6 la renueva.
+10. **Contrato biométrico del Pi *(V2.0, §12.1)*:** **prohibido** llamar `CaptureFingerPrint` o
+    cualquier endpoint que devuelva `fingerData`; sólo se lee el **conteo** de huellas.
+11. **Parser *(V2.0, §12.2)*:** si la única consulta disponible trae `fingerData`, el Pi **descarta
+    el cuerpo sin materializarlo** (no lo guarda, no lo registra, no lo copia a la cola ni a la caché).
 
 ### 8.2 Plan de pruebas
 
@@ -628,6 +649,14 @@ no se puede apagar mientras haya altas vigentes, así que nunca queda una alta a
   `search_path` fijo y `EXECUTE` sólo de `service_role`.
 - **Humo en el entorno real:** el de `no_enrolado` (§2). Sin pruebas de escritura contra la base
   real fuera de un `ROLLBACK` explícito, sin `Prefer: tx=rollback`.
+- *(V2.0)* **Verificaciones biométricas (§12.6):** búsqueda de texto en CI que **falle** si aparece
+  `fingerData`, `CaptureFingerPrint` o `FingerPrintCfg` en el repositorio del Pi o en el backend
+  (lista blanca: los documentos que lo prohíben); **lista de servicios habilitados de la terminal,
+  revisada y firmada por TI**; y, si existe un usuario de dispositivo limitado, **prueba de que no
+  puede llamar `CaptureFingerPrint`** ni leer plantillas.
+- *(V2.0)* **Caducidad (§12.7):** pruebas del job (idempotencia; sólo altas en `esperando_huella`
+  con más de 24 h desde `usuario_creado`; autor derivado del movimiento `asignado`; no emite si
+  ya hay `huella_capturada`) y ensayo SQL de la función nueva.
 
 ### 8.3 Orden de implementación (¿partir `82_` y `83_`? **Sí**)
 
@@ -836,6 +865,119 @@ no se modifican. El proceso de enrolamiento completo es `SCJ-PRO-15`.
 
 ---
 
+## 12. Biometría en el aparato y custodia de credenciales (V2.0, decisión del usuario 2026-10-06)
+
+**Decisión (opción B):** la persona se enrola en el **menú de la propia terminal**; el Pi **sólo crea
+el usuario** con su `employeeNo` y **verifica por conteo** de huellas. **Ninguna plantilla biométrica
+sale del aparato**, ni hacia el Pi ni hacia el servidor. La terminal expone por ISAPI
+`CaptureFingerPrint` (síncrono, **devuelve `fingerData`**) y `FingerPrintCfg`; **el Pi no debe
+llamarlos**. `security` recomendó B. Principio de fondo en `SCJ-DEC-11 V1.1`.
+
+### 12.1 Contrato del Pi: lo que no puede hacer
+
+- **Prohibido** llamar a `CaptureFingerPrint` y a **cualquier** endpoint ISAPI que devuelva
+  `fingerData` o plantillas (incluidas las consultas de `FingerPrintCfg` que las traigan).
+- **Permitido** en el aparato: crear usuario, borrar usuario, listar usuarios **con su conteo de
+  huellas**, leer eventos de acceso (`AcsEvent`) y la hora. Es la lista cerrada de operaciones ISAPI
+  del Pi; todo lo demás está prohibido por contrato.
+- El Pi y el backend sólo manejan **`employeeNo`, estado y conteo de huellas**. Ninguna tabla,
+  columna, log, cola, caché ni respaldo guarda `fingerData` ni plantillas.
+
+### 12.2 Cómo se lee el conteo sin tocar plantillas
+
+El Pi lee **sólo el conteo** de huellas del usuario (el campo de conteo del registro de usuario del
+aparato, p. ej. `numOfFP`; **a confirmar contra el firmware** real, tarea de la sesión del Pi). **Si
+la única consulta disponible trae `fingerData`, el Pi descarta el cuerpo sin materializar ese
+campo**: el parser extrae el conteo y **no conserva, no registra ni copia** el resto de la respuesta
+(ni en logs, ni en la cola de reportes, ni en `detalle` de un `error`, ni en la caché). Un
+`error` jamás lleva el cuerpo de una respuesta ISAPI (`§3`, saneo de `detalle`).
+
+### 12.3 Reconciliación obligatoria, también para altas hechas en el menú
+
+Como el enrolamiento ocurre en el menú del aparato, existe la posibilidad real de **usuarios creados
+localmente** (por error o con mala intención) que el servidor no conoce. El **bucle de
+reconciliación (M8) es obligatorio**: periódicamente el Pi compara los usuarios del aparato con
+`GET /api/terminal/mapa`, **borra los huérfanos** (en el aparato pero no en el mapa, o con alta ya en
+`baja`) y reporta `error` con `codigo=usuario_no_mapeado` (+ `employee_no`, sin más). No depende de
+que el servidor haya pedido nada: es una defensa del propio puente.
+
+### 12.4 Credenciales del aparato: custodia y mínimo privilegio
+
+- **Contraseña de administrador de la terminal:** la guarda **TI**, que hace el enrolamiento frente a
+  la persona **con RH presente**; **RH no la conoce**. Procedimiento en `SCJ-PRO-15 §IV.5`.
+- **Credencial que usa el Pi:** **distinta** de la anterior y **sólo en el `.env` del Pi** (`600`).
+- **Mínimo privilegio (por verificar en el firmware):** idealmente un **usuario de dispositivo no
+  administrador** con gestión de usuarios (crear, borrar, leer conteo) **pero sin captura ni lectura
+  de plantillas**. La sesión del Pi está verificando si el firmware lo permite.
+- **Si el firmware no lo permite — aceptación explícita del residual:** la credencial del Pi
+  equivale a administrador del aparato. Un Pi comprometido podría **leer `fingerData`** y crear
+  usuarios. Se acepta **sólo** con las compensaciones: tramo Pi ↔ terminal **punto a punto**, sin
+  acceso desde LAN/Internet y con los servicios no usados apagados (`SCJ-DEC-11 V1.1` riesgo 7,
+  `SCJ-PRO-15 §IV.6`); credencial única por terminal, rotable y distinta de la que custodia TI; **la
+  reconciliación y el contrato de §12.1 como controles de proceso, no de privilegio**; y reset
+  físico del equipo al desactivarlo (§6). Debe quedar firmada por el usuario como riesgo aceptado.
+- **Tramo Pi ↔ terminal:** HTTP + Digest, sin TLS (limitación del aparato); su aceptación está
+  condicionada al aislamiento anterior (`SCJ-DEC-11 V1.1`). **Esto no cambia** el requisito de HTTPS
+  entre el Pi y el backend (§7).
+
+### 12.5 Polling del conteo de huellas
+
+- El Pi consulta el conteo **cada 5–10 s, sólo mientras el alta esté en `esperando_huella`**; para
+  cualquier otro estado no consulta.
+- **La ventana está abierta, sin el timeout de ~20 s de `CaptureFingerPrint`:** en el menú del
+  aparato la persona tarda lo que necesite (y puede capturar varias huellas); no hay una captura
+  remota que expire. El techo lo pone la **caducidad** de §12.7, no un timeout del Pi.
+- En cuanto el conteo es ≥1, reporta `huella_capturada` con el conteo (el servidor es idempotente: un
+  reporte repetido responde `ya_aplicado`). Después, con el alta en `activo`, **no** vuelve a
+  consultar el conteo de forma continua (si alguien agrega más huellas, el conteo se refresca en la
+  siguiente reconciliación o consulta puntual).
+
+### 12.6 Verificaciones (plan de pruebas §8.2)
+
+1. **CI:** una búsqueda de texto que falle si aparece `fingerData`, `CaptureFingerPrint` o
+   `FingerPrintCfg` en el repositorio del Pi o en el backend (lista blanca: documentos que lo
+   prohíben, como éste).
+2. **Lista de servicios habilitados de la terminal**, revisada y **firmada por TI**, adjunta al
+   alta de la terminal (`SCJ-PRO-15 §IV.6`).
+3. **Usuario limitado (si existe):** prueba manual de que **no puede** llamar `CaptureFingerPrint` ni
+   leer plantillas; si puede, no es un control y se trata como el residual de §12.4.
+4. Ninguna columna `bytea` ni de plantilla en `tiempo`/`personas` (`db/verificar_ddl.sql`).
+
+### 12.7 Caducidad de altas en `esperando_huella`
+
+Un alta que se queda en `esperando_huella` (el usuario existe en el aparato, nadie ha enrolado su
+huella) es un usuario **sin huella pero creado** y consume un `employee_no`. Para que no quede
+abierta indefinidamente:
+
+- **Plazo propuesto: N = 24 h** desde el movimiento `usuario_creado` (valor inicial, **ajustable**;
+  se mide con el movimiento de la bitácora, **no** con `terminal_usuario.actualizado_en`, que también
+  se mueve con un `error`).
+- **Qué ocurre:** el servidor emite `baja_solicitada` de esa alta → el Pi la ve como
+  `pendiente_baja` → borra el usuario → `baja_confirmada`. Para volver a enrolar a la persona, RH la
+  asigna de nuevo (otro `employee_no`).
+- **Quién la emite: un job del scheduler**, idempotente, con el **mismo patrón que la baja por
+  persona inactiva** (§5): una función `SECURITY DEFINER` con `EXECUTE` sólo para `service_role`,
+  sin usuario "sistema" ni `origen='sistema'` (Q4). **Autor derivado:** el `registrado_por` del
+  movimiento **`asignado`** de esa alta (quien asignó a la persona), porque no hay un movimiento de
+  persona de donde sacarlo; si no se puede derivar, no emite y deja `ERROR` en el log. Se ignoran
+  `SCJ11`/`SCJ12` (carrera o ya hecho). El `detalle` es `baja automática: sin huella tras N horas`.
+- **No toca** altas en `pendiente_alta` (esas dependen de que el Pi esté vivo y las cubre la anomalía
+  "altas atascadas" de §6) **ni** altas en `activo`.
+- **Requiere DDL nuevo:** una función (p. ej. `tiempo.fn_terminal_baja_por_caducidad(p_horas)`) que
+  `db` agregue en `83_*.sql` si aún no se aplicó, o en un archivo posterior. Este documento no la
+  escribe.
+
+### 12.8 Preguntas abiertas de V2.0
+
+| # | Pregunta | Recomendación |
+|---|---|---|
+| Q15 | ¿El firmware admite un **usuario de dispositivo no administrador** con gestión de usuarios y sin captura/lectura de plantillas? | La sesión del Pi lo verifica. Si sí, es el control; si no, se firma el residual de §12.4 |
+| Q16 | ¿**N = 24 h** de caducidad? | Sí, como valor inicial ajustable |
+| Q17 | La función de caducidad es **DDL nuevo** (§12.7): ¿entra en `83_*.sql` aún sin aplicar o en un archivo posterior? | La decide `db` según si `83_*.sql` ya se aplicó |
+| Q18 | El conteo exacto de huellas, ¿se lee con una consulta que **no** devuelva `fingerData`? | A confirmar contra el firmware; si no existe, descartar el cuerpo en el parser (§12.2) |
+
+---
+
 ## Decisión
 
 - **Credencial:** API key opaca por terminal (`scjt_…`), hash SHA-256 en `tiempo.terminal_credencial`,
@@ -848,7 +990,12 @@ no se modifican. El proceso de enrolamiento completo es `SCJ-PRO-15`.
   `get_caller_client` + `requiere_permiso` + RLS, con mapeo de errores fijo y regla de
   auto-asignación.
 - **Baja de persona:** hook sincrónico + job idempotente, un solo RPC, autor derivado.
-- **Monitoreo:** calculado al leer, con tablero de anomalías; un solo job nuevo (reconciliación).
+- **Monitoreo:** calculado al leer, con tablero de anomalías; jobs nuevos sólo de reconciliación de
+  bajas (persona inactiva, §5) y de caducidad de altas en `esperando_huella` (§12.7).
+- **Biometría (V2.0):** la persona se enrola en el menú del aparato; el Pi sólo crea el usuario y
+  lee el **conteo** de huellas; **ninguna plantilla sale del aparato**; `CaptureFingerPrint` y todo
+  lo que devuelva `fingerData` está prohibido al Pi; TI custodia la contraseña de administrador y el
+  Pi usa una credencial distinta (§12).
 
 ## Por qué
 

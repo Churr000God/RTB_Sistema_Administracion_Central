@@ -2,7 +2,15 @@
 
 **Estado:** Aceptada
 **Fecha de la decisión:** 2026-10-05
-**Última revisión:** —
+**Última revisión:** 2026-10-06 (V1.1)
+
+> **Cambio de versión (V1.0 → V1.1, menor):** se **refuerza y se precisa**, sin contradecir lo
+> escrito, el principio de la captura biométrica: la huella se enrola **en el menú de la propia
+> terminal** (decisión del usuario, 2026-10-06, opción B) y **ninguna plantilla biométrica sale del
+> aparato**, ni hacia el Pi ni hacia el servidor. Se registran además la **custodia de la
+> contraseña de administrador del aparato** (TI) y el **riesgo residual** del tramo Pi ↔ terminal
+> (HTTP + Digest, sin TLS), con la condición que lo hace aceptable. Ver el punto 3 de la Decisión,
+> los puntos 6 y 7 de "Riesgos aceptados" y "Cómo se verifica".
 
 ---
 
@@ -77,9 +85,14 @@ dos permisos son heredables por jerarquía y éste no debe serlo (ver más abajo
 2. **El `employeeNo` sale de una secuencia global** (`tiempo.seq_terminal_employee_no`), sin ciclo
    y sin reutilización: un `employeeNo` dado de baja nunca vuelve a asignarse, así ningún evento
    histórico del aparato apunta a otra persona.
-3. **La captura de huella es siempre presencial**, frente a la terminal. Ningún flujo remoto
-   registra huellas, y las huellas nunca se almacenan en este repositorio ni en la base: sólo el
-   conteo (`huellas_capturadas`, 0–10).
+3. **Ninguna plantilla biométrica sale del aparato, ni hacia el Pi ni hacia el servidor. La
+   captura se hace en el aparato con intervención de la persona** *(V1.1: la persona se enrola en el
+   **menú de la propia terminal**, frente a TI con RH presente, `SCJ-PRO-15`)*. **El Pi y el
+   backend sólo manejan `employeeNo`, estado y conteo de huellas.** Ningún flujo remoto registra
+   huellas, y **ninguna tabla, columna, log, cola, caché ni respaldo** de este repositorio, de la
+   base, del Pi o del backend guarda `fingerData` ni plantillas: sólo el conteo
+   (`huellas_capturadas`, 0–10). Es verificable por búsqueda de texto en el repositorio y por CI
+   (ver "Cómo se verifica").
 4. **El Pi accede al servidor por endpoints del backend, con una credencial propia de terminal**
    —no con el secreto JWT de Supabase—, y **las marcas también suben por el backend**. El Pi no
    toca la base de datos directamente. (Esto reemplaza el mecanismo de `SCJ-PRO-11 §III` original,
@@ -176,6 +189,21 @@ proyecto.
    ISAPI ni encabezados HTTP (pueden traer credenciales, series o datos de otros usuarios).
 5. **Residual del dueño.** `TRUNCATE`, `DROP TABLE`, `DROP TRIGGER` y `DISABLE TRIGGER` por un
    superusuario siguen siendo posibles (ver arriba).
+6. **Custodia de la contraseña de administrador del aparato *(V1.1, decisión del usuario,
+   2026-10-06)*.** **TI** la guarda y es quien hace el enrolamiento frente a la persona, **con RH
+   presente**; **RH no la conoce**. Es distinta de la credencial que usa el Pi
+   (`SCJ-DEC-12 §1`), que vive **sólo en el `.env` del Pi**. Quien tiene la contraseña de
+   administrador puede crear usuarios, **leer y escribir huellas** directamente en el aparato
+   (incluida la lectura de `fingerData` por ISAPI): por eso la custodia es de TI y el
+   procedimiento (cambio de la contraseña por defecto, bloqueo por intentos fallidos, no
+   reutilizarla en el Pi) está en `SCJ-PRO-15 §IV.5`.
+7. **Riesgo residual del tramo Pi ↔ terminal: HTTP + Digest, sin TLS *(V1.1)*.** La terminal habla
+   ISAPI por HTTP con autenticación Digest; quien tenga acceso a ese tramo puede observar el tráfico
+   y atacar la contraseña por fuerza bruta. **Se acepta con una condición:** el tramo debe estar
+   **aislado física o lógicamente — punto a punto entre el Pi y la terminal, sin acceso desde la LAN
+   ni desde Internet, con los servicios de la terminal que no se usan apagados**
+   (`SCJ-PRO-15 §IV.6`). Sin ese aislamiento, el riesgo **no** está aceptado. Es independiente de
+   `SCJ-DEC-12 §7` (HTTPS obligatorio entre el Pi y el backend).
 
 ---
 
@@ -191,6 +219,15 @@ proyecto.
   (cadena completa de movimientos, transiciones inválidas, persona/terminal no válidas,
   inmutabilidad como `service_role` y como dueño, RLS de lectura y escritura, `CHECK` de largo y de
   conteo de huellas), sin dejar objetos nuevos al terminar.
+- *(V1.1)* **Ninguna plantilla biométrica en el repositorio, el backend ni el Pi:** una búsqueda de
+  texto de `fingerData` (sin distinguir mayúsculas) y de las rutas ISAPI que la devuelven
+  (`CaptureFingerPrint`, `FingerPrintCfg`) que **falle en CI** si aparece en el código del
+  backend, del puente o de sus pruebas — salvo en la lista blanca de documentos que **prohíben**
+  su uso (esta decisión, `SCJ-DEC-12`, `SCJ-PRO-15`). Complemento: inspección de las columnas de la
+  base (`db/verificar_ddl.sql`: ninguna columna de tipo `bytea` ni con nombre de plantilla/huella
+  en `tiempo`/`personas`).
+- *(V1.1)* **Lista de servicios habilitados de la terminal**, revisada y firmada por TI
+  (`SCJ-PRO-15 §IV.6`): sólo los necesarios para el Pi; el resto apagado.
 
 ---
 
