@@ -11,7 +11,7 @@
 -- ============================================================================
 
 -- 1) Tablas por esquema.
--- Esperado: personas = 11, tiempo = 20.
+-- Esperado: personas = 11, tiempo = 22 (20 + terminal_credencial de 82_ + marca_rechazada de 84_).
 SELECT table_schema, count(*)
 FROM information_schema.tables
 WHERE table_schema IN ('personas', 'tiempo') AND table_type = 'BASE TABLE'
@@ -20,7 +20,8 @@ ORDER BY table_schema;
 
 -- 2) Tablas con RLS habilitada y CERO policies (deny-by-default silencioso, no error visible).
 -- Esperado: ninguna fila de personas; en tiempo, sólo las que 41_tiempo_rls_deny_default.sql
--- deja deliberadamente sin policy (confirmar contra ese archivo si aparece alguna inesperada).
+-- deja deliberadamente sin policy (confirmar contra ese archivo si aparece alguna inesperada), más
+-- tiempo.terminal_credencial (82_*.sql, deliberado: sólo service_role, ninguna policy).
 SELECT n.nspname AS esquema, c.relname AS tabla
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -211,9 +212,7 @@ FROM pg_proc p
 JOIN pg_namespace n ON n.oid = p.pronamespace
 WHERE n.nspname = 'tiempo' AND p.proname = 'fn_bitacora_terminal_usuario_aplica'
   AND (NOT p.prosecdef
-       OR p.proconfig IS NULL
-       OR NOT EXISTS (SELECT 1 FROM unnest(p.proconfig) c
-                      WHERE c LIKE 'search_path=%tiempo%personas%pg_temp%'));
+       OR p.proconfig IS DISTINCT FROM ARRAY['search_path=tiempo, personas, pg_temp']);
 
 -- 18) Los 3 triggers esperados existen, habilitados (tgenabled = 'O') y con el tipo correcto
 -- (tgtype: ROW=1, BEFORE=2, INSERT=4, DELETE=8, UPDATE=16, TRUNCATE=32):
@@ -280,3 +279,330 @@ CROSS JOIN (VALUES ('terminal_usuario_lectura'), ('terminal_usuario_edicion')) A
 WHERE p.es_administrador_generico
   AND NOT EXISTS (SELECT 1 FROM personas.puesto_permiso pp
                   WHERE pp.puesto_id = p.id AND pp.codigo = c.codigo AND pp.activo);
+
+-- ============================================================================
+-- FASE AUTENTICACIÓN DE TERMINAL Y RUTA DE MARCAS (después de 82_, 83_ y 84_*.sql, SCJ-DEC-12)
+-- Todas son consultas de VIOLACIONES: Esperado: 0 filas en cada una. Las secciones 11 a 22 siguen
+-- valiendo para las 3 tablas de 80_/81_; éstas cubren lo nuevo.
+-- ============================================================================
+
+-- 23) RLS habilitada en tiempo.terminal_credencial y tiempo.marca_rechazada.
+-- Esperado: 0 filas.
+SELECT c.relname AS tabla_sin_rls
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'tiempo'
+  AND c.relname IN ('terminal_credencial', 'marca_rechazada')
+  AND NOT c.relrowsecurity;
+
+-- 24) Privilegios de TABLA fuera de la lista blanca. terminal_credencial: sólo service_role SELECT e
+-- INSERT. marca_rechazada: authenticated y service_role sólo SELECT (B5: nadie de la API inserta; la
+-- escribe fn_terminal_rechazo_registrar, SECURITY DEFINER). Sin UPDATE, DELETE ni TRUNCATE para nadie.
+-- anon: nada en ninguna.
+-- Esperado: 0 filas.
+WITH t(tabla) AS (VALUES ('terminal_credencial'), ('marca_rechazada')),
+     r(rol) AS (VALUES ('anon'), ('authenticated'), ('service_role')),
+     p(priv) AS (VALUES ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'),
+                        ('REFERENCES'), ('TRIGGER')),
+     permitido(tabla, rol, priv) AS (VALUES
+       ('terminal_credencial', 'service_role', 'SELECT'),
+       ('terminal_credencial', 'service_role', 'INSERT'),
+       ('marca_rechazada', 'authenticated', 'SELECT'),
+       ('marca_rechazada', 'service_role', 'SELECT'))
+SELECT t.tabla, r.rol, p.priv AS privilegio_de_mas
+FROM t CROSS JOIN r CROSS JOIN p
+WHERE has_table_privilege(r.rol, 'tiempo.' || t.tabla, p.priv)
+  AND NOT EXISTS (SELECT 1 FROM permitido x WHERE x.tabla = t.tabla AND x.rol = r.rol AND x.priv = p.priv);
+
+-- 25) Privilegios de COLUMNA fuera de la lista blanca: SELECT, INSERT, UPDATE y REFERENCES de los 3 roles
+-- sobre cada columna de las 2 tablas nuevas de 82_/84_ (has_column_privilege incluye también los de
+-- tabla). Lista blanca: terminal_credencial: service_role SELECT e INSERT (todas las columnas) y UPDATE sólo
+-- de revocada_en, expira_en y etiqueta (hash, ultimo_uso_en, ultima_ip e ip_cambiada_en no son
+-- actualizables por la API); marca_rechazada: authenticated y service_role sólo SELECT. anon: nada.
+-- Esperado: 0 filas.
+SELECT t.tabla, a.attname AS columna, r.rol, p.priv AS privilegio_de_columna_de_mas
+FROM (VALUES ('terminal_credencial'), ('marca_rechazada')) AS t(tabla)
+JOIN pg_attribute a ON a.attrelid = ('tiempo.' || t.tabla)::regclass AND a.attnum > 0 AND NOT a.attisdropped
+CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role')) AS r(rol)
+CROSS JOIN (VALUES ('SELECT'), ('INSERT'), ('UPDATE'), ('REFERENCES')) AS p(priv)
+WHERE has_column_privilege(r.rol, 'tiempo.' || t.tabla, a.attname, p.priv)
+  AND NOT (
+       (t.tabla = 'terminal_credencial' AND r.rol = 'service_role' AND p.priv IN ('SELECT', 'INSERT'))
+    OR (t.tabla = 'terminal_credencial' AND r.rol = 'service_role' AND p.priv = 'UPDATE'
+        AND a.attname IN ('revocada_en', 'expira_en', 'etiqueta'))
+    OR (t.tabla = 'marca_rechazada' AND r.rol IN ('authenticated', 'service_role') AND p.priv = 'SELECT'));
+
+-- 26) Las 4 columnas nuevas de tiempo.terminal (82_) no son actualizables por service_role (las escribe
+-- sólo fn_terminal_latido, SECURITY DEFINER). Complementa la sección 14.
+-- Esperado: 0 filas.
+SELECT a.attname AS columna_actualizable_de_mas
+FROM pg_attribute a
+WHERE a.attrelid = 'tiempo.terminal'::regclass
+  AND a.attname IN ('reloj_desfase_seg', 'terminal_alcanzable', 'version_pi', 'marcas_pendientes')
+  AND (has_column_privilege('service_role', 'tiempo.terminal', a.attname, 'UPDATE')
+       OR has_column_privilege('authenticated', 'tiempo.terminal', a.attname, 'UPDATE')
+       OR has_column_privilege('anon', 'tiempo.terminal', a.attname, 'SELECT'));
+
+-- 27) terminal_credencial.hash: char(64) con CHECK de formato ^[0-9a-f]{64}$ y UNIQUE.
+-- Esperado: 0 filas.
+SELECT 'hash no es char(64)' AS problema
+WHERE NOT EXISTS (
+  SELECT 1 FROM information_schema.columns
+  WHERE table_schema = 'tiempo' AND table_name = 'terminal_credencial' AND column_name = 'hash'
+    AND data_type = 'character' AND character_maximum_length = 64)
+UNION ALL
+SELECT 'falta CHECK de formato del hash'
+WHERE NOT EXISTS (
+  SELECT 1 FROM pg_constraint
+  WHERE conrelid = 'tiempo.terminal_credencial'::regclass AND contype = 'c'
+    AND pg_get_constraintdef(oid) LIKE '%[0-9a-f]{64}%')
+UNION ALL
+SELECT 'falta UNIQUE del hash'
+WHERE NOT EXISTS (
+  SELECT 1 FROM pg_constraint
+  WHERE conrelid = 'tiempo.terminal_credencial'::regclass AND contype = 'u'
+    AND conname = 'uq_terminal_credencial_hash');
+
+-- 28) Secuencias identity de las 2 tablas nuevas (y la del employeeNo, ya cubierta en la sección 15):
+-- ningún rol de la API con USAGE, SELECT ni UPDATE.
+-- Esperado: 0 filas.
+SELECT s.seq, r.rol, p.priv AS privilegio_de_mas
+FROM (VALUES ('tiempo.terminal_credencial_id_seq'), ('tiempo.marca_rechazada_id_seq')) AS s(seq)
+CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role')) AS r(rol)
+CROSS JOIN (VALUES ('USAGE'), ('SELECT'), ('UPDATE')) AS p(priv)
+WHERE has_sequence_privilege(r.rol, s.seq, p.priv);
+
+-- 29) EXECUTE de las funciones de 83_/84_. (a) NINGUNA función nueva es ejecutable por PUBLIC, anon,
+-- authenticated ni terminal_checador. (b) las 8 que llama el backend (la 8.ª, fn_terminal_baja_por_caducidad, es de 85_) SÍ son ejecutables por
+-- service_role. (c) las 3 internas (fn_terminal_rechazo_registrar y las de los triggers SCJ13 y SCJ14) NO lo son
+-- por service_role. fn_bitacora_terminal_usuario_aplica se cubre en la sección 16.
+-- Esperado: 0 filas.
+WITH f(proname, llamable) AS (VALUES
+  ('fn_terminal_autenticar', true), ('fn_terminal_mapa', true),
+  ('fn_terminal_movimiento_registrar', true), ('fn_terminal_latido', true),
+  ('fn_marca_terminal_registrar', true), ('fn_terminal_baja_por_persona_inactiva', true),
+  ('fn_marca_rechazada_purgar', true), ('fn_terminal_baja_por_caducidad', true),
+  ('fn_terminal_rechazo_registrar', false), ('fn_terminal_valida_desactivacion', false),
+  ('fn_terminal_credencial_revocacion_inmutable', false))
+SELECT f.proname, 'falta la función' AS problema
+FROM f
+WHERE NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname = 'tiempo' AND p.proname = f.proname)
+UNION ALL
+SELECT p.proname, 'EXECUTE a PUBLIC'
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+JOIN f ON f.proname = p.proname
+WHERE n.nspname = 'tiempo'
+  AND EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a
+              WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')
+UNION ALL
+SELECT p.proname, 'EXECUTE a ' || r.rol
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+JOIN f ON f.proname = p.proname
+CROSS JOIN (VALUES ('anon'), ('authenticated'), ('terminal_checador')) AS r(rol)
+WHERE n.nspname = 'tiempo' AND has_function_privilege(r.rol, p.oid, 'EXECUTE')
+UNION ALL
+SELECT p.proname, 'service_role sin EXECUTE'
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+JOIN f ON f.proname = p.proname
+WHERE n.nspname = 'tiempo' AND f.llamable AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE')
+UNION ALL
+SELECT p.proname, 'service_role con EXECUTE sobre función interna'
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+JOIN f ON f.proname = p.proname
+WHERE n.nspname = 'tiempo' AND NOT f.llamable AND has_function_privilege('service_role', p.oid, 'EXECUTE');
+
+-- 30) Las 11 funciones nuevas (83_/84_/85_) son SECURITY DEFINER con search_path fijado en proconfig
+-- (tiempo, personas, pg_temp), y fn_bitacora_terminal_usuario_aplica conserva ambas cláusulas tras el
+-- CREATE OR REPLACE de 83_ (el cuerpo debe contener el FOR SHARE de 'asignado').
+-- Esperado: 0 filas.
+SELECT p.proname, p.prosecdef, p.proconfig
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'tiempo'
+  AND p.proname IN ('fn_terminal_autenticar', 'fn_terminal_mapa', 'fn_terminal_movimiento_registrar',
+                    'fn_terminal_latido', 'fn_marca_terminal_registrar',
+                    'fn_terminal_baja_por_persona_inactiva', 'fn_marca_rechazada_purgar',
+                    'fn_terminal_baja_por_caducidad',
+                    'fn_terminal_rechazo_registrar', 'fn_terminal_valida_desactivacion',
+                    'fn_terminal_credencial_revocacion_inmutable')
+  AND (NOT p.prosecdef
+       OR p.proconfig IS DISTINCT FROM ARRAY['search_path=tiempo, personas, pg_temp'])
+UNION ALL
+SELECT p.proname, p.prosecdef, p.proconfig
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'tiempo' AND p.proname = 'fn_bitacora_terminal_usuario_aplica'
+  AND p.prosrc NOT LIKE '%FOR SHARE%';
+
+-- 31) Trigger SCJ13 de desactivación: existe, habilitado y con el tipo correcto (tgtype: ROW=1,
+-- BEFORE=2, UPDATE=16 -> 19), sobre la columna activa (tgattr no vacío) y con WHEN (tgqual no nulo).
+-- Y la excepción deliberada: tiempo.marca_rechazada NO lleva triggers de inmutabilidad (la purga los
+-- dispararía): ningún trigger no interno sobre ella.
+-- Esperado: 0 filas.
+SELECT 'trg_terminal_valida_desactivacion' AS trigger_esperado, t.tgenabled, t.tgtype
+FROM (SELECT 1) x
+LEFT JOIN pg_trigger t
+  ON t.tgname = 'trg_terminal_valida_desactivacion'
+ AND t.tgrelid = 'tiempo.terminal'::regclass AND NOT t.tgisinternal
+WHERE t.oid IS NULL OR t.tgenabled <> 'O' OR t.tgtype <> 19 OR t.tgattr::text = '' OR t.tgqual IS NULL
+UNION ALL
+SELECT t.tgname, t.tgenabled, t.tgtype
+FROM pg_trigger t
+WHERE t.tgrelid = 'tiempo.marca_rechazada'::regclass AND NOT t.tgisinternal;
+
+-- 32) Policies de las 2 tablas nuevas, comparadas por nombre, comando y roles: terminal_credencial no
+-- debe tener ninguna; marca_rechazada exactamente 1 SELECT para authenticated. Fila = falta, sobra o
+-- difiere.
+-- Esperado: 0 filas.
+WITH esperadas(tabla, policyname, cmd, roles) AS (VALUES
+  ('marca_rechazada', 'marca_rechazada_select_lectura', 'SELECT', '{authenticated}')),
+reales AS (
+  SELECT tablename AS tabla, policyname, cmd, roles::text AS roles
+  FROM pg_policies
+  WHERE schemaname = 'tiempo' AND tablename IN ('terminal_credencial', 'marca_rechazada')
+    AND permissive = 'PERMISSIVE')
+SELECT COALESCE(e.tabla, r.tabla) AS tabla, COALESCE(e.policyname, r.policyname) AS policy,
+       e.cmd AS cmd_esperado, r.cmd AS cmd_real, e.roles AS roles_esperados, r.roles AS roles_reales
+FROM esperadas e
+FULL OUTER JOIN reales r ON r.tabla = e.tabla AND r.policyname = e.policyname
+WHERE e.policyname IS NULL OR r.policyname IS NULL OR e.cmd <> r.cmd OR e.roles <> r.roles;
+
+-- 33) Las 4 columnas de estado existen en tiempo.terminal con el tipo esperado, y el CHECK de
+-- marcas_pendientes.
+-- Esperado: 0 filas.
+SELECT e.columna, 'falta o con otro tipo' AS problema
+FROM (VALUES ('reloj_desfase_seg', 'integer'), ('terminal_alcanzable', 'boolean'),
+             ('version_pi', 'character varying'), ('marcas_pendientes', 'integer')) AS e(columna, tipo)
+WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns c
+                  WHERE c.table_schema = 'tiempo' AND c.table_name = 'terminal'
+                    AND c.column_name = e.columna AND c.data_type = e.tipo)
+UNION ALL
+SELECT 'marcas_pendientes', 'falta ck_terminal_marcas_pendientes'
+WHERE NOT EXISTS (SELECT 1 FROM pg_constraint
+                  WHERE conrelid = 'tiempo.terminal'::regclass AND conname = 'ck_terminal_marcas_pendientes');
+
+-- ============================================================================
+-- Endurecimiento tras la revisión de security de 82_/83_/84_ (V1, V4, M3)
+-- ============================================================================
+
+-- 34) Policies de las 4 tablas de la terminal: además del nombre/comando/roles (secciones 19 y 32), la
+-- EXPRESIÓN (qual / with_check) debe ser EXACTAMENTE la esperada: una policy degradada a "... OR true" no
+-- pasaría. pg_policies muestra la expresión con casts y paréntesis; se normaliza quitando los casts de tipo
+-- y los paréntesis (auth.uid() se protege antes como AUTHUID). Los textos esperados son los que produce la
+-- base real para 80_/81_ (verificados en solo lectura) y, para marca_rechazada_select_lectura (84_), el
+-- mismo predicado que las otras 3 policies de lectura (validado por el ensayo del 2026-10-06). Si una
+-- versión futura de Postgres cambiara cómo imprime estas expresiones, esta consulta marcará las 5 policies
+-- por igual: es una señal de revisar la normalización, no necesariamente una policy rota.
+-- Esperado: 0 filas.
+WITH esperadas(tablename, policyname, q, w) AS (VALUES
+  ('terminal', 'terminal_select_lectura',
+   'personas.fn_caller_activo AND personas.fn_caller_tiene_permiso''terminal_usuario_lectura'' OR personas.fn_caller_tiene_permiso''terminal_usuario_edicion''', ''),
+  ('terminal_usuario', 'terminal_usuario_select_lectura',
+   'personas.fn_caller_activo AND personas.fn_caller_tiene_permiso''terminal_usuario_lectura'' OR personas.fn_caller_tiene_permiso''terminal_usuario_edicion''', ''),
+  ('bitacora_movimiento_terminal_usuario', 'bitacora_terminal_usuario_select_lectura',
+   'personas.fn_caller_activo AND personas.fn_caller_tiene_permiso''terminal_usuario_lectura'' OR personas.fn_caller_tiene_permiso''terminal_usuario_edicion''', ''),
+  ('marca_rechazada', 'marca_rechazada_select_lectura',
+   'personas.fn_caller_activo AND personas.fn_caller_tiene_permiso''terminal_usuario_lectura'' OR personas.fn_caller_tiene_permiso''terminal_usuario_edicion''', ''),
+  ('bitacora_movimiento_terminal_usuario', 'bitacora_terminal_usuario_insert_web', '',
+   'personas.fn_caller_activo AND personas.fn_caller_tiene_permiso''terminal_usuario_edicion'' AND origen = ''web'' AND tipo_movimiento = ANY ARRAY[''asignado'', ''baja_solicitada''][] AND registrado_por = AUTHUID')),
+pol AS (
+  SELECT tablename, policyname,
+         regexp_replace(regexp_replace(replace(COALESCE(qual, ''), 'auth.uid()', 'AUTHUID'),
+           '::(character varying|varchar|text|name|uuid|bigint|integer|boolean)', '', 'g'), '[()]', '', 'g') AS q,
+         regexp_replace(regexp_replace(replace(COALESCE(with_check, ''), 'auth.uid()', 'AUTHUID'),
+           '::(character varying|varchar|text|name|uuid|bigint|integer|boolean)', '', 'g'), '[()]', '', 'g') AS w
+  FROM pg_policies
+  WHERE schemaname = 'tiempo'
+    AND tablename IN ('terminal', 'terminal_usuario', 'bitacora_movimiento_terminal_usuario', 'marca_rechazada')
+)
+SELECT e.tablename, e.policyname, 'la expresión no es exactamente la esperada' AS problema, p.q AS q_real, p.w AS w_real
+FROM esperadas e
+JOIN pol p ON p.tablename = e.tablename AND p.policyname = e.policyname
+WHERE p.q IS DISTINCT FROM e.q OR p.w IS DISTINCT FROM e.w;
+
+-- 35) terminal_checador (el rol del lector R503Pro, 37_*.sql) no tiene ningún privilegio sobre las 5
+-- tablas nuevas, de tabla ni de columna.
+-- Esperado: 0 filas.
+SELECT t.tabla, p.priv AS privilegio_de_mas
+FROM (VALUES ('terminal'), ('terminal_usuario'), ('bitacora_movimiento_terminal_usuario'),
+             ('terminal_credencial'), ('marca_rechazada')) AS t(tabla)
+CROSS JOIN (VALUES ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) AS p(priv)
+WHERE has_table_privilege('terminal_checador', 'tiempo.' || t.tabla, p.priv)
+UNION ALL
+SELECT t.tabla, 'columna ' || p.priv
+FROM (VALUES ('terminal'), ('terminal_usuario'), ('bitacora_movimiento_terminal_usuario'),
+             ('terminal_credencial'), ('marca_rechazada')) AS t(tabla)
+CROSS JOIN (VALUES ('SELECT'), ('INSERT'), ('UPDATE'), ('REFERENCES')) AS p(priv)
+WHERE has_any_column_privilege('terminal_checador', 'tiempo.' || t.tabla, p.priv);
+
+-- 36) Dueños: las tablas y funciones nuevas pertenecen al MISMO rol que el resto del esquema (el de
+-- migración, dueño de tiempo.marca). Un SECURITY DEFINER cuyo dueño tuviera más privilegios que ése
+-- ampliaría lo que la función puede hacer.
+-- Esperado: 0 filas.
+SELECT 'tabla' AS tipo, c.relname AS objeto, pg_get_userbyid(c.relowner) AS dueno
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'tiempo'
+  AND c.relname IN ('terminal', 'terminal_usuario', 'bitacora_movimiento_terminal_usuario',
+                    'terminal_credencial', 'marca_rechazada')
+  AND c.relowner <> (SELECT relowner FROM pg_class WHERE oid = 'tiempo.marca'::regclass)
+UNION ALL
+SELECT 'función', p.proname, pg_get_userbyid(p.proowner)
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'tiempo'
+  AND (p.proname LIKE 'fn\_terminal\_%' OR p.proname LIKE 'fn\_marca\_terminal\_%'
+       OR p.proname LIKE 'fn\_marca\_rechazada\_%' OR p.proname LIKE 'fn\_bitacora\_terminal\_%')
+  AND p.proowner <> (SELECT relowner FROM pg_class WHERE oid = 'tiempo.marca'::regclass);
+
+-- 37) Barrido genérico: toda función SECURITY DEFINER del esquema tiempo tiene search_path fijado en
+-- proconfig (cualquier valor que termine en pg_temp), y las funciones de la terminal (nombres de 80_-84_)
+-- no son ejecutables por PUBLIC. Las funciones anteriores a la terminal (triggers de marca, ausencia,
+-- etc.) pueden conservar EXECUTE por PUBLIC a propósito y no entran en la segunda parte.
+-- Esperado: 0 filas.
+SELECT p.proname, 'SECURITY DEFINER sin search_path fijo' AS problema
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'tiempo' AND p.prosecdef
+  AND NOT EXISTS (SELECT 1 FROM unnest(COALESCE(p.proconfig, ARRAY[]::text[])) c
+                  WHERE c LIKE 'search_path=%pg_temp')
+UNION ALL
+SELECT p.proname, 'EXECUTE a PUBLIC en una función de la terminal'
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'tiempo'
+  AND (p.proname LIKE 'fn\_terminal\_%' OR p.proname LIKE 'fn\_marca\_terminal\_%'
+       OR p.proname LIKE 'fn\_marca\_rechazada\_%' OR p.proname LIKE 'fn\_bitacora\_terminal\_%')
+  AND EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a
+              WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE');
+
+-- 38) Las restricciones de unicidad de las que depende el RPC de marcas y la regla de un alta vigente por
+-- persona existen con esos nombres exactos (el RPC desambigua el 23505 por nombre de restricción).
+-- Esperado: 0 filas.
+SELECT e.nombre AS restriccion_o_indice_faltante
+FROM (VALUES ('uq_terminal_usuario_persona_vigente'), ('uq_marca_evento_id'), ('uq_marca_terminal_secuencia'),
+             ('uq_terminal_usuario_employee_no'), ('uq_marca_rechazada_terminal_evento')) AS e(nombre)
+WHERE NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+                  WHERE n.nspname = 'tiempo' AND c.relname = e.nombre AND c.relkind = 'i');
+
+-- 39) Trigger SCJ14 sobre tiempo.terminal_credencial: existe, habilitado, BEFORE UPDATE de fila (tgtype 19),
+-- acotado a la columna revocada_en (tgattr no vacío) y con WHEN (tgqual no nulo).
+-- Esperado: 0 filas.
+SELECT 'trg_terminal_credencial_revocacion_inmutable' AS trigger_esperado, t.tgenabled, t.tgtype
+FROM (SELECT 1) x
+LEFT JOIN pg_trigger t
+  ON t.tgname = 'trg_terminal_credencial_revocacion_inmutable'
+ AND t.tgrelid = 'tiempo.terminal_credencial'::regclass AND NOT t.tgisinternal
+WHERE t.oid IS NULL OR t.tgenabled <> 'O' OR t.tgtype <> 19 OR t.tgattr::text = '' OR t.tgqual IS NULL;
+
+-- 40) fn_terminal_baja_por_caducidad (85_*.sql, SCJ-DEC-12 §12.7): existe una sola, con la firma esperada
+-- (un argumento integer con valor por defecto), devuelve integer, es SECURITY DEFINER con search_path exacto,
+-- y sólo service_role puede ejecutarla (la sección 29 cubre PUBLIC/anon/authenticated y la 30 el search_path;
+-- aquí se comprueba además la firma y el valor por defecto, que el backend usa al llamarla sin argumentos).
+-- Esperado: 0 filas.
+SELECT 'firma, tipo de retorno o valor por defecto distintos de los esperados' AS problema
+WHERE NOT EXISTS (
+  SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'tiempo' AND p.proname = 'fn_terminal_baja_por_caducidad'
+    AND p.pronargs = 1 AND p.proargtypes[0] = 'integer'::regtype AND p.pronargdefaults = 1
+    AND p.prorettype = 'integer'::regtype AND p.prosecdef
+    AND p.proconfig = ARRAY['search_path=tiempo, personas, pg_temp'])
+UNION ALL
+SELECT 'más de una función con ese nombre'
+WHERE (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+       WHERE n.nspname = 'tiempo' AND p.proname = 'fn_terminal_baja_por_caducidad') > 1;

@@ -1,7 +1,7 @@
 # Modelo físico — Subsistema de Tiempo
 
 **Sistema de Control de Jornada · PostgreSQL 16**
-Folio SCJ-MOD-03 · Versión 1.7 · 6 de octubre de 2026
+Folio SCJ-MOD-03 · Versión 1.8 · 6 de octubre de 2026
 
 > **Cambio de versión (V1.0 → V1.1, menor):** `02_tiempo.sql` pasa de "pendiente" a implementado.
 > Se llenan las secciones III-VI con lo que el DDL real decidió. No se contradice nada de lo ya
@@ -41,14 +41,24 @@ Folio SCJ-MOD-03 · Versión 1.7 · 6 de octubre de 2026
 > paso se corrige el nombre del archivo, que seguía en `V1_5` aunque el encabezado decía 1.6
 > (`CONVENCIONES.md §I`).
 
+> **Cambio de versión (V1.7 → V1.8, menor):** se agregan las restricciones activas de los scripts `82` a `85`
+> (`SCJ-DEC-12`, autenticación de la terminal, ruta de marcas y caducidad de altas): la credencial de la
+> terminal (`tiempo.terminal_credencial`), los triggers `SCJ13` (desactivación) y `SCJ14` (revocación
+> irreversible), `tiempo.marca_rechazada` como excepción deliberada a la inmutabilidad, y las 11 funciones
+> nuevas `SECURITY DEFINER` con su ACL; y se aclaran dos filas de V1.7 (el trigger de la bitácora ahora toma la
+> terminal `FOR SHARE` en `asignado`). Lo escrito se contrastó con la base real de Supabase en solo lectura
+> (privilegios, `EXECUTE`, `search_path`, triggers, índices, restricciones). No se contradice nada de lo anterior.
+> Hallazgo del contraste, fuera del alcance de este cambio: el script `78_` no está aplicado en esa base
+> (ver `SCJ-DIC-01` V1.3, nota de método).
+
 Correspondencia entre el modelo lógico y el DDL: tipos elegidos, restricciones activas y su
 justificación. Entregable E3 de `SCJ-ESP-01`.
 
 > **Este documento no repite el DDL.** El DDL vive en `db/ddl/` y es la fuente de verdad. Aquí se
 > explica **por qué** es como es.
 
-> **Alcance (V1.7).** Este documento explica las decisiones del subsistema de **Tiempo**. El
-> esquema `personas` (11 tablas), las policies RLS (74), las funciones/RPC y los triggers están
+> **Alcance (V1.8).** Este documento explica las decisiones del subsistema de **Tiempo**. El
+> esquema `personas` (11 tablas), las policies RLS (75), las funciones/RPC y los triggers están
 > descritos en `SCJ-DIC-01` y en los documentos de proceso `SCJ-PRO-01` a `SCJ-PRO-14`.
 
 ---
@@ -62,8 +72,9 @@ justificación. Entregable E3 de `SCJ-ESP-01`.
 | `db/ddl/02_tiempo.sql` | Tablas del subsistema de Tiempo |
 | `db/ddl/03_parametros_ejemplo.sql` | Parámetros con **valores de ejemplo** |
 | `db/ddl/04` a `36` | *(V1.6)* Esquema `personas`: personas, estructura organizacional, asignaciones, permisos y bitácoras |
-| `db/ddl/37` a `79` | *(V1.6)* RLS, permisos y funciones de Tiempo, y las correcciones posteriores (los scripts son acumulativos: el estado final es la suma de los 82) |
+| `db/ddl/37` a `79` | *(V1.6)* RLS, permisos y funciones de Tiempo, y las correcciones posteriores (los scripts son acumulativos: el estado final es la suma de los 86) |
 | `db/ddl/80` y `81` | *(V1.7)* Terminal biométrica: `tiempo.terminal` y `tiempo.terminal_usuario` con la secuencia del `employeeNo` y los permisos `terminal_usuario_lectura`/`terminal_usuario_edicion` (`80`), y la bitácora inmutable con su trigger de transiciones (`81`). `SCJ-DEC-11` |
+| `db/ddl/82` a `85` | *(V1.8)* Autenticación de la terminal y ruta de marcas: `terminal_credencial` y 4 columnas de estado en `terminal` (`82`); los RPC del puente, el trigger `SCJ13` de desactivación, el trigger `SCJ14` de revocación y el reemplazo de `fn_bitacora_terminal_usuario_aplica` con `FOR SHARE` (`83`); `marca_rechazada` y su purga (`84`); la caducidad de altas en `esperando_huella` (`85`). `SCJ-DEC-12` |
 | `db/ddl/30_indices_fk.sql` | *(V1.6)* Índices de llaves foráneas |
 | `db/indices/01_indices.sql` | Índices del subsistema de Tiempo. *(El documento `SCJ-IDX-01`, que iba a justificarlos, se quitó el 5-oct-2026: ya no hay un documento aparte para esto)* |
 
@@ -115,6 +126,13 @@ Las que se implementan en la base y no en la aplicación, con la decisión que l
 | Mapeo de enrolamiento sólo derivado de una bitácora *(V1.7)* | `terminal_usuario` ← `bitacora_movimiento_terminal_usuario` | La tabla viva no tiene `INSERT`/`UPDATE`/`DELETE` para ningún rol de la API; la escribe sólo `trg_bitacora_terminal_usuario_aplica` (`BEFORE INSERT`, `SECURITY DEFINER`, `search_path` fijo), que valida las 6 transiciones de estado y falla con `SCJ11`/`SCJ12` y un `HINT` estable. `BEFORE` y no `AFTER` porque en `asignado` crea la fila viva y completa `terminal_usuario_id`/`employee_no` antes de evaluar `NOT NULL` y la FK | `SCJ-DEC-11` |
 | Inmutabilidad de la bitácora de terminal *(V1.7)* | `bitacora_movimiento_terminal_usuario` | 3 capas: (1) `REVOKE ALL` y `GRANT SELECT, INSERT` explícito (no se confía en que el `GRANT ALL` schema-wide de `38_*.sql` "no concedió" `UPDATE`/`DELETE`/`TRUNCATE`); (2) RLS sin policies de `UPDATE`/`DELETE`; (3) triggers `BEFORE UPDATE OR DELETE` por fila y `BEFORE TRUNCATE` por statement. Residual aceptado: el dueño de la base aún puede `DROP`/`DISABLE TRIGGER`. `CHECK`s de coherencia: `origen = 'web'` sí y sólo si el movimiento es `asignado`/`baja_solicitada`; autor obligatorio sí y sólo si `origen = 'web'`; conteo de huellas 1-10 sólo en `huella_capturada`; `detalle` obligatorio en `error` y de máx. 500 caracteres | `SCJ-DEC-11` |
 | Autoría atada al propio usuario en el alta/baja web *(V1.7)* | `bitacora_movimiento_terminal_usuario` | Policy `INSERT` exige `terminal_usuario_edicion` (no heredable), `origen = 'web'`, `tipo_movimiento IN ('asignado','baja_solicitada')` y `registrado_por = auth.uid()` (anti-suplantación, mismo criterio que `62_*.sql` y `68_*.sql`). Los movimientos `origen = 'terminal'` los inserta sólo `service_role` | `SCJ-DEC-11` |/
+| Llave del puente sólo como hash, y revocación irreversible *(V1.8)* | `terminal_credencial` | `hash char(64)` con `CHECK (hash ~ '^[0-9a-f]{64}$')` y `UNIQUE (hash)`; RLS habilitada **sin policies** y privilegios `REVOKE ALL` + `GRANT` mínimo: `service_role` sólo `SELECT`, `INSERT` y `UPDATE` de `revocada_en`, `expira_en` y `etiqueta` (`hash`, `ultimo_uso_en`, `ultima_ip` e `ip_cambiada_en` los escribe sólo `fn_terminal_autenticar`); sin `DELETE`/`TRUNCATE`. `trg_terminal_credencial_revocacion_inmutable` (`BEFORE UPDATE OF revocada_en`, `WHEN` el valor anterior no es `NULL` y cambia): una revocación no se deshace ni se mueve (`SCJ14`). Una llave se sustituye por otra (rotación con traslape), nunca se reactiva. Sin vencimiento por defecto | `SCJ-DEC-12` §1 |
+| No desactivar una terminal con altas vigentes *(V1.8)* | `terminal` | `trg_terminal_valida_desactivacion` (`BEFORE UPDATE OF activa ... WHEN (OLD.activa AND NOT NEW.activa)`, `SECURITY DEFINER`): `SCJ13` si hay altas no-`baja`; toma la terminal `FOR UPDATE` antes de contar, y `asignado` la toma `FOR SHARE` (reemplazo de `fn_bitacora_terminal_usuario_aplica` en `83_`), así que la asignación ve la terminal inactiva o la desactivación ve el alta. Lo bloquea cualquier `UPDATE`, incluso directo de `service_role` | `SCJ-DEC-12` §6 |
+| Evidencia de rechazos sin inmutabilidad por trigger *(V1.8, excepción deliberada)* | `marca_rechazada` | A diferencia de la bitácora de enrolamiento, esta tabla debe poder borrarse (retención de 90 días), así que **no lleva** triggers de inmutabilidad: la garantía es de **privilegios**. `REVOKE ALL` y `GRANT SELECT` sólo (a `authenticated` y `service_role`); **nadie de la API inserta**: la única escritura es `fn_terminal_rechazo_registrar` (`SECURITY DEFINER`, sin `EXECUTE` para la API) y el único borrado es `fn_marca_rechazada_purgar` (retención mínima de 7 días). `CHECK` de lista cerrada de 5 códigos, `UNIQUE (terminal_id, evento_id)` con `ON CONFLICT DO NOTHING`, sin texto libre (cada campo se guarda sólo si cumple su formato) y tope de 5 000 filas por terminal en 24 h | `SCJ-DEC-12` §6 |
+| Ruta de marcas por RPC *(V1.8)* | `marca` ← `fn_marca_terminal_registrar(bigint, jsonb)` | `SECURITY DEFINER`, `SET search_path = tiempo, personas, pg_temp`, `EXECUTE` sólo `service_role`: el Pi manda `employee_no` y la base resuelve `persona_id` (nunca sale); fija `origen='terminal'` y `requiere_revision=false` sin leerlos del evento; valida forma (ISO 8601 con zona, desfase `-12:00..+14:00`), absurdos de fecha, `secuencia_local` acotada, `no_enrolado` (sin alta, alta en `pendiente_alta`, alta en `baja` con marca posterior a la baja +1 h, o marca anterior a la alta -1 h), degradación de `estado_reloj` (sólo empeora), topes de tasa (valores ajustables como constantes) e idempotencia por `evento_id` (desambigua el `23505` por nombre de restricción). Un lote a la vez por terminal (advisory lock). Sólo devuelve códigos de lista cerrada, nunca texto de excepción | `SCJ-DEC-12` §2 |
+| Funciones del puente con alcance por terminal *(V1.8)* | `fn_terminal_autenticar`, `fn_terminal_mapa`, `fn_terminal_movimiento_registrar`, `fn_terminal_latido` | Todas reciben `p_terminal_id` (la fija el servidor desde la credencial) y validan pertenencia dentro de la función: un movimiento sobre una alta de otra terminal responde igual que uno inexistente. El mapa no incluye `persona_id` ni nombres. Un `error` más de 20 veces por alta y hora devuelve `limitado` sin insertar (la bitácora es inmutable) | `SCJ-DEC-12` §3 |
+| Bajas automáticas con autor derivado *(V1.8)* | `bitacora_movimiento_terminal_usuario` ← `fn_terminal_baja_por_persona_inactiva`, `fn_terminal_baja_por_caducidad` | Emiten `baja_solicitada` (`origen='web'`) con el autor del acto original (el último movimiento de suspensión/baja de la persona, o el de la asignación): no hay usuario "sistema" ni origen nuevo. La caducidad (`esperando_huella` con más de `p_horas` horas desde el `usuario_creado` de la bitácora; defecto 24, piso 4, máximo 50 bajas por corrida) re-lee cada alta `FOR UPDATE` para no dar de baja a quien acaba de enrolar. Idempotentes (ignoran `SCJ11`/`SCJ12`) | `SCJ-DEC-12` §5, §12.7 |
+| Toda función nueva es `SECURITY DEFINER` con `search_path` fijo y `EXECUTE` acotado *(V1.8)* | 11 funciones de `83_`/`84_`/`85_` | `proconfig = {search_path=tiempo, personas, pg_temp}` en todas (contrastado en la base real); `EXECUTE` nace en `PUBLIC` y cada función lo revoca a `PUBLIC`, `anon` y `authenticated` en su mismo archivo: las 8 que llama el backend (`fn_terminal_autenticar`, `fn_terminal_mapa`, `fn_terminal_movimiento_registrar`, `fn_terminal_latido`, `fn_marca_terminal_registrar`, `fn_terminal_baja_por_persona_inactiva`, `fn_marca_rechazada_purgar`, `fn_terminal_baja_por_caducidad`) las ejecuta sólo `service_role`; la interna `fn_terminal_rechazo_registrar` y las 2 de trigger (`SCJ13`, `SCJ14`) no las ejecuta ningún rol de la API. Un `CREATE OR REPLACE` futuro debe repetir `SECURITY DEFINER` y `SET search_path`. `db/verificar_ddl.sql` (secciones 29, 30, 36, 37 y 40) lo comprueba con 0 filas esperadas | `SCJ-DEC-12` §8.3 |
 
 Tres reglas quedaron **fuera de esta tabla a propósito** — se decidieron a nivel de aplicación, no
 de base:
@@ -137,6 +155,9 @@ Tan importante como lo anterior. Cada renglón necesita un porqué.
 | Quién debe aprobar cada paso de una `ausencia` (resolución del aprobador contra el organigrama) | Aplicación | `SCJ-DEC-05` (Opción C) decidió explícito no duplicar el organigrama de Personas dentro de Tiempo — el *registro* de la cadena ya resuelta sí vive en la base (`aprobacion_ausencia`), pero *quién* debe aprobar se resuelve en cada caso consultando `puesto_permiso`/`asignacion` |
 | Clasificación de `clasificacion_de_tiempo.tipo` (ordinario/reposición/extra) | *(V1.6)* Sigue sin disparador; la clasificación entra por la RPC `fn_corte_quincenal_aplicar_persona` (`57_*.sql`) | Depende de `tope_legal` vigente y del estado de `banco_de_horas` en el momento — lógica de negocio, no invariante estructural |
 | Dar de baja en la terminal a una persona que pasó a `inactivo` en `personas` *(V1.7)* | Backend: emite `baja_solicitada` para su alta en `terminal_usuario` | Un trigger que cruce de `personas` a `tiempo` violaría la frontera (`SCJ-FRO-01`: sólo `persona_id` cruza). El ingestor de marcas además señala (no rechaza) las marcas de personas inactivas (`SCJ-PRO-11`, `SCJ-DEC-11`) |
+| Generar, entregar y rotar la llave del puente *(V1.8)* | Script de TI con `service_role`, fuera de la base | La base sólo guarda el hash SHA-256; la llave en claro se muestra una única vez al generarla y nunca pasa por una policy ni por un endpoint web (`SCJ-DEC-12` §1) |
+| Valores de los topes de tasa, ventanas de reloj, retenciones y tope de bajas *(V1.8)* | Constantes con nombre, comentadas, dentro de cada función (`fn_marca_terminal_registrar`, `fn_terminal_rechazo_registrar`, `fn_marca_rechazada_purgar`, `fn_terminal_baja_por_caducidad`) | Son defensas del puente y valores iniciales ajustables, no reglas de negocio de Recursos Humanos: no se agregan a `tiempo.parametro` (el catálogo de ocho claves tiene consumidor real cada una). Cambiarlas exige un `CREATE OR REPLACE` revisado que repita `SECURITY DEFINER` y `search_path` |
+| Estado de contacto de la terminal y tablero de anomalías *(V1.8)* | Backend, calculado al leer (`SCJ-DEC-12` §6) | No hay estado persistido que pueda quedar desactualizado; las 4 columnas de telemetría de `tiempo.terminal` sólo guardan lo que reportó el último latido |
 
 ---
 
@@ -153,7 +174,8 @@ actualizada.
 | *(V1.6)* `parametro` agrega `vigente_hasta` y `registrado_por` (`60_*.sql`); `dia` agrega columnas de revisión (`62_*.sql`, `63_*.sql`); `jornada_asignada` agrega `genera_alerta_horario` | Parámetros con vigencia y autor; revisión de RH sobre días bloqueados; no alertar horario en jornadas flexibles o de confianza | `SCJ-DIC-01` §II |
 | *(V1.6)* `tiempo.persona.id` es `uuid`, no `bigint` | Cruza la frontera con `personas.persona` (`SCJ-FRO-01`). `SCJ-MOD-02` y la V1.0 del diccionario lo decían de otra forma | `SCJ-DIC-01` |
 | *(V1.7)* `tiempo.marca.terminal_id` (serie, `varchar`) no es FK a `tiempo.terminal`; `terminal_usuario` y la bitácora sí referencian la terminal por su `id` surrogate | La columna de `marca` también guarda puntos de captura manual (ej. `rh-captura-01`), que no son terminales físicas | `SCJ-DEC-11`, `SCJ-DIC-01` §II |
+| *(V1.8)* `tiempo.terminal` agrega 4 columnas de telemetría (`reloj_desfase_seg`, `terminal_alcanzable`, `version_pi`, `marcas_pendientes`) que **ninguna escritura directa de la API puede tocar** | Las llena sólo `fn_terminal_latido` (`SECURITY DEFINER`); el `UPDATE` de columna de `service_role` sigue acotado a 4 columnas de configuración (contrastado en la base real) | `SCJ-DIC-01` §II |
 
 ---
 
-*Modelo físico · Folio SCJ-MOD-03 · V1.7*
+*Modelo físico · Folio SCJ-MOD-03 · V1.8*
