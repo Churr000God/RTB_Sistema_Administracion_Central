@@ -17,6 +17,7 @@ autorización real, este 403 sólo da un mensaje legible antes de llegar a la BD
 bloqueado como cerrado (db/ddl/77_*.sql) -- una marca tardía sobre un día ya cerrado también
 puede necesitar revisión humana, no sólo el caso original de paridad impar."""
 
+import logging
 from datetime import date
 from typing import Literal
 
@@ -26,6 +27,7 @@ from supabase import Client
 
 from app import alertas_horario
 from app.deps import get_caller_client, get_service_client
+from app.errores import traducir_error_dia_cerrado
 from app.permisos import requiere_permiso, requiere_todos_los_permisos
 from app.prevision_corte_quincenal import resolver_dias_faltantes, resolver_periodo_en_curso
 from app.schemas.dias import (
@@ -35,6 +37,8 @@ from app.schemas.dias import (
     DiaRevisarRequest,
     DiasFaltantesOut,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/dias", tags=["dias"])
 
@@ -51,6 +55,7 @@ MENSAJE_DIA_NO_BLOQUEADO = (
     "Este día ya no está bloqueado ni cerrado -- alguien más se te adelantó, o nunca lo estuvo."
 )
 MENSAJE_HORAS_INVALIDAS = "Horas trabajadas inválidas -- debe estar entre 0 y 24."
+MENSAJE_DIA_NO_REVISADO_GENERICO = "No se pudo revisar el día."
 MENSAJE_HUERFANA_SIN_PAREJA = (
     "Este día tiene una marca sin pareja -- corregí la marca faltante o usá captura manual antes "
     "de revisar."
@@ -394,7 +399,17 @@ def revisar_dia(
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_HORAS_INVALIDAS) from error
         if error.code == CODIGO_HUERFANA_SIN_PAREJA:
             raise HTTPException(status.HTTP_409_CONFLICT, MENSAJE_HUERFANA_SIN_PAREJA) from error
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, error.message) from error
+        traduccion = traducir_error_dia_cerrado(error)  # SCJ15/tramo_incoherente al armar tramos
+        if traduccion is not None:
+            raise traduccion from error
+        # Código desconocido: mensaje FIJO; el texto de la base puede traer ids internos (va al log).
+        logger.error(
+            "revisar día rechazado por la base: código=%s hint=%s mensaje=%s",
+            error.code,
+            str(error.hint or "")[:100].replace("\r", " ").replace("\n", " "),
+            (error.message or "")[:300].replace("\r", " ").replace("\n", " "),
+        )
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_DIA_NO_REVISADO_GENERICO) from None
 
     fila = resultado.data
     nombres = _resolver_nombres_persona(db, [fila["persona_id"]])

@@ -61,10 +61,14 @@ def obtener_sesion(
     puede_ver_modulo_1 = False
     puede_ver_modulo_2 = False
     puede_ver_modulo_3 = False
+    puede_descartar_excepciones = False
     if acceso_permitido:
         puede_ver_modulo_1 = tiene_permiso(db, usuario["persona_id"], "ver_modulo_1")
         puede_ver_modulo_2 = tiene_permiso(db, usuario["persona_id"], "ver_modulo_2")
         puede_ver_modulo_3 = tiene_permiso(db, usuario["persona_id"], "ver_modulo_3")
+        puede_descartar_excepciones = tiene_permiso(
+            db, usuario["persona_id"], "excepcion_dia_cerrado_descarte"
+        )
 
     return {
         "auth_user_id": caller.auth_user_id,
@@ -77,4 +81,5 @@ def obtener_sesion(
         "puede_ver_modulo_1": puede_ver_modulo_1,
         "puede_ver_modulo_2": puede_ver_modulo_2,
         "puede_ver_modulo_3": puede_ver_modulo_3,
+        "puede_descartar_excepciones": puede_descartar_excepciones,
     }

@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 from postgrest.exceptions import APIError
 
-from app.deps import CallerIdentity, get_caller_client, get_caller_identity
+from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
 from app.main import app
 from app.routers.marcas import (
     MENSAJE_MOMENTO_FUTURO,
@@ -85,6 +85,13 @@ def _tabla_in(datos):
     return tabla
 
 
+def _fake_servicio_tramos(datos):
+    """Cliente service_role de bloqueo_por_tramo (UNA consulta a tiempo.tramo por página: select + or_)."""
+    cliente = MagicMock()
+    cliente.postgrest.schema.return_value.table.return_value.select.return_value.or_.return_value.execute.return_value.data = datos
+    return cliente
+
+
 def _tabla_in_order(datos):
     tabla = MagicMock()
     tabla.select.return_value.in_.return_value.order.return_value.execute.return_value.data = datos
@@ -119,7 +126,11 @@ def _sin_red_real_para_ventana():
     """Autouse: sólo entra en juego cuando el test manda momento_dispositivo explícito (None se
     resuelve a ahora() sin pasar por _validar_momento_dispositivo). Por defecto cae al valor de
     ejemplo (30 días hábiles) sin festivos -- los tests que necesiten otro valor usan su propio
-    `with patch(...)` puntual."""
+    `with patch(...)` puntual.
+
+    También cubre la consulta de tramos de GET /api/marcas (Depends(get_service_client)): sin override
+    llegaría a Supabase real."""
+    app.dependency_overrides[get_service_client] = lambda: _fake_servicio_tramos([])
     with patch(
         "app.dias_habiles.get_service_client",
         return_value=_fake_service_client_config(),

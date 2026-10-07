@@ -46,6 +46,20 @@ class MarcaListaItem(BaseModel):
     motivos_revision: list[str]
     excepcion_pendiente_id: int | None = None
     estado_revision: Literal["sin_revision", "pendiente", "resuelta"]
+    # 86_*.sql: una marca con una excepción dia_cerrado PENDIENTE no se puede corregir (la corrección la
+    # resolvería en silencio y la base lo rechaza con SCJ15 al COMMIT). Se resuelve revisando el día o,
+    # si el día ya está revisado, descartando la marca. El frontend oculta/bloquea "Corregir" con esto.
+    excepcion_dia_cerrado_pendiente_id: int | None = None
+    correccion_bloqueada_por_dia_cerrado: bool = False
+    # La marca ya cerró su tramo (o es de un día cerrado/revisado): la corrección se guardaría pero NO se
+    # reflejaría en las horas (el UPDATE del tramo afecta 0 filas por RLS). Se resuelve revisando el día.
+    correccion_bloqueada_en_tramo_cerrado: bool = False
+    # Por qué no se puede corregir (None = sí se puede), por prioridad: dia_cerrado_pendiente; luego
+    # en_tramo_cerrado (tramo cerrado o día cerrado/revisado: no se refleja); luego en_tramo (tramo ABIERTO:
+    # la base rechaza la corrección con 42501). El frontend oculta/deshabilita "Corregir" cuando no es None.
+    motivo_bloqueo_correccion: (
+        Literal["dia_cerrado_pendiente", "en_tramo_cerrado", "en_tramo"] | None
+    ) = None
 
 
 class MarcaListaOut(BaseModel):

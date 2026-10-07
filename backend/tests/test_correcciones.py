@@ -1,3 +1,8 @@
+"""POST /api/correcciones (SCJ-PRO-10). Mocks del cliente de Supabase por NOMBRE de tabla (como
+test_dia_cerrado_datos_ui.py), no por orden de llamada: un cambio en el orden de las consultas del
+router no rompe estas pruebas, sólo un cambio de comportamiento. El gate de permisos (`tiene_permiso`)
+se prueba aparte (test_gate_permisos.py); aquí se parchea su función pública. Nunca contra la base real."""
+
 from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -5,8 +10,9 @@ import pytest
 from fastapi.testclient import TestClient
 from postgrest.exceptions import APIError
 
-from app.deps import CallerIdentity, get_caller_client, get_caller_identity
+from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
 from app.main import app
+from app.routers import correcciones
 
 
 def _fake_service_client_config(limite_valor: str | None = None, festivos: list | None = None):
@@ -32,23 +38,51 @@ def _fake_service_client_config(limite_valor: str | None = None, festivos: list 
     return fake
 
 
+def _tabla(datos):
+    """Constructor fluido: cualquier método encadenable devuelve el mismo objeto; sólo execute() corta."""
+    t = MagicMock()
+    for metodo in ("select", "eq", "in_", "or_", "order", "is_"):
+        getattr(t, metodo).return_value = t
+    t.execute.return_value.data = datos
+    return t
+
+
+def _db(**tablas):
+    """Cliente del caller: cada tabla se resuelve por nombre. Una tabla no declarada falla la prueba."""
+    db = MagicMock()
+    db.postgrest.schema.return_value.table.side_effect = lambda nombre: tablas[nombre]
+    return db
+
+
+def _fake_servicio_tramos(datos):
+    """Cliente service_role de la consulta previa a tiempo.tramo (marca_en_tramo.py): por defecto la
+    marca no está en ningún tramo y la corrección sigue como siempre."""
+    return _db(tramo=_tabla(datos))
+
+
 @pytest.fixture(autouse=True)
-def _sin_red_real_para_ventana():
-    """Autouse: todo test de este módulo pasa por _validar_ventana (llama a
-    get_service_client incondicionalmente para leer dias_habiles_correccion_marca) -- se
-    parchea con un fake por defecto (sin fila -> cae al valor de ejemplo, 30) para que ningún
-    test golpee Supabase real. Los tests que necesiten un valor/festivos específicos usan su
-    propio `with patch(...)` puntual, que sobreescribe este durante su alcance."""
-    with patch(
-        "app.dias_habiles.get_service_client",
-        return_value=_fake_service_client_config(),
-    ):
+def _sin_red_real():
+    """Todo test de este módulo pasa por _validar_ventana (get_service_client de dias_habiles para leer
+    dias_habiles_correccion_marca) y por la consulta de tramos (Depends(get_service_client)): sin estos
+    fakes golpearían Supabase real. Un test que necesite otro valor usa su propio override/patch."""
+    app.dependency_overrides[get_service_client] = lambda: _fake_servicio_tramos([])
+    with patch("app.dias_habiles.get_service_client", return_value=_fake_service_client_config()):
         yield
+
+
+@pytest.fixture
+def gate(monkeypatch):
+    """El caller tiene correccion_edicion; `gate.conceder(...)` cambia el conjunto de permisos."""
+    estado = type("Gate", (), {})()
+    estado.permisos = {"correccion_edicion"}
+    estado.conceder = lambda *codigos: setattr(estado, "permisos", set(codigos))
+    monkeypatch.setattr(correcciones, "resolver_persona_id", lambda db, caller: PERSONA_ID)
+    monkeypatch.setattr(correcciones, "tiene_permiso", lambda db, persona, codigo: codigo in estado.permisos)
+    return estado
 
 
 MARCA_ID = 7
 PERSONA_ID = "persona-caller"
-PUESTO_ID = "puesto-caller"
 CORRECCION_ID = 3
 CALLER_IDENTITY = CallerIdentity(auth_user_id="auth-caller", correo="caller@example.com")
 
@@ -66,91 +100,6 @@ def _payload(**overrides):
     return payload
 
 
-def _tabla_select_simple(datos):
-    tabla = MagicMock()
-    tabla.select.return_value.eq.return_value.execute.return_value.data = datos
-    return tabla
-
-
-def _tabla_select_eq_is(datos):
-    tabla = MagicMock()
-    tabla.select.return_value.eq.return_value.is_.return_value.execute.return_value.data = datos
-    return tabla
-
-
-def _tabla_select_doble_eq(datos):
-    tabla = MagicMock()
-    tabla.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = datos
-    return tabla
-
-
-def _tabla_insert(fila):
-    tabla = MagicMock()
-    tabla.insert.return_value.execute.return_value.data = [fila]
-    return tabla
-
-
-def _tabla_insert_error(error):
-    tabla = MagicMock()
-    tabla.insert.return_value.execute.side_effect = error
-    return tabla
-
-
-def _entradas_gate_correccion_edicion():
-    """usuario -> resolver_persona_id; asignacion -> puestos vigentes; puesto_permiso -> posee
-    el código directo (tiene_permiso corta ahí, sin consultar 'permiso'/'puesto')."""
-    return [
-        ("usuario", _tabla_select_simple([{"persona_id": PERSONA_ID}])),
-        ("asignacion", _tabla_select_eq_is([{"puesto_id": PUESTO_ID}])),
-        ("puesto_permiso", _tabla_select_doble_eq([{"puesto_id": PUESTO_ID}])),
-    ]
-
-
-def _entradas_gate_reapertura_denegada():
-    """AND real: correccion_edicion SIEMPRE se chequea primero (lo tiene), y ADEMÁS
-    excepcion_reapertura al reabrir una excepción resuelta (no lo tiene, y no es heredable --
-    tiene_permiso corta después de leer 'permiso', sin llegar a 'puesto'). resolver_puestos_
-    vigentes ('asignacion') se vuelve a consultar en cada llamada a tiene_permiso, no se cachea."""
-    return [
-        ("usuario", _tabla_select_simple([{"persona_id": PERSONA_ID}])),
-        ("asignacion", _tabla_select_eq_is([{"puesto_id": PUESTO_ID}])),
-        ("puesto_permiso", _tabla_select_doble_eq([{"puesto_id": PUESTO_ID}])),  # correccion_edicion: sí
-        ("asignacion", _tabla_select_eq_is([{"puesto_id": PUESTO_ID}])),
-        ("puesto_permiso", _tabla_select_doble_eq([])),  # excepcion_reapertura: no
-        ("permiso", _tabla_select_simple([{"heredable": False}])),
-    ]
-
-
-def _entradas_gate_reapertura_concedida():
-    """AND real, ambos permisos concedidos por poseedor directo -- ninguna de las dos llamadas
-    necesita caer al chequeo de heredable/hijos."""
-    return [
-        ("usuario", _tabla_select_simple([{"persona_id": PERSONA_ID}])),
-        ("asignacion", _tabla_select_eq_is([{"puesto_id": PUESTO_ID}])),
-        ("puesto_permiso", _tabla_select_doble_eq([{"puesto_id": PUESTO_ID}])),  # correccion_edicion: sí
-        ("asignacion", _tabla_select_eq_is([{"puesto_id": PUESTO_ID}])),
-        ("puesto_permiso", _tabla_select_doble_eq([{"puesto_id": PUESTO_ID}])),  # excepcion_reapertura: sí
-    ]
-
-
-def _fake_client_secuencia(secuencia):
-    fake_client = MagicMock()
-    tabla_mock = fake_client.postgrest.schema.return_value.table
-    iterador = iter(secuencia)
-
-    def side_effect(nombre_tabla):
-        nombre_esperado, mock_tabla = next(iterador)
-        assert nombre_tabla == nombre_esperado, f"esperaba tabla {nombre_esperado!r}, llegó {nombre_tabla!r}"
-        return mock_tabla
-
-    tabla_mock.side_effect = side_effect
-    return fake_client
-
-
-def _override_identidad():
-    app.dependency_overrides[get_caller_identity] = lambda: CALLER_IDENTITY
-
-
 def _fila_correccion(**overrides):
     fila = {
         "id": CORRECCION_ID,
@@ -164,162 +113,86 @@ def _fila_correccion(**overrides):
     return fila
 
 
-def test_corregir_marca_con_excepcion_pendiente_exitosa():
-    fake_client = _fake_client_secuencia(
-        [
-            ("marca", _tabla_select_simple([{"id": MARCA_ID, "momento_dispositivo": HOY_ISO}])),
-            ("excepcion", _tabla_select_simple([{"estado": "pendiente"}])),
-        ]
-        + _entradas_gate_correccion_edicion()
-        + [("correccion", _tabla_insert(_fila_correccion()))]
-    )
-    app.dependency_overrides[get_caller_client] = lambda: fake_client
-    _override_identidad()
+def _tabla_correccion(fila=None, error=None):
+    tabla = _tabla([])
+    if error is not None:
+        tabla.insert.return_value.execute.side_effect = error
+    else:
+        tabla.insert.return_value.execute.return_value.data = [fila or _fila_correccion()]
+    return tabla
 
-    client = TestClient(app)
-    response = client.post(
+
+def _escenario(momento=HOY_ISO, estados_excepcion=("pendiente",), correccion=None):
+    return _db(
+        marca=_tabla([{"id": MARCA_ID, "momento_dispositivo": momento}]),
+        excepcion=_tabla([{"estado": e, "motivo_revision": "reloj_no_sincronizado"} for e in estados_excepcion]),
+        correccion=correccion or _tabla_correccion(),
+    )
+
+
+def _post(db):
+    app.dependency_overrides[get_caller_client] = lambda: db
+    app.dependency_overrides[get_caller_identity] = lambda: CALLER_IDENTITY
+    return TestClient(app).post(
         "/api/correcciones", json=_payload(), headers={"Authorization": "Bearer fake-token"}
     )
 
-    app.dependency_overrides.clear()
+
+def test_corregir_marca_con_excepcion_pendiente_exitosa(gate):
+    response = _post(_escenario())
     assert response.status_code == 201, response.text
     assert response.json()["autor_id"] == PERSONA_ID
 
 
-def test_corregir_marca_no_encontrada_devuelve_404():
-    fake_client = _fake_client_secuencia([("marca", _tabla_select_simple([]))])
-    app.dependency_overrides[get_caller_client] = lambda: fake_client
-    _override_identidad()
-
-    client = TestClient(app)
-    response = client.post(
-        "/api/correcciones", json=_payload(), headers={"Authorization": "Bearer fake-token"}
-    )
-
-    app.dependency_overrides.clear()
-    assert response.status_code == 404
+def test_corregir_marca_no_encontrada_devuelve_404(gate):
+    db = _db(marca=_tabla([]))
+    assert _post(db).status_code == 404
 
 
-def test_corregir_marca_sin_excepcion_devuelve_422():
-    fake_client = _fake_client_secuencia(
-        [
-            ("marca", _tabla_select_simple([{"id": MARCA_ID, "momento_dispositivo": HOY_ISO}])),
-            ("excepcion", _tabla_select_simple([])),
-        ]
-    )
-    app.dependency_overrides[get_caller_client] = lambda: fake_client
-    _override_identidad()
-
-    client = TestClient(app)
-    response = client.post(
-        "/api/correcciones", json=_payload(), headers={"Authorization": "Bearer fake-token"}
-    )
-
-    app.dependency_overrides.clear()
-    assert response.status_code == 422
+def test_corregir_marca_sin_excepcion_devuelve_422(gate):
+    db = _db(marca=_tabla([{"id": MARCA_ID, "momento_dispositivo": HOY_ISO}]), excepcion=_tabla([]))
+    assert _post(db).status_code == 422
 
 
-def test_corregir_marca_excepcion_resuelta_sin_permiso_reapertura_devuelve_403():
-    fake_client = _fake_client_secuencia(
-        [
-            ("marca", _tabla_select_simple([{"id": MARCA_ID, "momento_dispositivo": HOY_ISO}])),
-            ("excepcion", _tabla_select_simple([{"estado": "resuelto"}])),
-        ]
-        + _entradas_gate_reapertura_denegada()
-    )
-    app.dependency_overrides[get_caller_client] = lambda: fake_client
-    _override_identidad()
-
-    client = TestClient(app)
-    response = client.post(
-        "/api/correcciones", json=_payload(), headers={"Authorization": "Bearer fake-token"}
-    )
-
-    app.dependency_overrides.clear()
+def test_corregir_marca_excepcion_resuelta_sin_permiso_reapertura_devuelve_403(gate):
+    response = _post(_escenario(estados_excepcion=("resuelto",)))
     assert response.status_code == 403
     assert "excepcion_reapertura" in response.json()["detail"]
 
 
-def test_corregir_marca_excepcion_resuelta_con_permiso_reapertura_exitosa():
-    fake_client = _fake_client_secuencia(
-        [
-            ("marca", _tabla_select_simple([{"id": MARCA_ID, "momento_dispositivo": HOY_ISO}])),
-            ("excepcion", _tabla_select_simple([{"estado": "resuelto"}])),
-        ]
-        + _entradas_gate_reapertura_concedida()
-        + [("correccion", _tabla_insert(_fila_correccion()))]
-    )
-    app.dependency_overrides[get_caller_client] = lambda: fake_client
-    _override_identidad()
-
-    client = TestClient(app)
-    response = client.post(
-        "/api/correcciones", json=_payload(), headers={"Authorization": "Bearer fake-token"}
-    )
-
-    app.dependency_overrides.clear()
+def test_corregir_marca_excepcion_resuelta_con_permiso_reapertura_exitosa(gate):
+    gate.conceder("correccion_edicion", "excepcion_reapertura")
+    response = _post(_escenario(estados_excepcion=("resuelto",)))
     assert response.status_code == 201, response.text
 
 
-def test_corregir_marca_ventana_vencida_devuelve_422():
-    """El fixture autouse ya cubre get_service_client (sin fila de parametro -> cae al valor de
-    ejemplo, 30) -- 100 días de por medio los supera de sobra sin necesidad de un mock puntual."""
-    fake_client = _fake_client_secuencia(
-        [
-            (
-                "marca",
-                _tabla_select_simple([{"id": MARCA_ID, "momento_dispositivo": HACE_100_DIAS_ISO}]),
-            ),
-            ("excepcion", _tabla_select_simple([{"estado": "pendiente"}])),
-        ]
-        + _entradas_gate_correccion_edicion()
-    )
-    app.dependency_overrides[get_caller_client] = lambda: fake_client
-    _override_identidad()
+def test_corregir_sin_correccion_edicion_devuelve_403(gate):
+    gate.conceder()
+    db = _escenario()
+    response = _post(db)
+    assert response.status_code == 403
+    db.postgrest.schema.return_value.table.side_effect("correccion").insert.assert_not_called()
 
-    client = TestClient(app)
-    response = client.post(
-        "/api/correcciones", json=_payload(), headers={"Authorization": "Bearer fake-token"}
-    )
 
-    app.dependency_overrides.clear()
+def test_corregir_marca_ventana_vencida_devuelve_422(gate):
+    """El fixture autouse cubre get_service_client (sin fila de parametro -> cae al valor de ejemplo,
+    30): 100 días de por medio lo superan de sobra sin un mock puntual."""
+    response = _post(_escenario(momento=HACE_100_DIAS_ISO))
     assert response.status_code == 422
     assert "30" in response.json()["detail"]
 
 
-def test_corregir_marca_trigger_rechaza_orden_cronologico_devuelve_422_legible():
-    fake_client = _fake_client_secuencia(
-        [
-            ("marca", _tabla_select_simple([{"id": MARCA_ID, "momento_dispositivo": HOY_ISO}])),
-            ("excepcion", _tabla_select_simple([{"estado": "pendiente"}])),
-        ]
-        + _entradas_gate_correccion_edicion()
-        + [
-            (
-                "correccion",
-                _tabla_insert_error(
-                    APIError(
-                        {
-                            "code": "P0001",
-                            "message": (
-                                "La corrección de la marca 7 rompería el orden cronológico: "
-                                "2026-01-01 09:05:00+00 no es posterior a la marca anterior"
-                            ),
-                        }
-                    )
-                ),
-            )
-        ]
+def test_corregir_marca_trigger_rechaza_orden_cronologico_devuelve_422_legible(gate):
+    error = APIError(
+        {
+            "code": "P0001",
+            "message": (
+                "La corrección de la marca 7 rompería el orden cronológico: "
+                "2026-01-01 09:05:00+00 no es posterior a la marca anterior"
+            ),
+        }
     )
-    app.dependency_overrides[get_caller_client] = lambda: fake_client
-    _override_identidad()
-
-    client = TestClient(app)
-    response = client.post(
-        "/api/correcciones", json=_payload(), headers={"Authorization": "Bearer fake-token"}
-    )
-
-    app.dependency_overrides.clear()
+    response = _post(_escenario(correccion=_tabla_correccion(error=error)))
     assert response.status_code == 422
     assert "rompería el orden cronológico" not in response.json()["detail"]
     assert "no se puede reordenar" in response.json()["detail"]

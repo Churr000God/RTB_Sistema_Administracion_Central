@@ -18,8 +18,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
-from app.deps import get_caller_client
+from app.deps import get_caller_client, get_service_client
 from app.dias_habiles import _dias_habiles_limite, _dias_habiles_transcurridos, _festivos_entre
+from app.marca_en_tramo import bloqueo_por_tramo
 from app.permisos import requiere_permiso
 from app.schemas.marcas import (
     MarcaCapturaManualCreate,
@@ -155,7 +156,7 @@ def _resolver_nombres_persona(db: Client, persona_ids: list[str]) -> dict[str, s
 
 def _resolver_motivos_y_pendiente_por_marca(
     db: Client, marca_ids: list[int]
-) -> tuple[dict[int, list[str]], dict[int, int]]:
+) -> tuple[dict[int, list[str]], dict[int, int], dict[int, int]]:
     """Mismo patrón y mismo criterio de "no consultar si no hace falta" que
     _resolver_nombres_persona -- una sola consulta batch, nada si ninguna marca de la página
     requiere revisión.
@@ -164,9 +165,14 @@ def _resolver_motivos_y_pendiente_por_marca(
     a false) -- no sirve para saber si hay algo pendiente AHORA. La señal real es
     tiempo.excepcion.estado = 'pendiente' (mismo criterio que GET /api/excepciones), por eso esta
     función también devuelve, por marca, el id de su excepción pendiente más antigua (si la
-    tiene) -- 'Corregir' en el frontend sólo tiene sentido con ese id."""
+    tiene) -- 'Corregir' en el frontend sólo tiene sentido con ese id.
+
+    Tercer valor (86_*.sql): por marca, el id de su excepción dia_cerrado PENDIENTE (prefijo del
+    motivo: puede llevar sufijo " — ..." si se reabrió). Con ella la marca NO se puede corregir: la
+    corrección resuelve TODAS sus excepciones pendientes en un solo UPDATE (incluida la dia_cerrado,
+    aunque haya otra pendiente al lado) y la base lo rechaza con SCJ15 al COMMIT."""
     if not marca_ids:
-        return {}, {}
+        return {}, {}, {}
     filas = (
         db.postgrest.schema("tiempo")
         .table("excepcion")
@@ -178,11 +184,18 @@ def _resolver_motivos_y_pendiente_por_marca(
     )
     motivos: dict[int, list[str]] = {}
     pendientes: dict[int, int] = {}
+    dia_cerrado_pendientes: dict[int, int] = {}
     for fila in filas:
         motivos.setdefault(fila["marca_id"], []).append(fila["motivo_revision"])
         if fila["estado"] == "pendiente" and fila["marca_id"] not in pendientes:
             pendientes[fila["marca_id"]] = fila["id"]
-    return motivos, pendientes
+        if (
+            fila["estado"] == "pendiente"
+            and fila["motivo_revision"].startswith("dia_cerrado")
+            and fila["marca_id"] not in dia_cerrado_pendientes
+        ):
+            dia_cerrado_pendientes[fila["marca_id"]] = fila["id"]
+    return motivos, pendientes, dia_cerrado_pendientes
 
 
 def _resolver_momento_efectivo_por_marca(db: Client, marca_ids: list[int]) -> dict[int, datetime]:
@@ -209,6 +222,14 @@ def _resolver_momento_efectivo_por_marca(db: Client, marca_ids: list[int]) -> di
     return efectivo
 
 
+def _motivo_bloqueo_correccion(dia_cerrado_pendiente: bool, bloqueo_tramo: str | None) -> str | None:
+    """dia_cerrado pendiente manda sobre el tramo: es lo que la UI debe explicar primero. Después,
+    tramo cerrado (o día cerrado/revisado) y por último tramo abierto."""
+    if dia_cerrado_pendiente:
+        return "dia_cerrado_pendiente"
+    return bloqueo_tramo
+
+
 def _estado_revision(requiere_revision: bool, excepcion_pendiente_id: int | None) -> str:
     """Derivado de campos ya calculados, sin query nueva. requiere_revision es de una sola vía
     (nunca baja a false) -- por eso no alcanza sola para saber si ya se resolvió."""
@@ -232,6 +253,7 @@ def listar_marcas(
     ),
     limite: int = Query(LIMITE_DEFECTO, ge=1, le=LIMITE_MAXIMO),
     desplazamiento: int = Query(0, ge=0),
+    db_servicio: Client = Depends(get_service_client),
 ) -> dict:
     """Listado paginado para la pestaña de marcas en vivo (polling desde el frontend, sin
     websocket -- SCJ-PRO-11/07 no piden push real). Más reciente primero, siempre:
@@ -260,9 +282,14 @@ def listar_marcas(
     ids_con_revision = sorted(
         {fila["id"] for fila in resultado.data if fila["requiere_revision"]}
     )
-    motivos, pendientes = _resolver_motivos_y_pendiente_por_marca(db, ids_con_revision)
+    motivos, pendientes, dia_cerrado_pendientes = _resolver_motivos_y_pendiente_por_marca(
+        db, ids_con_revision
+    )
     ids_pagina = sorted({fila["id"] for fila in resultado.data})
     efectivos = _resolver_momento_efectivo_por_marca(db, ids_pagina)
+    # UNA consulta a tiempo.tramo por página (no por marca): marcas que ya están en un tramo.
+    # Cliente service_role (lectura de insumo, no autorización): ver app/marca_en_tramo.py.
+    bloqueo_tramo = bloqueo_por_tramo(db_servicio, ids_pagina)
     marcas = [
         {
             **fila,
@@ -272,6 +299,12 @@ def listar_marcas(
             "momento_efectivo": efectivos.get(fila["id"], fila["momento_dispositivo"]),
             "estado_revision": _estado_revision(
                 fila["requiere_revision"], pendientes.get(fila["id"])
+            ),
+            "excepcion_dia_cerrado_pendiente_id": dia_cerrado_pendientes.get(fila["id"]),
+            "correccion_bloqueada_por_dia_cerrado": fila["id"] in dia_cerrado_pendientes,
+            "correccion_bloqueada_en_tramo_cerrado": bloqueo_tramo.get(fila["id"]) == "en_tramo_cerrado",
+            "motivo_bloqueo_correccion": _motivo_bloqueo_correccion(
+                fila["id"] in dia_cerrado_pendientes, bloqueo_tramo.get(fila["id"])
             ),
         }
         for fila in resultado.data

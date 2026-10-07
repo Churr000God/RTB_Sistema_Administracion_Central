@@ -14,6 +14,7 @@ persona_nombre se resuelve del lado del servidor cruzando tiempo.ausencia.person
 personas.persona (mismo criterio que routers/excepciones.py::_resolver_detalle_marca) -- sin
 esto, la bandeja de RH no tiene forma de saber de quién es la ausencia que está resolviendo."""
 
+import logging
 from datetime import date
 from typing import Literal
 
@@ -22,8 +23,11 @@ from postgrest.exceptions import APIError
 from supabase import Client
 
 from app.deps import get_caller_client
+from app.errores import traducir_error_dia_cerrado
 from app.permisos import requiere_permiso, requiere_todos_los_permisos
 from app.schemas.ausencias import AusenciaListaOut, AusenciaOut, ResolverAusenciaCreate
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ausencias", tags=["ausencias"])
 
@@ -34,6 +38,7 @@ CODIGO_TIPO_INVALIDO = "SCJ04"
 
 MENSAJE_AUSENCIA_NO_ENCONTRADA = "La ausencia no existe."
 MENSAJE_AUSENCIA_YA_RESUELTA = "Esta ausencia ya fue resuelta -- alguien más se te adelantó."
+MENSAJE_AUSENCIA_NO_RESUELTA = "No se pudo resolver la ausencia."
 
 LIMITE_DEFECTO = 50
 LIMITE_MAXIMO = 200
@@ -230,6 +235,16 @@ def resolver_ausencia(
             # paso (H1-H2: dos personas resolviendo a la vez, la función no siempre alcanza a
             # adelantarse a la carrera) -- mismo mensaje en los dos casos.
             raise HTTPException(status.HTTP_409_CONFLICT, MENSAJE_AUSENCIA_YA_RESUELTA) from error
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, error.message) from error
+        traduccion = traducir_error_dia_cerrado(error)  # SCJ15 al resolver excepciones de día
+        if traduccion is not None:
+            raise traduccion from error
+        # Código desconocido: mensaje FIJO; el texto de la base puede traer ids internos (va al log).
+        logger.error(
+            "resolver ausencia rechazado por la base: código=%s hint=%s mensaje=%s",
+            error.code,
+            str(error.hint or "")[:100].replace("\r", " ").replace("\n", " "),
+            (error.message or "")[:300].replace("\r", " ").replace("\n", " "),
+        )
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_AUSENCIA_NO_RESUELTA) from None
 
     return _con_nombre(db, resultado.data)

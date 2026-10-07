@@ -61,3 +61,80 @@ def manejar_error_terminal(error: APIError) -> NoReturn:
     if error.code and error.code.startswith("22"):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_DATOS_INVALIDOS) from None
     raise error
+
+
+# --- Excepciones de día cerrado (86_*.sql; SCJ15) ---------------------------------------------------------
+
+CODIGO_SCJ15 = "SCJ15"
+CODIGO_MOTIVO_INVALIDO = "22023"
+HINT_SIN_PERMISO = "sin_permiso"
+HINT_MOTIVO_INVALIDO = "motivo_invalido"
+
+MENSAJE_DIA_CERRADO_REQUIERE_REVISION = (
+    "Esta marca es de un día ya cerrado: no se corrige ni se resuelve a mano. Revisa el día "
+    "(o, si el día ya está revisado, descarta la marca tardía)."
+)
+MENSAJE_EXCEPCION_INMUTABLE = "La excepción no se puede alterar."
+MENSAJE_TRAMO_INCOHERENTE = "La marca no corresponde a la persona o al día del tramo."
+MENSAJE_DIA_NO_REVISADO = (
+    "El día todavía no está revisado: revísalo en vez de descartar la marca."
+)
+MENSAJE_EXCEPCION_NO_DESCARTABLE = (
+    "Esta excepción no se puede descartar: no es una marca tardía de día cerrado, o ya está "
+    "resuelta por otra vía."
+)
+MENSAJE_MARCA_EN_TRAMO = (
+    "Esta marca ya forma parte de un tramo: no se puede corregir su hora desde aquí. Revisa el día."
+)
+MENSAJE_SCJ15_GENERICO = "La operación no es válida para el estado actual de la excepción o del día."
+MENSAJE_SIN_PERMISO = "No tienes permiso para esta acción."
+MENSAJE_MOTIVO_INVALIDO = "El motivo es obligatorio."
+
+_SCJ15_POR_HINT = {
+    "dia_cerrado_requiere_revision": (status.HTTP_409_CONFLICT, MENSAJE_DIA_CERRADO_REQUIERE_REVISION),
+    "excepcion_columna_inmutable": (status.HTTP_409_CONFLICT, MENSAJE_EXCEPCION_INMUTABLE),
+    "excepcion_motivo_inmutable": (status.HTTP_409_CONFLICT, MENSAJE_EXCEPCION_INMUTABLE),
+    "tramo_incoherente": (status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_TRAMO_INCOHERENTE),
+    "dia_no_revisado": (status.HTTP_409_CONFLICT, MENSAJE_DIA_NO_REVISADO),
+    "excepcion_no_descartable": (status.HTTP_409_CONFLICT, MENSAJE_EXCEPCION_NO_DESCARTABLE),
+    # 87_*.sql: BEFORE INSERT en tiempo.correccion; la marca es apertura/cierre de algún tramo. Mismo 409 fijo
+    # que el guard previo del backend (marca_en_tramo.py). Consecuencia de producto: después de cierre_dia casi
+    # ninguna marca es corregible por esta vía; la UI debe explicar "esta marca ya está en un tramo: revisa el
+    # día o usa captura manual".
+    "marca_en_tramo": (status.HTTP_409_CONFLICT, MENSAJE_MARCA_EN_TRAMO),
+}
+
+
+def traducir_error_dia_cerrado(error: APIError) -> HTTPException | None:
+    """Traduce los errores de 86_*.sql (SCJ15 por HINT, 42501/sin_permiso, 22023/motivo_invalido) a
+    una HTTPException con un mensaje FIJO: el texto de la base nunca va a la respuesta (puede traer
+    ids internos). Devuelve None si el error no es de esta familia, para que el llamador siga con sus
+    propias reglas.
+
+    Ojo con cuándo llega SCJ15/dia_cerrado_requiere_revision: el constraint trigger es DEFERRABLE
+    INITIALLY DEFERRED y dispara al COMMIT, que PostgREST ejecuta dentro de la MISMA petición HTTP
+    (una petición = una transacción). Por eso el error llega como la respuesta de la petición completa
+    (p. ej. POST /api/correcciones) y supabase-py lo levanta como APIError con code=SCJ15 y el hint
+    en `error.hint`, igual que uno inmediato."""
+    if error.code == CODIGO_SCJ15:
+        estado, mensaje = _SCJ15_POR_HINT.get(
+            error.hint or "", (status.HTTP_409_CONFLICT, MENSAJE_SCJ15_GENERICO)
+        )
+        return HTTPException(estado, mensaje)
+    if error.code == PERMISO_DENEGADO:
+        if error.hint != HINT_SIN_PERMISO:
+            # un 42501 sin el hint del RPC es una policy o un grant (no un usuario sin permiso)
+            logger.error("la base respondió 42501 sin hint; revisar grants/policies")
+        return HTTPException(status.HTTP_403_FORBIDDEN, MENSAJE_SIN_PERMISO)
+    if error.code == CODIGO_MOTIVO_INVALIDO and error.hint == HINT_MOTIVO_INVALIDO:
+        return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_MOTIVO_INVALIDO)
+    return None
+
+
+def manejar_error_dia_cerrado(error: APIError) -> NoReturn:
+    """Debe llamarse desde un `except APIError`. Levanta la traducción o relanza el error original
+    (que cae al handler genérico de main.py, sin texto)."""
+    traduccion = traducir_error_dia_cerrado(error)
+    if traduccion is not None:
+        raise traduccion from None
+    raise error
