@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import parse_frontend_urls
 from app.scheduler import lifespan
+from app.terminal_auth import HSTS, RUTA_TERMINAL, advertir_despliegue, hsts_terminal
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# HSTS en toda respuesta de /api/terminal/* (SCJ-DEC-12 §7), incluidos 401/403/429.
+app.middleware("http")(hsts_terminal)
+
+# Avisos de despliegue (FORWARDED_ALLOW_IPS='*', proxies /0): sólo WARNING, no falla el arranque.
+advertir_despliegue(os.environ)
+
 
 @app.exception_handler(Exception)
 async def manejador_excepciones_no_capturadas(request: Request, exc: Exception) -> JSONResponse:
@@ -38,6 +45,9 @@ async def manejador_excepciones_no_capturadas(request: Request, exc: Exception) 
     navegador reporta cualquier 500 no anticipado como bloqueo de CORS en vez del error real)."""
     logger.exception("Excepción no capturada en %s %s", request.method, request.url.path)
     respuesta = JSONResponse(status_code=500, content={"detail": "Error interno del servidor."})
+    if request.url.path.startswith(RUTA_TERMINAL):
+        # ServerErrorMiddleware queda por fuera del middleware HSTS: se agrega acá (SCJ-DEC-12 §7)
+        respuesta.headers["Strict-Transport-Security"] = HSTS
     origen = request.headers.get("origin")
     if origen in ORIGENES_PERMITIDOS:
         respuesta.headers["Access-Control-Allow-Origin"] = origen
@@ -67,6 +77,7 @@ from app.routers import dias_festivos  # noqa: E402
 from app.routers import parametros  # noqa: E402
 from app.routers import tramos  # noqa: E402
 from app.routers import dias  # noqa: E402
+from app.routers import terminal  # noqa: E402
 
 app.include_router(personas.router)
 app.include_router(usuarios.router)
@@ -91,6 +102,7 @@ app.include_router(dias_festivos.router)
 app.include_router(parametros.router)
 app.include_router(tramos.router)
 app.include_router(dias.router)
+app.include_router(terminal.router)
 
 
 @app.get("/salud")
