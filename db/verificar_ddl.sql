@@ -759,3 +759,63 @@ FROM personas.puesto p
 WHERE p.es_administrador_generico
   AND NOT EXISTS (SELECT 1 FROM personas.puesto_permiso pp
                   WHERE pp.puesto_id = p.id AND pp.codigo = 'excepcion_dia_cerrado_descarte' AND pp.activo);
+
+-- ============================================================================
+-- FASE CORRECCIÓN SOBRE MARCA EN TRAMO (después de 87_*.sql)
+-- ============================================================================
+
+-- 45) Trigger y función de 87_: el trigger existe, habilitado, BEFORE INSERT por fila (tgtype 7) en tiempo.correccion y corre ANTES
+-- de trg_correccion_valida y de cualquier otro BEFORE INSERT por fila (orden alfabético de nombres, comprobado contra pg_trigger); la función es SECURITY DEFINER con search_path exacto, sin EXECUTE
+-- para PUBLIC ni para ningún rol de la API, del mismo dueño que tiempo.marca, y su cuerpo contiene la condición crítica
+-- (apertura O cierre de un tramo, SCJ15, hint marca_en_tramo, y la rama de salida que evita que el trigger sea un oráculo: anon, auth.uid() IS NOT NULL, fn_caller_activo y RETURN NEW).
+-- Esperado: 0 filas.
+SELECT 'falta o mal el trigger' AS problema, NULL::text AS detalle
+WHERE NOT EXISTS (SELECT 1 FROM pg_trigger t
+                  WHERE t.tgrelid = 'tiempo.correccion'::regclass AND t.tgname = 'trg_correccion_bloquea_marca_en_tramo'
+                    AND NOT t.tgisinternal AND t.tgenabled = 'O' AND t.tgtype = 7)
+UNION ALL
+SELECT 'hay otro trigger BEFORE INSERT por fila que corre antes que el de 87_', t.tgname::text
+FROM pg_trigger t
+WHERE t.tgrelid = 'tiempo.correccion'::regclass AND NOT t.tgisinternal
+  AND (t.tgtype & 1) <> 0 AND (t.tgtype & 2) <> 0 AND (t.tgtype & 4) <> 0
+  AND t.tgname::text COLLATE "C" < 'trg_correccion_bloquea_marca_en_tramo' COLLATE "C"
+UNION ALL
+SELECT 'trg_correccion_valida falta, no es BEFORE INSERT por fila, o corre antes que el de 87_', NULL
+WHERE NOT EXISTS (SELECT 1 FROM pg_trigger t
+                  WHERE t.tgrelid = 'tiempo.correccion'::regclass AND t.tgname = 'trg_correccion_valida' AND NOT t.tgisinternal
+                    AND (t.tgtype & 1) <> 0 AND (t.tgtype & 2) <> 0 AND (t.tgtype & 4) <> 0
+                    AND t.tgname::text COLLATE "C" > 'trg_correccion_bloquea_marca_en_tramo' COLLATE "C")
+UNION ALL
+SELECT 'falta la función', NULL
+WHERE NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname = 'tiempo' AND p.proname = 'fn_correccion_bloquea_marca_en_tramo')
+UNION ALL
+SELECT 'función distinta de la esperada', 'secdef=' || p.prosecdef || ' config=' || COALESCE(p.proconfig::text, 'NULL')
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'tiempo' AND p.proname = 'fn_correccion_bloquea_marca_en_tramo'
+  AND (NOT p.prosecdef OR p.proconfig IS DISTINCT FROM ARRAY['search_path=tiempo, personas, pg_temp'])
+UNION ALL
+SELECT 'EXECUTE a PUBLIC', NULL
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'tiempo' AND p.proname = 'fn_correccion_bloquea_marca_en_tramo'
+  AND EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a
+              WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')
+UNION ALL
+SELECT 'EXECUTE inesperado para ' || r.rol, NULL
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role'), ('terminal_checador')) AS r(rol)
+WHERE n.nspname = 'tiempo' AND p.proname = 'fn_correccion_bloquea_marca_en_tramo'
+  AND has_function_privilege(r.rol, p.oid, 'EXECUTE')
+UNION ALL
+SELECT 'dueño distinto del de tiempo.marca', NULL
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'tiempo' AND p.proname = 'fn_correccion_bloquea_marca_en_tramo'
+  AND p.proowner <> (SELECT relowner FROM pg_class WHERE oid = 'tiempo.marca'::regclass)
+UNION ALL
+SELECT 'el cuerpo no contiene: ' || c.fragmento, NULL
+FROM (VALUES ('marca_apertura_id = NEW.marca_id OR t.marca_cierre_id = NEW.marca_id'), ('SCJ15'), ('marca_en_tramo'),
+             ('auth.role() = ''anon'''), ('correccion_edicion'), ('auth.uid() IS NOT NULL'), ('fn_caller_activo'),
+             ('RETURN NEW')) AS c(fragmento)
+WHERE NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname = 'tiempo' AND p.proname = 'fn_correccion_bloquea_marca_en_tramo'
+                    AND strpos(p.prosrc, c.fragmento) > 0);

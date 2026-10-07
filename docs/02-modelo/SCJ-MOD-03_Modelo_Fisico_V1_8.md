@@ -78,8 +78,9 @@ justificación. Entregable E3 de `SCJ-ESP-01`.
 | `db/ddl/02_tiempo.sql` | Tablas del subsistema de Tiempo |
 | `db/ddl/03_parametros_ejemplo.sql` | Parámetros con **valores de ejemplo** |
 | `db/ddl/04` a `36` | *(V1.6)* Esquema `personas`: personas, estructura organizacional, asignaciones, permisos y bitácoras |
-| `db/ddl/37` a `79` | *(V1.6)* RLS, permisos y funciones de Tiempo, y las correcciones posteriores (los scripts son acumulativos: el estado final es la suma de los 87) |
+| `db/ddl/37` a `79` | *(V1.6)* RLS, permisos y funciones de Tiempo, y las correcciones posteriores (los scripts son acumulativos: el estado final es la suma de los 88) |
 | `db/ddl/80` y `81` | *(V1.7)* Terminal biométrica: `tiempo.terminal` y `tiempo.terminal_usuario` con la secuencia del `employeeNo` y los permisos `terminal_usuario_lectura`/`terminal_usuario_edicion` (`80`), y la bitácora inmutable con su trigger de transiciones (`81`). `SCJ-DEC-11` |
+| `db/ddl/87` | *(V1.8)* Trigger `BEFORE INSERT` en `tiempo.correccion` que rechaza (`SCJ15` / `marca_en_tramo`) la corrección de una marca que ya es apertura o cierre de un tramo; función `SECURITY DEFINER` sin `EXECUTE` para la API |
 | `db/ddl/86` | *(V1.8)* Cierre del hallazgo sobre `78_`: trigger de columnas de `excepcion`, constraint trigger `dia_cerrado` recreado (revisión en la misma transacción o descarte), trigger de coherencia de `tramo`, tabla inmutable `excepcion_descarte`, RPC `fn_excepcion_dia_cerrado_descartar`, permiso `excepcion_dia_cerrado_descarte` (`SCJ15`) |
 | `db/ddl/82` a `85` | *(V1.8)* Autenticación de la terminal y ruta de marcas: `terminal_credencial` y 4 columnas de estado en `terminal` (`82`); los RPC del puente, el trigger `SCJ13` de desactivación, el trigger `SCJ14` de revocación y el reemplazo de `fn_bitacora_terminal_usuario_aplica` con `FOR SHARE` (`83`); `marca_rechazada` y su purga (`84`); la caducidad de altas en `esperando_huella` (`85`). `SCJ-DEC-12` |
 | `db/ddl/30_indices_fk.sql` | *(V1.6)* Índices de llaves foráneas |

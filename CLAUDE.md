@@ -435,7 +435,18 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   auditoría inmutable (`tiempo.excepcion_descarte`). Ensayo 100/100. `ERRCODE SCJ15`. La
   corrección sobre una marca con excepción `dia_cerrado` pendiente ahora falla a propósito:
   **backend debe mapear `SCJ15` y frontend debe ocultar el botón "Corregir" en esas marcas**
-  (pendiente). **Lección:** un fix de seguridad que nadie ensayó contra la base real da una
+  (pendiente; el backend ya está en `03385fd`). **Hallazgo relacionado y `87_*.sql`:** un ensayo
+  real de `db` confirmó que corregir la hora de una marca que ya está en un tramo se guardaba en
+  `tiempo.correccion` pero `fn_correccion_recalcula_tramo` (INVOKER) afectaba 0 filas por RLS —
+  el tramo, las horas y el corte quincenal conservaban la hora vieja, sin error; sobre un tramo
+  abierto fallaba con `42501`; y como dueño/`service_role` el trigger pisaba las horas manuales de
+  RH y el descuento de pausa. `87_*` agrega `trg_correccion_bloquea_marca_en_tramo` (`SCJ15`, hint
+  `marca_en_tramo`) para cualquier marca apertura/cierre de un tramo, y el backend la bloquea antes
+  con 409. **Consecuencia de producto:** después de `cierre_dia` casi ninguna marca es corregible
+  por esta vía; `dias_habiles_correccion_marca` y `excepcion_reapertura` quedan casi sin efecto
+  hasta que exista el RPC dedicado de corrección de días cerrados (**pendiente, opción B**: recalcular
+  sólo en días `cerrado` con el descuento de pausa y sin tocar horas manuales de `revisado`).
+  **Lección:** un fix de seguridad que nadie ensayó contra la base real da una
   falsa sensación de cierre — y un `WHEN` con igualdad exacta sobre una columna que el mismo
   actor puede editar es evadible; las migraciones versionadas deben contrastarse contra la base
   real después de cada tanda (`verificar_ddl.sql`).
@@ -483,7 +494,7 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   `http://localhost:5173` fijo a mano — esa configuración no vive en este repositorio. Al pasar a
   producción (`docker compose … prod`, frontend en `:8080`) hay que actualizarla ahí también, o
   los links de invitación/recuperación de contraseña no aterrizan en la app.
-- El DDL corre hasta `db/ddl/86_*.sql` (87 archivos, `00` a `86`). `personas.permiso`
+- El DDL corre hasta `db/ddl/87_*.sql` (88 archivos, `00` a `87`). `personas.permiso`
   es la única tabla del proyecto con clave natural (`codigo varchar PRIMARY KEY`) en vez de `uuid`
   — decisión deliberada, fiel a la redacción literal de `SCJ-PRO-05`, no un descuido a corregir.
 - Las tablas de bitácora inmutables (`bitacora_movimiento_persona`,
