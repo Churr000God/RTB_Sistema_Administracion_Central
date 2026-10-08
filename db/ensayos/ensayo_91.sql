@@ -1,7 +1,7 @@
 -- Ensayo de 91_tiempo_terminal_endurecimiento_rpc.sql (con 88_, cuyo flujo de altas con consentimiento usa). NO es DDL versionado. NO correr sin
 -- OK explícito del usuario (en el chat de la sesión que lo corre) ni antes de la revisión de security.
 --   psql -X "$DATABASE_URL_DIRECTA" -v ON_ERROR_STOP=1 -f db/ensayos/ensayo_91.sql     (SIN -1; puerto 5432, no el pooler 6543)
--- Todo dentro de BEGIN … ROLLBACK. Aplica 88_ y 91_ ENCIMA de lo ya aplicado (87_). Terminal, personas, usuarios y bitácora de personas SINTÉTICOS;
+-- Todo dentro de BEGIN … ROLLBACK. Aplica 91_ ENCIMA de lo ya aplicado (88_ incluida desde el 8-oct-2026). Terminal, personas, usuarios y bitácora de personas SINTÉTICOS;
 -- el admin real sólo es caller y autor de uno de los movimientos de persona (todo se revierte). 88_ exige terminal_usuario y la bitácora vacías.
 \set ON_ERROR_STOP on
 BEGIN;
@@ -13,7 +13,7 @@ DO $b$ BEGIN
     EXECUTE 'ALTER SEQUENCE tiempo.seq_terminal_employee_no RESTART WITH 1';
   END IF;
 END $b$;
-\ir ../ddl/88_tiempo_terminal_consentimiento.sql
+-- 88_ ya está aplicada en la base real (verificado en solo lectura el 8-oct-2026): este ensayo aplica solo 91_.
 \ir ../ddl/91_tiempo_terminal_endurecimiento_rpc.sql
 
 CREATE TEMP TABLE _ens (k text PRIMARY KEY, v text);

@@ -49,8 +49,8 @@ Folio SCJ-MOD-03 · Versión 1.9 · 8 de octubre de 2026
 > vigente, `SCJ16`), el permiso `terminal_config_edicion` (no heredable, sólo TI y Gerente General), las 5
 > claves `terminal_*` de `tiempo.parametro` con su regla cruzada y el guard `SCJ17` de la pantalla genérica
 > de Parámetros. El detalle de columnas y funciones está en `SCJ-DIC-01` V1.4. Estas restricciones
-> se ensayaron con `BEGIN … ROLLBACK` (`db/ensayos/ensayo_88.sql`, `ensayo_89.sql`) y se contrastarán con la
-> base real al aplicarse.
+> se ensayaron con `BEGIN … ROLLBACK` (`db/ensayos/ensayo_88.sql`, `ensayo_89.sql`) y se contrastaron con la
+> base real el 2026-10-08, ya aplicadas, sin diferencias.
 
 > **Cambio de versión (V1.7 → V1.8, menor):** se agregan las restricciones activas de los scripts `82` a `85`
 > (`SCJ-DEC-12`, autenticación de la terminal, ruta de marcas y caducidad de altas): la credencial de la
