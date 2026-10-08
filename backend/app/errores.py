@@ -138,3 +138,136 @@ def manejar_error_dia_cerrado(error: APIError) -> NoReturn:
     if traduccion is not None:
         raise traduccion from None
     raise error
+
+
+# --- Terminales, API web (CONTRATO_API_TERMINALES_PAQUETE_2.md §6; SCJ11-SCJ17) -----------------------------
+
+CODIGO_SIN_VIGENCIA_ACTIVA = "SCJ02"
+CODIGOS_SCJ = {"SCJ11", "SCJ12", "SCJ13", "SCJ14", "SCJ16", "SCJ17"}
+FK_VIOLATION = "23503"
+
+MENSAJE_TRANSICION_INVALIDA = "El movimiento no es válido para el estado actual del alta."
+MENSAJE_ALTA_DUPLICADA = "La persona ya tiene un alta vigente en esta terminal."
+MENSAJE_PERSONA_NO_ACTIVA = "La persona no existe o no está activa."
+MENSAJE_TERMINAL_NO_VALIDA = "La terminal no existe o no está activa."
+MENSAJE_TERMINAL_CON_ALTAS = (
+    "La terminal tiene altas vigentes; da de baja todas antes de desactivarla."
+)
+MENSAJE_CREDENCIAL_YA_REVOCADA = "La credencial ya está revocada."
+MENSAJE_CONSENTIMIENTO_DESACTUALIZADO = "El texto de consentimiento cambió; vuelve a leerlo."
+MENSAJE_CONSENTIMIENTO_REQUERIDO = "Falta la versión del texto de consentimiento."
+MENSAJE_CLAVE_RESERVADA = "Esa variable se edita desde Terminales → Configuración."
+MENSAJE_TEXTO_INVALIDO = "El texto debe tener entre 1 y 4 000 caracteres."
+MENSAJE_NOTA_INVALIDA = "El motivo del cambio no puede pasar de 200 caracteres."
+MENSAJE_LOTE_INVALIDO = "El lote debe traer entre 1 y 200 altas."
+MENSAJE_VARIABLE_NO_EXISTE = "La variable no existe."
+MENSAJE_VALOR_INVALIDO = "El valor no es válido para esta variable."
+MENSAJE_PARAMETRO_SIN_VIGENCIA = "No existe un parámetro activo con esa clave."
+MENSAJE_PERSONA_NO_SINCRONIZADA = (
+    "La persona no está sincronizada en el esquema de tiempo; avisa a Sistemas."
+)
+MENSAJE_ASIGNACION_SIMULTANEA = "Otra asignación de esta persona ocurrió al mismo tiempo; recarga."
+MENSAJE_DATO_RELACIONADO = "Un dato relacionado no existe o no está sincronizado; avisa a Sistemas."
+MENSAJE_REGISTRO_SIMULTANEO = "Otro cambio ocurrió al mismo tiempo; recarga."
+MENSAJE_LOTE_NO_ELEGIBLE = "No se registró nada: algunas altas ya no son elegibles."
+MENSAJE_DATOS_INVALIDOS_TERMINAL = "Los datos enviados no son válidos."
+
+_SCJ12_POR_HINT = {
+    "alta_duplicada": (status.HTTP_409_CONFLICT, MENSAJE_ALTA_DUPLICADA),
+    "persona_no_activa": (status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_PERSONA_NO_ACTIVA),
+    "terminal_no_valida": (status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_TERMINAL_NO_VALIDA),
+}
+_SCJ16_POR_HINT = {
+    "consentimiento_desactualizado": (
+        status.HTTP_409_CONFLICT,
+        MENSAJE_CONSENTIMIENTO_DESACTUALIZADO,
+    ),
+    "consentimiento_requerido": (
+        status.HTTP_422_UNPROCESSABLE_ENTITY,
+        MENSAJE_CONSENTIMIENTO_REQUERIDO,
+    ),
+}
+_22023_POR_HINT = {
+    "texto_invalido": (status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_TEXTO_INVALIDO),
+    "nota_invalida": (status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_NOTA_INVALIDA),
+    "lote_invalido": (status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_LOTE_INVALIDO),
+    "clave_no_editable": (status.HTTP_404_NOT_FOUND, MENSAJE_VARIABLE_NO_EXISTE),
+}
+
+
+def traducir_error_terminal_web(
+    error: APIError,
+    rango: tuple[int, int] | None = None,
+    contexto: str | None = None,
+) -> HTTPException | None:
+    """Traduce los errores de la base de la API WEB de Terminales (SCJ11–SCJ17 y compañía) a una
+    HTTPException con mensaje FIJO: el texto de la base nunca llega a la respuesta. Devuelve None si el
+    error no es de esta familia (el llamador decide: normalmente relanzar al 500 genérico).
+
+    - SCJ15, 42501 y 22023/motivo_invalido los resuelve `traducir_error_dia_cerrado` (mismo contrato).
+    - `rango`=(mínimo, máximo) del catálogo del backend permite el mensaje «entre {min} y {max}» de
+      22023/valor_invalido sin leer el texto de la base.
+    - `contexto` decide qué significan 23505 y 23503, que dependen del endpoint: sólo con
+      contexto='asignacion' (POST asignar, que espera `uq_terminal_usuario_persona_vigente` y la FK
+      persona_id -> tiempo.persona) son «asignación simultánea» (409) y «persona no sincronizada» (422). Sin
+      contexto son mensajes genéricos que no afirman nada del endpoint. Cada endpoint que use este helper
+      debe declarar el contexto que espera.
+    - SCJ16/consentimiento_desactualizado trae sólo estado y mensaje: el endpoint le agrega el campo
+      `consentimiento_vigente` (el texto vigente) porque el cuerpo lo conoce el llamador, no este helper."""
+    codigo, hint = error.code, error.hint or ""
+
+    if codigo == "SCJ11":
+        return HTTPException(status.HTTP_409_CONFLICT, MENSAJE_TRANSICION_INVALIDA)
+    if codigo == "SCJ12" and hint in _SCJ12_POR_HINT:
+        estado, mensaje = _SCJ12_POR_HINT[hint]
+        return HTTPException(estado, mensaje)
+    if codigo == "SCJ13":
+        return HTTPException(status.HTTP_409_CONFLICT, MENSAJE_TERMINAL_CON_ALTAS)
+    if codigo == "SCJ14":
+        return HTTPException(status.HTTP_409_CONFLICT, MENSAJE_CREDENCIAL_YA_REVOCADA)
+    if codigo == "SCJ16":
+        estado, mensaje = _SCJ16_POR_HINT.get(
+            hint, (status.HTTP_409_CONFLICT, MENSAJE_CONSENTIMIENTO_DESACTUALIZADO)
+        )
+        return HTTPException(estado, mensaje)
+    if codigo == "SCJ17":
+        return HTTPException(status.HTTP_403_FORBIDDEN, MENSAJE_CLAVE_RESERVADA)
+    if codigo == CODIGO_SIN_VIGENCIA_ACTIVA:
+        return HTTPException(status.HTTP_404_NOT_FOUND, MENSAJE_PARAMETRO_SIN_VIGENCIA)
+    if codigo == FK_VIOLATION:
+        mensaje = MENSAJE_PERSONA_NO_SINCRONIZADA if contexto == "asignacion" else MENSAJE_DATO_RELACIONADO
+        return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, mensaje)
+    if codigo == UNIQUE_VIOLATION:
+        mensaje = MENSAJE_ASIGNACION_SIMULTANEA if contexto == "asignacion" else MENSAJE_REGISTRO_SIMULTANEO
+        return HTTPException(status.HTTP_409_CONFLICT, mensaje)
+    if codigo == "22023":
+        if hint in _22023_POR_HINT:
+            estado, mensaje = _22023_POR_HINT[hint]
+            return HTTPException(estado, mensaje)
+        if hint == "valor_invalido":
+            mensaje = (
+                f"El valor debe ser un entero entre {rango[0]} y {rango[1]}."
+                if rango
+                else MENSAJE_VALOR_INVALIDO
+            )
+            return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, mensaje)
+        if hint == "lote_no_elegible":
+            # El DETAIL de la base NO se relaya (puede traer ids): el endpoint reconstruye la lista de
+            # no elegibles y su razón con sus propias consultas.
+            return HTTPException(status.HTTP_409_CONFLICT, MENSAJE_LOTE_NO_ELEGIBLE)
+        if hint != "motivo_invalido":
+            # cualquier otro 22023 (huellas_invalidas, retencion_invalida, sin hint…): genérico
+            return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_DATOS_INVALIDOS_TERMINAL)
+    # SCJ15, 42501 y 22023/motivo_invalido
+    return traducir_error_dia_cerrado(error)
+
+
+def manejar_error_terminal_web(
+    error: APIError, rango: tuple[int, int] | None = None, contexto: str | None = None
+) -> NoReturn:
+    """Debe llamarse desde un `except APIError`. Levanta la traducción o relanza el error original (que
+    cae al handler genérico de main.py: 500 sin texto)."""
+    traduccion = traducir_error_terminal_web(error, rango, contexto)
+    if traduccion is not None:
+        raise traduccion from None
+    raise error

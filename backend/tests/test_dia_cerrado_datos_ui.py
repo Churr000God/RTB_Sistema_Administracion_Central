@@ -19,25 +19,9 @@ PERSONA = "aaaaaaaa-0000-0000-0000-000000000001"
 CRUDO = "texto-crudo-id-interno-3377"
 
 
-class _Resultado:
-    def __init__(self, data, count=None):
-        self.data = data
-        self.count = count
-
-
-def _tabla(datos, count=None):
-    """Constructor fluido: cualquier método encadenable devuelve el mismo objeto; sólo execute() corta."""
-    t = MagicMock()
-    for metodo in ("select", "eq", "like", "in_", "gte", "lte", "order", "range", "is_", "ilike", "or_"):
-        getattr(t, metodo).return_value = t
-    t.execute.return_value = _Resultado(datos, count)
-    return t
-
-
-def _db(**tablas):
-    db = MagicMock()
-    db.postgrest.schema.return_value.table.side_effect = lambda nombre: tablas.get(nombre, _tabla([]))
-    return db
+from _mocks_supabase import Resultado as _Resultado  # noqa: E402
+from _mocks_supabase import db_por_nombre as _db  # noqa: E402
+from _mocks_supabase import tabla as _tabla  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -332,11 +316,11 @@ def test_sesion_expone_si_puede_descartar_excepciones(monkeypatch, tiene, espera
 
     consultados = []
 
-    def tiene_permiso(db, persona_id, codigo):
-        consultados.append(codigo)
-        return tiene if codigo == "excepcion_dia_cerrado_descarte" else False
+    def tiene_permisos(db, persona_id, codigos):
+        consultados.extend(codigos)
+        return {c: (tiene if c == "excepcion_dia_cerrado_descarte" else False) for c in codigos}
 
-    monkeypatch.setattr(sesion, "tiene_permiso", tiene_permiso)
+    monkeypatch.setattr(sesion, "tiene_permisos", tiene_permisos)
     db = _db(
         usuario=_tabla([{"auth_user_id": "a", "nombre_usuario": "ana", "persona_id": PERSONA}]),
         persona=_tabla([{"estado": "activo"}]),
@@ -352,7 +336,7 @@ def test_sesion_expone_si_puede_descartar_excepciones(monkeypatch, tiene, espera
 def test_sesion_de_cuenta_bloqueada_no_puede_descartar(monkeypatch):
     from app.routers import sesion
 
-    monkeypatch.setattr(sesion, "tiene_permiso", lambda *a: True)
+    monkeypatch.setattr(sesion, "tiene_permisos", lambda db, p, codigos: {c: True for c in codigos})
     db = _db(
         usuario=_tabla([{"auth_user_id": "a", "nombre_usuario": "ana", "persona_id": PERSONA}]),
         persona=_tabla([{"estado": "suspension"}]),

@@ -18,7 +18,7 @@ def validar_formato_valor(clave: str, valor: str) -> str:
     catálogo de código, no el estado real de la tabla."""
     entrada = CATALOGO.get(clave)
     if entrada is None:
-        raise ValueError(f"clave desconocida: {clave}")
+        raise ValueError("clave desconocida")  # sin eco del path param
 
     if entrada.tipo == "entero":
         if not valor.isdigit() or int(valor) <= 0:

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from supabase import Client
 
 from app.deps import CallerIdentity, get_caller_identity, get_service_client
-from app.permisos import tiene_permiso
+from app.permisos import tiene_permisos
 from app.schemas.sesion import SesionOut
 
 router = APIRouter(prefix="/api/sesion", tags=["sesion"])
@@ -62,13 +62,32 @@ def obtener_sesion(
     puede_ver_modulo_2 = False
     puede_ver_modulo_3 = False
     puede_descartar_excepciones = False
+    puede_ver_terminales = False
+    puede_editar_terminales = False
+    puede_editar_config_terminales = False
     if acceso_permitido:
-        puede_ver_modulo_1 = tiene_permiso(db, usuario["persona_id"], "ver_modulo_1")
-        puede_ver_modulo_2 = tiene_permiso(db, usuario["persona_id"], "ver_modulo_2")
-        puede_ver_modulo_3 = tiene_permiso(db, usuario["persona_id"], "ver_modulo_3")
-        puede_descartar_excepciones = tiene_permiso(
-            db, usuario["persona_id"], "excepcion_dia_cerrado_descarte"
+        # UNA resolución de puestos y poseedores para todos los códigos (antes ~5 consultas por código).
+        permisos = tiene_permisos(
+            db,
+            usuario["persona_id"],
+            (
+                "ver_modulo_1",
+                "ver_modulo_2",
+                "ver_modulo_3",
+                "excepcion_dia_cerrado_descarte",
+                "terminal_usuario_lectura",
+                "terminal_usuario_edicion",
+                "terminal_config_edicion",
+            ),
         )
+        puede_ver_modulo_1 = permisos["ver_modulo_1"]
+        puede_ver_modulo_2 = permisos["ver_modulo_2"]
+        puede_ver_modulo_3 = permisos["ver_modulo_3"]
+        puede_descartar_excepciones = permisos["excepcion_dia_cerrado_descarte"]
+        puede_editar_terminales = permisos["terminal_usuario_edicion"]
+        puede_editar_config_terminales = permisos["terminal_config_edicion"]
+        # Q5 (decidido por el usuario): terminal_config_edicion SOLA no da acceso a Terminales.
+        puede_ver_terminales = permisos["terminal_usuario_lectura"] or puede_editar_terminales
 
     return {
         "auth_user_id": caller.auth_user_id,
@@ -82,4 +101,7 @@ def obtener_sesion(
         "puede_ver_modulo_2": puede_ver_modulo_2,
         "puede_ver_modulo_3": puede_ver_modulo_3,
         "puede_descartar_excepciones": puede_descartar_excepciones,
+        "puede_ver_terminales": puede_ver_terminales,
+        "puede_editar_terminales": puede_editar_terminales,
+        "puede_editar_config_terminales": puede_editar_config_terminales,
     }

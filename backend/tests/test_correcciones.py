@@ -38,20 +38,13 @@ def _fake_service_client_config(limite_valor: str | None = None, festivos: list 
     return fake
 
 
-def _tabla(datos):
-    """Constructor fluido: cualquier método encadenable devuelve el mismo objeto; sólo execute() corta."""
-    t = MagicMock()
-    for metodo in ("select", "eq", "in_", "or_", "order", "is_"):
-        getattr(t, metodo).return_value = t
-    t.execute.return_value.data = datos
-    return t
+from _mocks_supabase import db_por_nombre  # noqa: E402
+from _mocks_supabase import tabla as _tabla  # noqa: E402
 
 
 def _db(**tablas):
     """Cliente del caller: cada tabla se resuelve por nombre. Una tabla no declarada falla la prueba."""
-    db = MagicMock()
-    db.postgrest.schema.return_value.table.side_effect = lambda nombre: tablas[nombre]
-    return db
+    return db_por_nombre(estricto=True, **tablas)
 
 
 def _fake_servicio_tramos(datos):

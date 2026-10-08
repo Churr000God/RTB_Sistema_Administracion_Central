@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     # terminal vive en el Pi y su hash en la base, no en la configuración del backend. ---
     # HTTPS obligatorio en /api/terminal/*. Falla cerrada: sólo desarrollo debe ponerlo en false.
     terminal_requiere_https: bool = True
+    # Segundos sin contacto del puente a partir de los cuales una terminal se marca «sin_contacto» en
+    # GET /api/terminales (SCJ-DEC-12 Q5: configuración de infraestructura, no tiempo.parametro). El latido del
+    # Pi es cada ~60 s: 300 = 5 latidos perdidos.
+    terminal_umbral_sin_contacto_seg: int = 300
     # Proxies cuyas cabeceras X-Forwarded-Proto / X-Forwarded-For SÍ se honran: IPs o CIDR
     # separados por coma. Vacío = no se confía en ninguna cabecera (sólo el esquema real).
     # NUNCA 0.0.0.0/0 ni ::/0 (se ignoran). Despliegue: el proxy debe SOBRESCRIBIR

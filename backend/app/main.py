@@ -78,6 +78,7 @@ from app.routers import parametros  # noqa: E402
 from app.routers import tramos  # noqa: E402
 from app.routers import dias  # noqa: E402
 from app.routers import terminal  # noqa: E402
+from app.routers import terminales  # noqa: E402
 
 app.include_router(personas.router)
 app.include_router(usuarios.router)
@@ -103,6 +104,8 @@ app.include_router(parametros.router)
 app.include_router(tramos.router)
 app.include_router(dias.router)
 app.include_router(terminal.router)
+app.include_router(terminales.router)
+app.include_router(terminales.router_personas)
 
 
 @app.get("/salud")

@@ -32,6 +32,18 @@ def _tabla_puesto_permiso_por_codigo(codigos_activos):
         return resultado_eq2
 
     tabla.select.return_value.eq.side_effect = eq_codigo
+
+    def in_codigos(_campo, codigos):
+        resultado_in = MagicMock()
+        filas = [
+            {"puesto_id": PUESTO_CALLER_ID, "codigo": codigo}
+            for codigo in codigos
+            if codigo in codigos_activos
+        ]
+        resultado_in.eq.return_value.execute.return_value.data = filas
+        return resultado_in
+
+    tabla.select.return_value.in_.side_effect = in_codigos
     return tabla
 
 

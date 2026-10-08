@@ -15,6 +15,8 @@ router no crea ni borra claves, sólo cambia el valor de una que ya existe. Que 
 tenga vigencia activa lo valida el RPC tiempo.fn_parametro_actualizar_valor, que revienta con
 ERRCODE 'SCJ02' si no -- se mapea a 404, calcado de tope_legal.py."""
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from postgrest.exceptions import APIError
 from supabase import Client
@@ -29,11 +31,26 @@ from app.schemas.parametros import (
     validar_formato_valor,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/parametros", tags=["parametros"])
 
 CODIGO_CLAVE_SIN_VIGENCIA_ACTIVA = "SCJ02"
 
 MENSAJE_CLAVE_SIN_VIGENCIA_ACTIVA = "No existe un parámetro activo con esa clave."
+
+# Claves de las variables del módulo Terminales (89_*.sql, SCJ-DEC-12): viven en la MISMA tabla pero se
+# editan con su propio RPC y permiso (terminal_config_edicion), no desde esta pantalla genérica.
+PREFIJO_CLAVES_TERMINAL = "terminal_"
+CODIGO_CLAVE_RESERVADA = "SCJ17"
+MENSAJE_CLAVE_RESERVADA = "Esa variable se edita desde Terminales → Configuración."
+MENSAJE_PARAMETRO_NO_ACTUALIZADO = "No se pudo actualizar el parámetro."
+
+
+def _solo_catalogo(filas: list[dict]) -> list[dict]:
+    """Sólo las claves del catálogo cerrado de esta pantalla. Sin esto, la primera fila terminal_* que
+    siembre 89_*.sql haría reventar _mezclar_con_catalogo (KeyError -> 500) en el listado y el historial."""
+    return [fila for fila in filas if fila["clave"] in CATALOGO]
 
 
 def _mezclar_con_catalogo(fila: dict) -> dict:
@@ -62,7 +79,7 @@ def listar_parametros_vigentes(
         .execute()
         .data
     )
-    return [_mezclar_con_catalogo(fila) for fila in filas]
+    return [_mezclar_con_catalogo(fila) for fila in _solo_catalogo(filas)]
 
 
 @router.get("/historial", response_model=list[ParametroHistorialItem])
@@ -73,7 +90,7 @@ def listar_historial_parametros(
     """Sin query params -- 8 claves × pocas vigencias, el filtrado (búsqueda/rango/orden) lo hace
     el frontend client-side, mismo criterio de dias_festivos.py."""
     tabla = db_servicio.postgrest.schema("tiempo").table
-    historial = (
+    historial = _solo_catalogo(
         tabla("parametro").select("*").order("vigente_desde", desc=True).execute().data
     )
 
@@ -111,6 +128,10 @@ def actualizar_valor_parametro(
     """vigente_desde siempre hoy, puesto por el RPC -- sin campo de fecha en el formulario. Dos
     cambios de la misma clave el mismo día son la misma vigencia corregida (UPDATE), no una fila
     nueva -- lo resuelve el RPC, no este endpoint."""
+    if clave.startswith(PREFIJO_CLAVES_TERMINAL):
+        # Antes de cualquier otra cosa: ni siquiera se valida el formato ni se llama al RPC.
+        raise HTTPException(status.HTTP_403_FORBIDDEN, MENSAJE_CLAVE_RESERVADA)
+
     try:
         valor = validar_formato_valor(clave, datos.valor)
     except ValueError as error:
@@ -134,6 +155,18 @@ def actualizar_valor_parametro(
             raise HTTPException(
                 status.HTTP_404_NOT_FOUND, MENSAJE_CLAVE_SIN_VIGENCIA_ACTIVA
             ) from error
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, error.message) from error
+        if error.code == CODIGO_CLAVE_RESERVADA:
+            # red de seguridad: el guard SQL de fn_parametro_actualizar_valor (89_) rechaza terminal_%
+            raise HTTPException(status.HTTP_403_FORBIDDEN, MENSAJE_CLAVE_RESERVADA) from error
+        # Código desconocido: mensaje FIJO (el texto de la base puede traer ids internos); detalle al log.
+        logger.error(
+            "parámetro rechazado por la base: clave=%s código=%s hint=%s",
+            clave,
+            error.code,
+            str(error.hint or "")[:100].replace("\r", " ").replace("\n", " "),
+        )
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_PARAMETRO_NO_ACTUALIZADO
+        ) from None
 
     return _mezclar_con_catalogo(resultado.data)

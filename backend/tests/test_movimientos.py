@@ -2,8 +2,10 @@ from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
-from app.deps import CallerIdentity, get_caller_client, get_caller_identity
+from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
 from app.main import app
+
+import pytest
 
 AUTH_USER_ID = "22222222-2222-2222-2222-222222222222"
 PERSONA_ID = "11111111-1111-1111-1111-111111111111"
@@ -194,3 +196,13 @@ def test_listar_movimientos_sin_autores_no_dispara_segunda_consulta():
     assert response.json()[0]["registrado_por_nombre"] is None
     assert tabla_mock.call_count == 1
     assert tabla_mock.call_args[0][0] == "bitacora_movimiento_persona"
+
+
+@pytest.fixture(autouse=True)
+def _sin_service_role_real():
+    """POST de movimientos ahora depende de get_service_client (hook de baja de terminal): sin override
+    llegaría a Supabase real. Por defecto el RPC devuelve 0 bajas."""
+    servicio = MagicMock()
+    servicio.postgrest.schema.return_value.rpc.return_value.execute.return_value.data = 0
+    app.dependency_overrides[get_service_client] = lambda: servicio
+    yield

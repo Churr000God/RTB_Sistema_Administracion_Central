@@ -150,3 +150,85 @@ def requiere_todos_los_permisos(*codigos: str):
             )
 
     return dependencia
+
+
+def es_administrador_generico(db: Client, persona_id: str) -> bool:
+    """¿Ocupa la persona (hoy, por una asignación vigente) un puesto con `es_administrador_generico`?
+    (hoy «Gerente o Encargado de TI»). Sirve a la excepción de la auto-asignación a una terminal
+    (SCJ-DEC-12 §4, SCJ-PRO-15 §V.3): el mismo flag que ya leen asignaciones.py y permisos.py. Un solo
+    puesto vigente con el flag basta; sin puestos vigentes, False."""
+    puestos = resolver_puestos_vigentes(db, persona_id)
+    if not puestos:
+        return False
+    filas = (
+        db.postgrest.schema("personas")
+        .table("puesto")
+        .select("es_administrador_generico")
+        .in_("id", puestos)
+        .execute()
+        .data
+    )
+    return any(fila["es_administrador_generico"] for fila in filas)
+
+
+def tiene_permisos(db: Client, persona_id: str, codigos) -> dict[str, bool]:
+    """Igual que `tiene_permiso` para VARIOS códigos a la vez, con las mismas reglas (poseedor directo, o
+    herencia jerárquica sólo si el permiso es heredable) pero con consultas fijas en vez de ~5 por código:
+    puestos vigentes (1), poseedores de todos los códigos (1), heredabilidad de los que no se resolvieron
+    directo (1) y, sólo si alguno es heredable, el árbol de puestos (1). Lo usa /api/sesion, que pregunta
+    por ocho códigos en cada carga."""
+    codigos = list(dict.fromkeys(codigos))
+    resultado = {codigo: False for codigo in codigos}
+    if not codigos:
+        return resultado
+    puestos_vigentes = resolver_puestos_vigentes(db, persona_id)
+    if not puestos_vigentes:
+        return resultado
+
+    filas = (
+        db.postgrest.schema("personas")
+        .table("puesto_permiso")
+        .select("puesto_id, codigo")
+        .in_("codigo", codigos)
+        .eq("activo", True)
+        .execute()
+        .data
+    )
+    poseedores: dict[str, set[str]] = {codigo: set() for codigo in codigos}
+    for fila in filas:
+        if fila["codigo"] in poseedores:
+            poseedores[fila["codigo"]].add(fila["puesto_id"])
+
+    propios = set(puestos_vigentes)
+    pendientes = []
+    for codigo in codigos:
+        if poseedores[codigo] & propios:
+            resultado[codigo] = True
+        elif poseedores[codigo]:
+            pendientes.append(codigo)  # sin poseedores no hay nada que heredar
+    if not pendientes:
+        return resultado
+
+    heredables = {
+        fila["codigo"]
+        for fila in (
+            db.postgrest.schema("personas")
+            .table("permiso")
+            .select("codigo, heredable")
+            .in_("codigo", pendientes)
+            .execute()
+            .data
+        )
+        if fila["heredable"]
+    }
+    if not heredables:
+        return resultado
+
+    hijos = mapa_hijos_por_puesto(db)
+    alcanzables: set[str] = set()
+    for puesto in puestos_vigentes:
+        alcanzables |= descendientes_incluido_si_mismo(hijos, puesto)
+    for codigo in heredables:
+        if alcanzables & poseedores[codigo]:
+            resultado[codigo] = True
+    return resultado
