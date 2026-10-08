@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, field_validator
@@ -60,6 +60,10 @@ class MarcaListaItem(BaseModel):
     motivo_bloqueo_correccion: (
         Literal["dia_cerrado_pendiente", "en_tramo_cerrado", "en_tramo"] | None
     ) = None
+    # Día al que pertenece la marca (para navegar a Días): fecha local EFECTIVA (corrección más reciente +
+    # desfase_local) y el id del tiempo.dia si ya existe (None si el día aún no se materializó).
+    fecha_local: date | None = None
+    dia_id: int | None = None
 
 
 class MarcaListaOut(BaseModel):

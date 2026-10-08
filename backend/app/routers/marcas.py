@@ -20,6 +20,7 @@ from supabase import Client
 
 from app.deps import get_caller_client, get_service_client
 from app.dias_habiles import _dias_habiles_limite, _dias_habiles_transcurridos, _festivos_entre
+from app.fecha_local import fecha_local_efectiva
 from app.marca_en_tramo import bloqueo_por_tramo
 from app.permisos import requiere_permiso
 from app.schemas.marcas import (
@@ -222,6 +223,31 @@ def _resolver_momento_efectivo_por_marca(db: Client, marca_ids: list[int]) -> di
     return efectivo
 
 
+def _resolver_dia_por_marca(db_servicio: Client, filas: list[dict], fechas_locales: dict) -> dict[int, int]:
+    """{marca_id: tiempo.dia.id} de las marcas de la página cuyo día ya existe. UNA consulta por página con
+    el cliente service_role (lectura de insumo, como la de tramos; sólo devuelve el id del día de marcas que el
+    caller ya puede ver), filtrando por personas y fechas EXACTAS de la página."""
+    if not filas:
+        return {}
+    personas = sorted({fila["persona_id"] for fila in filas})
+    fechas = sorted({fecha.isoformat() for fecha in fechas_locales.values()})
+    dias = (
+        db_servicio.postgrest.schema("tiempo")
+        .table("dia")
+        .select("id, persona_id, fecha")
+        .in_("persona_id", personas)
+        .in_("fecha", fechas)
+        .execute()
+        .data
+    )
+    id_por_clave = {(d["persona_id"], d["fecha"]): d["id"] for d in dias}
+    return {
+        fila["id"]: id_por_clave[(fila["persona_id"], fechas_locales[fila["id"]].isoformat())]
+        for fila in filas
+        if (fila["persona_id"], fechas_locales[fila["id"]].isoformat()) in id_por_clave
+    }
+
+
 def _motivo_bloqueo_correccion(dia_cerrado_pendiente: bool, bloqueo_tramo: str | None) -> str | None:
     """dia_cerrado pendiente manda sobre el tramo: es lo que la UI debe explicar primero. Después,
     tramo cerrado (o día cerrado/revisado) y por último tramo abierto."""
@@ -290,6 +316,13 @@ def listar_marcas(
     # UNA consulta a tiempo.tramo por página (no por marca): marcas que ya están en un tramo.
     # Cliente service_role (lectura de insumo, no autorización): ver app/marca_en_tramo.py.
     bloqueo_tramo = bloqueo_por_tramo(db_servicio, ids_pagina)
+    fechas_locales = {
+        fila["id"]: fecha_local_efectiva(
+            efectivos.get(fila["id"], fila["momento_dispositivo"]), fila["desfase_local"]
+        )
+        for fila in resultado.data
+    }
+    dias = _resolver_dia_por_marca(db_servicio, resultado.data, fechas_locales)
     marcas = [
         {
             **fila,
@@ -303,6 +336,8 @@ def listar_marcas(
             "excepcion_dia_cerrado_pendiente_id": dia_cerrado_pendientes.get(fila["id"]),
             "correccion_bloqueada_por_dia_cerrado": fila["id"] in dia_cerrado_pendientes,
             "correccion_bloqueada_en_tramo_cerrado": bloqueo_tramo.get(fila["id"]) == "en_tramo_cerrado",
+            "fecha_local": fechas_locales[fila["id"]],
+            "dia_id": dias.get(fila["id"]),
             "motivo_bloqueo_correccion": _motivo_bloqueo_correccion(
                 fila["id"] in dia_cerrado_pendientes, bloqueo_tramo.get(fila["id"])
             ),

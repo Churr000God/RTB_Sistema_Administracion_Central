@@ -94,8 +94,9 @@ def _es_dia_cerrado(fila: dict) -> bool:
 def _resolver_dias_de_marcas(
     db: Client, filas_excepcion: list[dict], detalle_por_marca: dict[int, dict]
 ) -> dict[int, dict]:
-    """Para las excepciones dia_cerrado de marca: {marca_id: {dia_id, estado}} del día al que
-    pertenece cada marca (fecha local EFECTIVA, mismo criterio que fn_marca_fecha_local, 86_*.sql).
+    """Para las excepciones dia_cerrado de marca: {marca_id: {fecha, dia_id, estado}} del día al que
+    pertenece cada marca (fecha local EFECTIVA, mismo criterio que fn_marca_fecha_local, 86_*.sql); `fecha`
+    se devuelve aunque el día todavía no exista como fila (dia_id y estado quedan None).
     Sólo consulta si hay alguna dia_cerrado (el resto de la cola no paga estas consultas)."""
     marca_ids = sorted({f["marca_id"] for f in filas_excepcion if _es_dia_cerrado(f)})
     if not marca_ids:
@@ -143,9 +144,12 @@ def _resolver_dias_de_marcas(
     dia_por_clave = {(d["persona_id"], d["fecha"]): d for d in dias}
     resultado = {}
     for marca_id, (persona, fecha) in fecha_por_marca.items():
-        dia = dia_por_clave.get((persona, fecha.isoformat()))
-        if dia:
-            resultado[marca_id] = {"dia_id": dia["id"], "estado": dia["estado"]}
+        dia = dia_por_clave.get((persona, fecha.isoformat()), {})
+        resultado[marca_id] = {
+            "fecha": fecha,
+            "dia_id": dia.get("id"),
+            "estado": dia.get("estado"),
+        }
     return resultado
 
 
@@ -177,6 +181,7 @@ def _armar_filas(db: Client, filas_excepcion: list[dict]) -> list[dict]:
                 ),
                 "es_dia_cerrado": _es_dia_cerrado(fila),
                 "dia_de_la_marca_id": dia.get("dia_id"),
+                "dia_de_la_marca_fecha": dia.get("fecha"),
                 "dia_de_la_marca_estado": dia.get("estado"),
                 "camino_resolucion": _camino_resolucion(fila, dia.get("estado")),
             }

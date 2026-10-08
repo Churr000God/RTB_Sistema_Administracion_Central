@@ -19,6 +19,7 @@ puede necesitar revisión humana, no sólo el caso original de paridad impar."""
 
 import logging
 from datetime import date
+from uuid import UUID
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -247,6 +248,8 @@ def listar_dias(
     busqueda_persona: str | None = Query(None, description="Texto libre sobre el nombre."),
     desde: date | None = Query(None, description="fecha >= desde."),
     hasta: date | None = Query(None, description="fecha <= hasta."),
+    persona_id: UUID | None = Query(None, description="Una persona exacta (UUID)."),
+    dia_id: int | None = Query(None, ge=1, description="Un día exacto (para 'Ir a revisar el día')."),
     estado: Literal["abierto", "cerrado", "bloqueado", "revisado"] | None = Query(None),
     orden: Literal["fecha_desc", "fecha_asc", "horas_desc", "horas_asc"] = Query("fecha_desc"),
     limite: int = Query(LIMITE_DEFECTO, ge=1, le=LIMITE_MAXIMO),
@@ -261,6 +264,12 @@ def listar_dias(
             return {"total": 0, "dias": []}
 
     consulta = db_servicio.postgrest.schema("tiempo").table("dia").select(SELECT_DIA, count="exact")
+    # Filtros opcionales y validados (UUID / entero >= 1), siempre parametrizados: no abren acceso nuevo, el
+    # listado ya está autorizado para TODOS los días por dia_lectura + marca_lectura (mismo gate, mismo cliente).
+    if persona_id is not None:
+        consulta = consulta.eq("persona_id", str(persona_id))
+    if dia_id is not None:
+        consulta = consulta.eq("id", dia_id)
     if persona_ids is not None:
         consulta = consulta.in_("persona_id", persona_ids)
     if desde is not None:

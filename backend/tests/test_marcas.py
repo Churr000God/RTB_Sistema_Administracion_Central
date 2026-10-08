@@ -86,9 +86,17 @@ def _tabla_in(datos):
 
 
 def _fake_servicio_tramos(datos):
-    """Cliente service_role de bloqueo_por_tramo (UNA consulta a tiempo.tramo por página: select + or_)."""
+    """Cliente service_role de GET /api/marcas, por nombre de tabla: tramo (bloqueo_por_tramo: UNA consulta
+    por página, select + or_) y dia (id del día de cada marca: UNA consulta por página)."""
+    tabla_tramo = MagicMock()
+    tabla_tramo.select.return_value.or_.return_value.execute.return_value.data = datos
+    tabla_dia = MagicMock()
+    tabla_dia.select.return_value.in_.return_value.in_.return_value.execute.return_value.data = []
     cliente = MagicMock()
-    cliente.postgrest.schema.return_value.table.return_value.select.return_value.or_.return_value.execute.return_value.data = datos
+    cliente.postgrest.schema.return_value.table.side_effect = lambda nombre: {
+        "tramo": tabla_tramo,
+        "dia": tabla_dia,
+    }[nombre]
     return cliente
 
 

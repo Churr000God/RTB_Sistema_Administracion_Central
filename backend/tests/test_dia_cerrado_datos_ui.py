@@ -1208,3 +1208,180 @@ def test_p3c_sin_correccion_edicion_el_403_gana_al_409_del_tramo(permitir, monke
 def test_p3c_sin_correccion_edicion_el_403_gana_tambien_a_dia_cerrado_pendiente(permitir, monkeypatch):
     db, _ = _escenario(permitir, monkeypatch, [], motivo="dia_cerrado", puede_corregir=False)
     assert _post_corregir(db).status_code == 403
+
+
+# ======================================================================================================
+# Paquete 1 de frontend: fecha/día de la marca, filtros de GET /api/dias
+# ======================================================================================================
+
+
+def test_excepciones_trae_dia_de_la_marca_fecha_aunque_el_dia_no_exista(permitir):
+    filas, _ = _listar_excepciones(permitir, [_fila_exc(10, 1, "dia_cerrado")], [])
+    assert filas[10]["dia_de_la_marca_fecha"] == "2026-10-06"
+    assert filas[10]["dia_de_la_marca_id"] is None
+    assert filas[10]["camino_resolucion"] is None
+
+
+def test_excepciones_trae_dia_de_la_marca_fecha_junto_al_id_y_el_estado(permitir):
+    filas, _ = _listar_excepciones(
+        permitir,
+        [_fila_exc(10, 1, "dia_cerrado")],
+        [{"id": 5, "persona_id": PERSONA, "fecha": "2026-10-06", "estado": "bloqueado"}],
+    )
+    assert filas[10]["dia_de_la_marca_fecha"] == "2026-10-06"
+    assert filas[10]["dia_de_la_marca_id"] == 5
+
+
+def test_excepciones_la_fecha_usa_la_correccion_mas_reciente(permitir):
+    corrs = [{"marca_id": 1, "valor_corregido": "2026-10-08T03:00:00+00:00", "creado_en": "2026-10-09T09:00:00Z"}]
+    filas, _ = _listar_excepciones(permitir, [_fila_exc(10, 1, "dia_cerrado")], [], corrs)
+    assert filas[10]["dia_de_la_marca_fecha"] == "2026-10-07"  # 03:00Z con -06:00 = 21:00 del 07
+
+
+def test_excepciones_no_dia_cerrado_dejan_la_fecha_en_none_y_no_consultan(permitir):
+    filas, _ = _listar_excepciones(permitir, [_fila_exc(10, 1, "reloj_no_sincronizado")], [])
+    assert filas[10]["dia_de_la_marca_fecha"] is None
+
+
+# --- GET /api/dias: filtros persona_id y dia_id ---------------------------------------------------------------
+
+
+def _listar_dias(permitir, query=""):
+    tabla_dia = _tabla([])
+    tabla_dia.execute.return_value = _Resultado([], count=0)
+    servicio = _db(dia=tabla_dia)
+    app.dependency_overrides[get_service_client] = lambda: servicio
+    app.dependency_overrides[get_caller_client] = lambda: MagicMock()
+    app.dependency_overrides[get_caller_identity] = lambda: CALLER
+    r = TestClient(app, raise_server_exceptions=False).get(f"/api/dias{query}", headers=AUTH)
+    return r, tabla_dia
+
+
+def test_dias_filtra_por_persona_y_por_dia_exactos(permitir):
+    r, tabla = _listar_dias(permitir, f"?persona_id={PERSONA}&dia_id=5")
+    assert r.status_code == 200, r.text
+    tabla.eq.assert_any_call("persona_id", PERSONA)
+    tabla.eq.assert_any_call("id", 5)
+
+
+def test_dias_sin_filtros_nuevos_no_los_aplica(permitir):
+    r, tabla = _listar_dias(permitir)
+    assert r.status_code == 200
+    assert [c.args[0] for c in tabla.eq.call_args_list] == []
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "?persona_id=no-es-uuid",
+        "?persona_id=1;drop table dia",
+        "?persona_id=aaaaaaaa-0000-0000-0000-00000000000g",
+        "?dia_id=0",
+        "?dia_id=-3",
+        "?dia_id=abc",
+        "?dia_id=1.5",
+    ],
+)
+def test_dias_rechaza_filtros_invalidos_con_422_sin_consultar(permitir, query):
+    r, tabla = _listar_dias(permitir, query)
+    assert r.status_code == 422
+    tabla.execute.assert_not_called()
+
+
+def test_dias_los_filtros_no_saltan_el_gate_de_permisos(monkeypatch):
+    monkeypatch.setattr(permisos, "resolver_persona_id", lambda db, caller: "p")
+    monkeypatch.setattr(permisos, "tiene_permiso", lambda db, persona, codigo: False)
+    r, tabla = _listar_dias(None, f"?persona_id={PERSONA}&dia_id=5")
+    assert r.status_code == 403
+    tabla.execute.assert_not_called()
+
+
+def test_dias_el_uuid_normaliza_antes_de_llegar_al_filtro(permitir):
+    r, tabla = _listar_dias(permitir, f"?persona_id={PERSONA.upper()}")
+    assert r.status_code == 200
+    tabla.eq.assert_any_call("persona_id", PERSONA)
+
+
+# --- GET /api/marcas: fecha_local y dia_id -----------------------------------------------------------------------
+
+
+def _marcas_con_dias(permitir, marcas, dias, correcciones=()):
+    tabla_dia = _tabla(dias)
+    app.dependency_overrides[get_service_client] = lambda: _db(tramo=_tabla([]), dia=tabla_dia)
+    db = _db(
+        marca=_tabla(marcas, count=len(marcas)),
+        persona=_tabla([{"id": PERSONA, "primer_nombre": "Ana", "apellido_paterno": "Ruiz"}]),
+        excepcion=_tabla([]),
+        correccion=_tabla(list(correcciones)),
+    )
+    r = _cliente(db).get("/api/marcas", headers=AUTH)
+    assert r.status_code == 200, r.text
+    return {m["id"]: m for m in r.json()["marcas"]}, tabla_dia
+
+
+def test_marcas_trae_fecha_local_y_dia_id(permitir):
+    marcas, tabla = _marcas_con_dias(
+        permitir,
+        [_marca(1, requiere_revision=False)],
+        [{"id": 5, "persona_id": PERSONA, "fecha": "2026-10-06"}],
+    )
+    assert marcas[1]["fecha_local"] == "2026-10-06"
+    assert marcas[1]["dia_id"] == 5
+    tabla.in_.assert_any_call("persona_id", [PERSONA])
+    tabla.in_.assert_any_call("fecha", ["2026-10-06"])
+
+
+def test_marcas_dia_id_es_none_si_el_dia_no_existe_pero_la_fecha_local_si_viene(permitir):
+    marcas, _ = _marcas_con_dias(permitir, [_marca(1, requiere_revision=False)], [])
+    assert marcas[1]["fecha_local"] == "2026-10-06"
+    assert marcas[1]["dia_id"] is None
+
+
+def test_marcas_la_fecha_local_usa_la_correccion_mas_reciente(permitir):
+    corrs = [{"marca_id": 1, "valor_corregido": "2026-10-08T03:00:00+00:00", "creado_en": "2026-10-09T09:00:00Z"}]
+    marcas, tabla = _marcas_con_dias(
+        permitir,
+        [_marca(1, requiere_revision=False)],
+        [{"id": 9, "persona_id": PERSONA, "fecha": "2026-10-07"}],
+        corrs,
+    )
+    assert marcas[1]["fecha_local"] == "2026-10-07"
+    assert marcas[1]["dia_id"] == 9
+
+
+def test_marcas_no_cruza_dias_de_otra_persona_ni_de_otra_fecha(permitir):
+    marcas, _ = _marcas_con_dias(
+        permitir,
+        [_marca(1, requiere_revision=False)],
+        [
+            {"id": 5, "persona_id": "otra-persona", "fecha": "2026-10-06"},
+            {"id": 6, "persona_id": PERSONA, "fecha": "2026-10-05"},
+        ],
+    )
+    assert marcas[1]["dia_id"] is None
+
+
+def test_marcas_una_sola_consulta_de_dias_por_pagina_y_ninguna_si_esta_vacia(permitir):
+    _, tabla = _marcas_con_dias(
+        permitir,
+        [_marca(1, requiere_revision=False), _marca(2, requiere_revision=False)],
+        [{"id": 5, "persona_id": PERSONA, "fecha": "2026-10-06"}],
+    )
+    assert tabla.execute.call_count == 1
+    _, vacia = _marcas_con_dias(permitir, [], [])
+    vacia.execute.assert_not_called()
+
+
+def test_marcas_la_consulta_de_dias_usa_service_role_no_el_cliente_del_caller(permitir):
+    dia_del_caller = _tabla([])
+    tabla_servicio = _tabla([{"id": 5, "persona_id": PERSONA, "fecha": "2026-10-06"}])
+    app.dependency_overrides[get_service_client] = lambda: _db(tramo=_tabla([]), dia=tabla_servicio)
+    db = _db(
+        marca=_tabla([_marca(1, requiere_revision=False)], count=1),
+        persona=_tabla([{"id": PERSONA, "primer_nombre": "Ana", "apellido_paterno": "Ruiz"}]),
+        correccion=_tabla([]),
+        dia=dia_del_caller,
+    )
+    r = _cliente(db).get("/api/marcas", headers=AUTH)
+    assert r.json()["marcas"][0]["dia_id"] == 5
+    dia_del_caller.select.assert_not_called()
