@@ -1,0 +1,138 @@
+/* Mockups estáticos — Kairos. Importa el CSS REAL de la app (tokens.css) para que los colores,
+   tipografías, tablas, badges, botones y tarjetas sean exactamente los de producción.
+   Este archivo sólo agrega (a) el andamiaje del mockup y (b) los 3 componentes NUEVOS que
+   las pantallas proponen (marcados "NUEVO"): .aviso-bloqueo, .banner-aviso y .modal. */
+
+.mock-barra {
+  position: sticky; top: 0; z-index: 50; display: flex; flex-wrap: wrap; gap: .5rem 1rem;
+  align-items: center; padding: .6rem 1rem; background: #fff7e0; color: #5b4a12;
+  border-bottom: 1px solid rgba(173,149,81,.5); font-size: .8rem;
+}
+.mock-barra strong { font-family: var(--font-cuerpo); }
+.mock-barra .estados { display: flex; flex-wrap: wrap; gap: .35rem; }
+.mock-barra button {
+  all: unset; cursor: pointer; padding: .25rem .65rem; border-radius: 999px; font-size: .78rem;
+  border: 1px solid rgba(173,149,81,.7); background: #fff;
+}
+.mock-barra button[aria-pressed="true"] { background: var(--navy); color: #fff; border-color: var(--navy); }
+.mock-barra button:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+
+[data-solo]:not([data-visible]) { display: none !important; }
+
+.app-shell-aside { position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto; }
+.contenedor-pagina { padding: 2rem 2.25rem 4rem; margin: 0 auto; }
+
+/* Referencias a decisiones de copy/endpoint visibles sobre el mockup (se ocultan con ?limpio=1) */
+.nota-diseno {
+  border-left: 3px solid var(--oro); background: #fff; padding: .6rem .85rem; margin: 0 0 1.25rem;
+  font-size: .8rem; color: var(--navy-medio); border-radius: 0 8px 8px 0;
+}
+.nota-diseno code { font-family: var(--font-mono); font-size: .76rem; }
+.limpio .nota-diseno { display: none; }
+
+/* ─── NUEVO: .banner-aviso — banner informativo/de advertencia de página (extiende .tarjeta-info) ─── */
+.banner-aviso {
+  display: flex; gap: .6rem; align-items: flex-start; padding: .8rem 1rem; margin-bottom: 1.25rem;
+  border-radius: 10px; font-size: .88rem; line-height: 1.45;
+  background: rgba(173,149,81,.12); border: 1px solid rgba(173,149,81,.35); color: #5b4a12;
+}
+.banner-aviso svg { flex-shrink: 0; margin-top: .1rem; }
+.banner-aviso--info { background: var(--blanco); border-color: var(--linea); color: var(--navy-medio); }
+.banner-aviso--info svg { color: var(--teal); }
+
+/* ─── NUEVO: .aviso-bloqueo — estado "marca no corregible" dentro de la celda Acciones ─── */
+.aviso-bloqueo { display: flex; flex-direction: column; gap: .35rem; align-items: flex-start; min-width: 13rem; }
+.aviso-bloqueo__fila { display: flex; flex-wrap: wrap; gap: .4rem .6rem; align-items: center; }
+.boton-corregir-bloqueado {
+  all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: .4rem; cursor: not-allowed;
+  padding: .45rem .8rem; border-radius: 10px; font-size: .9rem; font-weight: 600;
+  color: rgba(0,43,91,.55); background: rgba(0,43,91,.05); border: 1px dashed rgba(0,43,91,.3);
+}
+.boton-corregir-bloqueado:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+.enlace-porque {
+  all: unset; cursor: pointer; font-size: .8rem; color: var(--teal); text-decoration: underline;
+  text-underline-offset: 2px; display: inline-flex; align-items: center; gap: .25rem;
+}
+.enlace-porque:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; border-radius: 4px; }
+.aviso-bloqueo__texto {
+  margin: 0; max-width: 24rem; font-size: .82rem; line-height: 1.4; color: var(--navy-medio);
+  background: var(--superficie); border-radius: 8px; padding: .55rem .7rem;
+}
+.aviso-bloqueo__texto[hidden] { display: none; }
+
+/* ─── NUEVO: .modal — primer modal del proyecto; se implementa con <dialog> nativo (foco atrapado,
+   Esc cierra, aria-modal implícito). Aquí es un contenedor estático para poder ver todos los estados. ─── */
+.modal-fondo { background: rgba(0,43,91,.45); padding: 2.5rem 1rem; border-radius: var(--radio-tarjeta); display: grid; place-items: center; }
+.modal {
+  width: min(32rem, 100%); background: var(--blanco); border-radius: var(--radio-tarjeta);
+  box-shadow: 0 12px 40px rgba(0,43,91,.28); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;
+}
+.modal h2 { margin: 0; font-size: 1.25rem; }
+.modal__contexto { margin: 0; font-size: .88rem; color: var(--navy-medio); }
+.modal__contexto strong { color: var(--navy); }
+.modal__advertencia {
+  display: flex; gap: .6rem; padding: .75rem .9rem; border-radius: 10px; font-size: .86rem; line-height: 1.45;
+  background: #fdecea; border: 1px solid rgba(179,38,30,.25); color: #8c1d18;
+}
+.modal__advertencia svg { flex-shrink: 0; margin-top: .1rem; }
+.modal__contador { text-align: right; font-size: .78rem; color: var(--navy-medio); margin-top: .25rem; }
+.modal__contador--limite { color: #b3261e; font-weight: 600; }
+.modal__botonera { display: flex; justify-content: flex-end; gap: .6rem; flex-wrap: wrap; }
+.boton-peligro { background: #b3261e; color: #fff; padding: .65rem 1.1rem; border-radius: 10px; font-weight: 600; font-size: .95rem; }
+.boton-peligro:hover { background: #8c1d18; }
+.boton-peligro:disabled { opacity: .55; cursor: not-allowed; }
+.campo-error input, .campo-error textarea { border-color: #b3261e; }
+.campo-error .mensaje-campo { color: #b3261e; font-size: .8rem; margin-top: .3rem; display: flex; gap: .3rem; align-items: center; }
+
+/* Tarjeta de excepción (alternativa móvil/compacta a la fila de tabla) */
+.rejilla-excepciones { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr)); }
+.tarjeta-excepcion { display: flex; flex-direction: column; gap: .7rem; }
+.tarjeta-excepcion__cab { display: flex; justify-content: space-between; gap: .5rem; align-items: flex-start; }
+.tarjeta-excepcion__cab h3 { margin: 0; font-size: 1.05rem; }
+.tarjeta-excepcion dl { display: grid; grid-template-columns: auto 1fr; gap: .25rem .9rem; margin: 0; font-size: .85rem; }
+.tarjeta-excepcion dt { color: var(--navy-medio); }
+.tarjeta-excepcion dd { margin: 0; }
+.tarjeta-excepcion__pie { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; border-top: 1px solid var(--linea); padding-top: .7rem; }
+.sin-accion { font-size: .8rem; color: var(--navy-medio); display: flex; gap: .4rem; align-items: flex-start; }
+.sin-accion svg { flex-shrink: 0; margin-top: .1rem; }
+
+.esqueleto { background: linear-gradient(90deg, rgba(0,43,91,.06), rgba(0,43,91,.12), rgba(0,43,91,.06)); border-radius: 6px; height: 1rem; }
+@media (prefers-reduced-motion: no-preference) { .esqueleto { background-size: 200% 100%; animation: brillo 1.4s linear infinite; } @keyframes brillo { to { background-position: -200% 0; } } }
+
+.leyenda-estados { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; margin: 0 0 1rem; font-size: .8rem; color: var(--navy-medio); }
+.fila-bloqueada td { background: rgba(0,43,91,.02); }
+.escenario { margin: 0 0 2.5rem; }
+.escenario > h2 { font-size: 1.05rem; margin: 0 0 .75rem; font-family: var(--font-cuerpo); color: var(--navy-medio); }
+
+/* Aire entre bloques apilados (banner/tarjeta → filtros → tabla) en anchos de tablet. */
+.tarjeta-resumen + .barra-filtros, .banner-aviso + .barra-filtros, [data-solo] + .barra-filtros { margin-top: 1.5rem; }
+.barra-filtros + .indicador-en-vivo, .barra-filtros + [data-solo] { margin-top: .5rem; }
+.contenedor-pagina > section[data-solo] { margin-bottom: 1.25rem; }
+.tarjeta-resumen { margin-bottom: 0; }
+@media (max-width: 1100px) { .contenedor-pagina { padding: 1.5rem 1.25rem 3rem; } .encabezado-pagina { flex-direction: column; } }
+
+/* ─── Paquete 2: terminales (BORRADOR sujeto a contrato) ─── */
+.mock-barra .borrador { background: #b3261e; color: #fff; border-radius: 999px; padding: .1rem .6rem; font-weight: 600; }
+.estado-alta { display: inline-flex; align-items: center; gap: .35rem; }
+.insignia--info { background: rgba(26,95,122,.12); color: var(--navy-medio); }
+.contacto { display: inline-flex; align-items: center; gap: .4rem; font-weight: 600; font-size: .85rem; }
+.panel-lateral { position: relative; width: min(26rem,100%); background: #fff; border-radius: var(--radio-tarjeta); box-shadow: 0 12px 40px rgba(0,43,91,.22); padding: 1.25rem; }
+.linea-tiempo { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1rem; }
+.linea-tiempo li { position: relative; padding-left: 1.4rem; font-size: .88rem; }
+.linea-tiempo li::before { content: ""; position: absolute; left: 0; top: .35rem; width: 9px; height: 9px; border-radius: 99px; background: var(--teal); }
+.linea-tiempo li::after { content: ""; position: absolute; left: 4px; top: 1rem; bottom: -1rem; width: 1px; background: var(--linea); }
+.linea-tiempo li:last-child::after { display: none; }
+.linea-tiempo li.error::before { background: #b3261e; }
+.linea-tiempo small { display: block; color: var(--navy-medio); }
+.rejilla-anomalias { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr)); }
+.anomalia { display: flex; flex-direction: column; gap: .5rem; }
+.anomalia header { display: flex; justify-content: space-between; gap: .5rem; align-items: flex-start; }
+.anomalia h3 { margin: 0; font-size: 1rem; }
+.anomalia .cifra { font-family: var(--font-titulo); font-size: 1.6rem; }
+.anomalia ul { margin: 0; padding-left: 1.1rem; font-size: .84rem; color: var(--navy-medio); }
+.casilla-consentimiento { display: flex; gap: .6rem; align-items: flex-start; padding: .75rem .9rem; border: 1px solid var(--linea); border-radius: 10px; font-size: .88rem; line-height: 1.4; }
+.casilla-consentimiento input { width: auto; margin-top: .2rem; }
+.casilla-consentimiento.campo-error { border-color: #b3261e; background: #fdecea; }
+.cuenta-regresiva { font-size: .78rem; color: var(--navy-medio); display: flex; gap: .3rem; align-items: center; }
+.cuenta-regresiva--urgente { color: #8c1d18; font-weight: 600; }
+.error-terminal { font-size: .8rem; color: #8c1d18; display: flex; gap: .3rem; align-items: flex-start; margin-top: .25rem; }

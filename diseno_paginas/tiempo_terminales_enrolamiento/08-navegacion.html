@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paquete 2 · 08 Navegación</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../frontend/src/styles/tokens.css">
+<link rel="stylesheet" href="_mockup.css">
+</head>
+<body data-activo="Terminales">
+<div class="mock-barra" data-estados="a:Opción A (recomendada),b:Opción B">
+  <strong>Borrador 08 · sidebar del módulo Tiempo</strong><span class="borrador">BORRADOR · sujeto a contrato</span><span>Estado:</span><span class="estados"></span>
+  <span>· <a href="?limpio=1">ocultar notas</a></span>
+</div>
+<div class="app-shell">
+<aside class="app-shell-aside" id="shell-aside"></aside>
+<main class="app-shell-main">
+<div class="contenedor-pagina contenedor-pagina--ancho">
+  <h1>Navegación</h1>
+  <p class="nota-diseno">El sidebar real (izquierda) muestra la <strong>opción A</strong>: grupo propio «Terminales» con «Terminales» y «Anomalías», gateado por <code>terminal_usuario_lectura/edición</code>. Para ocultarlo sin permiso hace falta <code>puede_ver_terminales</code> en <code>GET /api/sesion</code> (SCJ-PRO-15 P4); mientras no exista, <em>fail-open</em> como el resto del sidebar y las pantallas muestran 403 con mensaje.</p>
+  <div class="rejilla-excepciones">
+    <div class="tarjeta-resumen" data-solo="a"><h3>Opción A · grupo propio (recomendada)</h3><ul style="line-height:1.8"><li>Terminales<ul><li>Terminales (lista)</li><li>Anomalías</li></ul></li></ul><p class="ayuda-campo">Por qué: es un módulo con permiso propio y su propio público (RH/TI), distinto de Parámetros (configuración). Las «Usuarios de la terminal» se alcanzan desde la lista; no necesitan entrada propia.</p></div>
+    <div class="tarjeta-resumen" data-solo="b"><h3>Opción B · dentro de «Parámetros»</h3><ul style="line-height:1.8"><li>Parámetros<ul><li>Tope legal</li><li>Días festivos</li><li>Parámetros del sistema</li><li>Terminales</li></ul></li></ul><p class="ayuda-campo">Menos ruido en el sidebar, pero mezcla operación diaria (asignar personas, ver anomalías) con configuración rara, y «Anomalías» quedaría sin lugar claro.</p></div>
+  </div>
+</div></main></div>
+<script src="_mockup.js"></script>
+</body></html>

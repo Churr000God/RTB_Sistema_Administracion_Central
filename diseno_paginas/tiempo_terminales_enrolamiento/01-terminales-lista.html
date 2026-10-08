@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paquete 2 · 01 Terminales</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../frontend/src/styles/tokens.css">
+<link rel="stylesheet" href="_mockup.css">
+</head>
+<body data-activo="Terminales">
+<div class="mock-barra" data-estados="datos:Con datos,carga:Cargando,vacio:Vacío,error:Error de carga">
+  <strong>Borrador 01 · /tiempo/terminales</strong><span class="borrador">BORRADOR · sujeto a contrato</span><span>Estado:</span><span class="estados"></span>
+  <span>· <a href="?limpio=1">ocultar notas</a></span>
+</div>
+<div class="app-shell">
+<aside class="app-shell-aside" id="shell-aside"></aside>
+<main class="app-shell-main">
+<div class="contenedor-pagina contenedor-pagina--ancho">
+  <nav class="migas"><strong>Terminales</strong></nav>
+  <div class="encabezado-pagina"><div><h1>Terminales</h1>
+    <p class="subtitulo-pagina">Aparatos de checado y el estado de su puente. Sólo lectura: desde aquí entras a los usuarios de cada terminal.</p></div></div>
+  <p class="nota-diseno"><strong>Datos:</strong> <code>GET /api/terminales</code> (SCJ-DEC-12 §4 y §6): nombre, serie, <code>estado_contacto</code> (<code>en_linea | sin_contacto | nunca | inactiva</code>), <code>ultimo_contacto_en</code>, <code>segundos_sin_contacto</code>, <code>terminal_alcanzable</code>, <code>reloj_desfase_seg</code>, <code>version_pi</code>, <code>marcas_pendientes</code>. El contacto no depende sólo del color: punto + texto. Gate: <code>terminal_usuario_lectura</code> o <code>_edicion</code>.</p>
+
+  <section data-solo="datos">
+  <div class="banda-metricas">
+    <div class="metrica"><span class="etiqueta-metrica"><span class="punto punto--exito"></span>En línea</span><strong>1</strong></div>
+    <div class="metrica"><span class="etiqueta-metrica"><span class="punto punto--aviso"></span>Sin contacto</span><strong>1</strong></div>
+    <div class="metrica"><span class="etiqueta-metrica"><span class="punto punto--peligro"></span>Con marcas pendientes</span><strong>1</strong></div>
+  </div>
+  <div class="tabla-desplazable"><table>
+    <thead><tr><th>Terminal</th><th>Serie</th><th>Contacto</th><th>Última comunicación</th><th>Terminal alcanzable</th><th>Desfase del reloj</th><th>Versión del puente</th><th>Marcas pendientes</th><th>Acción</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Entrada principal</strong></td><td class="num">DS-K1T-0001</td>
+        <td><span class="contacto"><span class="punto punto--exito"></span>En línea</span></td><td class="num">hace 40 s</td>
+        <td><span class="insignia insignia--exito">Sí</span></td><td class="num">+2 s</td><td class="num">1.4.0</td><td class="num">0</td>
+        <td><a href="#" class="boton-con-icono">Usuarios<span data-ic="arrow" data-s="14"></span></a></td></tr>
+      <tr><td><strong>Bodega</strong></td><td class="num">DS-K1T-0002</td>
+        <td><span class="contacto"><span class="punto punto--aviso"></span>Sin contacto</span><div class="ayuda-campo">hace 18 min · las altas siguen esperando</div></td><td class="num">hace 18 min</td>
+        <td><span class="insignia insignia--aviso">No se ve</span></td><td class="num">+95 s</td><td class="num">1.4.0</td><td class="num"><span class="insignia insignia--peligro">7</span></td>
+        <td><a href="#" class="boton-con-icono">Usuarios<span data-ic="arrow" data-s="14"></span></a></td></tr>
+      <tr><td><strong>Oficina (retirada)</strong></td><td class="num">DS-K1T-0003</td>
+        <td><span class="contacto"><span class="punto"></span>Inactiva</span></td><td class="num">—</td>
+        <td>—</td><td class="num">—</td><td class="num">—</td><td class="num">0</td>
+        <td><a href="#" class="boton-con-icono">Usuarios<span data-ic="arrow" data-s="14"></span></a></td></tr>
+    </tbody></table></div>
+  <p class="pie-tabla">3 terminales · se refresca solo cada 60 s</p>
+  <p class="nota-diseno" style="margin-top:1rem">"Nunca" (terminal dada de alta pero el puente jamás se comunicó) se muestra como <span class="contacto"><span class="punto"></span>Sin conexión todavía</span>. Los umbrales viven en el backend (<code>TERMINAL_UMBRAL_SIN_CONTACTO_SEG</code>); el frontend sólo pinta el nivel que llega.</p>
+  </section>
+  <section data-solo="carga" role="status"><p class="boton-con-icono"><span class="icono-girando" data-ic="loader"></span>Cargando terminales…</p><div style="display:grid;gap:.6rem;margin-top:.5rem"><div class="esqueleto"></div><div class="esqueleto"></div></div></section>
+  <section data-solo="vacio"><div class="estado-vacio"><span data-ic="terminal" data-s="40"></span><p><strong>Todavía no hay terminales dadas de alta.</strong><br>El alta de una terminal es un procedimiento de Sistemas (serie del aparato y llave del puente), no se hace desde esta pantalla.</p></div></section>
+  <section data-solo="error"><div class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se pudo cargar las terminales</strong><p>Ocurrió un problema al consultar las terminales.</p><button type="button" style="margin-top:.6rem">Reintentar</button></div></section>
+</div></main></div>
+<script src="_mockup.js"></script>
+</body></html>

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paquete 2 · 06 Ficha de persona</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../frontend/src/styles/tokens.css">
+<link rel="stylesheet" href="_mockup.css">
+</head>
+<body data-activo="Directorio">
+<div class="mock-barra" data-estados="sin_alta:Sin alta,esperando:Esperando huella,activo:Activa,baja:Pendiente de baja,lectura:Sin alta · sólo lectura,carga:Cargando,error:Error de carga">
+  <strong>Borrador 06 · sección «Terminal» de /personas/:id</strong><span class="borrador">BORRADOR · sujeto a contrato</span><span>Estado:</span><span class="estados"></span>
+  <span>· <a href="?limpio=1">ocultar notas</a></span>
+</div>
+<div class="app-shell">
+<aside class="app-shell-aside" id="shell-aside"></aside>
+<main class="app-shell-main">
+<div class="contenedor-pagina contenedor-pagina--ancho">
+  <nav class="migas"><a href="#">Personas</a> / <strong>Ana Torres</strong></nav>
+  <div class="encabezado-pagina"><div><h1>Ana Torres</h1><p class="subtitulo-pagina">Ficha de persona (el resto de la ficha no cambia).</p></div></div>
+  <p class="nota-diseno"><strong>Sección nueva «Terminal»</strong> bajo «Datos personales»: la ve quien ya ve la ficha <em>y</em> tiene <code>terminal_usuario_lectura</code>; el botón sólo con edición. Datos: <code>GET /api/terminales</code> + <code>…/usuarios?persona_id=</code> por terminal (<em>pedido a backend:</em> una consulta por persona, p. ej. <code>GET /api/personas/{id}/terminales</code>, para no hacer N llamadas). "Asignar a la terminal" abre el mismo modal de 03 (con selector de terminal). Mismo patrón que «Crear acceso a Kairos».</p>
+  <div class="tarjeta-resumen"><h3>Datos personales</h3><p class="ayuda-campo">(sin cambios)</p></div>
+  <div class="tarjeta-resumen" style="margin-top:1rem">
+    <div class="fila-cabecera-tarjeta" style="display:flex;justify-content:space-between;align-items:center"><h3><span data-ic="terminal" data-s="18"></span> Terminal de checado</h3>
+      <span data-solo="sin_alta"><button type="button" class="boton-con-icono" data-ic="userplus" data-s="14">Asignar a la terminal</button></span></div>
+    <section data-solo="carga" role="status"><p class="boton-con-icono"><span class="icono-girando" data-ic="loader"></span>Cargando…</p></section>
+    <section data-solo="error"><div class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se pudo cargar la información de la terminal</strong><p>El resto de la ficha sigue disponible.</p><button type="button" style="margin-top:.6rem">Reintentar</button></div></section>
+    <section data-solo="sin_alta lectura"><p style="margin:.5rem 0 0">No está asignada a ninguna terminal. Marca por <strong>captura manual</strong>, que no requiere asignación ni consentimiento biométrico.</p>
+      <p class="ayuda-campo" data-solo="lectura" style="margin:.5rem 0 0">Asignarla requiere el permiso <em>Gestionar usuarios de terminal</em>.</p></section>
+    <section data-solo="esperando"><p style="margin:.5rem 0"><span class="insignia insignia--info estado-alta"><span data-ic="fingerprint" data-s="12"></span>Esperando huella</span> · Entrada principal · nº 1042</p><p class="ayuda-campo" style="margin:0">Esperando que TI enrole la huella en la terminal. <span class="cuenta-regresiva" style="display:inline-flex"><span data-ic="clock" data-s="12"></span>Caduca en 19 h 40 min</span></p><p style="margin:.75rem 0 0"><a href="#">Ver en Usuarios de la terminal →</a></p></section>
+    <section data-solo="activo"><p style="margin:.5rem 0"><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activa</span> · Entrada principal · nº 1042 · 2 huellas</p><p style="margin:.75rem 0 0"><a href="#">Ver en Usuarios de la terminal →</a></p></section>
+    <section data-solo="baja"><p style="margin:.5rem 0"><span class="insignia insignia--aviso estado-alta"><span data-ic="clock" data-s="12"></span>Pendiente de baja</span> · Entrada principal</p><p class="ayuda-campo" style="margin:0">El puente borrará el usuario y sus huellas del aparato. Reactivar a la persona no la reenrola: habrá que asignarla de nuevo.</p></section>
+  </div>
+</div></main></div>
+<script src="_mockup.js"></script>
+</body></html>

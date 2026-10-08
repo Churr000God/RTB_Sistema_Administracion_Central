@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paquete 2 · 04 Historial de un alta</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../frontend/src/styles/tokens.css">
+<link rel="stylesheet" href="_mockup.css">
+</head>
+<body data-activo="Terminales">
+<div class="mock-barra" data-estados="abierto:Con movimientos,carga:Cargando,vacio:Sin movimientos,error:Error de carga">
+  <strong>Borrador 04 · panel lateral de /tiempo/terminales/:id/usuarios</strong><span class="borrador">BORRADOR · sujeto a contrato</span><span>Estado:</span><span class="estados"></span>
+  <span>· <a href="?limpio=1">ocultar notas</a></span>
+</div>
+<div class="app-shell">
+<aside class="app-shell-aside" id="shell-aside"></aside>
+<main class="app-shell-main">
+<div class="contenedor-pagina contenedor-pagina--ancho">
+<p class="nota-diseno"><strong>Datos:</strong> <code>GET /api/terminales/{id}/usuarios/{tu_id}/movimientos</code> — tipo, cuándo, <code>registrado_por_nombre</code> (o "Terminal" si <code>origen='terminal'</code>), detalle. Bitácora inmutable: un error se compensa con movimientos posteriores, nunca se edita. Panel lateral (no página): se abre desde "Historial" y devuelve el foco a ese enlace al cerrar. El conteo de huellas llega en <code>detalle</code>; <em>nunca</em> hay plantillas.</p>
+<div style="display:flex;gap:1.5rem;align-items:flex-start;flex-wrap:wrap">
+  <div style="flex:1 1 20rem;opacity:.55"><div class="tabla-desplazable"><table><thead><tr><th>Persona</th><th>Estado</th></tr></thead><tbody><tr><td>Pedro Salas</td><td><span class="insignia insignia--exito">Activo</span></td></tr><tr><td>Sofía Vega</td><td><span class="insignia insignia--aviso">Pendiente de baja</span></td></tr></tbody></table></div><p class="pie-tabla">(la tabla de fondo, atenuada)</p></div>
+  <aside class="panel-lateral" role="dialog" aria-labelledby="ph" aria-modal="false">
+    <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start"><div><h2 id="ph" style="font-size:1.15rem">Historial del alta</h2><p class="modal__contexto" style="margin:0">Sofía Vega · nº 1027 · Entrada principal</p></div><button type="button" class="enlace-porque" aria-label="Cerrar historial" data-ic="x">Cerrar</button></div>
+    <section data-solo="abierto" style="margin-top:1rem"><ol class="linea-tiempo">
+      <li><strong>Baja solicitada</strong><small>07 oct 2026, 09:12 · Responsable de RH (María López)</small><small>baja automática: la persona pasó a suspensión</small></li>
+      <li><strong>Huella capturada</strong><small>29 sep 2026, 10:05 · Terminal</small><small>1 huella registrada</small></li>
+      <li class="error"><strong>Error del puente</strong><small>28 sep 2026, 09:20 · Terminal</small><small>usuario_ya_existe — se reintentó y se resolvió</small></li>
+      <li><strong>Usuario creado en el aparato</strong><small>28 sep 2026, 09:05 · Terminal</small></li>
+      <li><strong>Asignada</strong><small>28 sep 2026, 09:00 · Gerente de TI (Carlos Ruiz)</small><small>Consentimiento y aviso de privacidad recabados.</small></li>
+    </ol></section>
+    <section data-solo="carga" role="status" style="margin-top:1rem"><p class="boton-con-icono"><span class="icono-girando" data-ic="loader"></span>Cargando historial…</p><div style="display:grid;gap:.6rem"><div class="esqueleto"></div><div class="esqueleto"></div></div></section>
+    <section data-solo="vacio" style="margin-top:1rem"><div class="estado-vacio" style="padding:1.5rem 0"><p>Esta alta todavía no tiene movimientos.</p></div></section>
+    <section data-solo="error" style="margin-top:1rem"><div class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se pudo cargar el historial</strong><p>Ocurrió un problema al consultar los movimientos.</p><button type="button" style="margin-top:.6rem">Reintentar</button></div></section>
+  </aside>
+</div>
+</div></main></div>
+<script src="_mockup.js"></script>
+</body></html>

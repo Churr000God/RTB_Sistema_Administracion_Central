@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paquete 2 · 07 Aviso al suspender</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../frontend/src/styles/tokens.css">
+<link rel="stylesheet" href="_mockup.css">
+</head>
+<body data-activo="Directorio">
+<div class="mock-barra" data-estados="ok:Baja en terminal solicitada,pendiente:Baja en terminal pendiente (advertencia),sin:Persona sin alta en terminal">
+  <strong>Borrador 07 · /personas/:id/estado (resultado)</strong><span class="borrador">BORRADOR · sujeto a contrato</span><span>Estado:</span><span class="estados"></span>
+  <span>· <a href="?limpio=1">ocultar notas</a></span>
+</div>
+<div class="app-shell">
+<aside class="app-shell-aside" id="shell-aside"></aside>
+<main class="app-shell-main">
+<div class="contenedor-pagina contenedor-pagina--ancho">
+  <nav class="migas"><a href="#">Personas</a> / <strong>Cambio de estado</strong></nav>
+  <h1>Cambio de estado</h1>
+  <p class="nota-diseno"><strong>Hoy</strong> <code>CambiarEstadoPage</code> redirige a la ficha apenas hay <code>201</code>, y la advertencia se perdería. <strong>Propuesta:</strong> si la respuesta trae <code>advertencias: ["baja_terminal_pendiente"]</code> (<code>MovimientoOut</code>, SCJ-DEC-12 §5), no redirigir: mostrar este resultado con el banner y un botón «Continuar a la ficha». Sin advertencias, el comportamiento actual no cambia (redirige). Es el único caso donde cambia el flujo. <em>Pedido al contrato:</em> ¿hay una advertencia/estado cuando la baja de terminal sí se emitió (para el estado «ok»)? Hoy sólo se avisa del fallo; el estado «ok» sería puramente informativo y opcional.</p>
+  <div class="tarjeta-resumen" role="status">
+    <h2 style="font-size:1.2rem"><span data-ic="checkc" data-s="22" style="color:var(--teal)"></span> Suspensión registrada</h2>
+    <p>Ana Torres pasó a <span class="insignia-estado suspension">Suspensión</span>. El movimiento quedó en el historial con tu nombre y el motivo.</p>
+    <div data-solo="pendiente" class="banner-aviso" role="alert"><span data-ic="alert"></span><div><strong>La baja en la terminal quedó pendiente.</strong> El cambio de estado sí se guardó, pero la baja del usuario y su huella en el aparato no se pudo solicitar ahora. Se reintentará sola en unos minutos; mientras tanto la persona todavía podría marcar (esas marcas entrarán señaladas como «Persona inactiva»). Puedes seguirlo en <a href="#">Anomalías → Inconsistencias de baja</a>.</div></div>
+    <div data-solo="ok" class="banner-aviso banner-aviso--info" role="note"><span data-ic="circle"></span><div>Se solicitó también la baja de su usuario en la terminal; el puente borrará el usuario y su huella del aparato.</div></div>
+    <div class="botonera"><button type="button" class="boton-con-icono boton-primario" data-ic="arrow">Continuar a la ficha</button></div>
+  </div>
+</div></main></div>
+<script src="_mockup.js"></script>
+</body></html>

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paquete 2 · 05 Anomalías</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../frontend/src/styles/tokens.css">
+<link rel="stylesheet" href="_mockup.css">
+</head>
+<body data-activo="Anomalías">
+<div class="mock-barra" data-estados="datos:Con hallazgos,limpio:Sin hallazgos,carga:Cargando,error:Error de carga">
+  <strong>Borrador 05 · /tiempo/terminales/:id/anomalias</strong><span class="borrador">BORRADOR · sujeto a contrato</span><span>Estado:</span><span class="estados"></span>
+  <span>· <a href="?limpio=1">ocultar notas</a></span>
+</div>
+<div class="app-shell">
+<aside class="app-shell-aside" id="shell-aside"></aside>
+<main class="app-shell-main">
+<div class="contenedor-pagina contenedor-pagina--ancho">
+  <nav class="migas"><a href="#">Terminales</a> / <strong>Anomalías</strong></nav>
+  <div class="encabezado-pagina"><div><h1>Anomalías de la terminal</h1>
+    <p class="subtitulo-pagina">Control de abuso y de salud de la terminal, calculado al consultar. Un hallazgo no bloquea nada: es una señal para revisar.</p></div></div>
+  <p class="nota-diseno"><strong>Datos:</strong> <code>GET /api/terminales/{id}/anomalias?desde=</code> (defecto 7 días): las 9 categorías de SCJ-DEC-12 §6, en el orden del documento. <em>Pedido al contrato:</em> forma exacta de cada bloque (sólo cifra + lista corta vs. paginado); aquí se supone cifra + hasta 3 ejemplos con "Ver todos". Las categorías 5 (rechazos, depende de <code>marca_rechazada</code>) y 6 (credenciales) pueden llegar vacías o "no disponible" al principio: la tarjeta tiene ese estado.</p>
+  <div class="barra-filtros"><div><label for="t">Terminal</label><select id="t"><option>Entrada principal</option><option>Bodega</option></select></div>
+    <div><label for="ds">Periodo desde</label><input id="ds" type="date" value="2026-09-30"></div></div>
+
+  <section data-solo="carga" role="status"><p class="boton-con-icono"><span class="icono-girando" data-ic="loader"></span>Calculando anomalías…</p><div class="rejilla-anomalias" style="margin-top:.75rem"><div class="esqueleto" style="height:7rem"></div><div class="esqueleto" style="height:7rem"></div><div class="esqueleto" style="height:7rem"></div></div></section>
+  <section data-solo="error"><div class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se pudo calcular el tablero</strong><p>Ocurrió un problema al consultar las anomalías.</p><button type="button" style="margin-top:.6rem">Reintentar</button></div></section>
+
+  <section data-solo="limpio"><div class="banner-aviso banner-aviso--info" role="status"><span data-ic="checkc"></span><div><strong>Sin hallazgos en el periodo.</strong> Las 9 revisiones se hicieron y ninguna encontró nada que atender.</div></div>
+    <div class="rejilla-anomalias">
+    <div class="tarjeta-resumen anomalia"><header><h3>1 · Marcas posteriores a la baja</h3><span class="insignia insignia--exito">Sin hallazgos</span></header><span class="cifra num">0</span><ul><li>Nada que mostrar en este periodo.</li></ul></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>2 · Picos de tasa</h3><span class="insignia insignia--exito">Sin hallazgos</span></header><span class="cifra num">0</span><ul><li>Nada que mostrar en este periodo.</li></ul></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>3 · Reloj degradado</h3><span class="insignia insignia--exito">Sin hallazgos</span></header><span class="cifra num">0</span><ul><li>Nada que mostrar en este periodo.</li></ul></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>4 · Huecos de secuencia</h3><span class="insignia insignia--exito">Sin hallazgos</span></header><span class="cifra num">0</span><ul><li>Nada que mostrar en este periodo.</li></ul></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>5 · Rechazos definitivos</h3><span class="insignia insignia--exito">Sin hallazgos</span></header><span class="cifra num">0</span><ul><li>Nada que mostrar en este periodo.</li></ul></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>6 · Credenciales</h3><span class="insignia insignia--exito">Sin hallazgos</span></header><span class="cifra num">0</span><ul><li>Nada que mostrar en este periodo.</li></ul></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>7 · Inconsistencias de baja</h3><span class="insignia insignia--exito">Sin hallazgos</span></header><span class="cifra num">0</span><ul><li>Nada que mostrar en este periodo.</li></ul></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>8 · Altas atascadas</h3><span class="insignia insignia--exito">Sin hallazgos</span></header><span class="cifra num">0</span><ul><li>Nada que mostrar en este periodo.</li></ul></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>9 · Altas recientes</h3><span class="insignia insignia--exito">Sin hallazgos</span></header><span class="cifra num">0</span><ul><li>Nada que mostrar en este periodo.</li></ul></div>
+    </div></section>
+
+  <section data-solo="datos"><div class="rejilla-anomalias">
+    <div class="tarjeta-resumen anomalia"><header><h3>1 · Marcas posteriores a la baja</h3><span class="insignia insignia--peligro">Atender</span></header><span class="cifra num">2</span><ul><li>Julio Cano · 05 oct 2026, 18:02 (baja confirmada 03 oct)</li><li>Julio Cano · 06 oct 2026, 08:01</li><li><a href="#">Ver todos</a></li></ul></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>2 · Picos de tasa</h3><span class="insignia insignia--aviso">Revisar</span></header><span class="cifra num">1</span><ul><li>Marta Núñez · 14 marcas entre 08:00 y 09:00 (límite 10/h)</li></ul></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>3 · Reloj degradado</h3><span class="insignia insignia--aviso">Revisar</span></header><span class="cifra num">3</span><ul><li>3 marcas con reloj con deriva</li><li>Desfase actual de la terminal: +95 s</li></ul></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>4 · Huecos de secuencia</h3><span class="insignia insignia--aviso">Revisar</span></header><span class="cifra num">1</span><ul><li>Secuencia 5120 → 5124 (faltan 3) el 06 oct</li></ul></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>5 · Rechazos definitivos</h3><span class="insignia insignia--neutra">No disponible</span></header><span class="cifra num">—</span><ul><li>Aún no se registran rechazos (la tabla de rechazos llega en un corte posterior).</li></ul></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>6 · Credenciales</h3><span class="insignia insignia--aviso">Revisar</span></header><span class="cifra num">1</span><ul><li>Llave del puente con 13 meses de antigüedad (rotar)</li><li>Traslape de llaves abierto hace 9 días</li></ul></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>7 · Inconsistencias de baja</h3><span class="insignia insignia--peligro">Atender</span></header><span class="cifra num">1</span><ul><li>Sofía Vega está suspendida y su alta sigue Activa (el hook y el job fallaron)</li></ul></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>8 · Altas atascadas</h3><span class="insignia insignia--aviso">Revisar</span></header><span class="cifra num">2</span><ul><li>Ana Torres · Pendiente de alta hace 31 h</li><li>Pedro Salas · Pendiente de baja hace 26 h</li></ul></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>9 · Altas recientes</h3><span class="insignia insignia--neutra">Informativo</span></header><span class="cifra num">4</span><ul><li>Hoy: Ana Torres (asignó Carlos Ruiz)</li><li>Hoy: Luis Ramírez (asignó María López)</li><li><a href="#">Ver todas</a></li></ul></div>
+  </div>
+  <ul class="leyenda-estados" style="margin-top:1rem"><li><span class="insignia insignia--peligro">Atender</span> posible abuso o borrado biométrico pendiente</li><li><span class="insignia insignia--aviso">Revisar</span></li><li><span class="insignia insignia--neutra">Informativo</span></li><li>El nivel es por texto + color. <em>Pedido al contrato:</em> ¿el backend manda el nivel por categoría o lo decide el frontend? Se supone que lo decide el frontend con una regla simple (1 y 7 siempre "Atender").</li></ul></section>
+</div></main></div>
+<script src="_mockup.js"></script>
+</body></html>

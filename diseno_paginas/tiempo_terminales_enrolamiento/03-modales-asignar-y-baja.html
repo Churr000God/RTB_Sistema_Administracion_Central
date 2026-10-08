@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paquete 2 · 03 Modales</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../frontend/src/styles/tokens.css">
+<link rel="stylesheet" href="_mockup.css">
+</head>
+<body data-activo="Terminales">
+<div class="mock-barra" data-estados="a_ini:Asignar · inicial,a_auto:Asignar · es la propia persona,a_sin:Asignar · sin consentimiento,a_cargando:Asignar · enviando,a_ok:Asignar · éxito,a_409:Asignar · 409 duplicada,a_422:Asignar · 422,a_403:Asignar · 403,b_cancelar:Cancelar alta,b_baja:Dar de baja,b_cargando:Baja · enviando,b_ok:Baja · éxito,b_409:Baja · 409">
+  <strong>Borrador 03 · modales de /tiempo/terminales/:id/usuarios</strong><span class="borrador">BORRADOR · sujeto a contrato</span><span>Estado:</span><span class="estados"></span>
+  <span>· <a href="?limpio=1">ocultar notas</a></span>
+</div>
+<div class="app-shell">
+<aside class="app-shell-aside" id="shell-aside"></aside>
+<main class="app-shell-main">
+<div class="contenedor-pagina contenedor-pagina--ancho">
+<p class="nota-diseno"><strong>Dos modales</strong> sobre el patrón de <code>DescartarMarcaTardiaModal</code> (<code>&lt;dialog&gt;</code> nativo). Asignar: <code>POST /api/terminales/{id}/usuarios {persona_id}</code> → 201. Baja: <code>POST …/usuarios/{tu_id}/baja {motivo?}</code> → 201 (motivo saneado a 500). Errores: los <code>detail</code> fijos de SCJ-DEC-12 §4 (409 duplicada/estado inválido/carrera, 422 persona no activa/terminal no válida/sin sincronizar, 403 sin permiso). La confirmación de consentimiento se guarda en el <code>detalle</code> del movimiento <code>asignado</code> con texto fijo (SCJ-PRO-15 §IV.7): el frontend sólo manda <code>persona_id</code> — <em>pedido a backend/contrato</em>: ¿manda además <code>consentimiento: true</code> para que el servidor lo exija y lo registre? (pregunta 2 del README).</p>
+<div class="modal-fondo"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="t" aria-describedby="c">
+
+<!-- ASIGNAR -->
+<div data-solo="a_ini a_auto a_sin a_cargando a_409 a_422 a_403" style="display:contents">
+  <h2 id="t">Asignar persona a la terminal</h2>
+  <p class="modal__contexto" id="c">Terminal <strong>Entrada principal</strong> · DS-K1T-0001. Se crea el usuario en el aparato; la huella la enrola TI en el menú de la terminal, con RH presente.</p>
+  <div><label for="p">Persona (sólo activas, sin alta vigente en esta terminal)</label>
+    <select id="p"><option>Selecciona una persona…</option><option>Ana Torres</option><option>Luis Ramírez</option><option selected>Ana Torres</option></select></div>
+  <div data-solo="a_auto" class="banner-aviso" role="note"><span data-ic="alert"></span><div><strong>Te estás asignando a ti misma.</strong> Sólo el puesto administrador puede hacerlo; si tu puesto no lo es, el sistema lo rechazará.</div></div>
+  <div class="casilla-consentimiento" id="cons">
+    <input type="checkbox" id="chk" aria-describedby="chk-d">
+    <label for="chk" style="margin:0;font-weight:500;color:var(--navy)"><strong>Consentimiento y aviso de privacidad recabados.</strong>
+      <span id="chk-d" style="display:block;font-weight:400;color:var(--navy-medio)">La persona recibió el aviso de privacidad y otorgó por escrito su consentimiento para el tratamiento de su huella. El documento firmado queda en su expediente de RH. Sin él, la persona marca por captura manual y no se asigna.</span></label>
+  </div>
+  <div data-solo="a_sin" class="campo-error"><p class="mensaje-campo"><span data-ic="alertc" data-s="14"></span>Confirma que el consentimiento está recabado para poder asignar.</p></div>
+  <div data-solo="a_409" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se asignó</strong><p>La persona ya tiene un alta vigente en esta terminal.</p></div>
+  <div data-solo="a_422" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se asignó</strong><p>La persona no está sincronizada en el esquema de tiempo; avisa a Sistemas.</p></div>
+  <div data-solo="a_403" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se asignó</strong><p>No tienes permiso para esta acción.</p></div>
+  <div class="modal__botonera">
+    <span data-solo="a_ini a_auto a_sin a_409 a_422 a_403" style="display:contents"><button type="button" class="boton-con-icono">Cancelar</button><button type="button" class="boton-con-icono boton-primario" data-ic="userplus">Asignar</button></span>
+    <span data-solo="a_cargando" style="display:contents"><button type="button" class="boton-con-icono" disabled>Cancelar</button><button type="button" class="boton-con-icono boton-primario" disabled aria-busy="true"><span class="icono-girando" data-ic="loader"></span>Asignando…</button></span>
+  </div>
+</div>
+<div data-solo="a_ok" style="display:contents" role="status">
+  <h2><span data-ic="checkc" data-s="22" style="color:var(--teal)"></span> Persona asignada</h2>
+  <p class="modal__contexto">Ana Torres quedó en <strong>Pendiente de alta</strong> (nº 1042). El puente crea el usuario en el aparato y pasa a <strong>Esperando huella</strong>: avisa a TI para enrolar la huella en el menú de la terminal. Si nadie la enrola en 24 h, el alta se da de baja sola.</p>
+  <div class="modal__botonera"><button type="button" class="boton-con-icono boton-primario">Cerrar</button></div>
+</div>
+
+<!-- BAJA / CANCELAR ALTA -->
+<div data-solo="b_cancelar b_baja b_cargando b_409" style="display:contents">
+  <h2 id="tb"><span data-solo="b_cancelar" style="display:contents">Cancelar alta</span><span data-solo="b_baja b_cargando b_409" style="display:contents">Dar de baja</span></h2>
+  <p class="modal__contexto">Luis Ramírez · nº 1041 · <span data-solo="b_cancelar"><span class="insignia insignia--info">Esperando huella</span></span><span data-solo="b_baja b_cargando b_409"><span class="insignia insignia--exito">Activo</span></span></p>
+  <div class="modal__advertencia" role="note"><span data-ic="alert"></span><div>
+    <span data-solo="b_cancelar"><strong>El alta se cancela y el usuario se borra del aparato.</strong> Para volver a enrolar a la persona hay que asignarla de nuevo (otro número, nuevo consentimiento si lo revocó).</span>
+    <span data-solo="b_baja b_cargando b_409"><strong>El puente borrará el usuario y sus huellas del aparato.</strong> Es irreversible. Hasta que se confirme, la persona todavía puede marcar. Para volver a enrolarla hay que asignarla de nuevo y TI debe enrolar su huella otra vez.</span></div></div>
+  <div><label for="mb">Motivo (opcional)</label><textarea id="mb" rows="3" maxlength="500" placeholder="Ej.: la persona revocó su consentimiento."></textarea><div class="modal__contador num">0 / 500</div></div>
+  <div data-solo="b_409" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se dio de baja</strong><p>El movimiento no es válido para el estado actual del alta.</p></div>
+  <div class="modal__botonera">
+    <span data-solo="b_cancelar b_baja" style="display:contents"><button type="button" class="boton-con-icono">Volver</button><button type="button" class="boton-peligro boton-con-icono"><span data-solo="b_cancelar" style="display:contents">Cancelar el alta</span><span data-solo="b_baja" style="display:contents">Dar de baja definitivamente</span></button></span>
+    <span data-solo="b_cargando" style="display:contents"><button type="button" class="boton-con-icono" disabled>Volver</button><button type="button" class="boton-peligro boton-con-icono" disabled aria-busy="true"><span class="icono-girando" data-ic="loader"></span>Solicitando baja…</button></span>
+    <span data-solo="b_409" style="display:contents"><button type="button" class="boton-con-icono">Volver</button><button type="button" class="boton-con-icono boton-primario">Actualizar lista</button></span>
+  </div>
+</div>
+<div data-solo="b_ok" style="display:contents" role="status">
+  <h2><span data-ic="checkc" data-s="22" style="color:var(--teal)"></span> Baja solicitada</h2>
+  <p class="modal__contexto">El alta quedó en <strong>Pendiente de baja</strong>. Cuando el puente borre el usuario del aparato pasará a <strong>Baja</strong>; es el asiento de que el dato biométrico dejó de tratarse.</p>
+  <div class="modal__botonera"><button type="button" class="boton-con-icono boton-primario">Cerrar</button></div>
+</div>
+</div></div>
+<section class="escenario" style="margin-top:2rem"><h2>Reglas</h2><ul style="font-size:.85rem;color:var(--navy-medio);line-height:1.6;padding-left:1.1rem">
+<li><strong>Consentimiento:</strong> casilla obligatoria, sin marcar por defecto; "Asignar" no se bloquea: al enviar sin marcar muestra el error del campo (así el motivo se entiende, en vez de un botón gris sin explicación).</li>
+<li><strong>Auto-asignación:</strong> aviso informativo, no bloqueo en cliente — el frontend no sabe si el caller es administrador genérico; decide el backend (422). El 422 se muestra con su <code>detail</code>.</li>
+<li><strong>Baja:</strong> el botón principal dice la consecuencia ("Cancelar el alta" / "Dar de baja definitivamente"), no "Aceptar". Motivo opcional ≤ 500.</li>
+<li>Mientras envía: botones inertes, Esc y fondo no cierran (sin doble envío).</li></ul></section>
+</div></main></div>
+<script src="_mockup.js"></script>
+</body></html>
