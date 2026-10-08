@@ -955,6 +955,7 @@ def test_registrar_movimiento_tipo_no_permitido_scj01_devuelve_422():
 
     _limpiar()
     assert response.status_code == 422
+    assert response.json()["detail"] == "Tipo de movimiento no permitido por esta vía."  # fijo, no el texto de la base
 
 
 def test_registrar_movimiento_monto_invalido_scj02_devuelve_422():
@@ -964,6 +965,7 @@ def test_registrar_movimiento_monto_invalido_scj02_devuelve_422():
 
     _limpiar()
     assert response.status_code == 422
+    assert response.json()["detail"] == "El monto debe ser mayor a cero."
 
 
 def test_registrar_movimiento_persona_sin_banco_scj03_devuelve_404():

@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.errores import rechazo_generico
 from app.deps import get_caller_client, get_service_client
 from app.dias_habiles import _dias_habiles_limite, _dias_habiles_transcurridos, _festivos_entre
 from app.fecha_local import fecha_local_efectiva
@@ -397,7 +398,7 @@ def captura_manual(
             existente = _buscar_marca_por_evento_id(db, datos.evento_id)
             response.status_code = status.HTTP_200_OK
             return _armar_respuesta(db, existente, duplicado=True)
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, error.message) from error
+        raise rechazo_generico(error, "captura manual de marca", "No se pudo registrar la marca; revisa los datos.") from None
 
     # RETURNING del INSERT queda desactualizado frente al UPDATE que hace el AFTER trigger sobre
     # la misma fila (requiere_revision) -- se relee después de que el INSERT (con su trigger) ya

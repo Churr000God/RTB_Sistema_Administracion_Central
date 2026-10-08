@@ -58,6 +58,7 @@ from app.banco_antiguedad import (
     resolver_ventana_meses,
 )
 from app.batches.corte_quincenal import _festivos_del_periodo, resolver_ultimo_periodo_vencido
+from app.errores import rechazo_generico
 from app.deps import get_caller_client, get_service_client
 from app.permisos import requiere_permiso
 from app.prevision_corte_quincenal import resolver_personas_con_corte_pendiente
@@ -76,6 +77,8 @@ TOP_EN_DEUDA_CANTIDAD = 8
 
 CODIGO_TIPO_NO_PERMITIDO = "SCJ01"
 CODIGO_MONTO_INVALIDO = "SCJ02"
+MENSAJE_TIPO_NO_PERMITIDO = "Tipo de movimiento no permitido por esta vía."
+MENSAJE_MONTO_INVALIDO = "El monto debe ser mayor a cero."
 CODIGO_PERSONA_SIN_BANCO = "SCJ03"
 CODIGO_MONTO_EXCEDE_SALDO = "SCJ04"
 
@@ -503,12 +506,14 @@ def registrar_movimiento_manual(
             },
         ).execute()
     except APIError as error:
-        if error.code in (CODIGO_TIPO_NO_PERMITIDO, CODIGO_MONTO_INVALIDO):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, error.message) from error
+        if error.code == CODIGO_TIPO_NO_PERMITIDO:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_TIPO_NO_PERMITIDO) from None
+        if error.code == CODIGO_MONTO_INVALIDO:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_MONTO_INVALIDO) from None
         if error.code == CODIGO_PERSONA_SIN_BANCO:
             raise HTTPException(status.HTTP_404_NOT_FOUND, MENSAJE_PERSONA_SIN_BANCO) from error
         if error.code == CODIGO_MONTO_EXCEDE_SALDO:
             raise HTTPException(status.HTTP_409_CONFLICT, MENSAJE_MONTO_EXCEDE_SALDO) from error
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, error.message) from error
+        raise rechazo_generico(error, "movimiento de saldo manual") from None
 
     return _armar_ledger_de_persona(db_servicio, persona_id)

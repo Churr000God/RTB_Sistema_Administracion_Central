@@ -263,7 +263,8 @@ def test_si_la_relectura_falla_el_409_sale_solo_con_detail(entorno):
     error = APIError({"code": "SCJ16", "hint": "version_base_desactualizada", "message": CRUDO})
     _con_rpc(entorno, error=error, vigente=None)
     r = _post(RUTA, CUERPO)
-    assert r.status_code == 409 and set(r.json()) == {"detail"}
+    assert r.status_code == 409 and set(r.json()) == {"detail", "codigo"}  # sin consentimiento_vigente, pero con código
+    assert r.json()["codigo"] == "version_base_desactualizada"
 
 
 @pytest.mark.parametrize(

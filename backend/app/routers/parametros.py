@@ -23,6 +23,7 @@ from supabase import Client
 
 from app.catalogo_parametros import CATALOGO
 from app.deps import CallerIdentity, get_caller_identity, get_service_client
+from app.errores import limpiar_para_log
 from app.permisos import requiere_permiso
 from app.schemas.parametros import (
     ParametroActualizar,
@@ -163,7 +164,7 @@ def actualizar_valor_parametro(
             "parámetro rechazado por la base: clave=%s código=%s hint=%s",
             clave,
             error.code,
-            str(error.hint or "")[:100].replace("\r", " ").replace("\n", " "),
+            limpiar_para_log(error.hint, 100),
         )
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_PARAMETRO_NO_ACTUALIZADO

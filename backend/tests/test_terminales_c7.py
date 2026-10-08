@@ -229,7 +229,11 @@ def test_valor_base_distinto_del_vigente_da_409_con_valor_actual_y_no_escribe(en
     entorno.configurar(parametro=tabla([_param(CAD, "36")]), rpc_valor=OK_RPC)
     r = _patch({"valor": 48, "valor_base": 24})
     assert r.status_code == 409
-    assert r.json() == {"detail": "La variable cambió mientras la editabas; vuelve a leerla.", "valor_actual": 36}
+    assert r.json() == {
+        "detail": "La variable cambió mientras la editabas; vuelve a leerla.",
+        "codigo": "valor_desactualizado",
+        "valor_actual": 36,
+    }
     assert _rpc_llamadas(entorno) == []
 
 

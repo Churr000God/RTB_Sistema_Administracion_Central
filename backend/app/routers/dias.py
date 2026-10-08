@@ -28,7 +28,7 @@ from supabase import Client
 
 from app import alertas_horario
 from app.deps import get_caller_client, get_service_client
-from app.errores import traducir_error_dia_cerrado
+from app.errores import CODIGOS_MIGRACION_FALTANTE, limpiar_para_log, rechazo_generico, traducir_error_dia_cerrado
 from app.permisos import requiere_permiso, requiere_todos_los_permisos
 from app.prevision_corte_quincenal import resolver_dias_faltantes, resolver_periodo_en_curso
 from app.schemas.dias import (
@@ -150,7 +150,7 @@ def _resolver_excepciones_pendientes(
     return por_clave, por_dia_directo
 
 
-def _resolver_tiene_marcas_por_armar(db_servicio: Client, dia_ids_cerrados: list[int]) -> dict[int, bool]:
+def _resolver_tiene_marcas_por_armar(db_servicio: Client, dia_ids_cerrados: list[int]) -> dict[int, bool]:  # días con falla: ausentes (None)
     """Sólo para días `cerrado` de la página (bloqueado sigue mostrando el botón "Revisar" sin
     este chequeo -- ver revisar_dia). No usar tiempo.excepcion.estado como señal: puede quedar
     en 'resuelto' sin resolución real (anomalía real encontrada 2026-09-15, en investigación
@@ -169,7 +169,15 @@ def _resolver_tiene_marcas_por_armar(db_servicio: Client, dia_ids_cerrados: list
                 .data
             )
         except APIError as error:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, error.message) from error
+            # Un día que no se puede calcular NO tumba el listado: ese día queda con `tiene_marcas_por_armar: null` (desconocido)
+            # y el motivo va al log. (Una migración faltante sí es un 503 global: se relanza.)
+            if error.code in CODIGOS_MIGRACION_FALTANTE:
+                raise
+            logger.error(
+                "armado de tramos del día %s falló: código=%s hint=%s mensaje=%s",
+                dia_id, limpiar_para_log(error.code, 20), limpiar_para_log(error.hint, 100), limpiar_para_log(error.message),
+            )
+            continue
         resultado[dia_id] = bool(filas)
     return resultado
 
@@ -352,7 +360,7 @@ def previsualizar_tramos(
             .execute()
         )
     except APIError as error:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, error.message) from error
+        raise rechazo_generico(error, "previsualizar tramos", "No se pudo calcular la previsualización de tramos.") from None
     filas = resultado.data
     minutos_calculados = sum(
         fila["minutos_trabajados"]
@@ -415,8 +423,8 @@ def revisar_dia(
         logger.error(
             "revisar día rechazado por la base: código=%s hint=%s mensaje=%s",
             error.code,
-            str(error.hint or "")[:100].replace("\r", " ").replace("\n", " "),
-            (error.message or "")[:300].replace("\r", " ").replace("\n", " "),
+            limpiar_para_log(error.hint, 100),
+            limpiar_para_log(error.message),
         )
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_DIA_NO_REVISADO_GENERICO) from None
 

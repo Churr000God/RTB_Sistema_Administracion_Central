@@ -64,10 +64,9 @@ def error_de_terminal_con_consentimiento(
         except Exception:  # la relectura nunca debe empeorar el error original
             logger.warning("no se pudo releer el texto de consentimiento vigente para el 409")
             vigente = None
-        if vigente is not None:
-            return ErrorConCampos(
-                traduccion.status_code, traduccion.detail, {"consentimiento_vigente": resumen_vigente(vigente)}
-            )
+        codigo = error.hint  # consentimiento_desactualizado | version_base_desactualizada
+        campos = {"consentimiento_vigente": resumen_vigente(vigente)} if vigente is not None else {}
+        return ErrorConCampos(traduccion.status_code, traduccion.detail, campos, codigo=codigo)
     return traduccion
 
 
@@ -86,6 +85,7 @@ def error_consentimiento_desactualizado(db: Client, vigente: dict) -> ErrorConCa
         status.HTTP_409_CONFLICT,
         MENSAJE_CONSENTIMIENTO_DESACTUALIZADO,
         {"consentimiento_vigente": resumen_vigente(vigente)},
+        codigo="consentimiento_desactualizado",
     )
 
 

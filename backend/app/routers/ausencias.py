@@ -23,7 +23,7 @@ from postgrest.exceptions import APIError
 from supabase import Client
 
 from app.deps import get_caller_client
-from app.errores import traducir_error_dia_cerrado
+from app.errores import limpiar_para_log, traducir_error_dia_cerrado
 from app.permisos import requiere_permiso, requiere_todos_los_permisos
 from app.schemas.ausencias import AusenciaListaOut, AusenciaOut, ResolverAusenciaCreate
 
@@ -242,8 +242,8 @@ def resolver_ausencia(
         logger.error(
             "resolver ausencia rechazado por la base: código=%s hint=%s mensaje=%s",
             error.code,
-            str(error.hint or "")[:100].replace("\r", " ").replace("\n", " "),
-            (error.message or "")[:300].replace("\r", " ").replace("\n", " "),
+            limpiar_para_log(error.hint, 100),
+            limpiar_para_log(error.message),
         )
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_AUSENCIA_NO_RESUELTA) from None
 

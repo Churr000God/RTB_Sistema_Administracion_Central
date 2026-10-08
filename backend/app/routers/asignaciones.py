@@ -16,7 +16,7 @@ from postgrest.exceptions import APIError
 from supabase import Client
 
 from app.deps import get_caller_client
-from app.errores import manejar_violacion_unicidad
+from app.errores import manejar_violacion_unicidad, rechazo_generico
 from app.permisos import requiere_permiso
 from app.schemas.asignaciones import (
     AsignacionCambiarPuesto,
@@ -25,6 +25,8 @@ from app.schemas.asignaciones import (
     AsignacionOut,
     AsignacionTerminar,
 )
+
+MENSAJE_ASIGNACION_CERRADA = "La asignación no existe o ya está cerrada."
 
 router = APIRouter(prefix="/api/asignaciones", tags=["asignaciones"])
 
@@ -261,6 +263,8 @@ def cambiar_puesto_asignacion(
             .execute()
         )
     except APIError as error:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, error.message) from error
+        if error.code == "P0001":  # único caso de error deliberado de fn_asignacion_cambiar_puesto (19_*.sql)
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_ASIGNACION_CERRADA) from None
+        raise rechazo_generico(error, "cambio de puesto de asignación") from None
 
     return resultado.data

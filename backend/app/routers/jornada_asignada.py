@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.errores import rechazo_generico
 from app.deps import get_caller_client
 from app.permisos import requiere_permiso, requiere_todos_los_permisos
 from app.schemas.jornada_asignada import (
@@ -169,7 +170,7 @@ def asignar_jornada(
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_VIGENCIA_DESDE_INVALIDA
             ) from error
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, error.message) from error
+        raise rechazo_generico(error, "asignar jornada") from None
 
     jornada_nueva = resultado.data
 
@@ -391,7 +392,7 @@ def _lanzar_error_rpc(error: APIError, mapa: dict[str, tuple[int, str]]) -> None
     par = mapa.get(error.code)
     if par:
         raise HTTPException(par[0], par[1]) from error
-    raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, error.message) from error
+    raise rechazo_generico(error, "edición de jornada") from None
 
 
 @router.patch("/{jornada_id}", response_model=JornadaAsignadaOut)

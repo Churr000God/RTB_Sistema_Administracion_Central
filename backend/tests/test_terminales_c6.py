@@ -414,7 +414,10 @@ def test_carrera_con_lista_reconstruida_vacia_da_mensaje_fijo_de_reintento(entor
     _con_rpc(entorno, error=error)
     r = _post(RUTA_LOTE, CUERPO)
     assert r.status_code == 409 and "6613" not in r.text and "5,6" not in r.text
-    assert r.json() == {"detail": "No se registró nada porque el estado de las altas cambió; vuelve a intentarlo."}
+    assert r.json() == {
+        "detail": "No se registró nada porque el estado de las altas cambió; vuelve a intentarlo.",
+        "codigo": "lote_reintentar",
+    }
 
 
 def test_carrera_con_lista_reconstruida_no_vacia_devuelve_no_elegibles(entorno):

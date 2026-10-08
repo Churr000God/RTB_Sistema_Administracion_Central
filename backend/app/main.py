@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from postgrest.exceptions import APIError
 
 from app.config import parse_frontend_urls
+from app.errores import CODIGOS_MIGRACION_FALTANTE
 from app.respuestas_error import ErrorConCampos, manejar_error_con_campos
 from app.scheduler import lifespan
 from app.terminal_auth import HSTS, RUTA_TERMINAL, advertir_despliegue, hsts_terminal
@@ -39,7 +40,6 @@ advertir_despliegue(os.environ)
 app.add_exception_handler(ErrorConCampos, manejar_error_con_campos)
 
 # PostgREST: función/columna/tabla inexistente = falta aplicar una migración (p. ej. 88_). Orden de despliegue: 88_ -> backend -> 89_.
-CODIGOS_MIGRACION_FALTANTE = {"PGRST202", "PGRST204", "PGRST205", "42P01"}
 MENSAJE_SERVICIO_NO_DISPONIBLE = "Servicio no disponible. Avisa a Sistemas."
 
 

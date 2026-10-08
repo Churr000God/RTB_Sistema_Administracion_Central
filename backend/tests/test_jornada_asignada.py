@@ -361,8 +361,8 @@ def test_asignar_jornada_flexible_no_valida_tope_legal():
 
 def test_asignar_jornada_rpc_rechaza_con_otro_codigo_devuelve_422():
     """Cualquier código de error del RPC que no sea SCJ01 (p.ej. el CONSTRAINT TRIGGER de tope
-    legal revienta con P0001 si algo bypasseó la validación de la app) sigue el patrón de
-    siempre: 422 con error.message crudo."""
+    legal revienta con P0001 si algo bypasseó la validación de la app) cae al fallback: 422 con
+    mensaje FIJO (el texto de la base no llega a la respuesta; va sólo al log)."""
     fake_client = _fake_client_secuencia(
         _entradas_gate()
         + [
@@ -383,6 +383,8 @@ def test_asignar_jornada_rpc_rechaza_con_otro_codigo_devuelve_422():
 
     app.dependency_overrides.clear()
     assert response.status_code == 422
+    assert response.json()["detail"] == "La operación no se pudo completar; revisa los datos o avisa a Sistemas."
+    assert "tope legal" not in response.text
 
 
 def test_asignar_jornada_horario_invalido_devuelve_422_sin_llegar_a_bd():
@@ -758,14 +760,15 @@ def test_lanzar_error_rpc_mapea_scj06_de_actualizar():
         assert excepcion.detail == "El patrón semanal debe tener al menos un día."
 
 
-def test_lanzar_error_rpc_codigo_no_mapeado_cae_a_422_con_mensaje_crudo():
+def test_lanzar_error_rpc_codigo_no_mapeado_cae_a_422_con_mensaje_fijo_sin_texto_de_la_base():
     error = APIError({"code": "P0001", "message": "algo que no está en el diccionario"})
     try:
         _lanzar_error_rpc(error, ERRORES_ACTUALIZAR)
         assert False, "debía lanzar HTTPException"
     except HTTPException as excepcion:
         assert excepcion.status_code == 422
-        assert excepcion.detail == "algo que no está en el diccionario"
+        assert excepcion.detail == "La operación no se pudo completar; revisa los datos o avisa a Sistemas."
+        assert "diccionario" not in excepcion.detail
 
 
 # ---------------------------------------------------------------------------

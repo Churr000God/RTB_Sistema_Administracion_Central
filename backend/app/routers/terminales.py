@@ -447,7 +447,9 @@ def _registrar_reconsentimiento(
     pendientes = ids_pendientes(db)
     malas = _no_elegibles(db, caller, terminal_id, ids, pendientes)
     if malas:
-        raise ErrorConCampos(status.HTTP_409_CONFLICT, MENSAJE_LOTE_NO_ELEGIBLE, {"no_elegibles": malas})
+        raise ErrorConCampos(
+            status.HTTP_409_CONFLICT, MENSAJE_LOTE_NO_ELEGIBLE, {"no_elegibles": malas}, codigo="lote_no_elegible"
+        )
 
     try:
         resultado = (
@@ -464,8 +466,10 @@ def _registrar_reconsentimiento(
             # Carrera entre mi verificación y el RPC: se reconstruye la lista (nunca el DETAIL de la base).
             otras = _no_elegibles(db, caller, terminal_id, ids, ids_pendientes(db))
             if not otras:  # la carrera se resolvió sola: no se devuelve un 409 vacío e incomprensible
-                raise HTTPException(status.HTTP_409_CONFLICT, MENSAJE_REINTENTAR) from None
-            raise ErrorConCampos(status.HTTP_409_CONFLICT, MENSAJE_LOTE_NO_ELEGIBLE, {"no_elegibles": otras}) from None
+                raise ErrorConCampos(status.HTTP_409_CONFLICT, MENSAJE_REINTENTAR, {}, codigo="lote_reintentar") from None
+            raise ErrorConCampos(
+                status.HTTP_409_CONFLICT, MENSAJE_LOTE_NO_ELEGIBLE, {"no_elegibles": otras}, codigo="lote_no_elegible"
+            ) from None
         manejar_error_con_consentimiento(error, db)
     if not isinstance(resultado, dict) or not isinstance(resultado.get("registradas"), int):
         logger.error("fn_terminal_reconsentir devolvió una forma inesperada")

@@ -417,6 +417,14 @@ Mismo patrón que `traducir_error_dia_cerrado` (devuelve `HTTPException|None`, y
 | `SCJ12` `auto_reconsentimiento_prohibido` | 422 | «No puedes registrar tu propio reconsentimiento; lo registra otra persona con permiso.» |
 | cualquier otro | 500 genérico | — |
 
+### 6.0 Campo estable `codigo` (cambio aditivo, 2026-10-08)
+Los errores con campos hermanos llevan además `"codigo"`, un identificador **estable** para que el cliente decida por él y nunca
+deduzca por el texto de `detail` (que sigue siendo fijo y puede cambiar de redacción): `consentimiento_desactualizado`,
+`version_base_desactualizada`, `valor_desactualizado`, `lote_no_elegible` y `lote_reintentar` (409 de carrera con la lista
+reconstruida vacía). Cuerpo: `{"detail": "<texto fijo>", "codigo": "<código>", …campos hermanos}`. Quien ignore `codigo` no se ve
+afectado. Si la relectura del texto vigente falla, el 409 de consentimiento sale con `detail` + `codigo` y **sin**
+`consentimiento_vigente`. Los demás errores (sin campos hermanos) no llevan `codigo`.
+
 ### 6.1 Cuerpo de los 409 de consentimiento
 `{"detail": "<texto fijo>", "consentimiento_vigente": {"id","version","texto","texto_sha256","provisional","cambio_material","vigente_desde"}}`.
 Se arma releyendo la vigente con el cliente del caller; si esa relectura falla, se devuelve sólo `detail` (el frontend
@@ -676,3 +684,10 @@ antes de commitear, como hasta ahora.
   permiso de marcas), máximo 200 entradas; el gate y la existencia de la terminal se validan antes de leerla; (B4) una prueba recorre las
   diez categorías (tablero y «ver todos») con fuentes que traen `persona_id`/`marca_id`/hash/IP/`employee_no` y afirma que ninguna clave
   de identidad ni secreto aparece en la salida.
+
+### 15.3 Mensajes de rechazo fijos en rutas legadas (cierre del M3 de C0)
+Ningún router devuelve ya el texto de la base en un 422: los fallthrough de captura manual de marca, previsualización y armado de tramos
+de días, movimientos de saldo, tope legal, cambio de puesto y jornada asignada responden «La operación no se pudo completar; revisa los
+datos o avisa a Sistemas.» (o un texto fijo propio de la ruta) y el texto real, saneado y truncado, va sólo al log. Una prueba de regresión
+escanea `app/routers/` y falla si reaparece `HTTPException(…, error.message)`. Los casos deliberados del RPC de saldo (`SCJ01`/`SCJ02`) se
+conservan como textos fijos del backend.

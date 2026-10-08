@@ -29,6 +29,7 @@ from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get
 from app.errores import (
     MENSAJE_DIA_CERRADO_REQUIERE_REVISION,
     MENSAJE_MARCA_EN_TRAMO,
+    limpiar_para_log,
     traducir_error_dia_cerrado,
 )
 from app.dias_habiles import _dias_habiles_limite, _dias_habiles_transcurridos, _festivos_entre
@@ -98,7 +99,7 @@ def _hay_dia_cerrado_pendiente(excepciones: list[dict]) -> bool:
 
 def _linea(texto: str) -> str:
     """Para el log: una sola línea y acotado (un mensaje con saltos de línea podría falsificar entradas)."""
-    return texto[:300].replace("\r", " ").replace("\n", " ")
+    return limpiar_para_log(texto)
 
 
 def _validar_ventana(fecha_marca: date) -> None:

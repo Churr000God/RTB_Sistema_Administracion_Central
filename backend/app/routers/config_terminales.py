@@ -198,7 +198,9 @@ def editar_variable(
     actual = _entero(fila["valor"], entrada) if fila else None
     actual = actual if actual is not None else entrada.defecto
     if datos.valor_base != actual:
-        raise ErrorConCampos(status.HTTP_409_CONFLICT, MENSAJE_CAMBIO_CONCURRENTE, {"valor_actual": actual})
+        raise ErrorConCampos(
+            status.HTTP_409_CONFLICT, MENSAJE_CAMBIO_CONCURRENTE, {"valor_actual": actual}, codigo="valor_desactualizado"
+        )
 
     try:
         resultado = (

@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.errores import rechazo_generico
 from app.deps import get_service_client
 from app.permisos import requiere_permiso
 from app.schemas.tope_legal import ExcesoSemanalOut, PersonaSobreTopeItem, TopeLegalCreate, TopeLegalOut
@@ -83,7 +84,7 @@ def crear_tope_legal(
             raise HTTPException(
                 status.HTTP_409_CONFLICT, MENSAJE_VIGENCIA_ACTIVA_SIN_CONFIRMAR
             ) from error
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, error.message) from error
+        raise rechazo_generico(error, "vigencia de tope legal") from None
 
     return resultado.data
 

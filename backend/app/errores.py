@@ -6,6 +6,7 @@ uno. El mensaje (MENSAJE_*) y el status_code siguen siendo decisión de cada rou
 """
 
 import logging
+import re
 from typing import NoReturn
 
 from fastapi import HTTPException, status
@@ -138,6 +139,35 @@ def manejar_error_dia_cerrado(error: APIError) -> NoReturn:
     if traduccion is not None:
         raise traduccion from None
     raise error
+
+
+_CARACTERES_DE_LINEA = re.compile("[\x00-\x1f\x7f-\x9f\u2028\u2029]")
+
+
+def limpiar_para_log(texto, limite: int = 300) -> str:
+    """Una sola línea y acotada para el log: controles C0/C1 y separadores de línea Unicode (U+2028/U+2029) pasan a espacio. UNA función
+    para todos los bloques que registran texto de la base (un mensaje con saltos de línea podría falsificar entradas del log)."""
+    return _CARACTERES_DE_LINEA.sub(" ", str(texto or ""))[:limite]
+
+
+CODIGOS_MIGRACION_FALTANTE = frozenset({"PGRST202", "PGRST204", "PGRST205", "42P01"})
+MENSAJE_RECHAZO_GENERICO = "La operación no se pudo completar; revisa los datos o avisa a Sistemas."
+
+
+def rechazo_generico(error: APIError, contexto: str, mensaje: str = MENSAJE_RECHAZO_GENERICO) -> HTTPException:
+    """422 con mensaje FIJO para un APIError sin traducción específica: el texto de la base puede traer ids internos o detalles
+    del esquema y el frontend muestra el `detail` de cualquier 403/409/422. El texto real va sólo al log (saneado y truncado)."""
+    if error.code in CODIGOS_MIGRACION_FALTANTE:
+        # Objeto inexistente = migración sin aplicar, no un dato inválido: lo atiende el handler global (503 «Servicio no disponible»).
+        raise error
+    logger.error(
+        "%s rechazado por la base: código=%s hint=%s mensaje=%s",
+        contexto,
+        limpiar_para_log(error.code, 20),
+        limpiar_para_log(error.hint, 100),
+        limpiar_para_log(error.message),
+    )
+    return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, mensaje)
 
 
 # --- Terminales, API web (CONTRATO_API_TERMINALES_PAQUETE_2.md §6; SCJ11-SCJ17) -----------------------------
