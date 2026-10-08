@@ -215,12 +215,16 @@ export function DiasPage() {
   const porDescartar = tardias.filter((t) => t.camino_resolucion === "descartar").length;
 
   useEffect(() => {
+    const nueva = busqueda.trim();
+    // Sin cambio real de la búsqueda no se programa nada: si no, el timer del montaje (o de un
+    // espacio al final) regresaba a la página 1 aunque el usuario ya hubiera pulsado «Siguiente».
+    if (nueva === busquedaDebounced) return;
     const id = setTimeout(() => {
-      setBusquedaDebounced(busqueda.trim());
+      setBusquedaDebounced(nueva);
       setDesplazamiento(0);
     }, DEBOUNCE_BUSQUEDA_MS);
     return () => clearTimeout(id);
-  }, [busqueda]);
+  }, [busqueda, busquedaDebounced]);
 
   function cargar() {
     const params = new URLSearchParams();

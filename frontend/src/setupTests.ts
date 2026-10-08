@@ -1,4 +1,8 @@
 import "@testing-library/jest-dom/vitest";
+import { configure } from "@testing-library/react";
+
+// findBy*/waitFor esperan hasta 3 s (por defecto 1 s): bajo carga de la suite completa 1 s no alcanza.
+configure({ asyncUtilTimeout: 3000 });
 
 // jsdom no implementa showModal()/close() de <dialog>. Polyfill mínimo: abrir = atributo `open`,
 // cerrar = quitarlo y disparar `close` (lo que el navegador real hace además del foco atrapado).

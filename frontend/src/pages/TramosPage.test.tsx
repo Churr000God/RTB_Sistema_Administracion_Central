@@ -219,4 +219,16 @@ describe("TramosPage", () => {
     );
     expect(screen.getByRole("button", { name: /reintentar/i })).toBeInTheDocument();
   });
+
+  it("pulsar «Siguiente» durante la ventana del debounce de búsqueda NO regresa a la página 1", async () => {
+    mockApiFetch({ tramos: new Response(JSON.stringify({ total: 25, tramos: Array.from({ length: 20 }, (_, i) => ({ ...TRAMO_1, id: 100 + i })) })) });
+    render(<TramosPage />);
+    const siguiente = await screen.findByRole("button", { name: /^siguiente$/i });
+    await waitFor(() => expect(siguiente).toBeEnabled());
+    await userEvent.click(siguiente);
+    // Pasa de sobra el debounce de 300 ms que se programó al montar la página.
+    await new Promise((resolver) => setTimeout(resolver, 450));
+    const llamadas = vi.mocked(apiFetch).mock.calls.filter(([path]) => (path as string).startsWith("/api/tramos?"));
+    expect(llamadas.at(-1)![0]).toContain("desplazamiento=20");
+  });
 });
