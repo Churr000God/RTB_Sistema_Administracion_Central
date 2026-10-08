@@ -129,6 +129,33 @@ usuario los revise (ver cómo servirlos en 7.4) y responda:
 | D5 | **Mínimo de huellas** para pasar a `activo` | 1 (como está en el trigger) |
 | D6 | ¿**Avisar a TI** cuando hay un alta en `esperando_huella`? (canal y umbral) | Sí, definir canal (correo/tablero) |
 
+**Decisiones del usuario (8-oct-2026):** D1 = A (grupo propio "Terminales"). D2 = sí, modal de asignar
+compartido (la ficha necesita `GET /api/personas/{id}/terminales`). D3 = el tablero lo ven quienes tengan
+`terminal_usuario_lectura`/`edicion` (hoy RH, Gerente General y TI), como en el mockup. D4 = el texto real lo
+entrega RH/Legal; mientras tanto el del mockup queda como **provisional** y el texto se edita desde el sistema
+(ver abajo). D5 = mínimo 1 huella. D6 = **sin notificaciones por ahora** (no hay sección de avisos y el backend
+no envía correo); TI ve las altas en `esperando_huella` en la lista con cuenta regresiva; canal de aviso queda
+como mejora futura (opción barata: contador en el sidebar).
+
+**Nuevo (8-oct-2026): pantalla "Configuración" del módulo Terminales.** El texto de consentimiento
+(versionado, cada alta liga la versión aceptada) y las variables hoy fijas en código (caducidad de altas 24 h
+con piso 4 h, umbral de picos de tasa 10/h, antigüedad máxima de llave 12 meses, ventana de anomalías 7 días,
+retención de `marca_rechazada` 90 días) se editan desde el sistema. Edita **sólo** quien tenga un permiso
+nuevo, mapeado a "Gerente o Encargado de TI" y "Gerente General" (RH sólo lee). No se reutiliza
+`parametro_edicion` porque hoy lo tienen RH y Gerente General (`34_*.sql`), no TI. Diseño del modelo en curso
+con `db`, mockup con `frontend`; pendiente de tu aprobación antes de DDL o implementación.
+
+**Decisiones del usuario sobre esa pantalla (8-oct-2026):** permiso nuevo `terminal_config_edicion` no
+heredable, sólo "Gerente o Encargado de TI" y "Gerente General"; la pantalla es visible con la visibilidad del
+grupo Terminales (RH en sólo lectura). Versión del consentimiento en columna `consentimiento_id` de la
+bitácora; versión desactualizada al asignar se rechaza siempre; la versión 1 se siembra como texto
+**provisional** (no existe estado «sin texto»); deja de ser provisional publicando versión nueva sin la marca;
+motivo del cambio opcional (`nota`, 200). Variables: caducidad de altas 4-168 h (aplica también a altas en
+curso), antigüedad máx. de llave 3-36 meses, traslape de llaves 1-90 días, ventana de anomalías 1-90 días,
+retención de rechazos 30-365 días; pico de persona 10/h **fijo**. **Propuesto, pendiente de su visto bueno:**
+cambio material de texto obliga a reconsentir a los ya enrolados, con registro por fila y en lote por RH,
+sin reenrolar huella, sin bloquear marcas, y tarjeta de anomalías.
+
 ### 3.2 Decisiones de producto y de despliegue
 | # | Tema | Detalle / recomendación |
 |---|---|---|
@@ -479,3 +506,17 @@ contrato del Paquete 2); memorias del proyecto (`project-checador-hikvision-esta
 - **Desactivar una terminal con altas** lo impide `SCJ13`; el procedimiento correcto es dar de baja todas las
   altas, esperar `baja_confirmada` y `marcas_pendientes = 0`, desactivar y hacer reset de fábrica.
 - **Esquema congelado desde el 25-sep-2026:** todo lo anterior exige aviso a RTB-App (D17).
+
+### 8.1 Condiciones de salida a producción (añadidas 8-oct-2026, revisión de `security` de C2/C3)
+Aceptado: si la baja en terminales falla al suspender o dar de baja a una persona, el movimiento queda
+guardado (201) con la advertencia `baja_terminal_pendiente` y sin reintento inmediato. Es aceptable **sólo** si,
+antes de poner el Pi en producción, se cumple todo lo siguiente:
+1. El job de reconciliación de C8 (reintento de bajas, cada ~10 min) está construido y programado; trata el
+   resultado `-1` (sin autor derivable) como alerta permanente (log ERROR y tablero), nunca como éxito.
+2. La advertencia se muestra visible en la pantalla de suspensión/baja (mockup 07), no sólo en el log.
+3. La tarjeta de inconsistencias de baja del tablero (personas no activas con alta vigente) está activa; es
+   detector independiente del hook, y cubre también la ruta que no pasa por FastAPI.
+4. `91_` pequeño: `fn_terminal_baja_por_persona_inactiva` ordena el último movimiento por `creado_en DESC`
+   (hora del servidor) y `fecha_efectiva` sólo como desempate; hoy, por PostgREST directo, un
+   `fecha_efectiva` manipulada puede torcer la atribución de las bajas automáticas.
+5. Las marcas de una persona inactiva ya quedan señaladas por el trigger existente (`persona_inactiva`).

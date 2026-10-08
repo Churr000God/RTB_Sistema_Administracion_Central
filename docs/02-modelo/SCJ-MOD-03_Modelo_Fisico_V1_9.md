@@ -1,7 +1,7 @@
 # Modelo físico — Subsistema de Tiempo
 
 **Sistema de Control de Jornada · PostgreSQL 16**
-Folio SCJ-MOD-03 · Versión 1.8 · 6 de octubre de 2026
+Folio SCJ-MOD-03 · Versión 1.9 · 8 de octubre de 2026
 
 > **Cambio de versión (V1.0 → V1.1, menor):** `02_tiempo.sql` pasa de "pendiente" a implementado.
 > Se llenan las secciones III-VI con lo que el DDL real decidió. No se contradice nada de lo ya
@@ -41,6 +41,17 @@ Folio SCJ-MOD-03 · Versión 1.8 · 6 de octubre de 2026
 > paso se corrige el nombre del archivo, que seguía en `V1_5` aunque el encabezado decía 1.6
 > (`CONVENCIONES.md §I`).
 
+> **Cambio de versión (V1.8 → V1.9, menor):** se agregan las restricciones de los scripts `88`, `89` y `90`
+> (configuración de terminales, consentimiento biométrico versionado y tablero de anomalías; no se contradice nada de lo
+> anterior): la tabla de versiones `tiempo.terminal_consentimiento` (de sólo inserción, inmutable en 3
+> capas, con la versión 1 provisional sembrada), la columna `consentimiento_id` en la bitácora de
+> enrolamiento y en la tabla viva (`asignado` y el movimiento nuevo `reconsentido` exigen la versión
+> vigente, `SCJ16`), el permiso `terminal_config_edicion` (no heredable, sólo TI y Gerente General), las 5
+> claves `terminal_*` de `tiempo.parametro` con su regla cruzada y el guard `SCJ17` de la pantalla genérica
+> de Parámetros. El detalle de columnas y funciones está en `SCJ-DIC-01` V1.4. Estas restricciones
+> se ensayaron con `BEGIN … ROLLBACK` (`db/ensayos/ensayo_88.sql`, `ensayo_89.sql`) y se contrastarán con la
+> base real al aplicarse.
+
 > **Cambio de versión (V1.7 → V1.8, menor):** se agregan las restricciones activas de los scripts `82` a `85`
 > (`SCJ-DEC-12`, autenticación de la terminal, ruta de marcas y caducidad de altas): la credencial de la
 > terminal (`tiempo.terminal_credencial`), los triggers `SCJ13` (desactivación) y `SCJ14` (revocación
@@ -78,8 +89,10 @@ justificación. Entregable E3 de `SCJ-ESP-01`.
 | `db/ddl/02_tiempo.sql` | Tablas del subsistema de Tiempo |
 | `db/ddl/03_parametros_ejemplo.sql` | Parámetros con **valores de ejemplo** |
 | `db/ddl/04` a `36` | *(V1.6)* Esquema `personas`: personas, estructura organizacional, asignaciones, permisos y bitácoras |
-| `db/ddl/37` a `79` | *(V1.6)* RLS, permisos y funciones de Tiempo, y las correcciones posteriores (los scripts son acumulativos: el estado final es la suma de los 88) |
+| `db/ddl/37` a `79` | *(V1.6)* RLS, permisos y funciones de Tiempo, y las correcciones posteriores (los scripts son acumulativos: el estado final es la suma de los 91) |
 | `db/ddl/80` y `81` | *(V1.7)* Terminal biométrica: `tiempo.terminal` y `tiempo.terminal_usuario` con la secuencia del `employeeNo` y los permisos `terminal_usuario_lectura`/`terminal_usuario_edicion` (`80`), y la bitácora inmutable con su trigger de transiciones (`81`). `SCJ-DEC-11` |
+| `db/ddl/90` | *(V1.9)* `fn_terminal_anomalias`: tres categorías del tablero de anomalías de marcas (marcas posteriores a la baja, picos de tasa, huecos de secuencia) como función de sólo lectura, `SECURITY INVOKER`, `EXECUTE` sólo `service_role`, que filtra por la terminal pedida y devuelve `persona_id` (nunca nombres) |
+| `db/ddl/88` y `89` | *(V1.9)* Configuración de terminales: `88` (permiso `terminal_config_edicion`, `tiempo.terminal_consentimiento` con la versión 1 provisional, columna `consentimiento_id`, movimiento `reconsentido`, `SCJ16`, publicar y reconsentir en lote) y `89` (5 claves `terminal_*` de `tiempo.parametro`, edición con regla cruzada, lector tolerante, guard `SCJ17`) |
 | `db/ddl/87` | *(V1.8)* Trigger `BEFORE INSERT` en `tiempo.correccion` que rechaza (`SCJ15` / `marca_en_tramo`) la corrección de una marca que ya es apertura o cierre de un tramo; función `SECURITY DEFINER` sin `EXECUTE` para la API |
 | `db/ddl/86` | *(V1.8)* Cierre del hallazgo sobre `78_`: trigger de columnas de `excepcion`, constraint trigger `dia_cerrado` recreado (revisión en la misma transacción o descarte), trigger de coherencia de `tramo`, tabla inmutable `excepcion_descarte`, RPC `fn_excepcion_dia_cerrado_descartar`, permiso `excepcion_dia_cerrado_descarte` (`SCJ15`) |
 | `db/ddl/82` a `85` | *(V1.8)* Autenticación de la terminal y ruta de marcas: `terminal_credencial` y 4 columnas de estado en `terminal` (`82`); los RPC del puente, el trigger `SCJ13` de desactivación, el trigger `SCJ14` de revocación y el reemplazo de `fn_bitacora_terminal_usuario_aplica` con `FOR SHARE` (`83`); `marca_rechazada` y su purga (`84`); la caducidad de altas en `esperando_huella` (`85`). `SCJ-DEC-12` |
@@ -141,6 +154,12 @@ Las que se implementan en la base y no en la aplicación, con la decisión que l
 | Funciones del puente con alcance por terminal *(V1.8)* | `fn_terminal_autenticar`, `fn_terminal_mapa`, `fn_terminal_movimiento_registrar`, `fn_terminal_latido` | Todas reciben `p_terminal_id` (la fija el servidor desde la credencial) y validan pertenencia dentro de la función: un movimiento sobre una alta de otra terminal responde igual que uno inexistente. El mapa no incluye `persona_id` ni nombres. Un `error` más de 20 veces por alta y hora devuelve `limitado` sin insertar (la bitácora es inmutable) | `SCJ-DEC-12` §3 |
 | Bajas automáticas con autor derivado *(V1.8)* | `bitacora_movimiento_terminal_usuario` ← `fn_terminal_baja_por_persona_inactiva`, `fn_terminal_baja_por_caducidad` | Emiten `baja_solicitada` (`origen='web'`) con el autor del acto original (el último movimiento de suspensión/baja de la persona, o el de la asignación): no hay usuario "sistema" ni origen nuevo. La caducidad (`esperando_huella` con más de `p_horas` horas desde el `usuario_creado` de la bitácora; defecto 24, piso 4, máximo 50 bajas por corrida) re-lee cada alta `FOR UPDATE` para no dar de baja a quien acaba de enrolar. Idempotentes (ignoran `SCJ11`/`SCJ12`) | `SCJ-DEC-12` §5, §12.7 |
 | Toda función nueva es `SECURITY DEFINER` con `search_path` fijo y `EXECUTE` acotado *(V1.8)* | 11 funciones de `83_`/`84_`/`85_` | `proconfig = {search_path=tiempo, personas, pg_temp}` en todas (contrastado en la base real); `EXECUTE` nace en `PUBLIC` y cada función lo revoca a `PUBLIC`, `anon` y `authenticated` en su mismo archivo: las 8 que llama el backend (`fn_terminal_autenticar`, `fn_terminal_mapa`, `fn_terminal_movimiento_registrar`, `fn_terminal_latido`, `fn_marca_terminal_registrar`, `fn_terminal_baja_por_persona_inactiva`, `fn_marca_rechazada_purgar`, `fn_terminal_baja_por_caducidad`) las ejecuta sólo `service_role`; la interna `fn_terminal_rechazo_registrar` y las 2 de trigger (`SCJ13`, `SCJ14`) no las ejecuta ningún rol de la API. Un `CREATE OR REPLACE` futuro debe repetir `SECURITY DEFINER` y `SET search_path`. `db/verificar_ddl.sql` (secciones 29, 30, 36, 37 y 40) lo comprueba con 0 filas esperadas | `SCJ-DEC-12` §8.3 |
+| Versionado inmutable del texto de consentimiento *(V1.9)* | `terminal_consentimiento` | Tabla de sólo inserción sin `vigente_hasta` (la vigente es la de mayor `version`); `UNIQUE (version)`; `CHECK` de texto (1 a 4000 caracteres, sin control salvo `\n`), de hash (`texto_sha256` = SHA-256 del texto) y de autor (`creado_por` NULL sólo en la versión 1 provisional); RLS con una policy `SELECT` por permiso específico; 3 capas de inmutabilidad (`REVOKE`, sin policy de escritura, triggers `BEFORE UPDATE OR DELETE` y `BEFORE TRUNCATE`); la escribe sólo `fn_terminal_consentimiento_publicar` | decisión del usuario 2026-10-08, `SCJ-PRO-15 §IV.7` |
+| Cada alta ligada a la versión del consentimiento *(V1.9)* | `bitacora_movimiento_terminal_usuario`, `terminal_usuario` | Columna `consentimiento_id` (FK): `CHECK ((tipo_movimiento IN ('asignado','reconsentido')) = (consentimiento_id IS NOT NULL))`; el trigger exige que sea la versión VIGENTE (`SCJ16` / `consentimiento_desactualizado`), tomando la tabla de versiones en `ROW EXCLUSIVE` (choca con el `SHARE ROW EXCLUSIVE` de la publicación); la tabla viva guarda la versión aceptada más reciente | decisión del usuario 2026-10-08 |
+| Auto-asignación prohibida salvo el administrador genérico *(V1.9)* | `bitacora_movimiento_terminal_usuario` | El trigger `fn_bitacora_terminal_usuario_aplica` rechaza con `SCJ12` / `auto_asignacion_prohibida` un `asignado` cuya persona es la del propio llamador salvo que éste ocupe un puesto con `es_administrador_generico` (`personas.fn_usuario_es_administrador_generico`, sobre el actor `NEW.registrado_por` que la policy ata a `auth.uid()`); antes sólo la aplicaba el backend y la policy dejaba a cualquiera con `terminal_usuario_edicion` asignarse por PostgREST. La misma regla y excepción alcanzan al `reconsentido` de la alta propia (`SCJ12` / `auto_reconsentimiento_prohibido`; en el lote la alta propia se omite con motivo `alta_propia`); pedir la propia baja sigue permitido | decisión del usuario 2026-10-06, `SCJ-PRO-15 §V.3` |
+| Sin oráculo del trigger para quien no puede escribir *(V1.9)* | `bitacora_movimiento_terminal_usuario` | El trigger (`SECURITY DEFINER`) corre antes del `WITH CHECK` de la RLS: un llamador `anon`/`authenticated` sin `terminal_usuario_edicion`, con un movimiento que no es web o sin `sub`, recibe NEW de vuelta sin errores ni efectos del trigger y la RLS responde `42501` (mismo patrón que `87_`) | revisión de `security` 2026-10-08 |
+| Reconsentimiento que no bloquea marcas *(V1.9)* | `bitacora_movimiento_terminal_usuario`, `terminal_usuario.usuario_creado_en` | Movimiento `reconsentido` (origen web, `terminal_usuario_edicion`): no cambia estado ni huellas y conserva `error_detalle`; "pendiente" se calcula al leer (`fn_terminal_reconsentimiento_pendiente_ids`: pendiente_alta, esperando_huella o activo con versión menor que la última con `cambio_material`); ninguna función de marcas lo consulta | decisión del usuario 2026-10-08 |
+| Configuración de terminales con permiso propio *(V1.9)* | `parametro` | Claves `terminal_*` editables sólo con `fn_terminal_config_actualizar` (`SECURITY DEFINER`, gate `terminal_config_edicion` dentro, lista blanca y rangos, regla `traslape*2 <= antigüedad_meses*30`); `fn_parametro_actualizar_valor` las rechaza con `SCJ17`; los topes de seguridad (50 bajas por corrida, 5 000 rechazos por día, topes por hora) siguen fijos | decisión del usuario 2026-10-08 |
 
 Tres reglas quedaron **fuera de esta tabla a propósito** — se decidieron a nivel de aplicación, no
 de base:
@@ -186,4 +205,4 @@ actualizada.
 
 ---
 
-*Modelo físico · Folio SCJ-MOD-03 · V1.8*
+*Modelo físico · Folio SCJ-MOD-03 · V1.9*

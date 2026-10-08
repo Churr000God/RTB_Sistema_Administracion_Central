@@ -1,7 +1,7 @@
 # Proceso — Enrolamiento de terminal
 
 **Sistema de Control de Jornada**
-Folio SCJ-PRO-15 · Versión 1.1 · 6 de octubre de 2026
+Folio SCJ-PRO-15 · Versión 1.2 · 8 de octubre de 2026
 
 > **Cambio de versión (V1.0 → V1.1, menor):** se incorporan, **sin contradecir lo escrito**, las
 > decisiones del usuario del 6 de octubre de 2026 sobre la biometría (`SCJ-DEC-11 V1.1`,
@@ -12,6 +12,18 @@ Folio SCJ-PRO-15 · Versión 1.1 · 6 de octubre de 2026
 > **(5)** red de la terminal punto a punto como control de compensación; **(6)** caducidad de altas en
 > `esperando_huella` (24 h). Se **cierra P1** y se **ajusta P2**. Las pantallas de §VI no tienen botón
 > "capturar".
+
+> **Cambio de versión (V1.1 → V1.2, menor):** se incorporan las decisiones del usuario del 8 de octubre de
+> 2026 sobre el consentimiento biométrico y la configuración de terminales, **sin contradecir el flujo ya
+> escrito** y **cerrando P6 con DDL** (`88_*.sql`): **(1)** el texto de consentimiento deja de ser fijo: es
+> una tabla de **versiones** inmutables que editan sólo TI y Gerente General con el permiso nuevo
+> `terminal_config_edicion` (RH no); **(2)** cada `asignado` queda ligado a la versión aceptada
+> (`consentimiento_id`) y una versión desactualizada se rechaza siempre (`SCJ16`); **(3)** la versión 1 es un
+> texto **provisional** sembrado por la migración; **(4)** un **cambio material** de texto obliga a
+> **reconsentir** a los ya enrolados (movimiento nuevo `reconsentido`, también en lote), y ese pendiente
+> **no bloquea marcas**, sólo se muestra (ficha, lista y tarjeta del tablero); **(5)** la caducidad de altas
+> en `esperando_huella` y otras variables del módulo son **editables** con rangos (`89_*.sql`), también para
+> las altas ya en curso. El detalle técnico está en `SCJ-DIC-01` V1.4 y `SCJ-MOD-03` V1.9.
 
 > **Estado: Propuesta (borrador).** Redactado a partir de decisiones ya aceptadas (`SCJ-DEC-11`,
 > `SCJ-DEC-12`, `SCJ-PRO-11 V3.0`, `SCJ-CDT-01 V3.0`); lo que **no** está decidido por ellas se lista
@@ -250,12 +262,22 @@ Los datos biométricos son **datos personales sensibles** (LFPDPPP). Antes de as
 2. La persona otorga **consentimiento expreso, por escrito**, para el tratamiento de sus datos
    biométricos. **Quien no lo otorga marca por captura manual** (`SCJ-PRO-07`) sin consecuencia
    alguna.
-3. **Dónde queda el registro (decisión de este borrador, sin DDL):** el **documento firmado** vive en
-   el expediente de RH (fuera de este sistema); al asignar, **RH confirma en la pantalla**
-   ("Consentimiento y aviso de privacidad recabados") y esa confirmación se guarda en el `detalle`
-   del movimiento `asignado` con un texto fijo. Así el consentimiento queda ligado a quién, cuándo y
-   a qué alta, sin crear tabla ni columna. **Si se exige evidencia verificable** (folio, fecha de
-   firma, archivo), eso sí requiere diseño nuevo (ver P6).
+3. **Dónde queda el registro *(V1.2, reemplaza la decisión "sin DDL" de V1.1)*:** el **documento firmado**
+   vive en el expediente de RH (fuera de este sistema); al asignar, **RH confirma en la pantalla**
+   ("Consentimiento y aviso de privacidad recabados"). La base guarda esa declaración **ligada a la versión del
+   texto que se aceptó**: `consentimiento_id` (FK a `tiempo.terminal_consentimiento`) en el movimiento
+   `asignado` y en la alta, con el `detalle` fijo "consentimiento y aviso de privacidad recabados: versión N"
+   que pone el propio trigger (nunca NULL ni texto del cliente). La versión enviada debe ser la **vigente**; si
+   el texto cambió mientras RH asignaba, se rechaza (`SCJ16`) y RH debe leer el texto nuevo. El documento
+   impreso debe citar el número de versión y su hash.
+   - **Versiones:** sólo inserción, inmutables; las publica TI o el Gerente General (`terminal_config_edicion`,
+     no heredable). La versión 1 es **provisional** (sembrada por la migración); dejar de ser provisional =
+     publicar una versión nueva, que además **fuerza** el reconsentimiento de los ya enrolados.
+   - **Reconsentimiento:** si un cambio de texto se marca como **material**, las altas en `pendiente_alta`,
+     `esperando_huella` o `activo` con una versión anterior quedan con el reconsentimiento **pendiente**.
+     RH lo registra por alta o en lote (hasta 200) con el movimiento `reconsentido` (no cambia estado ni
+     huellas, no reenrola). **No bloquea marcas** (la marca es el registro de asistencia; el remedio de un
+     rechazo es la baja, §IV.2); sin plazo automático: sólo se muestra en la ficha, la lista y el tablero.
 4. **Revocación:** si la persona revoca, RH solicita la baja (§IV.2) y la persona pasa a captura
    manual.
 
@@ -295,6 +317,8 @@ Los datos biométricos son **datos personales sensibles** (LFPDPPP). Antes de as
    caller ocupa el puesto administrador genérico (`personas.puesto.es_administrador_generico`, hoy
    "Gerente o Encargado de TI"). El backend lo resuelve con `permisos.resolver_persona_id` y
    `resolver_puestos_vigentes` más la columna `es_administrador_generico` (`SCJ-DEC-12 §4`).
+   *(V1.2)* La regla **también la impone la base** (trigger de la bitácora: `SCJ12` / `auto_asignacion_prohibida`, antes de cualquier
+   efecto), de modo que quien tenga `terminal_usuario_edicion` no puede asignarse por PostgREST directo. **La misma regla y excepción valen para el reconsentimiento:** nadie registra el `reconsentido` de su propia alta salvo el administrador genérico (`SCJ12` / `auto_reconsentimiento_prohibido`; en el lote la alta propia se omite); pedir la propia baja sigue permitido.
 4. **La captura de huella es siempre presencial, en el menú de la propia terminal**, la hace TI con
    RH presente, y **ninguna plantilla biométrica sale del aparato** (ni hacia el Pi ni hacia el
    servidor). El Pi sólo crea el usuario y verifica por conteo; no puede llamar `CaptureFingerPrint`.
@@ -369,8 +393,9 @@ pantallas, y al final el puente.
 | # | Resolución |
 |---|---|
 | P1 | **Cerrada.** La captura de huella se hace **en el menú de la propia terminal**, por TI con RH presente; **el Pi no dispara el modo de captura** y no llama `CaptureFingerPrint` (`SCJ-DEC-12 §12`) |
-| P2 | **Ajustada.** Un alta en `esperando_huella` **caduca a las 24 h** (valor inicial ajustable) con `baja_solicitada` automática (`SCJ-DEC-12 §12.7`). Un alta en `pendiente_alta` sólo aparece como "atascada" en el tablero (`SCJ-DEC-12 §6`, 24 h) |
-| P3 | **Cerrada.** El consentimiento biométrico es **requisito previo obligatorio** (§II.5, §IV.7); su registro se decidió en el flujo del proceso (confirmación de RH al asignar), no en una tabla. Ver P6 si se quiere más evidencia |
+| P2 | **Ajustada.** Un alta en `esperando_huella` **caduca a las 24 h** (valor inicial; *V1.2:* editable de 4 a 168 h por TI/Gerente General, y aplica también a las altas ya en curso) con `baja_solicitada` automática (`SCJ-DEC-12 §12.7`). Un alta en `pendiente_alta` sólo aparece como "atascada" en el tablero (`SCJ-DEC-12 §6`, 24 h) |
+| P3 | **Cerrada.** El consentimiento biométrico es **requisito previo obligatorio** (§II.5, §IV.7); su registro es la confirmación de RH al asignar, ligada a la versión del texto (`88_`, ver P6) |
+| P6 | **Cerrada con DDL *(V1.2, 8-oct-2026)*.** El registro del consentimiento requiere DDL: tabla de versiones, `consentimiento_id` en el alta y en la bitácora, movimiento `reconsentido` (`88_*.sql`). El documento firmado sigue en el expediente de RH (fuera del sistema) y la evidencia en el sistema es la declaración de RH + quién, cuándo y qué versión; folio, fecha de firma o archivo del documento siguen sin modelarse |
 
 **Siguen abiertas:**
 
@@ -378,10 +403,9 @@ pantallas, y al final el puente.
 |---|---|---|
 | P4 | **¿Cómo sabe el frontend si el caller tiene `terminal_usuario_edicion`?** Hoy `GET /api/sesion` sólo expone `puede_ver_modulo_1/2/3` | Agregar a `GET /api/sesion` dos banderas (`puede_ver_terminales`, `puede_editar_terminales`) calculadas con `permisos.py`, como las del sidebar; es un cambio de `backend` |
 | P5 | **Número de huellas mínimo para pasar a `activo`**: el trigger acepta 1–10, pero ¿se exige un mínimo de 2 por redundancia (dedo dañado)? | 1 en el sistema (lo que ya valida el trigger); si RH quiere 2, es una política de procedimiento, no del DDL |
-| P6 | **¿El registro del consentimiento requiere DDL?** §IV.7 lo deja como confirmación de RH guardada en el `detalle` del movimiento `asignado` (sin DDL) y el documento firmado en el expediente de RH. Si Legal exige evidencia verificable (folio, fecha de firma, archivo), hace falta diseño nuevo (¿columna en `personas`, o tabla de consentimientos?), que cruza la frontera `SCJ-FRO-01` | Sin DDL por ahora. Preguntar a Legal qué evidencia exige la LFPDPPP para datos biométricos antes de construir; si exige más, abrir un `SCJ-DEC` aparte |
 | P7 | **¿El aviso de privacidad ya existe** y cubre biometría? Este documento no lo redacta ni lo valida (`SCJ-ANO-01`: ningún texto legal real en el repositorio) | Lo provee RH/Legal fuera del repositorio |
 | P8 | **¿Quién firma la lista de servicios habilitados** (§IV.6) y con qué periodicidad se revisa? | TI la firma al instalar y cada vez que cambie el firmware o se toque la configuración del aparato |
 
 ---
 
-*Proceso · Folio SCJ-PRO-15 · V1.1*
+*Proceso · Folio SCJ-PRO-15 · V1.2*

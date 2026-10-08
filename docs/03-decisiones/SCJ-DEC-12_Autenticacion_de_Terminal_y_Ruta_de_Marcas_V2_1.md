@@ -2,7 +2,14 @@
 
 **Estado:** Aceptada
 **Fecha de la decisión:** 2026-10-06
-**Última revisión:** 2026-10-06 (V2.0: enrolamiento de huella en el menú del aparato y biometría que el Pi no puede tocar; ver §12. Antes: de "Propuesta" a "Aceptada" el mismo día, con la revisión de security, las decisiones del usuario y la verificación de `db`; ver §10 y §11)
+**Última revisión:** 2026-10-08 (V2.1: consentimiento versionado, configuración de terminales y anomalías en SQL; ver §13. V2.0 (2026-10-06): enrolamiento de huella en el menú del aparato y biometría que el Pi no puede tocar; ver §12. Antes: de "Propuesta" a "Aceptada" el mismo día, con la revisión de security, las decisiones del usuario y la verificación de `db`; ver §10 y §11)
+
+> **Cambio de versión (V2.0 → V2.1, menor):** el usuario decidió (2026-10-08) que el texto de consentimiento biométrico y las
+> variables del módulo de terminales se editen desde el sistema; **no contradice nada de lo escrito**: agrega la tabla de
+> versiones del consentimiento y el reconsentimiento (`88_*.sql`), las variables `terminal_*` editables (`89_*.sql`) y la función
+> de anomalías (`90_*.sql`). Ver §13. Las constantes que §2, §6 y §12.7 llaman "valores iniciales ajustables" siguen siendo
+> constantes dentro de las funciones, salvo las 5 que ahora son parámetros (caducidad de altas, antigüedad y traslape de llaves,
+> ventana de anomalías y retención de rechazos); los topes de seguridad quedan fijos a propósito.
 
 > **Cambio de versión (V1.0 → V2.0, mayor):** el usuario decidió (2026-10-06) que **la persona se
 > enrola en el menú de la propia terminal** y que **ninguna plantilla biométrica sale del aparato**,
@@ -1065,6 +1072,31 @@ nunca constantes mudas). **Sólo Q11 sigue abierta** y es de `devops`.
 | Q12 | ¿Los reintentos transitorios del Pi: **50 intentos o 24 h** antes de `pendiente_intervencion`? | Sí; con tope de 15 min entre intentos, 24 h son ~96 intentos, y 50 llegan antes |
 | Q13 | ¿Retención de `marca_rechazada` de 90 días y tope de 5 000 filas/terminal/día? | Sí; es evidencia diagnóstica, no registro legal |
 | Q14 | ¿La **marca posterior a `baja_confirmada`** (§6 fila 1) debe, además de aparecer en el tablero, **forzar revisión** de la marca? No hay un `motivo_revision` que la describa; agregarlo es cambiar `SCJ-DEC-07`/el catálogo de motivos | **Sólo tablero** por ahora |
+
+---
+
+## 13. Consentimiento versionado, configuración editable y anomalías en SQL *(V2.1)*
+
+Decisiones del usuario del 8 de octubre de 2026 (implementadas en `88_`, `89_` y `90_`; el detalle de objetos está en `SCJ-DIC-01` V1.4):
+
+1. **Permiso nuevo `terminal_config_edicion`** (acción, no heredable): sólo "Gerente o Encargado de TI" y "Gerente General"; RH no.
+   Ver la pantalla = `terminal_usuario_lectura`/`terminal_usuario_edicion`; dentro, editar exige `terminal_config_edicion`. Sin permiso de lectura aparte.
+2. **Consentimiento versionado** (`tiempo.terminal_consentimiento`, sólo inserción, inmutable en 3 capas): cada `asignado` se liga a la
+   versión aceptada (`consentimiento_id`); una versión desactualizada se rechaza **siempre** (`SCJ16`). La versión 1 es un texto
+   **provisional** sembrado por la migración (no hay estado "sin texto"); sólo la 1 puede ser provisional, y publicar la definitiva
+   fuerza el reconsentimiento.
+3. **Reconsentimiento:** un cambio material obliga a reconsentir a los ya enrolados (movimiento `reconsentido`, también en lote). El
+   pendiente **no bloquea marcas** (la marca es el registro de asistencia; el remedio de un rechazo es la baja): sólo se muestra
+   (ficha, lista y tarjeta #10 del tablero). Sin plazo automático.
+4. **Variables editables** (`tiempo.parametro`, claves `terminal_*`): caducidad de altas 4–168 h, antigüedad de llave 3–36 meses,
+   traslape de llaves 1–90 días (no puede pasar de la mitad de la antigüedad en días), ventana de anomalías 1–90 días y retención de
+   rechazos 30–365 días. La caducidad editable aplica también a las altas ya en curso (el job evalúa con el valor vigente). El pico de
+   10 marcas/h por persona y los demás topes de §2 quedan **fijos**.
+5. **Anomalías en SQL (`fn_terminal_anomalias`, `90_`):** las categorías 1 (marcas posteriores a la baja), 2 (picos de tasa) y 4 (huecos de
+   secuencia) del §6 se calculan en una función de sólo lectura, `SECURITY INVOKER`, `EXECUTE` sólo `service_role`, que filtra por la
+   terminal pedida y devuelve `persona_id` (los nombres los resuelve el backend; ningún atributo de identidad vive en `tiempo`).
+6. **Endurecimientos de la revisión de `security` (8-oct):** el trigger de la bitácora (`SECURITY DEFINER`, corre antes de la RLS) ya no sirve de oráculo ni produce efectos para quien no tiene `terminal_usuario_edicion`; la **auto-asignación prohibida salvo el administrador genérico** (§4) se impone también en la base (`SCJ12` / `auto_asignacion_prohibida`) y se extiende al reconsentimiento de la alta propia (`auto_reconsentimiento_prohibido`); el texto de consentimiento no puede quedar vacío (`btrim` de espacios y saltos) ni llevar caracteres Unicode invisibles o de reordenamiento.
+7. **`usuario_creado_en`** (columna de `terminal_usuario`, sólo trigger): plazo de la caducidad y de las altas atascadas sin consultar la bitácora.
 
 ---
 

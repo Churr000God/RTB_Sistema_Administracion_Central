@@ -419,6 +419,15 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   enrolamiento (`SCJ-PRO-15`), TLS del despliegue (`devops`: HTTPS Certificates de Tailscale, `sudo`
   en el Pi de pruebas), escrituras de configuración en la terminal (zona horaria `CST+6:00:00`,
   NTP, IP fija, red punto a punto, borrar usuario de prueba) y alta de la primera llave por TI.
+  **Configuración y consentimiento (8 de octubre de 2026):** `88_`-`90_` (escritos, ensayados, revisados por
+  `security`, sin aplicar) agregan el texto de consentimiento biométrico versionado y editable desde el sistema
+  (`tiempo.terminal_consentimiento`, append-only, la v1 se siembra provisional), el permiso `terminal_config_edicion`
+  (no heredable; sólo "Gerente o Encargado de TI" y "Gerente General"), cinco variables `terminal_*` en
+  `tiempo.parametro` (RPC propio; el router genérico de Parámetros las excluye), reconsentimiento por cambio
+  material (no bloquea marcas; la alta propia no es elegible), `SCJ16`/`SCJ17`, la regla de auto-asignación
+  llevada a la base, y `fn_terminal_anomalias`. Backend C0-C4 commiteado (`a275097`); C5-C8 en curso. Mockups
+  aprobados (`diseno_paginas/tiempo_terminales_enrolamiento/`, 11 pantallas). Contrato:
+  `docs/07-procesos/CONTRATO_API_TERMINALES_PAQUETE_2.md`.
   Ver `SCJ-DEC-11`/`SCJ-DEC-12`, `SCJ-PRO-15` y
   `bitacora/2026-10-05_checador_hikvision_auditoria_y_modelo.md`.
   **Plan consolidado de todo lo pendiente hasta producción y las pruebas físicas con la terminal
@@ -500,7 +509,7 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   `http://localhost:5173` fijo a mano — esa configuración no vive en este repositorio. Al pasar a
   producción (`docker compose … prod`, frontend en `:8080`) hay que actualizarla ahí también, o
   los links de invitación/recuperación de contraseña no aterrizan en la app.
-- El DDL corre hasta `db/ddl/87_*.sql` (88 archivos, `00` a `87`). `personas.permiso`
+- El DDL versionado llega hasta `db/ddl/90_*.sql` (91 archivos, `00` a `90`); la base real está aplicada hasta `87_` y `88_`-`90_` están ensayados (`BEGIN…ROLLBACK` 143/143, 60/60, 21/21) y pendientes de aplicar por el usuario (orden: `88_`, backend C0 desplegado, `89_`, `90_`). `personas.permiso`
   es la única tabla del proyecto con clave natural (`codigo varchar PRIMARY KEY`) en vez de `uuid`
   — decisión deliberada, fiel a la redacción literal de `SCJ-PRO-05`, no un descuido a corregir.
 - Las tablas de bitácora inmutables (`bitacora_movimiento_persona`,
