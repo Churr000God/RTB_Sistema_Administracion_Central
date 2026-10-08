@@ -13,6 +13,10 @@ export type SesionOut = {
   puede_ver_modulo_3: boolean;
   // Sólo comodidad de UI: la autorización real es fn_excepcion_dia_cerrado_descartar.
   puede_descartar_excepciones?: boolean;
+  // Módulo Terminales (contrato §7). Opcionales: un backend anterior no las manda.
+  puede_ver_terminales?: boolean;
+  puede_editar_terminales?: boolean;
+  puede_editar_config_terminales?: boolean;
 };
 
 let sesionEnVuelo: Promise<SesionOut> | null = null;

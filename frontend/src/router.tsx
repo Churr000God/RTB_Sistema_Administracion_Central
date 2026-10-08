@@ -42,6 +42,11 @@ import { PermisosPage } from "./pages/PermisosPage";
 import { RestablecerContrasenaPage } from "./pages/RestablecerContrasenaPage";
 import { RevocarPermisoPage } from "./pages/RevocarPermisoPage";
 import { TerminarAsignacionPage } from "./pages/TerminarAsignacionPage";
+import { ConsentimientoTerminalesPage } from "./pages/ConsentimientoTerminalesPage";
+import { VariablesTerminalesPage } from "./pages/VariablesTerminalesPage";
+import { AnomaliasTerminalesPage } from "./pages/AnomaliasTerminalesPage";
+import { TerminalesPage } from "./pages/TerminalesPage";
+import { UsuariosTerminalPage } from "./pages/UsuariosTerminalPage";
 import { TramosPage } from "./pages/TramosPage";
 import { VerificarTotpRoute } from "./pages/VerificarTotpRoute";
 
@@ -90,4 +95,9 @@ export const router = createBrowserRouter([
   { path: "/tiempo/parametros/tope-legal", element: <ParametrosTopeLegalPage /> },
   { path: "/tiempo/parametros/dias-festivos", element: <DiasFestivosPage /> },
   { path: "/tiempo/parametros/sistema", element: <ParametrosSistemaPage /> },
+  { path: "/tiempo/terminales", element: <TerminalesPage /> },
+  { path: "/tiempo/terminales/:id/usuarios", element: <UsuariosTerminalPage /> },
+  { path: "/tiempo/terminales/anomalias", element: <AnomaliasTerminalesPage /> },
+  { path: "/tiempo/terminales/configuracion", element: <ConsentimientoTerminalesPage /> },
+  { path: "/tiempo/terminales/configuracion/variables", element: <VariablesTerminalesPage /> },
 ]);

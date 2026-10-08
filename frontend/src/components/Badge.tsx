@@ -1,6 +1,6 @@
 import type { HTMLAttributes, ReactNode } from "react";
 
-type VarianteInsignia = "clara" | "exito" | "neutra" | "aviso" | "peligro";
+type VarianteInsignia = "clara" | "exito" | "neutra" | "aviso" | "peligro" | "info";
 type VarianteEstado = "activo" | "suspension" | "baja_definitiva";
 
 type PropsInsignia = {

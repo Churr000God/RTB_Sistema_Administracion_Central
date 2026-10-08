@@ -9,6 +9,11 @@ describe("Badge", () => {
     expect(screen.getByText("Activo")).toHaveClass("insignia", "insignia--exito");
   });
 
+  it("variante info renderiza insignia insignia--info", () => {
+    render(<Badge variante="info">Esperando huella</Badge>);
+    expect(screen.getByText("Esperando huella")).toHaveClass("insignia", "insignia--info");
+  });
+
   it("bloque agrega insignia--bloque", () => {
     render(
       <Badge variante="aviso" bloque>

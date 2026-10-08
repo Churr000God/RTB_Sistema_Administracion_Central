@@ -332,4 +332,88 @@ describe("AppShell", () => {
     expect(panel).toHaveAttribute("aria-disabled", "true");
     expect(screen.queryByRole("button", { name: /^panel$/i })).not.toBeInTheDocument();
   });
+
+  describe("grupo Terminales", () => {
+    function sesionCon(extra: Record<string, unknown>) {
+      vi.mocked(apiFetch).mockResolvedValue(
+        new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null, ...extra }), { status: 200 }),
+      );
+    }
+
+    it("se muestra con puede_ver_terminales y trae Terminales, Anomalías y Configuración navegables", async () => {
+      window.history.pushState({}, "", "/tiempo/terminales");
+      sesionCon({ puede_ver_terminales: true });
+      render(
+        <AppShell>
+          <p>Contenido protegido</p>
+        </AppShell>,
+      );
+      await waitFor(() => expect(screen.getByText("Contenido protegido")).toBeInTheDocument());
+      expect(screen.getByRole("button", { name: /^terminales$/i })).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByRole("link", { name: "Terminales" })).toHaveAttribute("href", "/tiempo/terminales");
+      expect(screen.getByRole("link", { name: "Anomalías" })).toHaveAttribute("href", "/tiempo/terminales/anomalias");
+      expect(screen.getByRole("link", { name: "Configuración" })).toHaveAttribute("href", "/tiempo/terminales/configuracion");
+    });
+
+    it("en Configuración sólo ese item queda activo (no también «Terminales», cuya ruta es prefijo)", async () => {
+      window.history.pushState({}, "", "/tiempo/terminales/configuracion/variables");
+      sesionCon({ puede_ver_terminales: true });
+      render(
+        <AppShell>
+          <p>Contenido protegido</p>
+        </AppShell>,
+      );
+      await waitFor(() => expect(screen.getByText("Contenido protegido")).toBeInTheDocument());
+      expect(screen.getByRole("link", { name: "Configuración" })).toHaveClass("nav-subitem--activo");
+      expect(screen.getByRole("link", { name: "Configuración" })).toHaveAttribute("href", "/tiempo/terminales/configuracion");
+      expect(screen.getByRole("link", { name: "Terminales" })).not.toHaveClass("nav-subitem--activo");
+    });
+
+    it("en Anomalías sólo ese item queda activo", async () => {
+      window.history.pushState({}, "", "/tiempo/terminales/anomalias");
+      sesionCon({ puede_ver_terminales: true });
+      render(
+        <AppShell>
+          <p>Contenido protegido</p>
+        </AppShell>,
+      );
+      await waitFor(() => expect(screen.getByText("Contenido protegido")).toBeInTheDocument());
+      expect(screen.getByRole("link", { name: "Anomalías" })).toHaveClass("nav-subitem--activo");
+      expect(screen.getByRole("link", { name: "Terminales" })).not.toHaveClass("nav-subitem--activo");
+    });
+
+    it("en Usuarios de una terminal queda activo «Terminales»", async () => {
+      window.history.pushState({}, "", "/tiempo/terminales/1/usuarios");
+      sesionCon({ puede_ver_terminales: true });
+      render(
+        <AppShell>
+          <p>Contenido protegido</p>
+        </AppShell>,
+      );
+      await waitFor(() => expect(screen.getByText("Contenido protegido")).toBeInTheDocument());
+      expect(screen.getByRole("link", { name: "Terminales" })).toHaveClass("nav-subitem--activo");
+    });
+
+    it("se oculta por completo con puede_ver_terminales false (config_edicion sola no lo abre)", async () => {
+      sesionCon({ puede_ver_terminales: false, puede_editar_config_terminales: true });
+      render(
+        <AppShell>
+          <p>Contenido protegido</p>
+        </AppShell>,
+      );
+      await waitFor(() => expect(screen.getByText("Contenido protegido")).toBeInTheDocument());
+      expect(screen.queryByRole("button", { name: /^terminales$/i })).not.toBeInTheDocument();
+    });
+
+    it("si /api/sesion falla (fail-open) el grupo queda visible", async () => {
+      vi.mocked(apiFetch).mockRejectedValue(new Error("network down"));
+      render(
+        <AppShell>
+          <p>Contenido protegido</p>
+        </AppShell>,
+      );
+      await waitFor(() => expect(screen.getByText("Contenido protegido")).toBeInTheDocument());
+      expect(screen.getByRole("button", { name: /^terminales$/i })).toBeInTheDocument();
+    });
+  });
 });

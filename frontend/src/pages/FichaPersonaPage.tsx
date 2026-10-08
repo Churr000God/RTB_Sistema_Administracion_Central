@@ -17,6 +17,7 @@ import { AppShell } from "../layouts/AppShell";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Input } from "../components/Input";
+import { SeccionTerminalPersona } from "../components/SeccionTerminalPersona";
 import { DetalleJornadaAsignada, type JornadaVigente } from "../components/DetalleJornadaAsignada";
 import { derivarTransiciones, type Estado, type Movimiento } from "../lib/movimientos";
 
@@ -609,6 +610,17 @@ export function FichaPersonaPage() {
             </ul>
           )}
         </div>
+
+        {!editando && (
+          <SeccionTerminalPersona
+            persona={{
+              persona_id: persona.id,
+              nombre: nombreCompleto,
+              puesto: persona.puestos_vigentes[0]?.nombre_puesto ?? null,
+              area: persona.puestos_vigentes[0]?.nombre_area ?? null,
+            }}
+          />
+        )}
 
         <div className="tarjeta-resumen">
           <div className="fila-cabecera-tarjeta">

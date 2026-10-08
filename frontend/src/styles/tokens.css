@@ -2550,3 +2550,205 @@ dialog.modal[open] {
   padding: 0.4rem 0.9rem;
   font-size: 0.88rem;
 }
+
+.insignia--info {
+  background: rgba(26, 95, 122, 0.12);
+  color: var(--navy-medio);
+}
+
+/* ─── §terminales ─── */
+.contacto {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.estado-alta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.cuenta-regresiva {
+  font-size: 0.78rem;
+  color: var(--navy-medio);
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.cuenta-regresiva--urgente {
+  color: #8c1d18;
+  font-weight: 600;
+}
+
+.error-terminal {
+  font-size: 0.8rem;
+  color: #8c1d18;
+  display: flex;
+  gap: 0.3rem;
+  align-items: flex-start;
+  margin-top: 0.25rem;
+}
+
+.chip-permiso {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  background: rgba(0, 43, 91, 0.07);
+  border-radius: 6px;
+  padding: 0.1rem 0.4rem;
+}
+
+.linea-tiempo {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.linea-tiempo li {
+  position: relative;
+  padding-left: 1.4rem;
+  font-size: 0.88rem;
+}
+
+.linea-tiempo li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.35rem;
+  width: 9px;
+  height: 9px;
+  border-radius: 99px;
+  background: var(--teal);
+}
+
+.linea-tiempo li::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1rem;
+  bottom: -1rem;
+  width: 1px;
+  background: var(--linea);
+}
+
+.linea-tiempo li:last-child::after {
+  display: none;
+}
+
+.linea-tiempo li.error::before {
+  background: #b3261e;
+}
+
+.linea-tiempo small {
+  display: block;
+  color: var(--navy-medio);
+}
+
+/* ─── §configuración de terminales ─── */
+.pestanas-config {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.pestanas-config a {
+  text-decoration: none;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--linea);
+  background: var(--blanco);
+  color: var(--navy);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.pestanas-config a[aria-current="page"] {
+  background: var(--teal);
+  color: #fff;
+  border-color: var(--teal);
+}
+
+.pestanas-config a:focus-visible {
+  outline: 3px solid var(--teal);
+  outline-offset: 2px;
+}
+
+.rejilla-editor {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+  align-items: start;
+}
+
+.editor-texto textarea {
+  min-height: 13rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.vista-previa {
+  border: 1px dashed var(--linea);
+  border-radius: var(--radio-tarjeta);
+  padding: 1rem;
+  background: var(--superficie);
+}
+
+.vista-previa h4 {
+  margin: 0 0 0.6rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--navy-medio);
+  font-family: var(--font-cuerpo);
+}
+
+.version-vigente {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.panel-confirmar {
+  border: 2px solid var(--oro);
+  background: #fffaf0;
+  border-radius: var(--radio-tarjeta);
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.rango {
+  font-size: 0.78rem;
+  color: var(--navy-medio);
+}
+
+.casilla-consentimiento {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--linea);
+  border-radius: 10px;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.casilla-consentimiento input {
+  width: auto;
+  margin-top: 0.2rem;
+}
+
+.casilla-consentimiento.campo-error {
+  border-color: #b3261e;
+  background: #fdecea;
+}

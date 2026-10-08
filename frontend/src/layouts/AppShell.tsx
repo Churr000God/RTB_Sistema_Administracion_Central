@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ChevronRight,
   Clock,
+  Fingerprint,
   LayoutGrid,
   LogOut,
   Settings,
@@ -95,6 +96,16 @@ const NAV_GROUPS: NavGroup[] = [
       { label: "Tope legal", href: "/tiempo/parametros/tope-legal", disponible: true },
       { label: "Días festivos", href: "/tiempo/parametros/dias-festivos", disponible: true },
       { label: "Parámetros del sistema", href: "/tiempo/parametros/sistema", disponible: true },
+    ],
+  },
+  {
+    label: "Terminales",
+    icono: Fingerprint,
+    disponible: true,
+    items: [
+      { label: "Terminales", href: "/tiempo/terminales", disponible: true },
+      { label: "Anomalías", href: "/tiempo/terminales/anomalias", disponible: true },
+      { label: "Configuración", href: "/tiempo/terminales/configuracion", disponible: true },
     ],
   },
   { label: "Configuración", icono: Settings, disponible: false, items: [] },
@@ -211,6 +222,11 @@ export function AppShell({ children }: Props) {
       // permiso fino de lectura (banco_de_horas_lectura) lo exige el endpoint, no el sidebar.
       return { ...grupo, disponible: sesion?.puede_ver_modulo_3 ?? true };
     }
+    if (grupo.label === "Terminales") {
+      // puede_ver_terminales = terminal_usuario_lectura|edicion (terminal_config_edicion sola NO
+      // lo abre, decisión del usuario). Mismo fail-open que los demás grupos si la sesión no cargó.
+      return { ...grupo, disponible: sesion?.puede_ver_terminales ?? true };
+    }
     return grupo;
   });
   // Un grupo SIN items (Panel, Configuración, ...) con disponible:false se muestra atenuado
@@ -259,6 +275,16 @@ export function AppShell({ children }: Props) {
                 {abierto && (
                   <div className="nav-subitems">
                     {grupo.items.map((item) => {
+                      // Con rutas anidadas (/tiempo/terminales y /tiempo/terminales/configuracion)
+                      // sólo queda activo el item más específico.
+                      const hermanoMasEspecifico = grupo.items.some(
+                        (otro) =>
+                          otro !== item &&
+                          otro.disponible &&
+                          otro.href.length > item.href.length &&
+                          otro.href.startsWith(item.href) &&
+                          rutaActual.startsWith(otro.href),
+                      );
                       if (!item.disponible) {
                         return (
                           <div
@@ -271,7 +297,7 @@ export function AppShell({ children }: Props) {
                           </div>
                         );
                       }
-                      const activo = rutaActual.startsWith(item.href);
+                      const activo = rutaActual.startsWith(item.href) && !hermanoMasEspecifico;
                       return (
                         <a
                           key={item.href}
