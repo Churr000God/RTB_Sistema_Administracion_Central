@@ -61,7 +61,7 @@ def entorno(monkeypatch):
         db = db_por_nombre(estricto=True, **tablas)
         rpc = db.postgrest.schema.return_value.rpc
 
-        def segun_funcion(nombre, params=None):
+        def segun_funcion(nombre, params):
             r = rpc.return_value
             if nombre == "fn_terminal_reconsentimiento_pendiente_ids":
                 r.execute.side_effect = None  # el mock del RPC es compartido: no heredar el error del otro RPC
@@ -301,7 +301,7 @@ def _con_rpc(entorno, resultado=None, error=None, altas=None, pendientes=(5, 6))
     db = entorno.configurar(terminal_usuario=tabla(altas))
     base = entorno.rpc.side_effect
 
-    def segun(nombre, params=None):
+    def segun(nombre, params):
         r = base(nombre, params)
         if nombre == "fn_terminal_reconsentir":
             if error is not None:
@@ -429,7 +429,7 @@ def test_carrera_con_lista_reconstruida_no_vacia_devuelve_no_elegibles(entorno):
 
     base = entorno.rpc.side_effect
 
-    def segun(nombre, params=None):
+    def segun(nombre, params):
         r = base(nombre, params)
         if nombre == "fn_terminal_reconsentimiento_pendiente_ids":
             r.execute.return_value = Resultado(next(cambios))

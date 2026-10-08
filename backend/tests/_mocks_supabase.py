@@ -6,7 +6,10 @@
   (`estricto=True`: una tabla no declarada falla la prueba; si no, devuelve una tabla vacía).
 NUNCA se usan contra la base real."""
 
-from unittest.mock import MagicMock
+import inspect
+from unittest.mock import MagicMock, create_autospec
+
+from postgrest import SyncPostgrestClient
 
 METODOS_ENCADENABLES = (
     "select", "eq", "neq", "like", "ilike", "in_", "gte", "lte", "order", "range", "is_", "or_", "limit",
@@ -17,6 +20,20 @@ class Resultado:
     def __init__(self, data, count=None):
         self.data = data
         self.count = count
+
+
+def rpc_con_firma_real():
+    """Fake de `.rpc(...)` con la FIRMA REAL de SyncPostgrestClient.rpc (func, params, count, head, get): llamarlo sin `params`
+    levanta TypeError como la librería de la imagen (bug real de despliegue: `.rpc("fn")` sin argumentos). Es un autospec:
+    admite return_value, side_effect y call_args_list como un MagicMock."""
+    firma = inspect.signature(SyncPostgrestClient.rpc)
+    sin_self = firma.replace(parameters=[p for n, p in firma.parameters.items() if n != "self"])
+
+    def rpc(*args, **kwargs):  # pragma: no cover - sólo aporta la firma
+        raise NotImplementedError
+
+    rpc.__signature__ = sin_self
+    return create_autospec(rpc)
 
 
 def tabla(datos, count=None):
@@ -39,6 +56,7 @@ def db_por_nombre(estricto=False, **tablas):
         return tabla([])
 
     db.postgrest.schema.return_value.table.side_effect = resolver
+    db.postgrest.schema.return_value.rpc = rpc_con_firma_real()
     return db
 
 
@@ -46,6 +64,7 @@ def cliente_rpc(resultado=None, error=None):
     """Cliente cuyo `.postgrest.schema(...).rpc(nombre, params).execute()` devuelve `resultado` (o lanza
     `error`). Devuelve (cliente, rpc) para inspeccionar las llamadas al RPC."""
     cliente = MagicMock()
+    cliente.postgrest.schema.return_value.rpc = rpc_con_firma_real()
     rpc = cliente.postgrest.schema.return_value.rpc
     ejecucion = rpc.return_value.execute
     if error is not None:

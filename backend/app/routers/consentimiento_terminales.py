@@ -97,7 +97,7 @@ def _contar(db: Client, estado: str) -> int:
 
 def pendientes_actuales(db: Client) -> list[int]:
     """Ids con reconsentimiento pendiente: definición ÚNICA de la base (fn_terminal_reconsentimiento_pendiente_ids)."""
-    data = db.postgrest.schema("tiempo").rpc("fn_terminal_reconsentimiento_pendiente_ids").execute().data
+    data = db.postgrest.schema("tiempo").rpc("fn_terminal_reconsentimiento_pendiente_ids", {}).execute().data
     return [int(x) for x in (data or [])]
 
 

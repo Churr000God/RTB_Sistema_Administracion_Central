@@ -100,7 +100,7 @@ def _id_vigente(db: Client) -> int | None:
 
 def ids_pendientes(db: Client) -> set[int]:
     """Definición ÚNICA de «reconsentimiento pendiente»: fn_terminal_reconsentimiento_pendiente_ids (88_, INVOKER)."""
-    data = db.postgrest.schema("tiempo").rpc("fn_terminal_reconsentimiento_pendiente_ids").execute().data
+    data = db.postgrest.schema("tiempo").rpc("fn_terminal_reconsentimiento_pendiente_ids", {}).execute().data
     return {int(x) for x in (data or [])}
 
 

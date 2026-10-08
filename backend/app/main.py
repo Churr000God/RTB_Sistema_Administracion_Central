@@ -43,7 +43,6 @@ app.add_exception_handler(ErrorConCampos, manejar_error_con_campos)
 MENSAJE_SERVICIO_NO_DISPONIBLE = "Servicio no disponible. Avisa a Sistemas."
 
 
-@app.exception_handler(Exception)
 def ruta_para_log(request: Request) -> str:
     """Plantilla de la ruta (`/api/terminales/{terminal_id}/usuarios`), no la URL real: así un log no lleva ids de
     personas ni caracteres de control inyectados en el path."""
@@ -51,6 +50,7 @@ def ruta_para_log(request: Request) -> str:
     return getattr(ruta, "path", None) or "(ruta sin resolver)"
 
 
+@app.exception_handler(Exception)
 async def manejador_excepciones_no_capturadas(request: Request, exc: Exception) -> JSONResponse:
     """Starlette trata un handler de Exception/500 como caso especial: lo conecta a
     ServerErrorMiddleware, que en el stack de middlewares queda POR FUERA de CORSMiddleware (no

@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 from postgrest.exceptions import APIError
 
-from _mocks_supabase import Resultado, TablaConCadenas, db_por_nombre, llamadas, tabla
+from _mocks_supabase import rpc_con_firma_real, Resultado, TablaConCadenas, db_por_nombre, llamadas, tabla
 from app import permisos
 from app.anomalias_terminal import CATEGORIAS
 from app.batches import terminales as jobs
@@ -37,7 +37,7 @@ def _rpc_por_nombre(db, mapa):
     """Los RPC del cliente responden según su nombre; un valor Exception se lanza al ejecutar."""
     rpc = db.postgrest.schema.return_value.rpc
 
-    def segun(nombre, params=None):
+    def segun(nombre, params):
         r = MagicMock()
         valor = mapa.get(nombre)
         if isinstance(valor, Exception):
@@ -463,13 +463,14 @@ def test_las_columnas_que_lee_c8_existen_en_el_ddl():
 
 def _db_reconciliacion(altas, inactivas, rpc_valor=1, rpc_error=None):
     db = MagicMock()
+    db.postgrest.schema.return_value.rpc = rpc_con_firma_real()
     # personas.persona devuelve {id, estado}; las «inactivas» del test se marcan suspendidas
     filas_persona = [[{"estado": "suspension", **f} for f in lote] for lote in inactivas]
     por_tabla = {"terminal_usuario": TablaConCadenas(*altas), "persona": TablaConCadenas(*filas_persona)}
     db.postgrest.schema.return_value.table.side_effect = lambda n: por_tabla[n]
     rpc = db.postgrest.schema.return_value.rpc
 
-    def segun(nombre, params=None):
+    def segun(nombre, params):
         r = MagicMock()
         valor = rpc_valor(params) if callable(rpc_valor) else rpc_valor
         if rpc_error is not None:

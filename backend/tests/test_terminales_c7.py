@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 from postgrest.exceptions import APIError
 
-from _mocks_supabase import Resultado, TablaConCadenas, cliente_rpc, db_por_nombre, llamadas, tabla
+from _mocks_supabase import rpc_con_firma_real, Resultado, TablaConCadenas, cliente_rpc, db_por_nombre, llamadas, tabla
 from app import permisos
 from app.batches import terminales as jobs
 from app.catalogo_terminal import CATALOGO_TERMINAL, valor_vigente
@@ -398,6 +398,7 @@ def test_simular_exige_config_y_ver_las_altas(entorno):
 def _db_job(valor_tabla="48", valor_rpc=48, accion=3, error_tabla=None, error_valor=None, error_accion=None):
     """Cliente de un job: tiempo.parametro (lectura estricta), fn_terminal_config_valor y la función destructiva."""
     db = MagicMock()
+    db.postgrest.schema.return_value.rpc = rpc_con_firma_real()
     if error_tabla is not None:
         t = MagicMock()
         t.select.return_value = t
@@ -409,7 +410,7 @@ def _db_job(valor_tabla="48", valor_rpc=48, accion=3, error_tabla=None, error_va
         db.postgrest.schema.return_value.table.return_value = tabla([] if valor_tabla is None else [{"valor": valor_tabla}])
     rpc = db.postgrest.schema.return_value.rpc
 
-    def segun(nombre, params=None):
+    def segun(nombre, params):
         r = MagicMock()
         if nombre == "fn_terminal_config_valor":
             if error_valor is not None:
