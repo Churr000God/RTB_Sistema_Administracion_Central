@@ -421,6 +421,12 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   NTP, IP fija, red punto a punto, borrar usuario de prueba) y alta de la primera llave por TI.
   Ver `SCJ-DEC-11`/`SCJ-DEC-12`, `SCJ-PRO-15` y
   `bitacora/2026-10-05_checador_hikvision_auditoria_y_modelo.md`.
+  **Plan consolidado de todo lo pendiente hasta producción y las pruebas físicas con la terminal
+  (decisiones abiertas D1-D20, trabajo por dominio, secuencia, 15 casos de prueba física, operación y
+  riesgos): `docs/07-procesos/PLAN_TERMINAL_HIKVISION_HASTA_PRODUCCION.md` — leerlo antes de
+  retomar este trabajo.** Bitácora de la sesión:
+  `bitacora/2026-10-07_sesion_terminal_hikvision_correcciones_y_paquete1.md`. Ensayos `BEGIN…ROLLBACK`
+  de cada migración: `db/ensayos/` (con su README).
 - **`78_*.sql` nunca se había aplicado y su fix era evadible; cerrado con `86_*.sql` (7 de octubre
   de 2026):** al documentar el DDL, `db` contrastó los scripts con la base real y encontró 49
   funciones contra 50 definidas: `78_*` (constraint trigger que impide resolver a mano una
