@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -352,5 +352,76 @@ describe("AsignarPersonaTerminalModal", () => {
     await screen.findByText(TEXTO_V3);
     fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
     expect(onCerrar).toHaveBeenCalledWith(false);
+  });
+
+  describe("cobertura adicional (testing)", () => {
+    it("sin persona elegida (con la confirmación marcada) no envía y pide elegirla", async () => {
+      mockApi();
+      render(<AsignarPersonaTerminalModal terminal={TERMINAL} onCerrar={vi.fn()} />);
+      await screen.findByText(TEXTO_V3);
+      await userEvent.click(screen.getByLabelText(/consentimiento y aviso de privacidad recabados/i));
+      await userEvent.click(screen.getByRole("button", { name: /^asignar$/i }));
+      expect(screen.getByText("Elige a la persona.")).toBeInTheDocument();
+      expect(vi.mocked(apiFetch).mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+    });
+
+    it("Escape tras el éxito cierra pidiendo refrescar la lista", async () => {
+      mockApi();
+      const onCerrar = vi.fn();
+      render(<AsignarPersonaTerminalModal terminal={TERMINAL} onCerrar={onCerrar} />);
+      await elegirYConfirmar();
+      await userEvent.click(screen.getByRole("button", { name: /^asignar$/i }));
+      await screen.findByText(/persona asignada/i);
+      fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
+      expect(onCerrar).toHaveBeenCalledWith(true);
+    });
+
+    describe("búsqueda de personas asignables", () => {
+      function rutasAsignables() {
+        return vi.mocked(apiFetch).mock.calls.map(([p]) => String(p)).filter((p) => p.includes("personas-asignables"));
+      }
+
+      it("inicial: sin busqueda y con limite=50; 1 carácter no filtra; «  an  » busca «an»", async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        mockApi();
+        const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+        render(<AsignarPersonaTerminalModal terminal={TERMINAL} onCerrar={vi.fn()} />);
+        await screen.findByLabelText(/^persona/i);
+        const inicial = new URLSearchParams(rutasAsignables()[0].split("?")[1]);
+        expect(inicial.has("busqueda")).toBe(false);
+        expect(inicial.get("limite")).toBe("50");
+
+        await usuario.type(screen.getByLabelText(/buscar persona/i), "a");
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(400);
+        });
+        expect(rutasAsignables().every((r) => !new URLSearchParams(r.split("?")[1]).has("busqueda"))).toBe(true);
+
+        await usuario.clear(screen.getByLabelText(/buscar persona/i));
+        await usuario.type(screen.getByLabelText(/buscar persona/i), "  an  ");
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(400);
+        });
+        await vi.waitFor(() => expect(new URLSearchParams(rutasAsignables().at(-1)!.split("?")[1]).get("busqueda")).toBe("an"));
+        vi.useRealTimers();
+      });
+
+      it("escribir rápido produce UNA sola petición tras los 300 ms (debounce)", async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        mockApi();
+        const usuario = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+        render(<AsignarPersonaTerminalModal terminal={TERMINAL} onCerrar={vi.fn()} />);
+        await screen.findByLabelText(/^persona/i);
+        const antes = rutasAsignables().length;
+        await usuario.type(screen.getByLabelText(/buscar persona/i), "rami");
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(400);
+        });
+        const nuevas = rutasAsignables().slice(antes);
+        expect(nuevas).toHaveLength(1);
+        expect(new URLSearchParams(nuevas[0].split("?")[1]).get("busqueda")).toBe("rami");
+        vi.useRealTimers();
+      });
+    });
   });
 });

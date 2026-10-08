@@ -506,4 +506,30 @@ describe("ConsentimientoTerminalesPage", () => {
       expect(screen.getByRole("link", { name: /^variables$/i })).toHaveAttribute("href", "/tiempo/terminales/configuracion/variables");
     });
   });
+
+  describe("cobertura adicional (testing)", () => {
+    it("el motivo del cambio con espacios se envía recortado", async () => {
+      mockApiConPost();
+      render(<ConsentimientoTerminalesPage />);
+      await editar();
+      const panel = await abrirPanel();
+      await userEvent.type(within(panel).getByLabelText(/motivo del cambio/i), "   se aclara la revocación   ");
+      await userEvent.click(within(panel).getByLabelText(/confirmo que revisé la vista previa/i));
+      await userEvent.click(within(panel).getByRole("button", { name: /^publicar versión 4$/i }));
+      await screen.findByText(/versión 4 publicada/i);
+      expect(JSON.parse(posts()[0][1]!.body as string).motivo_cambio).toBe("se aclara la revocación");
+    });
+
+    it("un motivo de sólo espacios se trata como vacío y no viaja", async () => {
+      mockApiConPost();
+      render(<ConsentimientoTerminalesPage />);
+      await editar();
+      const panel = await abrirPanel();
+      await userEvent.type(within(panel).getByLabelText(/motivo del cambio/i), "     ");
+      await userEvent.click(within(panel).getByLabelText(/confirmo que revisé la vista previa/i));
+      await userEvent.click(within(panel).getByRole("button", { name: /^publicar versión 4$/i }));
+      await screen.findByText(/versión 4 publicada/i);
+      expect(JSON.parse(posts()[0][1]!.body as string)).not.toHaveProperty("motivo_cambio");
+    });
+  });
 });

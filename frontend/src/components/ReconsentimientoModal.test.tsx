@@ -243,4 +243,29 @@ describe("ReconsentimientoModal", () => {
     await userEvent.click(await screen.findByRole("button", { name: /actualizar lista/i }));
     expect(onCerrar).toHaveBeenCalledWith(true);
   });
+
+  describe("cobertura adicional (testing)", () => {
+    it("exactamente 200 altas es válido y envía; 201 no", async () => {
+      mockApi();
+      const doscientas = Array.from({ length: 200 }, (_, i) => ({ id: i + 1, persona_nombre: `P${i}` }));
+      const a = render(<ReconsentimientoModal terminalId={1} altas={doscientas} onCerrar={vi.fn()} />);
+      await listo();
+      expect(screen.queryByText(/máximo es 200 por vez/i)).not.toBeInTheDocument();
+      await userEvent.click(screen.getByLabelText(/confirmo que los documentos firmados existen/i));
+      await userEvent.click(screen.getByRole("button", { name: /registrar reconsentimiento/i }));
+      await screen.findByText(/reconsentimiento registrado/i);
+      expect(JSON.parse(postsHechos()[0][1]!.body as string).tu_ids).toHaveLength(200);
+      a.unmount();
+    });
+
+    it("más de 5 personas: lista las primeras 5 y dice «y N más»", async () => {
+      mockApi();
+      const siete = Array.from({ length: 7 }, (_, i) => ({ id: i + 1, persona_nombre: `Persona ${i + 1}` }));
+      render(<ReconsentimientoModal terminalId={1} altas={siete} onCerrar={vi.fn()} />);
+      await listo();
+      const dialogo = screen.getByRole("dialog");
+      expect(within(dialogo).getByText(/Persona 1, Persona 2, Persona 3, Persona 4, Persona 5 y 2 más/)).toBeInTheDocument();
+      expect(within(dialogo).queryByText(/Persona 6/)).not.toBeInTheDocument();
+    });
+  });
 });

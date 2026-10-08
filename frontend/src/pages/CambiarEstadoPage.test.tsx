@@ -141,4 +141,51 @@ describe("CambiarEstadoPage", () => {
       expect(irA).not.toHaveBeenCalled();
     });
   });
+
+  describe("cuerpo del 201 con formas raras (testing)", () => {
+    beforeEach(() => {
+      vi.mocked(irA).mockReset();
+      vi.mocked(apiFetch).mockReset();
+    });
+
+    function mockPost(cuerpo: unknown) {
+      vi.mocked(apiFetch).mockImplementation((path: string, init?: RequestInit) => {
+        if (path === "/api/sesion") return Promise.resolve(new Response(JSON.stringify({ acceso_permitido: true })));
+        if (path === "/api/personas/1/movimientos" && init?.method === "POST") return Promise.resolve(new Response(JSON.stringify(cuerpo), { status: 201 }));
+        return Promise.resolve(new Response(JSON.stringify({ id: "1", primer_nombre: "Ana", apellido_paterno: "Torres", estado: "activo" })));
+      });
+    }
+
+    async function confirmar() {
+      render(
+        <MemoryRouter initialEntries={["/personas/1/movimiento"]}>
+          <Routes>
+            <Route path="/personas/:id/movimiento" element={<CambiarEstadoPage />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      await userEvent.click(await screen.findByLabelText(/suspensión/i));
+      await userEvent.type(screen.getByLabelText(/motivo/i), "Licencia sin goce de sueldo");
+      await userEvent.click(screen.getByRole("button", { name: /confirmar/i }));
+    }
+
+    it("advertencias con elementos que no son texto se ignoran: sólo cuentan los strings", async () => {
+      mockPost({ id: "m1", advertencias: [123, null, { x: 1 }], bajas_terminal_emitidas: 0 });
+      await confirmar();
+      await waitFor(() => expect(irA).toHaveBeenCalledWith("/personas/1"));
+    });
+
+    it("mezcladas con una conocida, la conocida sí avisa", async () => {
+      mockPost({ id: "m1", advertencias: [123, "baja_terminal_pendiente", null] });
+      await confirmar();
+      expect(await screen.findByRole("alert")).toHaveTextContent(/la baja en la terminal quedó pendiente/i);
+      expect(irA).not.toHaveBeenCalled();
+    });
+
+    it("bajas_terminal_emitidas como texto no cuenta (sólo números)", async () => {
+      mockPost({ id: "m1", advertencias: [], bajas_terminal_emitidas: "2" });
+      await confirmar();
+      await waitFor(() => expect(irA).toHaveBeenCalledWith("/personas/1"));
+    });
+  });
 });

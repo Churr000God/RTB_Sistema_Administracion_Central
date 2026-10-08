@@ -489,4 +489,52 @@ describe("VariablesTerminalesPage", () => {
       expect(screen.getByRole("link", { name: /texto de consentimiento/i })).toHaveAttribute("href", "/tiempo/terminales/configuracion");
     });
   });
+
+  describe("cobertura adicional (testing)", () => {
+    it.each([
+      ["1", true],
+      ["90", true],
+      ["0", false],
+      ["91", false],
+    ])("Ventana de anomalías (1–90): %s ⇒ %s", async (valor, valido) => {
+      mockApi();
+      render(<VariablesTerminalesPage />);
+      await esperarTabla();
+      await editarFila("Ventana de anomalías", valor);
+      await userEvent.click(within(filaDe("Ventana de anomalías")).getByRole("button", { name: /guardar/i }));
+      if (valido) await waitFor(() => expect(patches()).toHaveLength(1));
+      else {
+        expect(within(filaDe("Ventana de anomalías")).getByText("Debe ser un entero entre 1 y 90.")).toBeInTheDocument();
+        expect(patches()).toHaveLength(0);
+      }
+    });
+
+    it("igualar el valor actual de la caducidad NO es acortar: confirmar queda habilitado aunque falle el cálculo", async () => {
+      mockApi({ simular: () => new Response(JSON.stringify({ detail: "x" }), { status: 503 }) });
+      render(<VariablesTerminalesPage />);
+      await esperarTabla();
+      await editarFila("Caducidad de altas sin huella", "24");
+      await userEvent.click(within(filaDe("Caducidad de altas sin huella")).getByRole("button", { name: /revisar impacto/i }));
+      const panel = await screen.findByRole("alertdialog");
+      await within(panel).findByText(/no se pudo calcular el impacto/i);
+      expect(within(panel).getByRole("button", { name: /confirmar/i })).toBeEnabled();
+    });
+
+    it("cambiar el campo descarta la simulación previa (no se puede confirmar con un cálculo viejo)", async () => {
+      mockApi();
+      render(<VariablesTerminalesPage />);
+      await esperarTabla();
+      await editarFila("Caducidad de altas sin huella", "12");
+      await userEvent.click(within(filaDe("Caducidad de altas sin huella")).getByRole("button", { name: /revisar impacto/i }));
+      await screen.findByRole("alertdialog");
+      fireEvent.change(within(filaDe("Caducidad de altas sin huella")).getByRole("spinbutton"), { target: { value: "6" } });
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    });
+
+    it("una variable con valor que no es número (forma inválida) es un error de carga", async () => {
+      mockApi({ variables: () => new Response(JSON.stringify([{ ...VARIABLES[0], valor: "24" }])) });
+      render(<VariablesTerminalesPage />);
+      expect(await screen.findByText(/no se pudieron cargar las variables/i)).toBeInTheDocument();
+    });
+  });
 });

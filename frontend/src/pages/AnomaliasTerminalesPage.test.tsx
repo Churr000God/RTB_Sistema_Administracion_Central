@@ -308,4 +308,90 @@ describe("AnomaliasTerminalesPage", () => {
       expect(await screen.findByText(/calculando anomalías/i)).toBeInTheDocument();
     });
   });
+
+  describe("cobertura adicional (testing)", () => {
+    const envolver = (categorias: unknown[]) =>
+      new Response(JSON.stringify({ terminal_id: 1, desde: "2026-10-01T00:00:00Z", hasta: "2026-10-08T00:00:00Z", generado_en: "2026-10-08T00:00:00Z", categorias }));
+
+    it("el banner de «sin hallazgos» NO sale si una de las 10 revisiones falló", async () => {
+      const nueve = LIMPIO.slice(0, 9);
+      mockApi({ anomalias: () => envolver([...nueve, tarjeta("reconsentimientos_pendientes", 10, "Reconsentimientos pendientes", { estado: "error", total: null })]) });
+      render(<AnomaliasTerminalesPage />);
+      await screen.findByRole("heading", { name: /10 · reconsentimientos/i });
+      expect(screen.queryByText(/sin hallazgos en el periodo/i)).not.toBeInTheDocument();
+    });
+
+    it("un tablero sin categorías tampoco declara «sin hallazgos»", async () => {
+      mockApi({ anomalias: () => envolver([]) });
+      render(<AnomaliasTerminalesPage />);
+      await screen.findByText(/calculado a las/i);
+      expect(screen.queryByText(/sin hallazgos en el periodo/i)).not.toBeInTheDocument();
+    });
+
+    it("no_disponible dice «No disponible» (no «Error»); error dice «Error» con rol de alerta (no «Sin hallazgos»)", async () => {
+      mockApi({
+        anomalias: () =>
+          envolver([
+            tarjeta("picos_de_tasa", 2, "Picos de tasa", { estado: "no_disponible", motivo: "sin_permiso", total: null }),
+            tarjeta("credenciales", 6, "Credenciales", { estado: "error", total: null }),
+          ]),
+      });
+      render(<AnomaliasTerminalesPage />);
+      await screen.findByRole("heading", { name: /2 · picos/i });
+      const noDisp = tarjetaDe("2 · picos");
+      expect(within(noDisp).getByText("No disponible")).toBeInTheDocument();
+      expect(within(noDisp).queryByText("Error")).not.toBeInTheDocument();
+      expect(within(noDisp).queryByRole("alert")).not.toBeInTheDocument();
+      const conError = tarjetaDe("6 · credenciales");
+      expect(within(conError).getByText("Error")).toBeInTheDocument();
+      expect(within(conError).getByRole("alert")).toHaveTextContent(/no se pudo calcular esta revisión/i);
+      expect(within(conError).queryByText("Sin hallazgos")).not.toBeInTheDocument();
+    });
+
+    it("hay_mas=false no ofrece «Ver todos»", async () => {
+      mockApi();
+      render(<AnomaliasTerminalesPage />);
+      await screen.findByRole("heading", { name: /2 · picos/i });
+      expect(within(tarjetaDe("2 · picos")).queryByRole("button", { name: /ver todos/i })).not.toBeInTheDocument();
+      expect(within(tarjetaDe("1 · marcas posteriores")).getByRole("button", { name: /ver todos/i })).toBeInTheDocument();
+    });
+
+    it("un detalle sin lista de items es un error, no una pantalla vacía", async () => {
+      mockApi({ detalle: () => new Response(JSON.stringify({ clave: "marcas_posteriores_a_baja", total: 3 })) });
+      render(<AnomaliasTerminalesPage />);
+      await screen.findByRole("heading", { name: /1 · marcas posteriores/i });
+      await userEvent.click(within(tarjetaDe("1 · marcas posteriores")).getByRole("button", { name: /ver todos/i }));
+      expect(await screen.findByText(/no se pudo cargar el detalle/i)).toBeInTheDocument();
+    });
+
+    it("desde y hasta válidos viajan los dos al servidor y también al detalle", async () => {
+      mockApi();
+      render(<AnomaliasTerminalesPage />);
+      await screen.findByRole("heading", { name: /1 · marcas posteriores/i });
+      fireEvent.change(screen.getByLabelText("Periodo desde"), { target: { value: "2026-09-30" } });
+      fireEvent.change(screen.getByLabelText("Periodo hasta"), { target: { value: "2026-10-05" } });
+      await waitFor(() => {
+        const params = new URLSearchParams(pedidasAnomalias().at(-1)!.split("?")[1]);
+        expect(params.get("desde")).toBe("2026-09-30");
+        expect(params.get("hasta")).toBe("2026-10-05");
+      });
+      await userEvent.click(within(tarjetaDe("1 · marcas posteriores")).getByRole("button", { name: /ver todos/i }));
+      await screen.findByRole("dialog");
+      const detalle = vi.mocked(apiFetch).mock.calls.map(([p]) => p as string).filter((p) => p.includes("/anomalias/marcas_posteriores_a_baja")).at(-1)!;
+      const p = new URLSearchParams(detalle.split("?")[1]);
+      expect(p.get("desde")).toBe("2026-09-30");
+      expect(p.get("hasta")).toBe("2026-10-05");
+    });
+
+    it("una fecha imposible no se manda al servidor", async () => {
+      mockApi();
+      render(<AnomaliasTerminalesPage />);
+      await screen.findByRole("heading", { name: /1 · marcas posteriores/i });
+      fireEvent.change(screen.getByLabelText("Periodo desde"), { target: { value: "2026-02-30" } });
+      await screen.findByRole("heading", { name: /1 · marcas posteriores/i });
+      for (const ruta of pedidasAnomalias()) {
+        expect(new URLSearchParams(ruta.split("?")[1]).get("desde")).not.toBe("2026-02-30");
+      }
+    });
+  });
 });

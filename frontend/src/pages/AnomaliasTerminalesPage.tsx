@@ -68,8 +68,8 @@ export function AnomaliasTerminalesPage() {
     if (!terminalId || terminales.length === 0 || errorPeriodo) return;
     setEstado("cargando");
     const params = new URLSearchParams();
-    if (desde) params.set("desde", desde);
-    if (hasta) params.set("hasta", hasta);
+    if (FECHA_ISO.test(desde)) params.set("desde", desde);
+    if (FECHA_ISO.test(hasta)) params.set("hasta", hasta);
     const consulta = params.toString();
     apiJson<RespuestaAnomalias>(`/api/terminales/${terminalId}/anomalias${consulta ? `?${consulta}` : ""}`)
       .then((datos) => {
@@ -206,9 +206,9 @@ export function AnomaliasTerminalesPage() {
                     </ul>
                   )}
                   {tarjeta.estado === "error" && (
-                    <ul>
-                      <li>No se pudo calcular esta revisión. Las demás siguen disponibles.</li>
-                    </ul>
+                    <p role="alert" className="error-terminal">
+                      No se pudo calcular esta revisión. Las demás siguen disponibles.
+                    </p>
                   )}
                   {tarjeta.estado === "con_hallazgos" && tarjeta.hay_mas && (
                     <Button onClick={() => setDetalle(tarjeta)}>{`Ver todos (${tarjeta.total})`}</Button>
@@ -227,8 +227,8 @@ export function AnomaliasTerminalesPage() {
             terminalId={Number(terminalId)}
             clave={detalle.clave}
             titulo={detalle.titulo}
-            desde={desde}
-            hasta={hasta}
+            desde={FECHA_ISO.test(desde) ? desde : ""}
+            hasta={FECHA_ISO.test(hasta) ? hasta : ""}
             onCerrar={() => setDetalle(null)}
           />
         )}

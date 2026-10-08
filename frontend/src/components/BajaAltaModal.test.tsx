@@ -134,4 +134,25 @@ describe("BajaAltaModal", () => {
     fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
     expect(onCerrar).toHaveBeenCalledWith(false);
   });
+
+  describe("cobertura adicional (testing)", () => {
+    it("el borde: 10 caracteres es válido y 9 no", async () => {
+      vi.mocked(apiFetch).mockReturnValue(respuesta(201, { id: 77 }));
+      render(<BajaAltaModal terminalId={1} alta={ALTA} accion="dar_de_baja" onCerrar={vi.fn()} />);
+      fireEvent.change(screen.getByLabelText(/motivo/i), { target: { value: "123456789" } });
+      await userEvent.click(screen.getByRole("button", { name: /dar de baja definitivamente/i }));
+      expect(apiFetch).not.toHaveBeenCalled();
+      fireEvent.change(screen.getByLabelText(/motivo/i), { target: { value: "1234567890" } });
+      await userEvent.click(screen.getByRole("button", { name: /dar de baja definitivamente/i }));
+      expect(await screen.findByText(/baja solicitada/i)).toBeInTheDocument();
+      expect(cuerpoPost()).toEqual({ motivo: "1234567890" });
+    });
+
+    it("los espacios no cuentan: «abc       def» (con espacios repetidos) mide lo que mide tras colapsarlos", async () => {
+      render(<BajaAltaModal terminalId={1} alta={ALTA} accion="dar_de_baja" onCerrar={vi.fn()} />);
+      fireEvent.change(screen.getByLabelText(/motivo/i), { target: { value: "abc          def" } });
+      await userEvent.click(screen.getByRole("button", { name: /dar de baja definitivamente/i }));
+      expect(apiFetch).not.toHaveBeenCalled();
+    });
+  });
 });

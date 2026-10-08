@@ -51,3 +51,38 @@ describe("esRespuestaAnomalias", () => {
     expect(esRespuestaAnomalias([])).toBe(false);
   });
 });
+
+describe("describirHallazgo: higiene (testing)", () => {
+  const CLAVES = [
+    "marcas_posteriores_a_baja",
+    "picos_de_tasa",
+    "reloj_degradado",
+    "huecos_de_secuencia",
+    "rechazos_definitivos",
+    "credenciales",
+    "inconsistencias_de_baja",
+    "altas_atascadas",
+    "altas_recientes",
+    "reconsentimientos_pendientes",
+  ];
+  const SENSIBLES = { persona_id: "id-persona-secreto", employee_no: 98765, hash: "hash-secreto", sha256: "sha-secreto", ip: "10.9.8.7", ip_completa: "192.168.77.1", password: "clave-secreta" };
+
+  it.each(CLAVES)("%s: ni persona_id, employee_no, hash ni IP aparecen aunque vengan en la entrada", (clave) => {
+    const texto = describirHallazgo(clave, { ...SENSIBLES, persona_nombre: "Ana", tipo: "llave_antigua", antiguedad_meses: 13 });
+    for (const secreto of ["id-persona-secreto", "98765", "hash-secreto", "sha-secreto", "10.9.8.7", "192.168.77.1", "clave-secreta"]) {
+      expect(texto).not.toContain(secreto);
+    }
+  });
+
+  it("picos de tasa sin persona dice «Terminal»", () => {
+    expect(describirHallazgo("picos_de_tasa", { persona_nombre: null, hora: "2026-10-06T14:00:00Z", marcas: 1200, limite: 1000 })).toMatch(/^Terminal · 1200 marcas/);
+  });
+
+  it("valores vacíos o fechas inválidas se pintan como «—»", () => {
+    expect(describirHallazgo("marcas_posteriores_a_baja", { persona_nombre: "Ana", marca_en: "no-es-fecha", baja_confirmada_en: null })).toBe(
+      "Ana · marcó el —, después de la baja confirmada el —",
+    );
+    expect(describirHallazgo("huecos_de_secuencia", { desde: 1, hasta: 5, faltan: 3, fecha: "x" })).toContain("el —");
+    expect(describirHallazgo("altas_recientes", { persona_nombre: "", asignada_por: undefined, creado_en: 5 })).toBe("— (asignó —) · —");
+  });
+});

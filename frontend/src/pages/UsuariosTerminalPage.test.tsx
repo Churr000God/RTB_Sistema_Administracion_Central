@@ -499,4 +499,53 @@ describe("UsuariosTerminalPage", () => {
       expect(await screen.findByText(/no se pudo obtener la lista de pendientes/i)).toBeInTheDocument();
     });
   });
+
+  describe("selección (testing)", () => {
+    const pendiente = (id: number) =>
+      alta(id, { reconsentimiento_pendiente: true, reconsentimiento_elegible: true, consentimiento: { id: 2, version: 2, provisional: false }, consentimiento_vigente_id: 4 });
+    const conPendientes = (altas: unknown[]) => new Response(JSON.stringify({ total: altas.length, resumen: { ...RESUMEN, reconsentimiento_pendiente: 3 }, altas }));
+    const rutas = (path: string, init?: RequestInit): Response | undefined => {
+      if (path === "/api/terminales/configuracion/consentimiento")
+        return new Response(JSON.stringify({ vigente: { id: 4, version: 4, texto: "Texto v4", provisional: false, cambio_material: true, vigente_desde: "2026-10-08T12:00:00Z" }, historial: [] }));
+      if (init?.method === "POST") return new Response(JSON.stringify({ registradas: 1, pendientes_restantes: 2 }), { status: 201 });
+      return undefined;
+    };
+
+    it("marcar y desmarcar la misma casilla deja la selección vacía", async () => {
+      mockApi({ extra: rutas, altas: () => conPendientes([pendiente(10), pendiente(11)]) });
+      renderPagina();
+      const casilla = within((await screen.findByText("Persona 10")).closest("tr")!).getByRole("checkbox");
+      await userEvent.click(casilla);
+      expect(screen.getByText("1 seleccionada")).toBeInTheDocument();
+      await userEvent.click(casilla);
+      expect(screen.queryByText(/seleccionadas?$/)).not.toBeInTheDocument();
+      expect(casilla).not.toBeChecked();
+    });
+
+    it("cerrar el modal con refresco limpia la selección", async () => {
+      mockApi({ extra: rutas, altas: () => conPendientes([pendiente(10), pendiente(11)]) });
+      renderPagina();
+      await screen.findByText("Persona 10");
+      await userEvent.click(within(screen.getByText("Persona 10").closest("tr")!).getByRole("checkbox"));
+      await userEvent.click(screen.getByRole("button", { name: /registrar reconsentimiento de las seleccionadas/i }));
+      const dialogo = await screen.findByRole("dialog", { name: /registrar reconsentimiento/i });
+      await within(dialogo).findByText("Texto v4");
+      await userEvent.click(within(dialogo).getByLabelText(/confirmo que los documentos firmados existen/i));
+      await userEvent.click(within(dialogo).getByRole("button", { name: /registrar reconsentimiento/i }));
+      await userEvent.click(await screen.findByRole("button", { name: /^cerrar$/i }));
+      await waitFor(() => expect(screen.queryByText(/seleccionadas?$/)).not.toBeInTheDocument());
+      expect(within(screen.getByText("Persona 10").closest("tr")!).getByRole("checkbox")).not.toBeChecked();
+    });
+
+    it("cancelar el modal (sin refresco) conserva la selección", async () => {
+      mockApi({ extra: rutas, altas: () => conPendientes([pendiente(10)]) });
+      renderPagina();
+      await screen.findByText("Persona 10");
+      await userEvent.click(within(screen.getByText("Persona 10").closest("tr")!).getByRole("checkbox"));
+      await userEvent.click(screen.getByRole("button", { name: /registrar reconsentimiento de las seleccionadas/i }));
+      const dialogo = await screen.findByRole("dialog", { name: /registrar reconsentimiento/i });
+      await userEvent.click(within(dialogo).getByRole("button", { name: /cancelar/i }));
+      expect(screen.getByText("1 seleccionada")).toBeInTheDocument();
+    });
+  });
 });
