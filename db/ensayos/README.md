@@ -3,7 +3,7 @@
 Scripts que `db` escribió para ensayar cada migración **contra Supabase real dentro de una transacción
 que siempre termina en `ROLLBACK`**, con personas, marcas y días sintéticos (el usuario administrador real
 sólo actúa como *caller*). Se conservan porque son la evidencia y el banco de pruebas de los cortes
-`80_` a `90_` (ver `docs/07-procesos/PLAN_TERMINAL_HIKVISION_HASTA_PRODUCCION.md`).
+`80_` a `91_` (ver `docs/07-procesos/PLAN_TERMINAL_HIKVISION_HASTA_PRODUCCION.md`).
 
 | Archivo | Prueba | Resultado histórico |
 |---|---|---|
@@ -15,6 +15,7 @@ sólo actúa como *caller*). Se conservan porque son la evidencia y el banco de 
 | `ensayo_88.sql` (+ `verificar_88.sql`) | `88_` (consentimiento versionado, `SCJ16`, reconsentimiento, auto-asignación y auto-reconsentimiento) | 143/143 PASS (8-oct-2026, `ROLLBACK`, sin residuo) |
 | `ensayo_89.sql` (+ `verificar_89.sql`) | `88_` + `89_` (claves `terminal_*`, edición con regla cruzada, guard `SCJ17`) | 60/60 PASS (8-oct-2026) |
 | `ensayo_90.sql` (+ `verificar_90.sql`) | `88_` + `90_` (`fn_terminal_anomalias`) | 21/21 PASS (8-oct-2026) |
+| `ensayo_91.sql` (+ `verificar_91.sql`) | `88_` + `91_` (autor de la baja por persona inactiva, detalle del Pi sin invisibles) | **sin correr** (pendiente de OK del usuario y de `security`) |
 | `ensayo_correccion.sql` | comportamiento de corregir una marca en un tramo (confirmó la inconsistencia que motivó `87_`) | inferencia confirmada |
 | `ensayo_78.sql` | comportamiento de `78_` | **obsoleto, nunca corrido** (`86_` lo reemplaza) |
 

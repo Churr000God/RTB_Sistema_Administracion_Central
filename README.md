@@ -95,7 +95,7 @@ cd frontend && npm install && npm run dev                          # terminal 2
 
 ### 1. Aplicar el DDL completo
 
-El DDL vive en `db/ddl/00_*.sql` a `db/ddl/90_*.sql` (91 archivos, orden lexicográfico = orden de
+El DDL vive en `db/ddl/00_*.sql` a `db/ddl/91_*.sql` (92 archivos, orden lexicográfico = orden de
 aplicación). No es idempotente — una sola aplicación sobre base vacía. Se aplica con el script:
 
 ```bash

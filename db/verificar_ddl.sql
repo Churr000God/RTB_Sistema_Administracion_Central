@@ -1154,3 +1154,41 @@ FROM (VALUES ('m.terminal_id = v_serie'), ('c_pico_persona_hora  constant intege
              ('interval ''90 days'''), ('categoria_invalida'), ('marcas_posteriores_a_baja'), ('picos_de_tasa'), ('huecos_de_secuencia')) AS c(fragmento)
 WHERE NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
                   WHERE n.nspname = 'tiempo' AND p.proname = 'fn_terminal_anomalias' AND strpos(p.prosrc, c.fragmento) > 0);
+
+-- 54) fn_terminal_baja_por_persona_inactiva y fn_terminal_movimiento_registrar tras 91_: siguen SECURITY DEFINER con search_path exacto y EXECUTE
+-- sólo service_role (ni PUBLIC, anon, authenticated ni terminal_checador), dueño igual al de tiempo.marca; y sus cuerpos contienen las condiciones
+-- críticas de 91_ (autor por creado_en DESC con fecha_efectiva sólo de desempate; saneo de invisibles/bidi y de U+2028/2029 en el detalle).
+-- Esperado: 0 filas.
+WITH f(proname) AS (VALUES ('fn_terminal_baja_por_persona_inactiva'), ('fn_terminal_movimiento_registrar'))
+SELECT f.proname, 'falta la función' AS problema
+FROM f WHERE NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'tiempo' AND p.proname = f.proname)
+UNION ALL
+SELECT f.proname, 'atributos distintos de los esperados (DEFINER, search_path=tiempo, personas, pg_temp)'
+FROM f JOIN pg_proc p ON p.proname = f.proname JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'tiempo'
+WHERE NOT p.prosecdef OR p.proconfig IS DISTINCT FROM ARRAY['search_path=tiempo, personas, pg_temp']
+UNION ALL
+SELECT f.proname, 'EXECUTE a PUBLIC'
+FROM f JOIN pg_proc p ON p.proname = f.proname JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'tiempo'
+WHERE EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')
+UNION ALL
+SELECT f.proname, 'EXECUTE distinto de lo esperado para ' || r.rol
+FROM f JOIN pg_proc p ON p.proname = f.proname JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'tiempo'
+CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role'), ('terminal_checador')) AS r(rol)
+WHERE has_function_privilege(r.rol, p.oid, 'EXECUTE') <> (r.rol = 'service_role')
+UNION ALL
+SELECT f.proname, 'dueño distinto del de tiempo.marca'
+FROM f JOIN pg_proc p ON p.proname = f.proname JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'tiempo'
+WHERE p.proowner <> (SELECT relowner FROM pg_class WHERE oid = 'tiempo.marca'::regclass)
+UNION ALL
+SELECT c.proname, 'el cuerpo no contiene: ' || c.fragmento
+FROM (VALUES
+  ('fn_terminal_baja_por_persona_inactiva', 'ORDER BY b.creado_en DESC, b.fecha_efectiva DESC'),
+  ('fn_terminal_movimiento_registrar', 'chr(8232)'),
+  ('fn_terminal_movimiento_registrar', 'chr(8233)'),
+  ('fn_terminal_movimiento_registrar', '\u200B-\u200F'),
+  ('fn_terminal_movimiento_registrar', '\U000E0000-\U000E007F'),
+  ('fn_terminal_movimiento_registrar', '[[:cntrl:]]'),
+  ('fn_terminal_movimiento_registrar', 'error sin detalle')
+) AS c(proname, fragmento)
+WHERE NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname = 'tiempo' AND p.proname = c.proname AND strpos(p.prosrc, c.fragmento) > 0);

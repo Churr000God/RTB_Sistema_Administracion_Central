@@ -41,7 +41,7 @@ Folio SCJ-MOD-03 · Versión 1.9 · 8 de octubre de 2026
 > paso se corrige el nombre del archivo, que seguía en `V1_5` aunque el encabezado decía 1.6
 > (`CONVENCIONES.md §I`).
 
-> **Cambio de versión (V1.8 → V1.9, menor):** se agregan las restricciones de los scripts `88`, `89` y `90`
+> **Cambio de versión (V1.8 → V1.9, menor):** se agregan las restricciones de los scripts `88`, `89`, `90` y `91`
 > (configuración de terminales, consentimiento biométrico versionado y tablero de anomalías; no se contradice nada de lo
 > anterior): la tabla de versiones `tiempo.terminal_consentimiento` (de sólo inserción, inmutable en 3
 > capas, con la versión 1 provisional sembrada), la columna `consentimiento_id` en la bitácora de
@@ -89,8 +89,9 @@ justificación. Entregable E3 de `SCJ-ESP-01`.
 | `db/ddl/02_tiempo.sql` | Tablas del subsistema de Tiempo |
 | `db/ddl/03_parametros_ejemplo.sql` | Parámetros con **valores de ejemplo** |
 | `db/ddl/04` a `36` | *(V1.6)* Esquema `personas`: personas, estructura organizacional, asignaciones, permisos y bitácoras |
-| `db/ddl/37` a `79` | *(V1.6)* RLS, permisos y funciones de Tiempo, y las correcciones posteriores (los scripts son acumulativos: el estado final es la suma de los 91) |
+| `db/ddl/37` a `79` | *(V1.6)* RLS, permisos y funciones de Tiempo, y las correcciones posteriores (los scripts son acumulativos: el estado final es la suma de los 92) |
 | `db/ddl/80` y `81` | *(V1.7)* Terminal biométrica: `tiempo.terminal` y `tiempo.terminal_usuario` con la secuencia del `employeeNo` y los permisos `terminal_usuario_lectura`/`terminal_usuario_edicion` (`80`), y la bitácora inmutable con su trigger de transiciones (`81`). `SCJ-DEC-11` |
+| `db/ddl/91` | *(V1.9)* Endurecimientos de dos RPC del Pi: el autor de la baja automática por persona inactiva sale del último movimiento registrado (`creado_en`), y el detalle del Pi pierde los caracteres de formato Unicode invisibles o de reordenamiento |
 | `db/ddl/90` | *(V1.9)* `fn_terminal_anomalias`: tres categorías del tablero de anomalías de marcas (marcas posteriores a la baja, picos de tasa, huecos de secuencia) como función de sólo lectura, `SECURITY INVOKER`, `EXECUTE` sólo `service_role`, que filtra por la terminal pedida y devuelve `persona_id` (nunca nombres) |
 | `db/ddl/88` y `89` | *(V1.9)* Configuración de terminales: `88` (permiso `terminal_config_edicion`, `tiempo.terminal_consentimiento` con la versión 1 provisional, columna `consentimiento_id`, movimiento `reconsentido`, `SCJ16`, publicar y reconsentir en lote) y `89` (5 claves `terminal_*` de `tiempo.parametro`, edición con regla cruzada, lector tolerante, guard `SCJ17`) |
 | `db/ddl/87` | *(V1.8)* Trigger `BEFORE INSERT` en `tiempo.correccion` que rechaza (`SCJ15` / `marca_en_tramo`) la corrección de una marca que ya es apertura o cierre de un tramo; función `SECURITY DEFINER` sin `EXECUTE` para la API |

@@ -99,7 +99,7 @@ CREATE FUNCTION pg_temp.tu(p_k text) RETURNS bigint AS $$
   SELECT id FROM tiempo.terminal_usuario WHERE persona_id = (SELECT v::uuid FROM _ens WHERE k = p_k) ORDER BY id DESC LIMIT 1;
 $$ LANGUAGE sql;
 CREATE FUNCTION pg_temp.baja_rpc(p_k text) RETURNS text AS $$
-  SELECT format('tiempo.fn_terminal_baja_por_persona_inactiva(%L::uuid)', (SELECT v FROM _ens WHERE k = p_k));
+  SELECT format('to_jsonb(tiempo.fn_terminal_baja_por_persona_inactiva(%L::uuid))', (SELECT v FROM _ens WHERE k = p_k));
 $$ LANGUAGE sql;
 CREATE FUNCTION pg_temp.mov_rpc(p_k text, p_tipo text, p_detalle text) RETURNS text AS $$
   SELECT format('tiempo.fn_terminal_movimiento_registrar(%s::bigint, %s::bigint, %L::text, NULL::integer, %L::text)',
