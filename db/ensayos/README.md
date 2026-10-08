@@ -3,7 +3,7 @@
 Scripts que `db` escribió para ensayar cada migración **contra Supabase real dentro de una transacción
 que siempre termina en `ROLLBACK`**, con personas, marcas y días sintéticos (el usuario administrador real
 sólo actúa como *caller*). Se conservan porque son la evidencia y el banco de pruebas de los cortes
-`80_` a `91_` (ver `docs/07-procesos/PLAN_TERMINAL_HIKVISION_HASTA_PRODUCCION.md`).
+`80_` a `92_` (ver `docs/07-procesos/PLAN_TERMINAL_HIKVISION_HASTA_PRODUCCION.md`).
 
 | Archivo | Prueba | Resultado histórico |
 |---|---|---|
@@ -16,11 +16,12 @@ sólo actúa como *caller*). Se conservan porque son la evidencia y el banco de 
 | `ensayo_89.sql` (+ `verificar_89.sql`) | `88_` + `89_` (claves `terminal_*`, edición con regla cruzada, guard `SCJ17`) | 60/60 PASS (8-oct-2026) — evidencia histórica no re-ejecutable |
 | `ensayo_90.sql` (+ `verificar_90.sql`) | `88_` + `90_` (`fn_terminal_anomalias`) | 21/21 PASS (8-oct-2026) — evidencia histórica no re-ejecutable |
 | `ensayo_91.sql` (+ `verificar_91.sql`) | `88_` + `91_` (autor de la baja por persona inactiva, detalle del Pi sin invisibles) | 22/22 PASS (8-oct-2026, `ROLLBACK`, sobre `88_` ya aplicada) — no re-ejecutable ahora que `91_` está aplicada |
+| `ensayo_92.sql` (+ `verificar_92.sql`) | `92_` (policy y hora de la bitácora de personas, limpieza de invisibles del detalle de terminal) | 38/38 PASS (8-oct-2026, `ROLLBACK`) — evidencia histórica no re-ejecutable (`92_` ya aplicada) |
 | `ensayo_correccion.sql` | comportamiento de corregir una marca en un tramo (confirmó la inconsistencia que motivó `87_`) | inferencia confirmada |
 | `ensayo_78.sql` | comportamiento de `78_` | **obsoleto, nunca corrido** (`86_` lo reemplaza) |
 
 ## Estado a partir del 8-oct-2026
-`88_`, `89_`, `90_` y `91_` ya están **aplicadas** en la base real (verificado en solo lectura, `db/verificar_ddl.sql` completo en 0 filas). Por eso `ensayo_88`, `ensayo_89` y
+`88_`, `89_`, `90_`, `91_` y `92_` ya están **aplicadas** en la base real (verificado en solo lectura, `db/verificar_ddl.sql` completo en 0 filas). Por eso `ensayo_88`, `ensayo_89` y
 `ensayo_90` son **evidencia histórica no re-ejecutable**: aplican su migración dentro de la transacción y ahora fallarían por "ya existe". `ensayo_91.sql` se adaptó
 (aplica sólo `91_` sobre `88_` ya aplicada) y corrió 22/22 antes de que `91_` se aplicara; tampoco se puede repetir ahora. Para ensayar una migración futura
 (`92_` en adelante) se parte de una base que ya las trae.

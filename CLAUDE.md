@@ -509,7 +509,7 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   `http://localhost:5173` fijo a mano — esa configuración no vive en este repositorio. Al pasar a
   producción (`docker compose … prod`, frontend en `:8080`) hay que actualizarla ahí también, o
   los links de invitación/recuperación de contraseña no aterrizan en la app.
-- El DDL versionado llega hasta `db/ddl/91_*.sql` (92 archivos, `00` a `91`); la base real está aplicada hasta `87_` y `88_`-`90_` están ensayados (`BEGIN…ROLLBACK` 143/143, 60/60, 21/21; `91_` revisado por security, ensayo pendiente) y pendientes de aplicar por el usuario (orden: `88_`, backend C0 desplegado, `89_`, `90_`). `personas.permiso`
+- El DDL llega hasta `db/ddl/92_*.sql` (93 archivos, `00` a `92`) y TODO está aplicado en la base real (`88_`-`92_` aplicados el 8 de octubre de 2026 tras ensayos `BEGIN…ROLLBACK` 143/143, 60/60, 21/21, 22/22 y 38/38; `verificar_ddl.sql` completo en 0 filas, 72 funciones, 77 policies, 53 permisos). `92_` ata autor y hora de `personas.bitacora_movimiento_persona` (el INSERT en `personas.usuario` debe hacerse siempre con `service_role`). `personas.permiso`
   es la única tabla del proyecto con clave natural (`codigo varchar PRIMARY KEY`) en vez de `uuid`
   — decisión deliberada, fiel a la redacción literal de `SCJ-PRO-05`, no un descuido a corregir.
 - Las tablas de bitácora inmutables (`bitacora_movimiento_persona`,
