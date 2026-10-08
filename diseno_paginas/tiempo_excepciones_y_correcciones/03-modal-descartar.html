@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup 03 — Modal: descartar marca tardía</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../frontend/src/styles/tokens.css">
+<link rel="stylesheet" href="_mockup.css">
+</head>
+<body data-activo="Excepciones pendientes">
+<div class="mock-barra" data-estados="inicial:Inicial,invalido:Motivo inválido (422 local),cargando:Enviando,exito:Éxito (descartada),yadesc:Éxito (ya descartada),e409a:409 día no revisado,e409b:409 no descartable,e409c:409 ya descartada,e403:403 sin permiso,e422:422 servidor,e503:503">
+  <strong>Mockup 03 · modal de /tiempo/excepciones</strong><span>Estado:</span><span class="estados"></span>
+  <span>· <a href="?limpio=1">ocultar notas</a></span>
+</div>
+<div class="app-shell">
+<aside class="app-shell-aside" id="shell-aside"></aside>
+<main class="app-shell-main">
+<div class="contenedor-pagina">
+<p class="nota-diseno"><strong>Primer modal del proyecto.</strong> Propuesta de implementación: <code>&lt;dialog&gt;</code> nativo con <code>showModal()</code> (foco atrapado, Esc cierra, devuelve el foco al botón "Descartar"). Mientras se envía, Esc/fondo/Cancelar quedan inertes. <code>POST /api/excepciones/{id}/descartar</code> con <code>{ "motivo": "…" }</code> (1–500 caracteres).</p>
+
+<div class="modal-fondo"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="t" aria-describedby="ctx">
+
+  <!-- Estados con formulario -->
+  <div data-solo="inicial invalido cargando e409a e409b e409c e403 e422 e503" style="display:contents">
+    <h2 id="t">Descartar marca tardía</h2>
+    <p class="modal__contexto" id="ctx">Marca de <strong>Luis Ramírez</strong> · 03 oct 2026, 20:41 · día <strong>03 oct 2026</strong> (<span class="insignia insignia--exito">Revisado</span>)</p>
+    <div class="modal__advertencia" role="note"><span data-ic="alert"></span>
+      <div><strong>Esta acción es irreversible.</strong> La marca tardía quedará descartada y no podrá recuperarse. Queda registrado <strong>quién</strong> la descartó y <strong>por qué</strong> (el motivo que escribas aquí). No cambia las horas del día ya revisado.</div></div>
+
+    <div data-solo="invalido" style="display:contents"><div class="campo-error"><label for="m">Motivo del descarte (obligatorio)</label>
+      <textarea id="m" rows="4" maxlength="500" aria-invalid="true" aria-describedby="e" placeholder="Ej.: la persona confirmó que fue un registro accidental después de su salida."></textarea>
+      <p class="mensaje-campo" id="e"><span data-ic="alertc" data-s="14"></span>Escribe un motivo (entre 1 y 500 caracteres).</p></div></div>
+    <div data-solo="inicial cargando e409a e409b e409c e403 e422 e503" style="display:contents"><div><label for="m2">Motivo del descarte (obligatorio)</label>
+      <textarea id="m2" rows="4" maxlength="500" placeholder="Ej.: la persona confirmó que fue un registro accidental después de su salida.">La persona confirmó que fue un registro accidental después de su salida.</textarea>
+      <div class="modal__contador num">71 / 500</div></div></div>
+
+    <div data-solo="e409a" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>El día todavía no está revisado</strong><p>El día todavía no está revisado: revísalo en vez de descartar la marca.</p><p style="margin-top:.5rem"><a href="#">Ir a revisar el día →</a></p></div>
+    <div data-solo="e409b" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>Esta excepción no se puede descartar</strong><p>Esta excepción no se puede descartar: no es una marca tardía de día cerrado, o ya está resuelta por otra vía.</p></div>
+    <div data-solo="e409c" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>La excepción ya fue descartada antes</strong><p>Alguien más la descartó mientras tenías esta ventana abierta. Actualiza la lista.</p></div>
+    <div data-solo="e403" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No tienes permiso para descartar</strong><p>No tienes permiso para esta acción.</p></div>
+    <div data-solo="e422" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>El motivo no es válido</strong><p>El motivo es obligatorio.</p></div>
+    <div data-solo="e503" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se pudo completar</strong><p>Servicio no disponible; reintenta. La marca <strong>no</strong> se descartó.</p></div>
+
+    <div class="modal__botonera">
+      <span data-solo="inicial invalido e409a e409b e409c e403 e422 e503" style="display:contents">
+        <button type="button" class="boton-con-icono">Cancelar</button>
+      </span>
+      <span data-solo="cargando" style="display:contents">
+        <button type="button" class="boton-con-icono" disabled>Cancelar</button>
+        <button type="button" class="boton-peligro boton-con-icono" disabled aria-busy="true"><span class="icono-girando" data-ic="loader"></span>Descartando…</button>
+      </span>
+      <span data-solo="inicial invalido e422 e503" style="display:contents">
+        <button type="button" class="boton-peligro boton-con-icono" data-ic="trash" data-s="16">Descartar definitivamente</button>
+      </span>
+      <span data-solo="e409a e409b e409c" style="display:contents"><button type="button" class="boton-con-icono boton-primario">Actualizar lista</button></span>
+    </div>
+  </div>
+
+  <!-- Éxito -->
+  <div data-solo="exito" style="display:contents" role="status">
+    <h2 id="t2"><span data-ic="checkc" data-s="22" style="color:var(--teal)"></span> Marca descartada</h2>
+    <p class="modal__contexto">La marca tardía de <strong>Luis Ramírez</strong> quedó descartada y registrada con tu nombre y el motivo indicado. Ya no aparece en las excepciones pendientes.</p>
+    <div class="modal__botonera"><button type="button" class="boton-con-icono boton-primario">Cerrar</button></div>
+  </div>
+  <div data-solo="yadesc" style="display:contents" role="status">
+    <h2><span data-ic="circle" data-s="22" style="color:var(--teal)"></span> Ya estaba descartada</h2>
+    <p class="modal__contexto">Esta marca ya había sido descartada antes: no se hizo ningún cambio ni se escribió otro registro. La lista se actualizó.</p>
+    <div class="modal__botonera"><button type="button" class="boton-con-icono boton-primario">Cerrar</button></div>
+  </div>
+</div></div>
+
+<section style="margin-top:2rem" class="escenario"><h2>Reglas del formulario</h2>
+<ul style="font-size:.85rem;color:var(--navy-medio);line-height:1.6;padding-left:1.1rem">
+<li>El botón principal es rojo (<code>.boton-peligro</code>, nuevo) y dice "Descartar definitivamente" — no "Aceptar".</li>
+<li>Validación local antes de enviar: motivo con texto (tras <code>trim</code>) y ≤ 500; si no, error en el campo, sin llamar al servidor. El 422 del servidor sigue mostrándose por si algo se escapa.</li>
+<li>Errores 409/403/422/503 son <strong>dentro del modal</strong> (<code>role="alert"</code>), el texto escrito se conserva; en 409 el botón principal cambia a "Actualizar lista".</li>
+<li><code>descartada</code> y <code>ya_descartada</code> (ambos 200) tienen cuerpos distintos: honestos sobre si hubo cambio. Ambos refrescan la lista al cerrar.</li>
+<li>Los textos de error de las tarjetas son los <code>detail</code> reales del backend (<code>errores.py</code>), mostrados tal cual; los títulos en negrita son copy del frontend.</li>
+</ul></section>
+</div></main></div>
+<script src="_mockup.js"></script>
+</body></html>

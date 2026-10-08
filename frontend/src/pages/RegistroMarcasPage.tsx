@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Loader2, RadioTower, Search, Wrench } from "lucide-react";
+import { AlertCircle, Info, Loader2, RadioTower, Search, Wrench } from "lucide-react";
 
 import { apiFetch } from "../lib/apiClient";
 import { formatearHoraMexico } from "../lib/calendario";
 import { etiquetaMotivo } from "../lib/motivosRevision";
 import { AppShell } from "../layouts/AppShell";
+import { AvisoBloqueoCorreccion, type MotivoBloqueoCorreccion } from "../components/AvisoBloqueoCorreccion";
 import { Badge } from "../components/Badge";
 import { Input } from "../components/Input";
+import { hrefRevisarDia } from "../lib/enlacesDias";
 
 // Intervalo de refresco del feed — "en vivo" vía polling, sin websocket (mismo criterio que
 // documentó backend en marcas.py: SCJ-PRO-11/07 no piden push real). 20s cae dentro del rango
@@ -39,6 +41,11 @@ type Marca = {
   estado_revision: "sin_revision" | "pendiente" | "resuelta";
   motivos_revision: string[];
   excepcion_pendiente_id: number | null;
+  // 86_*.sql: por qué no se puede corregir la hora de esta marca (null = sí se puede).
+  motivo_bloqueo_correccion?: MotivoBloqueoCorreccion | null;
+  // Para "Ir a revisar el día": id de tiempo.dia si ya existe (si no, null) y fecha local efectiva.
+  dia_id?: number | null;
+  fecha_local?: string | null;
 };
 
 type RespuestaMarcas = { total: number; marcas: Marca[] };
@@ -170,6 +177,17 @@ export function RegistroMarcasPage() {
           </div>
         </div>
 
+        <div className="banner-aviso banner-aviso--info" role="note">
+          <Info size={16} aria-hidden="true" />
+          <div>
+            <strong>¿Cuándo se puede corregir una marca desde aquí?</strong> Sólo mientras su día
+            sigue abierto y la marca todavía no forma parte de un tramo. Después del cierre de día
+            casi ninguna marca se puede corregir por esta pantalla: si falta o sobra una marca, usa{" "}
+            <a href="/tiempo/captura-manual">captura manual</a> o revisa el día en{" "}
+            <a href="/tiempo/dias">Días</a>.
+          </div>
+        </div>
+
         <div className="barra-filtros">
           <div className="campo-con-icono">
             <Search size={16} className="icono-campo" aria-hidden="true" />
@@ -287,7 +305,16 @@ export function RegistroMarcasPage() {
                         )}
                       </td>
                       <td>
-                        {marca.excepcion_pendiente_id !== null ? (
+                        {marca.excepcion_pendiente_id !== null && marca.motivo_bloqueo_correccion ? (
+                          <AvisoBloqueoCorreccion
+                            motivo={marca.motivo_bloqueo_correccion}
+                            hrefDia={hrefRevisarDia({
+                              diaId: marca.dia_id,
+                              personaId: marca.persona_id,
+                              fecha: marca.fecha_local,
+                            })}
+                          />
+                        ) : marca.excepcion_pendiente_id !== null ? (
                           <a
                             href={`/tiempo/excepciones/${marca.excepcion_pendiente_id}/corregir`}
                             className="boton-con-icono"

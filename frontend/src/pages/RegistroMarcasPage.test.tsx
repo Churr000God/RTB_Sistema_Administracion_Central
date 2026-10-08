@@ -239,4 +239,82 @@ describe("RegistroMarcasPage", () => {
     await waitFor(() => expect(screen.getByText(/requiere revisión/i)).toBeInTheDocument());
     expect(screen.queryByRole("link", { name: /corregir/i })).not.toBeInTheDocument();
   });
+
+  it("muestra el banner que explica cuándo se puede corregir desde esta pantalla", async () => {
+    mockApiFetch();
+    render(<RegistroMarcasPage />);
+    await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument());
+    expect(screen.getByText(/casi ninguna marca se puede corregir/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /captura manual/i })).toHaveAttribute(
+      "href",
+      "/tiempo/captura-manual",
+    );
+  });
+
+  it.each([
+    ["en_tramo", /ya forma parte de un tramo/i],
+    ["en_tramo_cerrado", /este día ya está cerrado/i],
+    ["dia_cerrado_pendiente", /es de un día ya cerrado/i],
+  ])("motivo_bloqueo_correccion %s: Corregir bloqueado con su mensaje y sin enlace a corregir", async (motivo, mensaje) => {
+    const marca = {
+      ...MARCA_1,
+      requiere_revision: true,
+      estado_revision: "pendiente",
+      excepcion_pendiente_id: 42,
+      motivo_bloqueo_correccion: motivo,
+      dia_id: 21,
+      fecha_local: "2026-09-07",
+    };
+    mockApiFetch({ marcas: new Response(JSON.stringify({ total: 1, marcas: [marca] })) });
+
+    render(<RegistroMarcasPage />);
+
+    const boton = await waitFor(() => screen.getByRole("button", { name: "Corregir" }));
+    expect(boton).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByRole("link", { name: /^corregir$/i })).not.toBeInTheDocument();
+    expect(boton).toHaveAccessibleDescription(mensaje);
+    expect(screen.getByRole("link", { name: /ir a revisar el día/i })).toHaveAttribute(
+      "href",
+      "/tiempo/dias?dia_id=21",
+    );
+  });
+
+  it("Ir a revisar el día sin fila de día todavía filtra por persona y fecha local", async () => {
+    const marca = {
+      ...MARCA_1,
+      estado_revision: "pendiente",
+      excepcion_pendiente_id: 42,
+      motivo_bloqueo_correccion: "en_tramo",
+      dia_id: null,
+      fecha_local: "2026-09-07",
+    };
+    mockApiFetch({ marcas: new Response(JSON.stringify({ total: 1, marcas: [marca] })) });
+    render(<RegistroMarcasPage />);
+    expect(await screen.findByRole("link", { name: /ir a revisar el día/i })).toHaveAttribute(
+      "href",
+      "/tiempo/dias?persona_id=persona-1&desde=2026-09-07&hasta=2026-09-07",
+    );
+  });
+
+  it("motivo_bloqueo_correccion null con excepción pendiente conserva el enlace Corregir", async () => {
+    const marca = {
+      ...MARCA_1,
+      requiere_revision: true,
+      estado_revision: "pendiente",
+      excepcion_pendiente_id: 42,
+      motivo_bloqueo_correccion: null,
+    };
+    mockApiFetch({ marcas: new Response(JSON.stringify({ total: 1, marcas: [marca] })) });
+    render(<RegistroMarcasPage />);
+    await waitFor(() => screen.getByRole("link", { name: /^corregir$/i }));
+    expect(screen.queryByRole("button", { name: "Corregir" })).not.toBeInTheDocument();
+  });
+
+  it("un bloqueo sin excepción pendiente no muestra aviso (nada que corregir)", async () => {
+    const marca = { ...MARCA_1, excepcion_pendiente_id: null, motivo_bloqueo_correccion: "en_tramo" };
+    mockApiFetch({ marcas: new Response(JSON.stringify({ total: 1, marcas: [marca] })) });
+    render(<RegistroMarcasPage />);
+    await waitFor(() => expect(screen.getByRole("table")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Corregir" })).not.toBeInTheDocument();
+  });
 });

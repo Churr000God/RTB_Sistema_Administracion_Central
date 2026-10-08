@@ -111,3 +111,11 @@ const TIME_ZONE_NEGOCIO = "America/Mexico_City";
 export function formatearHoraMexico(fecha: Date, opciones: Intl.DateTimeFormatOptions): string {
   return fecha.toLocaleString("es-MX", { ...opciones, timeZone: TIME_ZONE_NEGOCIO });
 }
+
+// "2026-10-05" -> "05 oct 2026". Mediodía local para que ninguna zona horaria mueva la fecha.
+export function formatearFechaCorta(fechaISO: string | null | undefined): string | null {
+  if (!fechaISO) return null;
+  const valor = new Date(`${fechaISO}T12:00:00`);
+  if (Number.isNaN(valor.getTime())) return null;
+  return valor.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+}

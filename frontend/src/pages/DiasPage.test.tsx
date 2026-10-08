@@ -3,7 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiFetch } from "../lib/apiClient";
+import { hrefRevisarDia } from "../lib/enlacesDias";
 import { DiasPage } from "./DiasPage";
+
+const UUID_PERSONA = "3f2b8c1e-9a4d-4e6f-8b1a-2c3d4e5f6a7b";
 
 vi.mock("../lib/apiClient", () => ({ apiFetch: vi.fn() }));
 vi.mock("../lib/supabaseClient", () => ({
@@ -60,6 +63,7 @@ function mockApiFetch(
     revisar?: Response;
     previsualizar?: Response;
     pendientesCorte?: Response;
+    tardias?: Response;
   } = {},
 ) {
   vi.mocked(apiFetch).mockImplementation((path: string, init?: RequestInit) => {
@@ -75,6 +79,9 @@ function mockApiFetch(
             JSON.stringify({ periodo_desde: "2026-09-01", periodo_hasta: "2026-09-15", personas: [] }),
           ),
       );
+    }
+    if (path === "/api/excepciones?tipo=dia_cerrado") {
+      return Promise.resolve(opciones.tardias ?? new Response(JSON.stringify([])));
     }
     if (path.startsWith("/api/dias?")) {
       return Promise.resolve(
@@ -109,6 +116,215 @@ describe("DiasPage", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    window.history.replaceState(null, "", "/");
+  });
+
+  describe("filtros desde la URL (Ir a revisar el día)", () => {
+    function llamadaDias() {
+      return vi
+        .mocked(apiFetch)
+        .mock.calls.map(([path]) => path as string)
+        .find((path) => path.startsWith("/api/dias?"))!;
+    }
+
+    it("dia_id de la URL se manda a GET /api/dias y avisa que hay un filtro activo", async () => {
+      window.history.replaceState(null, "", "/tiempo/dias?dia_id=10");
+      mockApiFetch();
+      render(<DiasPage />);
+      await screen.findByRole("table");
+      expect(new URLSearchParams(llamadaDias().split("?")[1]).get("dia_id")).toBe("10");
+      expect(screen.getByText(/mostrando un día específico/i)).toBeInTheDocument();
+    });
+
+    it("persona_id, desde y hasta de la URL se mandan y rellenan los campos de fecha", async () => {
+      window.history.replaceState(
+        null,
+        "",
+        `/tiempo/dias?persona_id=${UUID_PERSONA}&desde=2026-09-07&hasta=2026-09-07`,
+      );
+      mockApiFetch();
+      render(<DiasPage />);
+      await screen.findByRole("table");
+      const params = new URLSearchParams(llamadaDias().split("?")[1]);
+      expect(params.get("persona_id")).toBe(UUID_PERSONA);
+      expect(params.get("desde")).toBe("2026-09-07");
+      expect(params.get("hasta")).toBe("2026-09-07");
+      expect(screen.getByLabelText("Desde")).toHaveValue("2026-09-07");
+    });
+
+    it("Ver todos los días quita el filtro de la URL y recarga sin él", async () => {
+      window.history.replaceState(null, "", "/tiempo/dias?dia_id=10");
+      mockApiFetch();
+      render(<DiasPage />);
+      await screen.findByRole("table");
+      await userEvent.click(screen.getByRole("button", { name: /ver todos los días/i }));
+      await waitFor(() => {
+        const ultima = vi
+          .mocked(apiFetch)
+          .mock.calls.map(([path]) => path as string)
+          .filter((path) => path.startsWith("/api/dias?"))
+          .at(-1)!;
+        expect(new URLSearchParams(ultima.split("?")[1]).has("dia_id")).toBe(false);
+      });
+      expect(window.location.search).toBe("");
+      expect(screen.queryByText(/mostrando un día específico/i)).not.toBeInTheDocument();
+    });
+
+    it.each([
+      "?dia_id=abc",
+      "?dia_id=-1",
+      "?dia_id=1.5",
+      "?persona_id=persona-1",
+      "?desde=hoy&hasta=2026-99-99",
+    ])("parámetros inválidos en la URL (%s) se ignoran: no se mandan ni hay banner", async (consulta) => {
+      window.history.replaceState(null, "", `/tiempo/dias${consulta}`);
+      mockApiFetch();
+      render(<DiasPage />);
+      await screen.findByRole("table");
+      const params = new URLSearchParams(llamadaDias().split("?")[1]);
+      for (const clave of ["dia_id", "persona_id", "desde", "hasta"]) expect(params.has(clave)).toBe(false);
+      expect(screen.queryByText(/mostrando un día específico|mostrando los días de una persona/i)).not.toBeInTheDocument();
+    });
+
+    it.each([
+      [{ diaId: 21, personaId: UUID_PERSONA, fecha: "2026-09-07" }, { dia_id: "21" }],
+      [
+        { diaId: null, personaId: UUID_PERSONA, fecha: "2026-09-07" },
+        { persona_id: UUID_PERSONA, desde: "2026-09-07", hasta: "2026-09-07" },
+      ],
+    ])("el enlace de hrefRevisarDia(%j) llega a DiasPage como petición a /api/dias", async (datos, esperado) => {
+      window.history.replaceState(null, "", hrefRevisarDia(datos));
+      mockApiFetch();
+      render(<DiasPage />);
+      await screen.findByRole("table");
+      const params: Record<string, string> = {};
+      new URLSearchParams(llamadaDias().split("?")[1]).forEach((valor, clave) => {
+        params[clave] = valor;
+      });
+      expect(params).toMatchObject(esperado);
+    });
+
+    it("sin parámetros en la URL no manda dia_id ni persona_id", async () => {
+      mockApiFetch();
+      render(<DiasPage />);
+      await screen.findByRole("table");
+      const params = new URLSearchParams(llamadaDias().split("?")[1]);
+      expect(params.has("dia_id")).toBe(false);
+      expect(params.has("persona_id")).toBe(false);
+    });
+  });
+
+  describe("marcas tardías de días cerrados", () => {
+    const TARDIA_REVISAR = {
+      id: 1,
+      es_dia_cerrado: true,
+      persona_id: "persona-1",
+      persona_nombre: "Persona Ficticia Uno",
+      momento_dispositivo: "2026-09-08T01:20:00Z",
+      dia_de_la_marca_id: 10,
+      dia_de_la_marca_fecha: "2026-09-07",
+      dia_de_la_marca_estado: "bloqueado",
+      camino_resolucion: "revisar_dia",
+    };
+    const TARDIA_DESCARTAR = {
+      ...TARDIA_REVISAR,
+      id: 2,
+      persona_id: "persona-3",
+      persona_nombre: "Tercera Persona",
+      dia_de_la_marca_id: 12,
+      dia_de_la_marca_estado: "revisado",
+      camino_resolucion: "descartar",
+    };
+
+    it("resume cuántas hay, cuántas por revisar el día y cuántas por descartar, con enlaces", async () => {
+      mockApiFetch({ tardias: new Response(JSON.stringify([TARDIA_REVISAR, TARDIA_DESCARTAR])) });
+      render(<DiasPage />);
+      expect(
+        await screen.findByText(/2 marcas tardías en días ya cerrados esperan resolución \(1 por revisar el día, 1 por descartar\)/i),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /revisar este día/i })).toHaveAttribute(
+        "href",
+        "/tiempo/dias?dia_id=10",
+      );
+      expect(screen.getByRole("link", { name: /descartar en excepciones/i })).toHaveAttribute(
+        "href",
+        "/tiempo/excepciones",
+      );
+      expect(screen.getByRole("link", { name: /ver todas en excepciones pendientes/i })).toHaveAttribute(
+        "href",
+        "/tiempo/excepciones",
+      );
+    });
+
+    it("cuenta 2 por revisar y 1 por descartar, y consulta el endpoint de día cerrado", async () => {
+      mockApiFetch({
+        tardias: new Response(
+          JSON.stringify([
+            TARDIA_REVISAR,
+            { ...TARDIA_REVISAR, id: 3, persona_nombre: "Cuarta Persona", dia_de_la_marca_id: 13 },
+            TARDIA_DESCARTAR,
+          ]),
+        ),
+      });
+      render(<DiasPage />);
+      expect(await screen.findByText(/\(2 por revisar el día, 1 por descartar\)/i)).toBeInTheDocument();
+      expect(apiFetch).toHaveBeenCalledWith("/api/excepciones?tipo=dia_cerrado");
+    });
+
+    it("una tardía sin camino de resolución no cuenta ni aparece", async () => {
+      mockApiFetch({
+        tardias: new Response(
+          JSON.stringify([
+            TARDIA_REVISAR,
+            { ...TARDIA_DESCARTAR, id: 9, persona_nombre: "Sin Camino", camino_resolucion: null },
+          ]),
+        ),
+      });
+      render(<DiasPage />);
+      expect(await screen.findByText(/1 marca tardía en un día ya cerrado espera resolución/i)).toBeInTheDocument();
+      expect(screen.queryByText(/sin camino/i)).not.toBeInTheDocument();
+    });
+
+    it("sin marcas tardías o si el resumen falla, no aparece (best-effort)", async () => {
+      mockApiFetch();
+      const { unmount } = render(<DiasPage />);
+      await screen.findByRole("table");
+      expect(screen.queryByText(/marcas? tardías? en días ya cerrados/i)).not.toBeInTheDocument();
+      unmount();
+
+      mockApiFetch({ tardias: new Response(null, { status: 500 }) });
+      render(<DiasPage />);
+      await screen.findByRole("table");
+      expect(screen.queryByText(/marcas? tardías? en días ya cerrados/i)).not.toBeInTheDocument();
+    });
+
+    it("la fila del día con marca tardía lo indica en la columna Excepciones", async () => {
+      mockApiFetch({
+        dias: new Response(
+          JSON.stringify({ total: 1, dias: [{ ...DIA_BLOQUEADO, excepciones_pendientes: 1 }] }),
+        ),
+        tardias: new Response(JSON.stringify([TARDIA_REVISAR])),
+      });
+      render(<DiasPage />);
+      const fila = await screen.findByRole("row", { name: /persona ficticia uno/i });
+      expect(within(fila).getByText(/incluye 1 marca tardía/i)).toBeInTheDocument();
+    });
+
+    it("al revisar un día con marca tardía avisa qué pasa con ella (fn_dia_revisar)", async () => {
+      mockApiFetch({
+        dias: new Response(
+          JSON.stringify({ total: 1, dias: [{ ...DIA_BLOQUEADO, excepciones_pendientes: 1 }] }),
+        ),
+        tardias: new Response(JSON.stringify([TARDIA_REVISAR])),
+      });
+      render(<DiasPage />);
+      await screen.findByRole("row", { name: /persona ficticia uno/i });
+      await userEvent.click(screen.getByRole("button", { name: /marcar como revisado/i }));
+      expect(
+        await screen.findByText(/las marcas tardías que queden dentro de un tramo se resuelven solas/i),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/si alguna quedara sin pareja, no se revisa el día/i)).toBeInTheDocument();
+    });
   });
 
   it("badges de estado bloqueado/revisado y de las 4 alertas", async () => {

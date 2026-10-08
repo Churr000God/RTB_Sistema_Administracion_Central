@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Loader2, Search, Wrench } from "lucide-react";
+import { AlertCircle, Eye, Loader2, Lock, Search, Trash2, Wrench } from "lucide-react";
 
 import { apiFetch } from "../lib/apiClient";
-import { formatearHoraMexico } from "../lib/calendario";
+import { formatearFechaCorta, formatearHoraMexico } from "../lib/calendario";
+import { hrefRevisarDia } from "../lib/enlacesDias";
+import { consultarSesion } from "../lib/sesion";
 import { etiquetaMotivo } from "../lib/motivosRevision";
 import { AppShell } from "../layouts/AppShell";
 import { Badge } from "../components/Badge";
+import { DescartarMarcaTardiaModal } from "../components/DescartarMarcaTardiaModal";
+import { Button } from "../components/Button";
 import { Input } from "../components/Input";
 
 type Excepcion = {
@@ -15,8 +19,31 @@ type Excepcion = {
   creado_en: string;
   marca_id: number | null;
   dia_id: number | null;
+  persona_id?: string | null;
   persona_nombre: string | null;
   momento_dispositivo: string | null;
+  // Sólo las de motivo dia_cerrado (86_*.sql); ausentes/false/null en el resto.
+  es_dia_cerrado?: boolean;
+  dia_de_la_marca_id?: number | null;
+  dia_de_la_marca_fecha?: string | null;
+  dia_de_la_marca_estado?: "abierto" | "bloqueado" | "cerrado" | "revisado" | null;
+  camino_resolucion?: "revisar_dia" | "descartar" | null;
+};
+
+type Tipo = "todas" | "dia_cerrado";
+
+// Mismas etiquetas/variantes que la pantalla de Días para el estado del día.
+const ETIQUETA_ESTADO_DIA: Record<string, string> = {
+  abierto: "Abierto",
+  cerrado: "Cerrado",
+  bloqueado: "Bloqueado — necesita revisión",
+  revisado: "Revisado",
+};
+const VARIANTE_ESTADO_DIA: Record<string, "neutra" | "peligro" | "exito"> = {
+  abierto: "neutra",
+  cerrado: "neutra",
+  bloqueado: "peligro",
+  revisado: "exito",
 };
 
 type EstadoCarga = "cargando" | "listo" | "error";
@@ -51,6 +78,11 @@ export function ColaExcepcionesPage() {
   const [filtroDesde, setFiltroDesde] = useState("");
   const [filtroHasta, setFiltroHasta] = useState("");
   const [orden, setOrden] = useState<Orden>("fecha_desc");
+  const [tipo, setTipo] = useState<Tipo>("todas");
+  // Sólo comodidad de UI (la base decide en fn_excepcion_dia_cerrado_descartar): sin sesión
+  // legible se trata como "sin permiso" y no se ofrece una acción que daría 403.
+  const [puedeDescartar, setPuedeDescartar] = useState(false);
+  const [aDescartar, setADescartar] = useState<Excepcion | null>(null);
 
   function cargar() {
     setEstadoCarga("cargando");
@@ -71,15 +103,27 @@ export function ColaExcepcionesPage() {
 
   useEffect(() => {
     cargar();
+    consultarSesion()
+      .then((sesion) => setPuedeDescartar(sesion.puede_descartar_excepciones === true))
+      .catch(() => setPuedeDescartar(false));
   }, []);
+
+  const totalDiaCerrado = useMemo(
+    () => excepciones.filter((excepcion) => excepcion.es_dia_cerrado).length,
+    [excepciones],
+  );
+  const visibles = useMemo(
+    () => (tipo === "dia_cerrado" ? excepciones.filter((excepcion) => excepcion.es_dia_cerrado) : excepciones),
+    [excepciones, tipo],
+  );
 
   const porMotivo = useMemo(() => {
     const conteo = new Map<string, number>();
-    for (const excepcion of excepciones) {
+    for (const excepcion of visibles) {
       conteo.set(excepcion.motivo_revision, (conteo.get(excepcion.motivo_revision) ?? 0) + 1);
     }
     return conteo;
-  }, [excepciones]);
+  }, [visibles]);
 
   const motivosPresentes = useMemo(
     () => [...porMotivo.keys()].sort((a, b) => a.localeCompare(b)),
@@ -91,7 +135,7 @@ export function ColaExcepcionesPage() {
     const desde = filtroDesde ? new Date(`${filtroDesde}T00:00:00`) : null;
     const hasta = filtroHasta ? new Date(`${filtroHasta}T23:59:59`) : null;
 
-    const resultado = excepciones.filter((excepcion) => {
+    const resultado = visibles.filter((excepcion) => {
       const coincideBusqueda = !consulta || normalizar(excepcion.persona_nombre ?? "").includes(consulta);
       const coincideMotivo = !filtroMotivo || excepcion.motivo_revision === filtroMotivo;
       const fechaDetectada = new Date(excepcion.creado_en);
@@ -113,7 +157,51 @@ export function ColaExcepcionesPage() {
           return b.creado_en.localeCompare(a.creado_en);
       }
     });
-  }, [excepciones, busqueda, filtroMotivo, filtroDesde, filtroHasta, orden]);
+  }, [visibles, busqueda, filtroMotivo, filtroDesde, filtroHasta, orden]);
+
+  // Una excepción de día cerrado nunca se corrige: se resuelve revisando el día o descartando la
+  // marca tardía (camino_resolucion lo decide el backend según el estado del día).
+  function renderAccion(excepcion: Excepcion) {
+    if (!excepcion.es_dia_cerrado) {
+      return (
+        <a href={`/tiempo/excepciones/${excepcion.id}/corregir`} className="boton-con-icono">
+          <Wrench size={14} aria-hidden="true" />
+          Corregir
+        </a>
+      );
+    }
+    if (excepcion.camino_resolucion === "revisar_dia") {
+      return (
+        <a
+          href={hrefRevisarDia({
+            diaId: excepcion.dia_de_la_marca_id,
+            personaId: excepcion.persona_id,
+            fecha: excepcion.dia_de_la_marca_fecha,
+          })}
+          className="boton-con-icono"
+        >
+          <Eye size={14} aria-hidden="true" />
+          Revisar día
+        </a>
+      );
+    }
+    if (excepcion.camino_resolucion === "descartar") {
+      if (!puedeDescartar) {
+        return (
+          <span className="sin-accion">
+            <Lock size={14} aria-hidden="true" />
+            Sin permiso para descartar. El día ya está revisado: sólo se puede descartar.
+          </span>
+        );
+      }
+      return (
+        <Button className="boton-descartar" icono={Trash2} posicionIcono="izquierda" onClick={() => setADescartar(excepcion)}>
+          Descartar marca tardía
+        </Button>
+      );
+    }
+    return "—";
+  }
 
   return (
     <AppShell>
@@ -125,10 +213,33 @@ export function ColaExcepcionesPage() {
           <div>
             <h1>Excepciones pendientes</h1>
             <p className="subtitulo-pagina">
-              Marcas apartadas para revisión — corrígelas para cerrar la excepción.
+              Marcas apartadas para revisión — corrígelas para cerrar la excepción. Las de tipo{" "}
+              <em>día cerrado</em> no se corrigen: se resuelven revisando el día o, si el día ya está
+              revisado, descartando la marca tardía.
             </p>
           </div>
         </div>
+
+        {estadoCarga === "listo" && (
+          <div role="tablist" aria-label="Tipo de excepción" className="pestanas-tipo">
+            <Button
+              role="tab"
+              aria-selected={tipo === "todas"}
+              variante={tipo === "todas" ? "primario" : "plano"}
+              onClick={() => setTipo("todas")}
+            >
+              {`Todas (${excepciones.length})`}
+            </Button>
+            <Button
+              role="tab"
+              aria-selected={tipo === "dia_cerrado"}
+              variante={tipo === "dia_cerrado" ? "primario" : "plano"}
+              onClick={() => setTipo("dia_cerrado")}
+            >
+              {`Día cerrado (${totalDiaCerrado})`}
+            </Button>
+          </div>
+        )}
 
         {estadoCarga === "listo" && excepciones.length > 0 && (
           <div className="banda-metricas">
@@ -137,7 +248,7 @@ export function ColaExcepcionesPage() {
                 <span className="punto punto--aviso" aria-hidden="true" />
                 Pendientes
               </span>
-              <strong>{excepciones.length}</strong>
+              <strong>{visibles.length}</strong>
             </div>
             {[...porMotivo.entries()].map(([motivo, cantidad]) => (
               <div className="metrica" key={motivo}>
@@ -221,13 +332,24 @@ export function ColaExcepcionesPage() {
           </div>
         )}
 
-        {estadoCarga === "listo" && excepciones.length === 0 && (
+        {estadoCarga === "listo" && tipo === "todas" && excepciones.length === 0 && (
           <div className="estado-vacio">
             <p>No hay excepciones de marca pendientes.</p>
           </div>
         )}
 
-        {estadoCarga === "listo" && excepciones.length > 0 && filtradas.length === 0 && (
+        {estadoCarga === "listo" && tipo === "dia_cerrado" && visibles.length === 0 && (
+          <div className="estado-vacio">
+            <p>
+              <strong>No hay excepciones de día cerrado pendientes.</strong>
+              <br />
+              Las marcas tardías de días ya cerrados aparecerán aquí hasta que se revise el día o se
+              descarten.
+            </p>
+          </div>
+        )}
+
+        {estadoCarga === "listo" && visibles.length > 0 && filtradas.length === 0 && (
           <div className="estado-vacio">
             <p>Ninguna excepción coincide con la búsqueda.</p>
           </div>
@@ -240,9 +362,16 @@ export function ColaExcepcionesPage() {
                 <tr>
                   <th>Persona</th>
                   <th>Marca original</th>
-                  <th>Motivo</th>
+                  {tipo === "dia_cerrado" ? (
+                    <>
+                      <th>Día de la marca</th>
+                      <th>Estado del día</th>
+                    </>
+                  ) : (
+                    <th>Motivo</th>
+                  )}
                   <th>Detectada</th>
-                  <th></th>
+                  <th>Acción</th>
                 </tr>
               </thead>
               <tbody>
@@ -253,26 +382,44 @@ export function ColaExcepcionesPage() {
                         (excepcion.dia_id !== null ? "Excepción de día" : "—")}
                     </td>
                     <td>{formatearFechaHora(excepcion.momento_dispositivo)}</td>
-                    <td>
-                      <Badge variante="aviso">
-                        {etiquetaMotivo(excepcion.motivo_revision)}
-                      </Badge>
-                    </td>
+                    {tipo === "dia_cerrado" ? (
+                      <>
+                        <td className="num">
+                          {formatearFechaCorta(excepcion.dia_de_la_marca_fecha) ?? "—"}
+                        </td>
+                        <td>
+                          {excepcion.dia_de_la_marca_estado ? (
+                            <Badge variante={VARIANTE_ESTADO_DIA[excepcion.dia_de_la_marca_estado]}>
+                              {ETIQUETA_ESTADO_DIA[excepcion.dia_de_la_marca_estado]}
+                            </Badge>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      </>
+                    ) : (
+                      <td>
+                        <Badge variante="aviso">
+                          {etiquetaMotivo(excepcion.motivo_revision)}
+                        </Badge>
+                      </td>
+                    )}
                     <td>{formatearFechaHora(excepcion.creado_en)}</td>
-                    <td>
-                      <a
-                        href={`/tiempo/excepciones/${excepcion.id}/corregir`}
-                        className="boton-con-icono"
-                      >
-                        <Wrench size={14} aria-hidden="true" />
-                        Corregir
-                      </a>
-                    </td>
+                    <td>{renderAccion(excepcion)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        )}
+        {aDescartar && (
+          <DescartarMarcaTardiaModal
+            excepcion={aDescartar}
+            onCerrar={(refrescar) => {
+              setADescartar(null);
+              if (refrescar) cargar();
+            }}
+          />
         )}
       </div>
     </AppShell>

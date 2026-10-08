@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Loader2, Search } from "lucide-react";
+import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Info, Loader2, Search } from "lucide-react";
 
 import { apiFetch } from "../lib/apiClient";
-import { formatearHoraMexico } from "../lib/calendario";
+import { formatearFechaCorta, formatearHoraMexico } from "../lib/calendario";
+import { hrefRevisarDia, leerFiltrosDiasDeUrl } from "../lib/enlacesDias";
 import { AppShell } from "../layouts/AppShell";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
@@ -118,6 +119,20 @@ const ETIQUETA_ORIGEN: Record<"automatico_confianza" | "ausencia_autorizada", st
   ausencia_autorizada: "Ausencia autorizada",
 };
 
+// Marca tardía de un día ya cerrado (GET /api/excepciones?tipo=dia_cerrado). Sólo se usan los
+// campos para resumirlas y cruzarlas con la tabla por dia_de_la_marca_id.
+type MarcaTardia = {
+  id: number;
+  persona_id: string | null;
+  persona_nombre: string | null;
+  momento_dispositivo: string | null;
+  es_dia_cerrado?: boolean;
+  dia_de_la_marca_id: number | null;
+  dia_de_la_marca_fecha: string | null;
+  dia_de_la_marca_estado: EstadoDia | null;
+  camino_resolucion: "revisar_dia" | "descartar" | null;
+};
+
 const ETIQUETA_ALERTA_ENTRADA: Record<"retardo" | "entrada_anticipada", string> = {
   retardo: "Retardo",
   entrada_anticipada: "Entrada anticipada",
@@ -134,8 +149,13 @@ export function DiasPage() {
   const [estadoCarga, setEstadoCarga] = useState<EstadoCarga>("cargando");
   const [busqueda, setBusqueda] = useState("");
   const [busquedaDebounced, setBusquedaDebounced] = useState("");
-  const [desde, setDesde] = useState("");
-  const [hasta, setHasta] = useState("");
+  // Filtros que llegan por la URL ("Ir a revisar el día" desde Marcas/Excepciones): dia_id cae en
+  // la fila exacta; persona_id + desde/hasta acotan cuando el día aún no existe como fila.
+  const [filtrosUrl] = useState(() => leerFiltrosDiasDeUrl(window.location.search));
+  const [filtroDiaId, setFiltroDiaId] = useState(filtrosUrl.diaId);
+  const [filtroPersonaId, setFiltroPersonaId] = useState(filtrosUrl.personaId);
+  const [desde, setDesde] = useState(filtrosUrl.desde);
+  const [hasta, setHasta] = useState(filtrosUrl.hasta);
   const [filtroEstado, setFiltroEstado] = useState<EstadoDia | "">("");
   const [orden, setOrden] = useState<Orden>("fecha_desc");
   const [desplazamiento, setDesplazamiento] = useState(0);
@@ -167,6 +187,33 @@ export function DiasPage() {
       });
   }, []);
 
+  // Mismo criterio best-effort que el banner de corte: si falla, simplemente no aparece.
+  const [tardias, setTardias] = useState<MarcaTardia[]>([]);
+  const [tardiasAbierto, setTardiasAbierto] = useState(true);
+
+  useEffect(() => {
+    apiFetch("/api/excepciones?tipo=dia_cerrado")
+      .then((respuesta) => {
+        if (!respuesta.ok) throw new Error(`status ${respuesta.status}`);
+        return respuesta.json();
+      })
+      .then((datos: MarcaTardia[]) => setTardias(datos.filter((t) => t.camino_resolucion !== null)))
+      .catch(() => {
+        // silencioso a propósito -- ver comentario arriba.
+      });
+  }, []);
+
+  const tardiasPorDia = new Map<number, MarcaTardia[]>();
+  for (const tardia of tardias) {
+    if (tardia.dia_de_la_marca_id === null) continue;
+    tardiasPorDia.set(tardia.dia_de_la_marca_id, [
+      ...(tardiasPorDia.get(tardia.dia_de_la_marca_id) ?? []),
+      tardia,
+    ]);
+  }
+  const porRevisar = tardias.filter((t) => t.camino_resolucion === "revisar_dia").length;
+  const porDescartar = tardias.filter((t) => t.camino_resolucion === "descartar").length;
+
   useEffect(() => {
     const id = setTimeout(() => {
       setBusquedaDebounced(busqueda.trim());
@@ -177,6 +224,8 @@ export function DiasPage() {
 
   function cargar() {
     const params = new URLSearchParams();
+    if (filtroDiaId) params.set("dia_id", filtroDiaId);
+    if (filtroPersonaId) params.set("persona_id", filtroPersonaId);
     if (busquedaDebounced) params.set("busqueda_persona", busquedaDebounced);
     if (desde) params.set("desde", desde);
     if (hasta) params.set("hasta", hasta);
@@ -205,9 +254,17 @@ export function DiasPage() {
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(cargar, [busquedaDebounced, desde, hasta, filtroEstado, orden, desplazamiento]);
+  useEffect(cargar, [busquedaDebounced, desde, hasta, filtroEstado, orden, desplazamiento, filtroDiaId, filtroPersonaId]);
 
   const hayFiltrosActivos = !!(busqueda || desde || hasta || filtroEstado);
+  const hayFiltroDeUrl = !!(filtroDiaId || filtroPersonaId);
+
+  function verTodosLosDias() {
+    window.history.replaceState(null, "", window.location.pathname);
+    setFiltroDiaId("");
+    setFiltroPersonaId("");
+    limpiarFiltros();
+  }
 
   function limpiarFiltros() {
     setBusqueda("");
@@ -343,6 +400,76 @@ export function DiasPage() {
               </ul>
             )}
           </Card>
+        )}
+
+        {tardias.length > 0 && (
+          <Card>
+            <button
+              type="button"
+              className="boton-con-icono"
+              style={{ justifyContent: "space-between", width: "100%", textAlign: "left" }}
+              aria-expanded={tardiasAbierto}
+              onClick={() => setTardiasAbierto((anterior) => !anterior)}
+            >
+              <span className="boton-con-icono" style={{ justifyContent: "flex-start" }}>
+                <AlertTriangle size={16} aria-hidden="true" />
+                {tardias.length === 1
+                  ? "1 marca tardía en un día ya cerrado espera resolución"
+                  : `${tardias.length} marcas tardías en días ya cerrados esperan resolución`}{" "}
+                ({porRevisar} por revisar el día, {porDescartar} por descartar).
+              </span>
+              {tardiasAbierto ? (
+                <ChevronDown size={16} aria-hidden="true" />
+              ) : (
+                <ChevronRight size={16} aria-hidden="true" />
+              )}
+            </button>
+            {tardiasAbierto && (
+              <>
+                <ul style={{ marginTop: "0.75rem", marginBottom: 0 }}>
+                  {tardias.map((tardia) => (
+                    <li key={tardia.id}>
+                      {tardia.persona_nombre ?? "—"} — {formatearFecha(tardia.dia_de_la_marca_fecha ?? "")},
+                      marca {formatearHora(tardia.momento_dispositivo)} · día{" "}
+                      {tardia.dia_de_la_marca_estado ? ETIQUETA_ESTADO[tardia.dia_de_la_marca_estado] : "—"}{" "}
+                      {tardia.camino_resolucion === "revisar_dia" ? (
+                        <a
+                          href={hrefRevisarDia({
+                            diaId: tardia.dia_de_la_marca_id,
+                            personaId: tardia.persona_id,
+                            fecha: tardia.dia_de_la_marca_fecha,
+                          })}
+                        >
+                          Revisar este día
+                        </a>
+                      ) : (
+                        <a href="/tiempo/excepciones">Descartar en Excepciones →</a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                <p style={{ marginTop: "0.75rem", marginBottom: 0 }}>
+                  <a href="/tiempo/excepciones">Ver todas en Excepciones pendientes →</a>
+                </p>
+              </>
+            )}
+          </Card>
+        )}
+
+        {hayFiltroDeUrl && (
+          <div className="banner-aviso banner-aviso--info" role="note">
+            <Info size={16} aria-hidden="true" />
+            <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+              <span>
+                {filtroDiaId
+                  ? "Mostrando un día específico."
+                  : "Mostrando los días de una persona específica."}
+              </span>
+              <Button type="button" onClick={verTodosLosDias}>
+                Ver todos los días
+              </Button>
+            </div>
+          </div>
         )}
 
         <div className="barra-filtros">
@@ -496,7 +623,16 @@ export function DiasPage() {
                         </td>
                         <td>
                           {dia.excepciones_pendientes > 0 ? (
-                            <Badge variante="aviso">{dia.excepciones_pendientes} pendiente(s)</Badge>
+                            <>
+                              <Badge variante="aviso">{dia.excepciones_pendientes} pendiente(s)</Badge>
+                              {tardiasPorDia.has(dia.id) && (
+                                <div className="ayuda-campo">
+                                  {tardiasPorDia.get(dia.id)![0].camino_resolucion === "descartar"
+                                    ? "marca tardía por descartar"
+                                    : `incluye ${tardiasPorDia.get(dia.id)!.length} marca${tardiasPorDia.get(dia.id)!.length === 1 ? "" : "s"} tardía${tardiasPorDia.get(dia.id)!.length === 1 ? "" : "s"}`}
+                                </div>
+                              )}
+                            </>
                           ) : (
                             "—"
                           )}
@@ -521,6 +657,17 @@ export function DiasPage() {
                               ¿Marcar como revisado el día de <strong>{dia.persona_nombre ?? "—"}</strong>{" "}
                               ({formatearFecha(dia.fecha)})?
                             </p>
+                            {tardiasPorDia.has(dia.id) && (
+                              <div className="banner-aviso" role="note">
+                                <AlertTriangle size={16} aria-hidden="true" />
+                                <div>
+                                  Este día tiene <strong>marca tardía pendiente</strong>. Al revisar, las
+                                  marcas tardías que queden dentro de un tramo se resuelven solas. Si alguna
+                                  quedara sin pareja, no se revisa el día y no se resuelve nada: primero hay
+                                  que corregirla con captura manual.
+                                </div>
+                              </div>
+                            )}
                             {faseConfirmacion === "bloqueada" && (
                               <p role="alert">
                                 Este día tiene una marca sin pareja — corregí la marca faltante o

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup 02 — Excepciones de día cerrado</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../frontend/src/styles/tokens.css">
+<link rel="stylesheet" href="_mockup.css">
+</head>
+<body data-activo="Excepciones pendientes">
+<div class="mock-barra" data-estados="datos:Con permiso (tabla),tarjetas:Con permiso (tarjetas),sinpermiso:Sin permiso de descarte,carga:Cargando,vacio:Vacío,error:Error de carga">
+  <strong>Mockup 02 · /tiempo/excepciones</strong><span>Estado:</span><span class="estados"></span>
+  <span>· <a href="?limpio=1">ocultar notas</a></span>
+</div>
+<div class="app-shell">
+<aside class="app-shell-aside" id="shell-aside"></aside>
+<main class="app-shell-main">
+<div class="contenedor-pagina contenedor-pagina--ancho">
+  <nav class="migas"><strong>Excepciones pendientes</strong></nav>
+  <div class="encabezado-pagina"><div>
+    <h1>Excepciones pendientes</h1>
+    <p class="subtitulo-pagina">Marcas apartadas para revisión. Las de tipo <em>día cerrado</em> no se corrigen: se resuelven revisando el día o, si el día ya está revisado, descartando la marca tardía.</p>
+  </div></div>
+
+  <p class="nota-diseno"><strong>Cambios vs. hoy:</strong> selector de <em>Tipo</em> (Todas / Día cerrado → <code>GET /api/excepciones?tipo=dia_cerrado</code>); en "Día cerrado" la columna de acción deja de ser "Corregir" y pasa a depender de <code>camino_resolucion</code>. En "Todas" las excepciones de día cerrado muestran la misma acción (nunca "Corregir"). El resto de la pantalla (métricas, búsqueda, filtros) se conserva.</p>
+
+  <div role="tablist" aria-label="Tipo de excepción" style="display:flex;gap:.4rem;margin-bottom:1.25rem">
+    <button role="tab" aria-selected="false" class="boton-con-icono" style="border:1px solid var(--linea);border-radius:999px;padding:.4rem .9rem;background:#fff">Todas (7)</button>
+    <button role="tab" aria-selected="true" class="boton-con-icono boton-primario" style="padding:.4rem .9rem;border-radius:999px;font-size:.88rem">Día cerrado (3)</button>
+  </div>
+
+  <div data-solo="datos tarjetas sinpermiso">
+  <div class="banda-metricas">
+    <div class="metrica"><span class="etiqueta-metrica"><span class="punto punto--aviso"></span>Pendientes</span><strong>3</strong></div>
+    <div class="metrica"><span class="etiqueta-metrica">Por revisar el día</span><strong>2</strong></div>
+    <div class="metrica"><span class="etiqueta-metrica">Por descartar</span><strong>1</strong></div>
+  </div>
+  <div class="barra-filtros">
+    <div class="campo-con-icono"><i data-ic-campo="search"></i><input type="search" placeholder="Buscar por persona" aria-label="Buscar por persona"></div>
+    <div class="grupo-filtros-secundarios">
+      <select aria-label="Filtrar por camino"><option>Camino: Todos</option><option>Revisar el día</option><option>Descartar marca tardía</option></select>
+      <select aria-label="Ordenar por"><option>Detectada: más recientes primero</option></select>
+    </div>
+  </div>
+  </div>
+
+  <section data-solo="sinpermiso"><div class="banner-aviso banner-aviso--info" role="note"><span data-ic="lock"></span>
+    <div><strong>Puedes ver estas excepciones pero no descartarlas.</strong> Descartar una marca tardía requiere el permiso <em>Descartar excepciones de día cerrado</em>. Si hace falta, pídeselo a Recursos Humanos.</div></div></section>
+
+  <section data-solo="carga" role="status"><p class="boton-con-icono"><span class="icono-girando" data-ic="loader"></span>Cargando excepciones…</p>
+    <div style="display:grid;gap:.6rem;margin-top:.5rem"><div class="esqueleto"></div><div class="esqueleto"></div><div class="esqueleto"></div></div></section>
+
+  <section data-solo="error"><div class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se pudo cargar la cola de excepciones</strong><p>Ocurrió un problema al consultar las excepciones pendientes.</p>
+    <button type="button" style="margin-top:.6rem">Reintentar</button></div></section>
+
+  <section data-solo="vacio"><div class="estado-vacio"><span data-ic="checkc" data-s="40"></span>
+    <p><strong>No hay excepciones de día cerrado pendientes.</strong><br>Las marcas tardías de días ya cerrados aparecerán aquí hasta que se revise el día o se descarten.</p></div></section>
+
+  <!-- TABLA (desktop) -->
+  <section data-solo="datos sinpermiso">
+  <div class="tabla-desplazable"><table>
+    <thead><tr><th>Persona</th><th>Marca (hora)</th><th>Día de la marca</th><th>Estado del día</th><th>Detectada</th><th>Acción</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Pedro Salas</td><td class="num">05 oct 2026, 19:20</td><td class="num">05 oct 2026</td>
+        <td><span class="insignia insignia--peligro">Bloqueado — necesita revisión</span></td><td class="num">07 oct 2026, 07:55</td>
+        <td><a href="#" class="boton-con-icono"><span data-ic="eye" data-s="14"></span>Revisar día</a></td>
+      </tr>
+      <tr>
+        <td>Marta Núñez</td><td class="num">04 oct 2026, 18:03</td><td class="num">04 oct 2026</td>
+        <td><span class="insignia insignia--neutra">Cerrado</span></td><td class="num">06 oct 2026, 08:10</td>
+        <td><a href="#" class="boton-con-icono"><span data-ic="eye" data-s="14"></span>Revisar día</a></td>
+      </tr>
+      <tr>
+        <td>Luis Ramírez</td><td class="num">03 oct 2026, 20:41</td><td class="num">03 oct 2026</td>
+        <td><span class="insignia insignia--exito">Revisado</span></td><td class="num">05 oct 2026, 09:02</td>
+        <td>
+          <span data-solo="datos"><button type="button" class="boton-con-icono" style="border:1px solid #b3261e;color:#b3261e;border-radius:10px;padding:.5rem .9rem;background:#fff;font-weight:600" data-ic="trash" data-s="14">Descartar marca tardía</button></span>
+          <span data-solo="sinpermiso"><span class="sin-accion"><span data-ic="lock" data-s="14"></span>Sin permiso para descartar. El día ya está revisado: sólo se puede descartar.</span></span>
+        </td>
+      </tr>
+    </tbody></table></div>
+  <p class="pie-tabla">3 excepciones de día cerrado</p>
+  <p class="nota-diseno" style="margin-top:1rem"><strong>Orden de acción:</strong> <code>camino_resolucion='revisar_dia'</code> → enlace "Revisar día" (a Días, prefiltrado por persona y fecha; no es botón de peligro). <code>'descartar'</code> → botón de borde rojo (no relleno: la acción es irreversible pero no urgente, el relleno rojo se reserva a la confirmación del modal). <code>null</code> (ya no pendiente) → "—". "Estado del día" usa exactamente los badges de Días.</p>
+  </section>
+
+  <!-- TARJETAS (compacto / angosto) -->
+  <section data-solo="tarjetas"><div class="rejilla-excepciones">
+    <div class="tarjeta-resumen tarjeta-excepcion">
+      <div class="tarjeta-excepcion__cab"><h3>Pedro Salas</h3><span class="insignia insignia--aviso">Día ya cerrado</span></div>
+      <dl><dt>Marca</dt><dd class="num">05 oct 2026, 19:20</dd><dt>Día</dt><dd class="num">05 oct 2026 <span class="insignia insignia--peligro" style="margin-left:.3rem">Bloqueado</span></dd><dt>Detectada</dt><dd class="num">07 oct 2026, 07:55</dd></dl>
+      <div class="tarjeta-excepcion__pie"><a href="#" class="boton-con-icono"><span data-ic="eye" data-s="14"></span>Revisar día</a></div>
+    </div>
+    <div class="tarjeta-resumen tarjeta-excepcion">
+      <div class="tarjeta-excepcion__cab"><h3>Luis Ramírez</h3><span class="insignia insignia--aviso">Día ya cerrado</span></div>
+      <dl><dt>Marca</dt><dd class="num">03 oct 2026, 20:41</dd><dt>Día</dt><dd class="num">03 oct 2026 <span class="insignia insignia--exito" style="margin-left:.3rem">Revisado</span></dd><dt>Detectada</dt><dd class="num">05 oct 2026, 09:02</dd></dl>
+      <div class="tarjeta-excepcion__pie"><button type="button" class="boton-con-icono" style="border:1px solid #b3261e;color:#b3261e;border-radius:10px;padding:.5rem .9rem;background:#fff;font-weight:600" data-ic="trash" data-s="14">Descartar marca tardía</button></div>
+    </div>
+  </div>
+  <p class="nota-diseno" style="margin-top:1rem">Alternativa compacta (el usuario elige tabla o tarjetas; la tabla es la recomendada por coherencia con el resto de Tiempo).</p></section>
+</div></main></div>
+<script src="_mockup.js"></script>
+</body></html>

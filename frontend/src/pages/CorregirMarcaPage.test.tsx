@@ -137,4 +137,16 @@ describe("CorregirMarcaPage", () => {
       expect(screen.getByText(/exige el permiso excepcion_reapertura/i)).toBeInTheDocument(),
     );
   });
+
+  it("409 (tramo cerrado/día cerrado): el detail fijo del backend se ve en una alerta", async () => {
+    const detail = "Este día ya está cerrado: la corrección no se refleja en las horas. Revisa el día.";
+    mockApiFetch({ post: new Response(JSON.stringify({ detail }), { status: 409 }) });
+
+    renderPagina();
+    await waitFor(() => expect(screen.getByText("Persona Ficticia")).toBeInTheDocument());
+    await userEvent.type(screen.getByLabelText(/motivo/i), "Ajuste");
+    await userEvent.click(screen.getByRole("button", { name: /guardar corrección/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(detail);
+  });
 });

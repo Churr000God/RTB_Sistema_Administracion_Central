@@ -2319,3 +2319,234 @@ a.boton-con-icono {
   border-color: var(--teal);
   box-shadow: 0 0 0 1px var(--teal);
 }
+
+/* ─── §corrección bloqueada + excepciones de día cerrado + modal ─── */
+/* Componentes nuevos del diseño aprobado en diseno_paginas/tiempo_excepciones_y_correcciones/. */
+
+.banner-aviso {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.8rem 1rem;
+  margin-bottom: 1.25rem;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  background: rgba(173, 149, 81, 0.12);
+  border: 1px solid rgba(173, 149, 81, 0.35);
+  color: #5b4a12;
+}
+
+.banner-aviso svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.banner-aviso--info {
+  background: var(--blanco);
+  border-color: var(--linea);
+  color: var(--navy-medio);
+}
+
+.banner-aviso--info svg {
+  color: var(--teal);
+}
+
+.aviso-bloqueo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+  min-width: 13rem;
+}
+
+.aviso-bloqueo__fila,
+.aviso-bloqueo__enlaces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  align-items: center;
+}
+
+.boton-corregir-bloqueado {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: not-allowed;
+  padding: 0.45rem 0.8rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: rgba(0, 43, 91, 0.55);
+  background: rgba(0, 43, 91, 0.05);
+  border: 1px dashed rgba(0, 43, 91, 0.3);
+}
+
+.enlace-porque {
+  all: unset;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--teal);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.boton-corregir-bloqueado:focus-visible,
+.enlace-porque:focus-visible {
+  outline: 3px solid var(--teal);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.aviso-bloqueo__texto {
+  margin: 0;
+  max-width: 24rem;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--navy-medio);
+  background: var(--superficie);
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+}
+
+.aviso-bloqueo__texto[hidden] {
+  display: none;
+}
+
+.tarjeta-resumen + .barra-filtros,
+.banner-aviso + .barra-filtros {
+  margin-top: 1.5rem;
+}
+
+.boton-peligro {
+  background: #b3261e;
+  color: #fff;
+  padding: 0.65rem 1.1rem;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.boton-peligro:hover {
+  background: #8c1d18;
+}
+
+.boton-peligro:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.boton-descartar {
+  border: 1px solid #b3261e;
+  color: #b3261e;
+  background: var(--blanco);
+  border-radius: 10px;
+  padding: 0.5rem 0.9rem;
+  font-weight: 600;
+}
+
+/* <dialog> nativo: showModal() ya da foco atrapado, Esc y ::backdrop. */
+dialog.modal {
+  width: min(32rem, calc(100% - 2rem));
+  border: none;
+  background: var(--blanco);
+  border-radius: var(--radio-tarjeta);
+  box-shadow: 0 12px 40px rgba(0, 43, 91, 0.28);
+  padding: 1.5rem;
+  color: var(--navy);
+}
+
+dialog.modal::backdrop {
+  background: rgba(0, 43, 91, 0.45);
+}
+
+dialog.modal[open] {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.modal h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.modal__contexto {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--navy-medio);
+}
+
+.modal__advertencia {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  background: #fdecea;
+  border: 1px solid rgba(179, 38, 30, 0.25);
+  color: #8c1d18;
+}
+
+.modal__advertencia svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.modal__contador {
+  text-align: right;
+  font-size: 0.78rem;
+  color: var(--navy-medio);
+  margin-top: 0.25rem;
+}
+
+.modal__botonera {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.campo-error textarea {
+  border-color: #b3261e;
+}
+
+.mensaje-campo {
+  color: #b3261e;
+  font-size: 0.8rem;
+  margin-top: 0.3rem;
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.sin-accion {
+  font-size: 0.8rem;
+  color: var(--navy-medio);
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-start;
+}
+
+.sin-accion svg {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.pestanas-tipo {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+}
+
+.pestanas-tipo .boton-con-icono {
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.88rem;
+}

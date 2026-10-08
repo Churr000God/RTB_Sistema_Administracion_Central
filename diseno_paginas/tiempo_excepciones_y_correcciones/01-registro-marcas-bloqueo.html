@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup 01 — Registro de marcas: corrección bloqueada</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../frontend/src/styles/tokens.css">
+<link rel="stylesheet" href="_mockup.css">
+</head>
+<body data-activo="Registro de marcas">
+<div class="mock-barra" data-estados="datos:Con datos,carga:Cargando,vacio:Vacío,error:Error de carga">
+  <strong>Mockup 01 · /tiempo/marcas</strong><span>Estado:</span><span class="estados"></span>
+  <span>· <a href="?limpio=1">ocultar notas</a></span>
+</div>
+<div class="app-shell">
+<aside class="app-shell-aside" id="shell-aside"></aside>
+<main class="app-shell-main">
+<div class="contenedor-pagina contenedor-pagina--ancho">
+  <nav class="migas"><strong>Registro de marcas</strong></nav>
+  <div class="encabezado-pagina"><div>
+    <h1>Registro de marcas</h1>
+    <p class="subtitulo-pagina">"Ocurrió" es la hora real del evento según el reloj del dispositivo — la que calcula la jornada. "Recibida" es sólo cuándo llegó al servidor y nunca entra en ese cálculo. El feed se refresca solo cada 20 segundos.</p>
+  </div></div>
+
+  <p class="nota-diseno"><strong>Cambios vs. hoy:</strong> (1) banner permanente de orientación sobre cuándo se corrige; (2) la celda <em>Acciones</em> distingue 3 bloqueos con el mismo patrón: etiqueta corta + "¿Por qué?" + acción contextual. Filtros, tabla y pie no cambian.</p>
+
+  <div class="banner-aviso banner-aviso--info" role="note">
+    <span data-ic="circle"></span>
+    <div><strong>¿Cuándo se puede corregir una marca desde aquí?</strong> Sólo mientras su día sigue abierto y la marca todavía no forma parte de un tramo. Después del cierre de día casi ninguna marca se puede corregir por esta pantalla: si falta o sobra una marca, usa <a href="#">captura manual</a> o revisa el día en <a href="#">Días</a>.</div>
+  </div>
+
+  <div class="barra-filtros">
+    <div class="campo-con-icono"><i data-ic-campo="search"></i>
+      <select aria-label="Filtrar por persona"><option>Persona: Todas</option></select></div>
+    <div class="grupo-filtros-secundarios">
+      <div><label for="d">Desde</label><input id="d" type="datetime-local"></div>
+      <div><label for="h">Hasta</label><input id="h" type="datetime-local"></div>
+    </div>
+  </div>
+  <p class="boton-con-icono indicador-en-vivo"><span data-ic="radio" data-s="14"></span>En vivo · última actualización 09:41:12</p>
+
+  <section data-solo="carga" role="status"><p class="boton-con-icono"><span class="icono-girando" data-ic="loader"></span>Cargando marcas…</p>
+    <div style="display:grid;gap:.6rem;margin-top:.5rem"><div class="esqueleto"></div><div class="esqueleto"></div><div class="esqueleto"></div><div class="esqueleto"></div></div></section>
+
+  <section data-solo="error"><div class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se pudo cargar el registro de marcas</strong><p>Ocurrió un problema al consultar las marcas.</p>
+    <button type="button" style="margin-top:.6rem" class="boton-con-icono">Reintentar</button></div>
+    <p class="nota-diseno" style="margin-top:1rem">Cambio menor: hoy esta tarjeta no tiene "Reintentar" (la Cola de excepciones sí). Se propone igualar.</p></section>
+
+  <section data-solo="vacio"><div class="estado-vacio"><p>No hay marcas que coincidan con la búsqueda.</p></div></section>
+
+  <section data-solo="datos">
+  <ul class="leyenda-estados" aria-label="Leyenda de acciones">
+    <li><span class="insignia insignia--aviso">Corregible</span> excepción pendiente, marca libre</li>
+    <li><span class="boton-corregir-bloqueado" style="padding:.1rem .5rem;font-size:.75rem" data-ic="lock" data-s="12">Bloqueada</span> no se puede corregir aquí</li>
+  </ul>
+  <div class="tabla-desplazable"><table>
+    <thead><tr><th>Persona</th><th>Terminal</th><th>Origen</th><th>Reloj</th><th>Ocurrió</th><th>Recibida</th><th>Revisión</th><th>Acciones</th></tr></thead>
+    <tbody>
+      <!-- 1. Corregible: motivo_bloqueo_correccion = null, excepcion_pendiente_id != null -->
+      <tr>
+        <td>Ana Torres</td><td>TERM-01</td><td>Terminal</td><td><span class="insignia insignia--aviso">Sin sincronizar</span></td>
+        <td class="num">07 oct 2026, 08:02 (-06:00)</td><td class="num">07 oct 2026, 08:02</td>
+        <td><span class="insignia insignia--aviso">Pendiente</span><div class="ayuda-campo">Reloj no sincronizado</div></td>
+        <td><a href="#" class="boton-con-icono"><span data-ic="wrench" data-s="14"></span>Corregir</a></td>
+      </tr>
+      <!-- 2. en_tramo -->
+      <tr class="fila-bloqueada">
+        <td>Luis Ramírez</td><td>TERM-01</td><td>Terminal</td><td><span class="insignia insignia--exito">Sincronizado</span></td>
+        <td class="num">07 oct 2026, 09:15 (-06:00)</td><td class="num">07 oct 2026, 09:15</td>
+        <td><span class="insignia insignia--aviso">Pendiente</span><div class="ayuda-campo">Fuera de horario</div></td>
+        <td><div class="aviso-bloqueo">
+          <div class="aviso-bloqueo__fila">
+            <button type="button" class="boton-corregir-bloqueado" aria-disabled="true" aria-describedby="m2"><span data-ic="lock" data-s="14"></span>Corregir</button>
+            <span class="insignia insignia--neutra">Ya está en un tramo</span>
+          </div>
+          <button type="button" class="enlace-porque" aria-expanded="false" aria-controls="m2" data-ic="circle" data-s="14">¿Por qué?</button>
+          <p class="aviso-bloqueo__texto" id="m2" hidden>Esta marca ya forma parte de un tramo: no se puede corregir su hora desde aquí. Revisa el día.</p>
+          <a href="#" class="boton-con-icono">Ir a revisar el día<span data-ic="arrow" data-s="14"></span></a>
+        </div></td>
+      </tr>
+      <!-- 3. en_tramo_cerrado -->
+      <tr class="fila-bloqueada">
+        <td>Marta Núñez</td><td>TERM-02</td><td>Captura manual</td><td><span class="insignia insignia--exito">Sincronizado</span></td>
+        <td class="num">06 oct 2026, 17:58 (-06:00)<div class="ayuda-campo">Original: 06 oct 2026, 17:40</div></td><td class="num">07 oct 2026, 08:30</td>
+        <td><span class="insignia insignia--exito">Resuelta</span></td>
+        <td><div class="aviso-bloqueo">
+          <div class="aviso-bloqueo__fila">
+            <button type="button" class="boton-corregir-bloqueado" aria-disabled="true" aria-describedby="m3"><span data-ic="lock" data-s="14"></span>Corregir</button>
+            <span class="insignia insignia--neutra">Día / tramo cerrado</span>
+          </div>
+          <button type="button" class="enlace-porque" aria-expanded="false" aria-controls="m3" data-ic="circle" data-s="14">¿Por qué?</button>
+          <p class="aviso-bloqueo__texto" id="m3" hidden>Este día ya está cerrado: la corrección no se refleja en las horas. Revisa el día.</p>
+          <a href="#" class="boton-con-icono">Ir a revisar el día<span data-ic="arrow" data-s="14"></span></a>
+        </div></td>
+      </tr>
+      <!-- 4. dia_cerrado_pendiente -->
+      <tr class="fila-bloqueada">
+        <td>Pedro Salas</td><td>TERM-01</td><td>Terminal</td><td><span class="insignia insignia--exito">Sincronizado</span></td>
+        <td class="num">05 oct 2026, 19:20 (-06:00)</td><td class="num">07 oct 2026, 07:55</td>
+        <td><span class="insignia insignia--aviso">Pendiente</span><div class="ayuda-campo">Día ya cerrado</div></td>
+        <td><div class="aviso-bloqueo">
+          <div class="aviso-bloqueo__fila">
+            <button type="button" class="boton-corregir-bloqueado" aria-disabled="true" aria-describedby="m4"><span data-ic="lock" data-s="14"></span>Corregir</button>
+            <span class="insignia insignia--aviso">Marca tardía · día cerrado</span>
+          </div>
+          <button type="button" class="enlace-porque" aria-expanded="true" aria-controls="m4" data-ic="circle" data-s="14">¿Por qué?</button>
+          <p class="aviso-bloqueo__texto" id="m4">Esta marca es de un día ya cerrado: no se corrige ni se resuelve a mano. Revisa el día (o, si el día ya está revisado, descarta la marca tardía).</p>
+          <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+            <a href="#" class="boton-con-icono">Ir a revisar el día<span data-ic="arrow" data-s="14"></span></a>
+            <a href="#" class="boton-con-icono">Ver en excepciones<span data-ic="arrow" data-s="14"></span></a>
+          </div>
+        </div></td>
+      </tr>
+      <!-- 5. sin excepción pendiente: igual que hoy -->
+      <tr>
+        <td>Sofía Vega</td><td>TERM-01</td><td>Terminal</td><td><span class="insignia insignia--exito">Sincronizado</span></td>
+        <td class="num">07 oct 2026, 07:58 (-06:00)</td><td class="num">07 oct 2026, 07:58</td><td>—</td><td>—</td>
+      </tr>
+    </tbody></table></div>
+  <p class="pie-tabla">Mostrando 5 de 5 marcas</p>
+  </section>
+
+  <section data-solo="datos" class="escenario" style="margin-top:2rem">
+    <h2>Decisiones de diseño de la celda "Acciones"</h2>
+    <ul style="font-size:.85rem;color:var(--navy-medio);line-height:1.6;padding-left:1.1rem">
+      <li><strong>Visible pero no activo:</strong> se mantiene "Corregir" como <code>button aria-disabled="true"</code> (no <code>disabled</code>): sigue en el orden de tabulación, un lector de pantalla lo anuncia como "no disponible" y su texto cuelga de <code>aria-describedby</code> con el motivo.</li>
+      <li><strong>No depende del color:</strong> candado + borde punteado + etiqueta de texto por motivo.</li>
+      <li><strong>Mensaje fijo del backend</strong> detrás de "¿Por qué?" (divulgación con <code>aria-expanded</code>, no tooltip de hover: funciona en táctil y teclado). La fila de <em>dia_cerrado_pendiente</em> se muestra abierta como ejemplo.</li>
+      <li><strong>"Ir a revisar el día"</strong> navega a Días prefiltrado: <code>/tiempo/dias?persona=…&amp;desde=F&amp;hasta=F</code>, con F = fecha local de <code>momento_efectivo</code> + <code>desfase_local</code>. (Ver pedidos en README.)</li>
+    </ul>
+  </section>
+</div></main></div>
+<script src="_mockup.js"></script>
+</body></html>

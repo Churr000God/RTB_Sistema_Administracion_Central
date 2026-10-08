@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockup 04 — Días: marcas tardías pendientes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../frontend/src/styles/tokens.css">
+<link rel="stylesheet" href="_mockup.css">
+</head>
+<body data-activo="Días">
+<div class="mock-barra" data-estados="datos:Con marcas tardías,sin:Sin marcas tardías,falla:Falla el resumen (best-effort),revisar:Revisando un día">
+  <strong>Mockup 04 · /tiempo/dias</strong><span>Estado:</span><span class="estados"></span>
+  <span>· <a href="?limpio=1">ocultar notas</a></span>
+</div>
+<div class="app-shell">
+<aside class="app-shell-aside" id="shell-aside"></aside>
+<main class="app-shell-main">
+<div class="contenedor-pagina contenedor-pagina--ancho">
+  <nav class="migas"><strong>Días</strong></nav>
+  <div class="encabezado-pagina"><div><h1>Días</h1>
+    <p class="subtitulo-pagina">Consulta por persona y fecha, con la primera y última marca efectivas (con corrección aplicada) y sus alertas de horario. Un día bloqueado o cerrado con una marca tardía necesita revisión manual — es la única transición que se puede hacer a mano.</p></div></div>
+
+  <p class="nota-diseno"><strong>Sólo UI sobre endpoints existentes:</strong> el resumen sale de <code>GET /api/excepciones?tipo=dia_cerrado</code> agrupado por <code>dia_de_la_marca_id</code>, igual que el banner de "pendientes de corte quincenal" (mismo patrón: <em>informativo, best-effort</em> — si falla, no aparece y la pantalla sigue). Se apila bajo ese banner, que no se toca. El badge de la columna Excepciones ya existe (<code>excepciones_pendientes</code>); sólo se enriquece cuando el día coincide con una marca tardía.</p>
+
+  <section data-solo="datos revisar">
+  <div class="tarjeta-resumen">
+    <button type="button" class="boton-con-icono" style="justify-content:space-between;width:100%;text-align:left" aria-expanded="true">
+      <span class="boton-con-icono" style="justify-content:flex-start"><span data-ic="alert"></span>3 marcas tardías en días ya cerrados esperan resolución (2 por revisar el día, 1 por descartar).</span>
+      <span data-ic="chevron"></span></button>
+    <ul style="margin:.75rem 0 0;padding-left:1.1rem;font-size:.88rem;line-height:1.7">
+      <li>Pedro Salas — 05 oct 2026, marca 19:20 · día <span class="insignia insignia--peligro">Bloqueado</span> <a href="#">Revisar este día</a></li>
+      <li>Marta Núñez — 04 oct 2026, marca 18:03 · día <span class="insignia insignia--neutra">Cerrado</span> <a href="#">Revisar este día</a></li>
+      <li>Luis Ramírez — 03 oct 2026, marca 20:41 · día <span class="insignia insignia--exito">Revisado</span> <a href="#">Descartar en Excepciones →</a></li>
+    </ul>
+    <p style="margin:.75rem 0 0;font-size:.82rem"><a href="#">Ver todas en Excepciones pendientes →</a></p>
+  </div>
+  </section>
+
+  <div class="barra-filtros"><div class="campo-con-icono"><i data-ic-campo="search"></i><input type="search" placeholder="Buscar por persona" aria-label="Buscar por persona"></div>
+  <div class="grupo-filtros-secundarios"><div><label>Desde</label><input type="date" value="2026-10-01"></div><div><label>Hasta</label><input type="date" value="2026-10-07"></div></div></div>
+
+  <section data-solo="datos sin falla revisar"><div class="tabla-desplazable"><table>
+    <thead><tr><th>Persona</th><th>Fecha</th><th>Estado</th><th>Horas</th><th>Primera</th><th>Última</th><th>Excepciones</th><th>Acción</th></tr></thead>
+    <tbody>
+      <tr><td>Pedro Salas</td><td class="num">05 oct 2026</td><td><span class="insignia insignia--peligro">Bloqueado — necesita revisión</span></td><td class="num">—</td><td class="num">08:01</td><td class="num">17:30</td>
+        <td><span data-solo="datos revisar"><span class="insignia insignia--aviso">1 pendiente</span><div class="ayuda-campo" style="display:flex;gap:.25rem;align-items:center"><span data-ic="alert" data-s="12"></span>incluye 1 marca tardía</div></span><span data-solo="sin falla"><span class="insignia insignia--aviso">1 pendiente</span></span></td>
+        <td><button type="button" class="boton-con-icono">Marcar como revisado</button></td></tr>
+      <tr><td>Marta Núñez</td><td class="num">04 oct 2026</td><td><span class="insignia insignia--neutra">Cerrado</span></td><td class="num">8.00</td><td class="num">08:00</td><td class="num">17:00</td>
+        <td><span data-solo="datos revisar"><span class="insignia insignia--aviso">1 pendiente</span><div class="ayuda-campo" style="display:flex;gap:.25rem;align-items:center"><span data-ic="alert" data-s="12"></span>incluye 1 marca tardía</div></span><span data-solo="sin falla">—</span></td>
+        <td><button type="button" class="boton-con-icono">Marcar como revisado</button></td></tr>
+      <tr><td>Luis Ramírez</td><td class="num">03 oct 2026</td><td><span class="insignia insignia--exito">Revisado</span></td><td class="num">8.50</td><td class="num">07:58</td><td class="num">17:30</td>
+        <td><span data-solo="datos revisar"><span class="insignia insignia--aviso">1 pendiente</span><div class="ayuda-campo" style="display:flex;gap:.25rem;align-items:center"><span data-ic="alert" data-s="12"></span>marca tardía por descartar</div></span><span data-solo="sin falla">—</span></td>
+        <td>—</td></tr>
+      <tr data-solo="revisar"><td colspan="8" style="background:var(--superficie)">
+        <p role="alert">¿Marcar como revisado el día de <strong>Pedro Salas</strong> (05 oct 2026)?</p>
+        <div class="banner-aviso" style="margin:.5rem 0"><span data-ic="alert"></span><div>Este día tiene <strong>1 marca tardía pendiente</strong> (19:20). Al revisar, las marcas tardías que queden dentro de un tramo se resuelven solas. Si alguna quedara sin pareja, no se revisa el día y no se resuelve nada: primero hay que corregirla con captura manual.</div></div>
+        <div class="botonera"><button type="button" class="boton-con-icono">Cancelar</button><button type="button" class="boton-con-icono">Calcular tiempo total</button></div>
+        <p class="nota-diseno" style="margin:.75rem 0 0">Aviso <em>informativo</em> dentro del flujo de revisión existente (no lo bloquea ni lo cambia). Texto según <code>fn_dia_revisar</code>: resuelve las excepciones de las marcas que quedan en un tramo; con una marca sin pareja bloquea todo (SCJ09).</p>
+      </td></tr>
+    </tbody></table></div></section>
+</div></main></div>
+<script src="_mockup.js"></script>
+</body></html>

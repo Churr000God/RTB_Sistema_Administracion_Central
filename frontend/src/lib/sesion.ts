@@ -11,6 +11,8 @@ export type SesionOut = {
   puede_ver_modulo_1: boolean;
   puede_ver_modulo_2: boolean;
   puede_ver_modulo_3: boolean;
+  // Sólo comodidad de UI: la autorización real es fn_excepcion_dia_cerrado_descartar.
+  puede_descartar_excepciones?: boolean;
 };
 
 let sesionEnVuelo: Promise<SesionOut> | null = null;
