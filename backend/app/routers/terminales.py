@@ -6,6 +6,7 @@ un 403 legible. Nunca service_role para escribir. Corte C2: lista de terminales 
 
 import logging
 import re
+from collections import namedtuple
 from datetime import date, datetime, timezone
 from typing import Literal
 from typing import Annotated
@@ -15,10 +16,25 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
-from app.altas_terminal import armar_altas, resolver_nombres_persona, sanear_motivo
+from app.altas_terminal import (
+    _consentimientos_por_id,
+    armar_altas,
+    ids_pendientes,
+    pendientes_de_terminal,
+    ContextoCaller,
+    razon_no_elegible,
+    resolver_nombres_persona,
+    sanear_motivo,
+)
+from app.consentimiento_terminal import (
+    error_consentimiento_desactualizado,
+    leer_vigente,
+    manejar_error_con_consentimiento,
+)
 from app.config import Settings, get_settings
 from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
-from app.errores import manejar_error_terminal_web
+from app.errores import MENSAJE_AUTO_ASIGNACION, MENSAJE_LOTE_INVALIDO, MENSAJE_LOTE_NO_ELEGIBLE, manejar_error_terminal_web
+from app.respuestas_error import ErrorConCampos
 from app.fecha_local import a_datetime
 from app import permisos
 from app.permisos import requiere_permiso
@@ -26,13 +42,20 @@ from app.schemas.terminales import (
     AltaDePersonaOut,
     AltaOut,
     AltasListaOut,
+    AsignarCreate,
     BajaCreate,
     MovimientoAltaOut,
+    PendientesOut,
     PersonaAsignableOut,
+    ReconsentimientoOut,
+    ReconsentirAltaCreate,
+    ReconsentirLoteCreate,
     TerminalOut,
 )
 
 logger = logging.getLogger(__name__)
+
+_Pagina = namedtuple("_Pagina", "data count")
 
 router = APIRouter(prefix="/api/terminales", tags=["terminales"])
 
@@ -137,7 +160,7 @@ def obtener_terminal(
 MENSAJE_ALTA_NO_ENCONTRADA = "El alta no existe."
 COLUMNAS_ALTA = (
     "id, terminal_id, employee_no, persona_id, estado, huellas_capturadas, error_detalle, "
-    "creado_en, actualizado_en"
+    "creado_en, actualizado_en, usuario_creado_en, consentimiento_id"
 )
 ESTADOS_ALTA = ("pendiente_alta", "esperando_huella", "activo", "pendiente_baja", "baja")
 LIMITE_DEFECTO = 100
@@ -187,7 +210,11 @@ def listar_altas(
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(_PERMISO_LECTURA),
     db_servicio: Client = Depends(get_service_client),
+    caller: CallerIdentity = Depends(get_caller_identity),
     estado: Literal["pendiente_alta", "esperando_huella", "activo", "pendiente_baja", "baja"] | None = Query(None),
+    reconsentimiento: Literal["pendiente", "al_corriente"] | None = Query(
+        None, description="Filtra por la definición única de «reconsentimiento pendiente» de la base."
+    ),
     persona_id: UUID | None = Query(None, description="Una persona exacta (UUID)."),
     desde: date | None = Query(None, description="Asignadas desde (fecha, sobre creado_en)."),
     limite: int = Query(LIMITE_DEFECTO, ge=1, le=LIMITE_MAXIMO),
@@ -205,9 +232,27 @@ def listar_altas(
         consulta = consulta.eq("persona_id", str(persona_id))
     if desde is not None:
         consulta = consulta.gte("creado_en", desde.isoformat())
-    resultado = (
-        consulta.order("creado_en", desc=True).order("id", desc=True).range(desplazamiento, desplazamiento + limite - 1).execute()
-    )
+    # Definición ÚNICA de pendiente = la función de la base (88_). Se filtra primero POR TERMINAL en la base e intersecta en
+    # Python (la URL de PostgREST no crece con las altas de otras terminales).
+    pendientes = ids_pendientes(db)
+    pendientes_aqui_ids = [f["id"] for f in pendientes_de_terminal(db, terminal_id, pendientes)]
+    vacia = False
+    if reconsentimiento == "pendiente":
+        if pendientes_aqui_ids:
+            consulta = consulta.in_("id", pendientes_aqui_ids)
+        else:
+            vacia = True
+    elif reconsentimiento == "al_corriente" and pendientes_aqui_ids:
+        consulta = consulta.not_.in_("id", pendientes_aqui_ids)
+    if vacia:
+        resultado = _Pagina([], 0)
+    else:
+        resultado = (
+            consulta.order("creado_en", desc=True)
+            .order("id", desc=True)
+            .range(desplazamiento, desplazamiento + limite - 1)
+            .execute()
+        )
 
     # Conteo por estado en la base (head: sin traer filas), no descargando todas las altas.
     por_estado = {}
@@ -220,12 +265,70 @@ def listar_altas(
             .execute()
         )
         por_estado[e] = conteo.count or 0
-
     return {
         "total": resultado.count if resultado.count is not None else len(resultado.data),
-        "resumen": {"por_estado": por_estado},
-        "altas": armar_altas(db, db_servicio, resultado.data),
+        "resumen": {"por_estado": por_estado, "reconsentimiento_pendiente": len(pendientes_aqui_ids)},
+        "altas": armar_altas(db, db_servicio, resultado.data, caller, pendientes),
     }
+
+
+MENSAJE_RESPUESTA_INESPERADA = "El servicio no respondió como se esperaba; intenta de nuevo o avisa a Sistemas."
+MENSAJE_CONSENTIMIENTO_NO_RECABADO = (
+    "Confirma que se recabó el consentimiento y el aviso de privacidad antes de asignar."
+)
+MENSAJE_SIN_TEXTO_CONSENTIMIENTO = "Todavía no hay texto de consentimiento; avisa a Sistemas."
+
+
+@router.post("/{terminal_id}/usuarios", status_code=201, response_model=AltaOut)
+def asignar_persona(
+    terminal_id: IdTerminal,
+    datos: AsignarCreate,
+    db: Client = Depends(get_caller_client),
+    caller: CallerIdentity = Depends(get_caller_identity),
+    _permiso: None = Depends(_PERMISO_EDICION),
+    db_servicio: Client = Depends(get_service_client),
+) -> dict:
+    """Asigna una persona a la terminal, con la versión del texto de consentimiento vigente. Escribe en la bitácora
+    con el cliente del CALLER: la policy bitacora_terminal_usuario_insert_web y el trigger son la autorización real."""
+    if not datos.consentimiento_recabado:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_CONSENTIMIENTO_NO_RECABADO)
+    _verificar_terminal(db, terminal_id)
+
+    # Primera barrera (la base la repite): nadie se asigna a sí mismo salvo el puesto administrador.
+    propia = permisos.resolver_persona_id(db, caller)
+    if str(datos.persona_id) == propia and not permisos.es_administrador_generico(db, propia):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_AUTO_ASIGNACION)
+
+    vigente = leer_vigente(db)
+    if vigente is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_SIN_TEXTO_CONSENTIMIENTO)
+    if vigente["id"] != datos.consentimiento_id:
+        raise error_consentimiento_desactualizado(db, vigente)
+
+    try:
+        creado = (
+            db.postgrest.schema("tiempo")
+            .table("bitacora_movimiento_terminal_usuario")
+            .insert(
+                {
+                    "terminal_id": terminal_id,
+                    "persona_id": str(datos.persona_id),
+                    "tipo_movimiento": "asignado",
+                    "origen": "web",
+                    "registrado_por": caller.auth_user_id,
+                    "consentimiento_id": datos.consentimiento_id,
+                }
+            )
+            .execute()
+            .data
+        )
+    except APIError as error:
+        manejar_error_con_consentimiento(error, db, contexto="asignacion")
+    tu_id = creado[0].get("terminal_usuario_id") if creado else None
+    if tu_id is None:
+        logger.error("asignar: la bitácora no devolvió terminal_usuario_id")
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, MENSAJE_RESPUESTA_INESPERADA)
+    return armar_altas(db, db_servicio, [_leer_alta(db, terminal_id, tu_id)], caller)[0]
 
 
 @router.post("/{terminal_id}/usuarios/{tu_id}/baja", status_code=201, response_model=AltaOut)
@@ -262,7 +365,149 @@ def solicitar_baja(
         ).execute()
     except APIError as error:
         manejar_error_terminal_web(error)
-    return armar_altas(db, db_servicio, [_leer_alta(db, terminal_id, tu_id)])[0]
+    return armar_altas(db, db_servicio, [_leer_alta(db, terminal_id, tu_id)], caller)[0]
+
+
+MENSAJE_REINTENTAR = "No se registró nada porque el estado de las altas cambió; vuelve a intentarlo."
+MENSAJE_DECLARACION_DOCUMENTOS = "Confirma que los documentos firmados existen antes de registrar el reconsentimiento."
+TOPE_LOTE_RECONSENTIMIENTO = 200
+TOPE_PENDIENTES = 200
+
+
+@router.get("/{terminal_id}/reconsentimientos-pendientes", response_model=PendientesOut)
+def reconsentimientos_pendientes(
+    terminal_id: IdTerminal,
+    db: Client = Depends(get_caller_client),
+    caller: CallerIdentity = Depends(get_caller_identity),
+    _permiso: None = Depends(_PERMISO_LECTURA),
+) -> dict:
+    """Ids de TODAS las altas de esta terminal con reconsentimiento pendiente (tope 200), para «Seleccionar las N
+    pendientes» sin depender de la página. La alta PROPIA de quien llama se excluye (no puede registrarla) salvo que
+    sea el administrador genérico."""
+    _verificar_terminal(db, terminal_id)
+    filas = pendientes_de_terminal(db, terminal_id, ids_pendientes(db))
+    if filas:
+        ctx = ContextoCaller(db, caller)
+        filas = [f for f in filas if not (ctx.es_propia(f["persona_id"]) and not ctx.es_admin)]
+    ids = [f["id"] for f in filas]
+    return {"total": len(ids), "ids": ids[:TOPE_PENDIENTES], "hay_mas": len(ids) > TOPE_PENDIENTES}
+
+
+def _no_elegibles(
+    db: Client, caller: CallerIdentity, terminal_id: int, ids: list[int], pendientes: set[int]
+) -> list[dict]:
+    """Por cada id del lote que NO se puede reconsentir ahora: {tu_id, persona_nombre, razon}. `no_encontrada` (no
+    existe, es de otra terminal o el caller no la ve) va SIN nombre para no filtrar existencia."""
+    filas = (
+        db.postgrest.schema("tiempo")
+        .table("terminal_usuario")
+        .select("id, persona_id, estado")
+        .eq("terminal_id", terminal_id)
+        .in_("id", ids)
+        .execute()
+        .data
+    )
+    por_id = {f["id"]: f for f in filas}
+    ctx = ContextoCaller(db, caller)
+    nombres = resolver_nombres_persona(db, [f["persona_id"] for f in filas])
+    resultado = []
+    for tu_id in ids:
+        fila = por_id.get(tu_id)
+        if fila is None:
+            resultado.append({"tu_id": tu_id, "persona_nombre": None, "razon": "no_encontrada"})
+            continue
+        razon = razon_no_elegible(fila["estado"], fila["persona_id"], ctx, tu_id in pendientes)
+        if razon is not None:
+            resultado.append({"tu_id": tu_id, "persona_nombre": nombres.get(fila["persona_id"]), "razon": razon})
+    return resultado
+
+
+def _registrar_reconsentimiento(
+    db: Client,
+    caller: CallerIdentity,
+    terminal_id: int,
+    ids: list[int],
+    consentimiento_id: int,
+    declaracion: bool,
+) -> dict:
+    """Núcleo compartido del reconsentimiento por alta y en lote (todo o nada)."""
+    if not declaracion:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_DECLARACION_DOCUMENTOS)
+    ids = sorted(set(ids))
+    if not ids or len(ids) > TOPE_LOTE_RECONSENTIMIENTO:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_LOTE_INVALIDO)
+    _verificar_terminal(db, terminal_id)
+
+    vigente = leer_vigente(db)
+    if vigente is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_SIN_TEXTO_CONSENTIMIENTO)
+    if vigente["id"] != consentimiento_id:
+        raise error_consentimiento_desactualizado(db, vigente)
+
+    pendientes = ids_pendientes(db)
+    malas = _no_elegibles(db, caller, terminal_id, ids, pendientes)
+    if malas:
+        raise ErrorConCampos(status.HTTP_409_CONFLICT, MENSAJE_LOTE_NO_ELEGIBLE, {"no_elegibles": malas})
+
+    try:
+        resultado = (
+            db.postgrest.schema("tiempo")
+            .rpc(
+                "fn_terminal_reconsentir",
+                {"p_altas": ids, "p_consentimiento_id": consentimiento_id, "p_estricto": True},
+            )
+            .execute()
+            .data
+        )
+    except APIError as error:
+        if error.code == "22023" and (error.hint or "") == "lote_no_elegible":
+            # Carrera entre mi verificación y el RPC: se reconstruye la lista (nunca el DETAIL de la base).
+            otras = _no_elegibles(db, caller, terminal_id, ids, ids_pendientes(db))
+            if not otras:  # la carrera se resolvió sola: no se devuelve un 409 vacío e incomprensible
+                raise HTTPException(status.HTTP_409_CONFLICT, MENSAJE_REINTENTAR) from None
+            raise ErrorConCampos(status.HTTP_409_CONFLICT, MENSAJE_LOTE_NO_ELEGIBLE, {"no_elegibles": otras}) from None
+        manejar_error_con_consentimiento(error, db)
+    if not isinstance(resultado, dict) or not isinstance(resultado.get("registradas"), int):
+        logger.error("fn_terminal_reconsentir devolvió una forma inesperada")
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, MENSAJE_RESPUESTA_INESPERADA)
+    omitidas = [int(x) for x in resultado.get("omitidas") or []]
+    if omitidas:  # no debería pasar con p_estricto=true; se informa en vez de ocultarlo
+        logger.error("fn_terminal_reconsentir omitió %s altas pese a p_estricto", len(omitidas))
+    return {
+        "registradas": resultado["registradas"],
+        "pendientes_restantes": len(ids_pendientes(db)),
+        "omitidas": omitidas,
+    }
+
+
+@router.post("/{terminal_id}/usuarios/reconsentimientos", status_code=201, response_model=ReconsentimientoOut)
+def reconsentir_lote(
+    terminal_id: IdTerminal,
+    datos: ReconsentirLoteCreate,
+    db: Client = Depends(get_caller_client),
+    caller: CallerIdentity = Depends(get_caller_identity),
+    _permiso: None = Depends(_PERMISO_EDICION),
+) -> dict:
+    """Todo o nada: si alguna alta no es elegible, 409 con `no_elegibles` y NADA se escribe. Escribe el RPC
+    (SECURITY INVOKER) con el cliente del caller: la policy de la bitácora es la autorización real."""
+    return _registrar_reconsentimiento(
+        db, caller, terminal_id, datos.tu_ids, datos.consentimiento_id, datos.declaracion_documentos
+    )
+
+
+@router.post("/{terminal_id}/usuarios/{tu_id}/reconsentimiento", status_code=201, response_model=ReconsentimientoOut)
+def reconsentir_alta(
+    terminal_id: IdTerminal,
+    tu_id: IdAlta,
+    datos: ReconsentirAltaCreate,
+    db: Client = Depends(get_caller_client),
+    caller: CallerIdentity = Depends(get_caller_identity),
+    _permiso: None = Depends(_PERMISO_EDICION),
+) -> dict:
+    """Equivale a un lote de un elemento."""
+    return _registrar_reconsentimiento(
+        db, caller, terminal_id, [tu_id], datos.consentimiento_id, datos.declaracion_documentos
+    )
 
 
 @router.get("/{terminal_id}/usuarios/{tu_id}/movimientos", response_model=list[MovimientoAltaOut])
@@ -278,7 +523,9 @@ def historial_de_un_alta(
     filas = (
         db.postgrest.schema("tiempo")
         .table("bitacora_movimiento_terminal_usuario")
-        .select("id, tipo_movimiento, creado_en, origen, registrado_por, detalle, huellas_capturadas")
+        .select(
+            "id, tipo_movimiento, creado_en, origen, registrado_por, detalle, huellas_capturadas, consentimiento_id"
+        )
         .eq("terminal_usuario_id", tu_id)
         .order("creado_en", desc=True)
         .order("id", desc=True)
@@ -298,6 +545,7 @@ def historial_de_un_alta(
             .execute()
             .data
         }
+    consentimientos = _consentimientos_por_id(db, [f["consentimiento_id"] for f in filas if f.get("consentimiento_id")])
     return [
         {
             "id": f["id"],
@@ -307,6 +555,15 @@ def historial_de_un_alta(
             "registrado_por_nombre": nombre_por_autor.get(f.get("registrado_por")),
             "detalle": f.get("detalle"),
             "huellas_capturadas": f.get("huellas_capturadas"),
+            "consentimiento": (
+                {
+                    "id": consentimientos[f["consentimiento_id"]]["id"],
+                    "version": consentimientos[f["consentimiento_id"]]["version"],
+                    "cambio_material": consentimientos[f["consentimiento_id"]]["cambio_material"],
+                }
+                if f.get("consentimiento_id") in consentimientos
+                else None
+            ),
         }
         for f in filas
     ]
@@ -460,6 +717,7 @@ def terminales_de_una_persona(
     persona_id: UUID,
     db: Client = Depends(get_caller_client),
     settings: Settings = Depends(get_settings),
+    caller: CallerIdentity = Depends(get_caller_identity),
     _permiso: None = Depends(_PERMISO_LECTURA),
     db_servicio: Client = Depends(get_service_client),
 ) -> list[dict]:
@@ -478,7 +736,7 @@ def terminales_de_una_persona(
     )
     if not filas:
         return []
-    altas = armar_altas(db, db_servicio, filas)
+    altas = armar_altas(db, db_servicio, filas, caller)
     terminales = {
         t["id"]: t
         for t in db.postgrest.schema("tiempo")

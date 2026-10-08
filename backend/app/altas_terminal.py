@@ -6,6 +6,9 @@ from datetime import datetime, timedelta
 
 from supabase import Client
 
+from app import permisos
+from app.deps import CallerIdentity
+
 from app.catalogo_terminal import CLAVE_CADUCIDAD, valor_vigente
 from app.fecha_local import a_datetime
 
@@ -68,33 +71,118 @@ def resolver_nombres_persona(db: Client, persona_ids: list[str]) -> dict[str, st
     return {f["id"]: f"{f['primer_nombre']} {f['apellido_paterno']}" for f in filas}
 
 
-def usuario_creado_por_alta(db: Client, alta_ids: list[int]) -> dict[int, datetime]:
-    """Momento del movimiento `usuario_creado` de cada alta, leído de la BITÁCORA (no de actualizado_en, que
-    también mueve un `error`; SCJ-DEC-12 §12.7). Si hubiera más de uno, el más reciente."""
-    if not alta_ids:
+def _consentimientos_por_id(db: Client, ids: list[int]) -> dict[int, dict]:
+    if not ids:
         return {}
     filas = (
         db.postgrest.schema("tiempo")
-        .table("bitacora_movimiento_terminal_usuario")
-        .select("terminal_usuario_id, creado_en")
-        .eq("tipo_movimiento", "usuario_creado")
-        .in_("terminal_usuario_id", alta_ids)
-        .order("creado_en", desc=True)
+        .table("terminal_consentimiento")
+        .select("id, version, provisional, cambio_material")
+        .in_("id", sorted(set(ids)))
         .execute()
         .data
     )
-    resultado: dict[int, datetime] = {}
-    for fila in filas:
-        resultado.setdefault(fila["terminal_usuario_id"], a_datetime(fila["creado_en"]))
-    return resultado
+    return {f["id"]: f for f in filas}
 
 
-def armar_altas(db: Client, db_servicio: Client, filas: list[dict]) -> list[dict]:
-    """Objeto «alta» del contrato §2.1 (sin los campos de consentimiento, que llegan con C5). Consultas por
-    página, no por alta: nombres (1), usuario_creado (1) y, sólo si alguna espera huella, la variable de
-    caducidad (1)."""
+def _id_vigente(db: Client) -> int | None:
+    filas = (
+        db.postgrest.schema("tiempo")
+        .table("terminal_consentimiento")
+        .select("id")
+        .order("version", desc=True)
+        .limit(1)
+        .execute()
+        .data
+    )
+    return filas[0]["id"] if filas else None
+
+
+def ids_pendientes(db: Client) -> set[int]:
+    """Definición ÚNICA de «reconsentimiento pendiente»: fn_terminal_reconsentimiento_pendiente_ids (88_, INVOKER)."""
+    data = db.postgrest.schema("tiempo").rpc("fn_terminal_reconsentimiento_pendiente_ids").execute().data
+    return {int(x) for x in (data or [])}
+
+
+RAZON_EN_BAJA = "en_baja"
+RAZON_ES_PROPIA = "es_propia"
+RAZON_YA_AL_CORRIENTE = "ya_al_corriente"
+ESTADOS_EN_RETIRO = ("pendiente_baja", "baja")
+
+
+ESTADOS_RECONSENTIBLES = ("pendiente_alta", "esperando_huella", "activo")
+TOPE_FILAS_TERMINAL = 1000
+
+
+def pendientes_de_terminal(db: Client, terminal_id: int, pendientes: set[int]) -> list[dict]:
+    """Altas de ESTA terminal con reconsentimiento pendiente: se piden primero por terminal y estado (acotado, con índice)
+    y se intersectan en Python con la lista global; nunca se arma una URL con todos los ids pendientes del sistema."""
+    if not pendientes:
+        return []
+    filas = (
+        db.postgrest.schema("tiempo")
+        .table("terminal_usuario")
+        .select("id, persona_id, consentimiento_id")
+        .eq("terminal_id", terminal_id)
+        .in_("estado", list(ESTADOS_RECONSENTIBLES))
+        .order("id")
+        .limit(TOPE_FILAS_TERMINAL)
+        .execute()
+        .data
+    )
+    return [f for f in filas if f["id"] in pendientes]
+
+
+class ContextoCaller:
+    """Quién llama, para decidir elegibilidad: persona propia y, SÓLO si hace falta (una alta propia), si es el
+    administrador genérico. La consulta del puesto administrador no depende de qué altas se estén armando."""
+
+    def __init__(self, db: Client, caller: CallerIdentity) -> None:
+        self._db = db
+        self.propia: str = permisos.resolver_persona_id(db, caller)
+        self._admin: bool | None = None
+
+    @property
+    def es_admin(self) -> bool:
+        if self._admin is None:
+            self._admin = bool(permisos.es_administrador_generico(self._db, self.propia))
+        return self._admin
+
+    def es_propia(self, persona_id: str) -> bool:
+        return persona_id == self.propia
+
+
+def razon_no_elegible(estado: str, persona_id: str, ctx, pendiente: bool) -> str | None:
+    """Única regla de elegibilidad para reconsentir (lista cerrada de razones; None = elegible). Prioridad:
+    en_baja > es_propia > ya_al_corriente. La propia sólo es inelegible si quien llama NO es administrador genérico
+    (`ctx.es_admin` se consulta únicamente cuando la alta es propia)."""
+    if estado in ESTADOS_EN_RETIRO:
+        return RAZON_EN_BAJA
+    if ctx is not None and ctx.es_propia(persona_id) and not ctx.es_admin:
+        return RAZON_ES_PROPIA
+    if not pendiente:
+        return RAZON_YA_AL_CORRIENTE
+    return None
+
+
+def armar_altas(
+    db: Client,
+    db_servicio: Client,
+    filas: list[dict],
+    caller: CallerIdentity | None = None,
+    pendientes: set[int] | None = None,
+) -> list[dict]:
+    """Objeto «alta» del contrato §2.1. Consultas por página, no por alta: nombres (1), consentimientos (1), vigente
+    (1), pendientes (1) y, sólo si alguna espera huella, la variable de caducidad (1). `usuario_creado_en` es la
+    columna de 88_ (la fija el trigger), no una consulta a la bitácora."""
+    if not filas:
+        return []
     nombres = resolver_nombres_persona(db, [f["persona_id"] for f in filas])
-    creadas = usuario_creado_por_alta(db, [f["id"] for f in filas])
+    consentimientos = _consentimientos_por_id(db, [f["consentimiento_id"] for f in filas if f.get("consentimiento_id")])
+    vigente_id = _id_vigente(db)
+    if pendientes is None:
+        pendientes = ids_pendientes(db)
+    ctx = ContextoCaller(db, caller) if caller is not None else None
     horas = (
         valor_vigente(db_servicio, CLAVE_CADUCIDAD)
         if any(f["estado"] == "esperando_huella" for f in filas)
@@ -102,13 +190,15 @@ def armar_altas(db: Client, db_servicio: Client, filas: list[dict]) -> list[dict
     )
     altas = []
     for fila in filas:
-        creada = creadas.get(fila["id"])
+        creada = a_datetime(fila["usuario_creado_en"]) if fila.get("usuario_creado_en") else None
         caduca = (
             creada + timedelta(hours=horas)
             if fila["estado"] == "esperando_huella" and creada is not None and horas is not None
             else None
         )
         codigo, detalle = separar_error(fila.get("error_detalle"))
+        consent = consentimientos.get(fila.get("consentimiento_id"))
+        razon = razon_no_elegible(fila["estado"], fila["persona_id"], ctx, fila["id"] in pendientes)
         altas.append(
             {
                 "id": fila["id"],
@@ -124,6 +214,16 @@ def armar_altas(db: Client, db_servicio: Client, filas: list[dict]) -> list[dict
                 "caduca_en": caduca,
                 "error_codigo": codigo,
                 "error_detalle": detalle,
+                "consentimiento": (
+                    {"id": consent["id"], "version": consent["version"], "provisional": consent["provisional"]}
+                    if consent
+                    else None
+                ),
+                "consentimiento_vigente_id": vigente_id,
+                "reconsentimiento_pendiente": fila["id"] in pendientes,
+                "es_propia": ctx is not None and ctx.es_propia(fila["persona_id"]),
+                "reconsentimiento_elegible": razon is None,
+                "reconsentimiento_razon": razon,
                 "accion_disponible": accion_disponible(fila["estado"]),
             }
         )

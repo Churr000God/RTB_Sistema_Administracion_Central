@@ -135,7 +135,16 @@ Cliente del caller (+ lectura de insumo de la caducidad, abajo).
 - **`reconsentimiento_pendiente`:** definición **única** = `fn_terminal_reconsentimiento_pendiente_ids()` (INVOKER, 88_).
   Filtro `reconsentimiento=pendiente|al_corriente` se aplica con esa lista de ids. *Límite aceptado:* la lista se pasa como
   `in_` — correcto para decenas/cientos de altas; si algún día hay miles, se cambia a una función SQL con la terminal.
-- **`resumen`** se calcula sobre **todas** las altas de la terminal (no sólo la página).
+- **`resumen`** se calcula sobre **todas** las altas de la terminal (no sólo la página); `resumen.reconsentimiento_pendiente`
+  = las pendientes de **esa** terminal.
+- **Campos de C6 por alta:** `es_propia` (la alta es de quien llama), `reconsentimiento_elegible` y `reconsentimiento_razon`
+  (`null` | `en_baja` | `es_propia` | `ya_al_corriente`; prioridad en_baja > es_propia > ya_al_corriente; el administrador
+  genérico nunca es «propia»). Filtro `reconsentimiento=pendiente|al_corriente` y contador usan la misma función de la base.
+- **Límite aceptado de `fn_terminal_reconsentimiento_pendiente_ids`:** PostgREST topa un `SETOF` a 1000 filas; con más de 1000
+  altas pendientes el contador/bandera subestimaría (con una terminal de decenas de altas no ocurre). Si el volumen crece,
+  pasar a una función SQL con la terminal como parámetro.
+- **`usuario_creado_en` y `consentimiento`** salen de las columnas de 88_ (`terminal_usuario.usuario_creado_en`,
+  `consentimiento_id`), no de consultas a la bitácora.
 - **Aislamiento:** siempre `.eq("terminal_id", id)`; un `{id}` inexistente o no visible → 404.
 - Sin nada biométrico: sólo `huellas_capturadas` (conteo).
 - **Depende de 88_** (columna `consentimiento_id`, función de pendientes). Antes de 88_ el endpoint no se puede
@@ -236,12 +245,19 @@ Bajo `/api/terminales/configuracion/consentimiento`. Visibilidad: quien ve el gr
   siguiente (la tabla no tiene rango, se deriva). `publicado_por_nombre` se resuelve desde `creado_por`
   (`personas.persona`); la semilla (sin autor) → `publicado_por_nombre: null`, `es_semilla: true` (la UI escribe
   «Sistema (texto provisional)»).
-- El texto es **texto plano**; el frontend lo muestra como texto (no HTML). Se devuelve siempre completo (≤4 000 ×
-  pocas versiones). Cliente del caller (policy `terminal_consentimiento_select_lectura`).
+- El texto es **texto plano**; el frontend lo muestra como texto (no HTML). **El texto completo viaja sólo en `vigente`**;
+  cada entrada de `historial` trae `texto: null` (con 200 versiones de hasta 4 000 caracteres el historial pesaría cientos de
+  KB). El texto de una versión anterior se pide bajo demanda con **`GET …/consentimiento/{version}`** (mismo gate; devuelve la
+  versión completa con la misma forma, `vigente_hasta` incluido; 404 «La versión del texto no existe.»; `version` 1–2147483647).
+  Cliente del caller (policy `terminal_consentimiento_select_lectura`). *Afecta al mockup 09 (historial): «ver texto» de una
+  versión anterior hace esta segunda petición.*
 
 ### 3.2 `GET …/consentimiento/impacto?cambio_material=true|false`
 
-Para el panel de publicar (cifra «cuántas quedarían pendientes»), calculada **antes** de publicar:
+Para el panel de publicar (cifra «cuántas quedarían pendientes»), calculada **antes** de publicar.
+**Gate: `terminal_usuario_lectura` o `terminal_usuario_edicion`** (decisión del usuario; `terminal_config_edicion` sola NO basta):
+las cifras se cuentan con la RLS del caller, así que quien sólo configura vería 0 altas y publicaría un cambio material a
+ciegas. Quien publica debe, por tanto, poder ver también las altas; sin eso el panel responde **403**.
 
 ```json
 {"cambio_material_efectivo": true, "forzado": true,
@@ -257,6 +273,9 @@ Para el panel de publicar (cifra «cuántas quedarían pendientes»), calculada 
 ### 3.3 `POST …/consentimiento` — publicar
 
 Cuerpo: `{"texto": "1–4000", "cambio_material": false, "motivo_cambio": "≤200 opcional", "base_version": 3}`.
+**`base_version` es OBLIGATORIO** (422 si falta): la pantalla de publicar lo manda siempre, con la versión vigente que leyó al
+abrir; el RPC compara (`p_base_version`) y, si otra persona publicó mientras tanto, responde `SCJ16 / version_base_desactualizada`
+(409 con `consentimiento_vigente`). Ya no es un chequeo previo del backend.
 Llama `fn_terminal_consentimiento_publicar(p_texto, p_cambio_material, p_nota)` con el **cliente del caller** (gate dentro).
 - **201** `{"resultado":"publicada","id","version","cambio_material","cambio_material_forzado","pendientes"}` (con `pendientes`
   que devuelve el RPC) o **200** `{"resultado":"sin_cambio","version"}` si el texto es igual al de la vigente definitiva.
@@ -391,6 +410,11 @@ Mismo patrón que `traducir_error_dia_cerrado` (devuelve `HTTPException|None`, y
 | `23505` | 409 | «Otra asignación de esta persona ocurrió al mismo tiempo; recarga.» |
 | `42501` `sin_permiso` | 403 | «No tienes permiso para esta acción.» |
 | `42501` sin hint | 403 + `ERROR` en el log | ídem |
+| `PGRST202`/`PGRST204`/`PGRST205`/`42P01` (objeto inexistente: **migración sin aplicar**, p. ej. 88_) | 503 | «Servicio no disponible. Avisa a Sistemas.» + `ERROR` en el log (handler global de `APIError`) |
+| respuesta de un RPC con forma inesperada (publicar, reconsentir) o bitácora sin `terminal_usuario_id` (asignar) | 503 | «El servicio no respondió como se esperaba; intenta de nuevo o avisa a Sistemas.» + `ERROR` en el log |
+| `SCJ16` `version_base_desactualizada` | 409 | «Otra persona publicó una versión nueva del texto; vuelve a leerlo antes de publicar.» **+ `consentimiento_vigente`** |
+| `SCJ12` `auto_asignacion_prohibida` | 422 | «No puedes asignarte a ti mismo a una terminal. Sólo el puesto administrador puede hacerlo.» |
+| `SCJ12` `auto_reconsentimiento_prohibido` | 422 | «No puedes registrar tu propio reconsentimiento; lo registra otra persona con permiso.» |
 | cualquier otro | 500 genérico | — |
 
 ### 6.1 Cuerpo de los 409 de consentimiento
@@ -572,3 +596,83 @@ antes de commitear, como hasta ahora.
 | `GET /api/sesion` (+3 banderas) | sesión | service | C1 |
 | `POST /api/personas/{id}/movimientos` (+`advertencias`, `bajas_terminal_emitidas`) | `cambio_estado_persona` | caller + service (RPC de baja) | C3 |
 | `GET/PUT /api/parametros` (filtro `terminal_*`, `SCJ17`) | existente | existente | **C0** |
+
+
+---
+
+## 15. Notas de implementación y despliegue (C5/C6, 2026-10-08)
+
+- **Orden de aplicación/despliegue:** `88_` → desplegar el backend → `89_` → `90_` → `91_`. El backend de C5+ **exige 88_ aplicado**
+  (el listado de altas lee `usuario_creado_en`/`consentimiento_id` y llama a la función de pendientes); sin 88_ esos endpoints
+  responden **503** «Servicio no disponible» (no 500). El filtro de C0 debe estar desplegado **antes** de aplicar 89_.
+- **Asignar:** el cuerpo no manda `detalle` (la base lo fija siempre) ni `employee_no`/`terminal_usuario_id`; `consentimiento_recabado`
+  es obligatorio y verdadero (422 si no).
+- **Reconsentimiento propio:** la base lo impone (`auto_reconsentimiento_prohibido`, 88_); el backend además lo marca en el
+  listado (`es_propia`), lo excluye de `reconsentimientos-pendientes` y lo reporta en `no_elegibles` con razón `es_propia`.
+  El lote usa `p_estricto = true`: todo o nada también ante carreras (si el RPC rechaza con `lote_no_elegible`, el backend
+  reconstruye la lista; nunca se relaya el `DETAIL`). Respuesta: `{"registradas", "pendientes_restantes", "omitidas": []}`.
+
+### 15.1 C7 — como quedó implementado (2026-10-08)
+
+- **Variables:** `GET/PATCH …/configuracion/variables`, `GET …/variables/historial`, `POST …/variables/terminal_caducidad_alta_horas/simular`.
+  Rangos y etiquetas viven en `app/catalogo_terminal.py` (un test compara los rangos con `fn_terminal_config_catalogo()` de 89_).
+- **PATCH:** `valor` y `valor_base` son **enteros JSON estrictos y obligatorios** (`"48"` o `48.0` → 422). Orden: clave de la lista
+  blanca (404) → rango (422, «El valor debe ser un entero entre {min} y {max}.») → `valor_base` contra el vigente (409 con
+  `valor_actual`, sin escribir) → RPC con el cliente del caller. Un `valor_invalido` del RPC después de validar el rango sólo puede
+  ser la regla cruzada de llaves: 422 con texto fijo («El traslape de llaves no puede superar la mitad de la antigüedad máxima de la
+  llave (en días).» / «La antigüedad máxima de la llave no puede ser menor al doble del traslape máximo.»).
+- **Simular:** exige `terminal_config_edicion` **y** `terminal_usuario_lectura|edicion` (lista nombres con la RLS del caller; misma razón
+  que `/impacto`). Respuesta como §5.4, más `altas_que_caducarian_ya_total` (la lista se corta a 50). «Caducarían ya» = llevan entre
+  el valor propuesto y el actual; «ganan plazo» = hoy ya habrían caducado y con el nuevo plazo no; «por caducar» = quedan a ≤ 1 h.
+  Usa la columna `usuario_creado_en` de 88_, no la bitácora.
+- **Valor vigente:** `valor_vigente` llama a `fn_terminal_config_valor` (service_role) y, si no devuelve un entero válido (89_ sin
+  aplicar, forma rara), lee `tiempo.parametro` y, en último caso, usa el defecto; nunca levanta. Lo usan `caduca_en` de las altas, la
+  simulación y los jobs.
+- **Jobs (scheduler embebido, un solo worker, `max_instances=1`, `coalesce`):** baja por caducidad cada 10 min (lee la variable en cada
+  corrida y llama `fn_terminal_baja_por_caducidad(p_horas)`; piso 4 h y tope 50 viven en la función) y purga de rechazos a diario
+  04:15 (`fn_marca_rechazada_purgar(p_dias)`, piso de 7 días en la función). Un job que falla se registra con `ERROR` y espera a la
+  siguiente corrida; nunca propaga.
+- **Valor ilegible (pedido de frontend/security):** cada fila de `GET …/variables` y de `GET …/variables/historial` trae
+  `valor_ilegible: bool` (la base tiene un valor corrupto o fuera de rango; en el listado se muestra el defecto, en el historial el
+  texto tal cual). La UI lo avisa y **no formatea** ese valor.
+- **Simulación que falla:** si no se puede calcular (error de la base, red, timeout) responde **503** `{"detail": "No se pudo calcular
+  el impacto; intenta de nuevo."}` con `ERROR` en el log; la UI deshabilita «Confirmar» al acortar mientras no haya un cálculo exitoso.
+- **Jobs destructivos (caducidad y purga) con lectura ESTRICTA:** leen la variable con `valor_vigente_estricto`; si hay excepción,
+  forma inesperada o un valor ilegible/fuera de rango en la base, registran `ERROR` («no se pudo leer la variable; se omite la
+  corrida») y **no llaman** a la función destructiva. El defecto sólo aplica si la clave aún no existe (89_ sin aplicar), con
+  `WARNING`. Cada corrida con efecto deja un `WARNING` estructurado (`altas=… plazo_horas=… fecha=…` / `filas=…
+  retencion_dias=… fecha=…`) y la de caducidad avisa cuando llega al tope de 50 por corrida. `valor_vigente` (con defecto) queda
+  sólo para mostrar (`caduca_en`, simulación).
+
+### 15.2 C8 — como quedó implementado (2026-10-08)
+
+- **Endpoints:** `GET /api/terminales/{id}/anomalias?desde=&hasta=` (10 tarjetas) y `GET …/anomalias/{clave}?desde=&hasta=&limite=&desplazamiento=`
+  («ver todos», `limite` 1–200, por omisión 50, `{clave, total, items}`; una falla ahí SÍ es un error, no se aísla).
+- **Ventana:** `desde`/`hasta` son días de México (`YYYY-MM-DD`; `desde` 00:00 local, `hasta` hasta el final de ese día sin pasar de
+  «ahora»). Por omisión `desde` = hoy − `terminal_anomalias_ventana_dias` y `hasta` = ahora. `hasta < desde` o más de 90 días → 422 fijo.
+- **Tarjeta:** `{clave, numero, titulo, estado, nivel, total, ejemplos (≤3), hay_mas, motivo}`. `estado`: `sin_hallazgos` (nivel `null`) ·
+  `con_hallazgos` · `no_disponible` (`motivo`: `sin_permiso` | `falta_migracion`) · `error` (total `null`, ejemplos `[]`). Cada tarjeta se
+  calcula aislada: una excepción sólo marca esa tarjeta (log `ERROR` con la categoría y el código, nunca el texto de la base).
+- **Visibilidad (respuesta a Q6):** las categorías 1 (`marcas_posteriores_a_baja`) y 2 (`picos_de_tasa`) muestran marcas de personas y
+  exigen **además `marca_lectura`** (AND con el gate lectura|edición); sin él la tarjeta sale `no_disponible/sin_permiso` y el detalle
+  responde 403. Los **nombres** se resuelven siempre con el cliente del caller. `service_role` se usa sólo para `fn_terminal_anomalias`
+  (1, 2, 4), `tiempo.marca` (3), `tiempo.marca_rechazada` (5), `tiempo.terminal_credencial` (6, sin hash ni IP) y la variable (8), siempre
+  acotado a la terminal de la URL. Nunca salen `persona_id`, `employee_no`, hashes ni IP.
+- **Definiciones:** (3) conteo de marcas `deriva` + `sin_sincronizar` de la terminal en la ventana y el `reloj_desfase_seg` actual;
+  (5) `total` = suma de rechazos, un ejemplo por código (los 5 códigos del CHECK); (6) `llave_antigua` (> `terminal_llave_max_meses`),
+  `traslape_abierto` (≥ 2 llaves vigentes y la más nueva > `terminal_traslape_llave_max_dias`), `cambio_de_ip` (en la ventana),
+  `llave_sin_uso` (vigente, sin uso y > 1 día); (7) persona `estado ≠ activo` con alta en `pendiente_alta|esperando_huella|activo`;
+  (8) `pendiente_alta`/`pendiente_baja` con más de N h desde `actualizado_en` y `esperando_huella` con más de N h desde
+  `usuario_creado_en`, con **N = `terminal_caducidad_alta_horas`** (Q7: se reutiliza la variable); (10) `dias_pendiente` = días desde la
+  última versión con `cambio_material`.
+- **Job de reconciliación de bajas (condición de salida a producción):** cada 10 min (`max_instances=1`, `coalesce`). Busca personas
+  `estado ≠ activo` con altas vivas y llama `fn_terminal_baja_por_persona_inactiva(p_persona_id)` por cada una (tope 200 por corrida). Un
+  `-1` (sin autor derivable) **no se reintenta en bucle**: se registra una **ALERTA PERMANENTE** (`ERROR`, con los primeros 8 caracteres
+  de cada id) en CADA corrida mientras exista, y la tarjeta 7 del tablero la muestra. Las fallas por persona se cuentan sin propagar.
+- **Ajustes de security a C8:** (B1) la reconciliación procesa primero las personas que NO fueron `-1` en la corrida anterior (estado en
+  memoria del único worker), así que más de 200 `-1` permanentes no dejan sin atender a las demás; (B2) una alta viva cuya persona ya no
+  existe en `personas.persona` (la frontera no tiene FK) se trata como inactiva: el job pide su baja y la tarjeta 7 la muestra con
+  `estado_persona: "inexistente"` y sin nombre; (B3) `GET …/anomalias` se sirve de una caché de 45 s por (usuario, terminal, fechas pedidas,
+  permiso de marcas), máximo 200 entradas; el gate y la existencia de la terminal se validan antes de leerla; (B4) una prueba recorre las
+  diez categorías (tablero y «ver todos») con fuentes que traen `persona_id`/`marca_id`/hash/IP/`employee_no` y afirma que ninguna clave
+  de identidad ni secreto aparece en la salida.

@@ -70,7 +70,7 @@ def test_lifespan_arranca_los_3_jobs_a_la_misma_hora_y_apaga_el_scheduler():
         ):
             app_falso = MagicMock()
             async with lifespan(app_falso):
-                assert fake_scheduler.add_job.call_count == 3
+                assert fake_scheduler.add_job.call_count == 6  # 3 batches de Tiempo + 3 jobs de Terminales
                 llamadas_por_id = {
                     llamada.kwargs["id"]: llamada for llamada in fake_scheduler.add_job.call_args_list
                 }
@@ -78,8 +78,12 @@ def test_lifespan_arranca_los_3_jobs_a_la_misma_hora_y_apaga_el_scheduler():
                     ID_JOB_BATCH_DE_CONFIANZA,
                     ID_JOB_CIERRE_DIA,
                     ID_JOB_CORTE_QUINCENAL,
+                    "terminales_baja_por_caducidad",
+                    "terminales_purga_rechazos",
+                    "terminales_reconciliacion_bajas",
                 }
-                for llamada in llamadas_por_id.values():
+                for id_job in (ID_JOB_BATCH_DE_CONFIANZA, ID_JOB_CIERRE_DIA, ID_JOB_CORTE_QUINCENAL):
+                    llamada = llamadas_por_id[id_job]
                     assert llamada.kwargs["replace_existing"] is True
                     assert llamada.kwargs["hour"] == 3
                     assert llamada.kwargs["minute"] == 0

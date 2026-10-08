@@ -28,6 +28,11 @@ from fastapi import FastAPI
 from app.batches.cierre_dia import ejecutar_cierre_dia
 from app.batches.corte_quincenal import ejecutar_corte_quincenal
 from app.batches.de_confianza import ejecutar_batch_de_confianza
+from app.batches.terminales import (
+    ejecutar_baja_por_caducidad,
+    ejecutar_purga_rechazos,
+    ejecutar_reconciliacion_bajas,
+)
 from app.config import get_settings
 from app.deps import get_service_client
 from app.hora_cierre_dia import resolver_umbral_cierre_dia_cron
@@ -35,6 +40,12 @@ from app.hora_cierre_dia import resolver_umbral_cierre_dia_cron
 ID_JOB_BATCH_DE_CONFIANZA = "batch_de_confianza_diario"
 ID_JOB_CIERRE_DIA = "cierre_dia_diario"
 ID_JOB_CORTE_QUINCENAL = "corte_quincenal_dia_1_y_16"
+ID_JOB_CADUCIDAD_ALTAS = "terminales_baja_por_caducidad"
+ID_JOB_PURGA_RECHAZOS = "terminales_purga_rechazos"
+ID_JOB_RECONCILIACION_BAJAS = "terminales_reconciliacion_bajas"
+MINUTOS_RECONCILIACION_BAJAS = 10
+MINUTOS_CADUCIDAD_ALTAS = 10  # CONTRATO §10: la baja efectiva ocurre en la siguiente corrida (tope 50 por corrida)
+HORA_PURGA_RECHAZOS = (4, 15)
 HORA_POR_DEFECTO = (3, 0)  # hora_corte_dia (00:00) + hora_corrida_cierre_dia (03:00), valores de
 # ejemplo de db/ddl/03_parametros_ejemplo.sql
 
@@ -80,6 +91,35 @@ async def lifespan(app: FastAPI):
         minute=minuto,
         id=ID_JOB_CORTE_QUINCENAL,
         replace_existing=True,
+    )
+    # Terminales (SCJ-DEC-12): un solo worker (este scheduler embebido); max_instances=1 + coalesce evitan solapes.
+    scheduler.add_job(
+        ejecutar_baja_por_caducidad,
+        trigger="interval",
+        minutes=MINUTOS_CADUCIDAD_ALTAS,
+        id=ID_JOB_CADUCIDAD_ALTAS,
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        ejecutar_purga_rechazos,
+        trigger="cron",
+        hour=HORA_PURGA_RECHAZOS[0],
+        minute=HORA_PURGA_RECHAZOS[1],
+        id=ID_JOB_PURGA_RECHAZOS,
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        ejecutar_reconciliacion_bajas,
+        trigger="interval",
+        minutes=MINUTOS_RECONCILIACION_BAJAS,
+        id=ID_JOB_RECONCILIACION_BAJAS,
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
     scheduler.start()
     app.state.scheduler = scheduler

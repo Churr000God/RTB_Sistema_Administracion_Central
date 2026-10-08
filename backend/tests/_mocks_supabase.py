@@ -23,6 +23,7 @@ def tabla(datos, count=None):
     t = MagicMock()
     for metodo in METODOS_ENCADENABLES:
         getattr(t, metodo).return_value = t
+    t.not_ = t  # `.not_.in_(...)` es una propiedad que niega el filtro siguiente; aquí sólo encadena
     t.execute.return_value = Resultado(datos, count)
     return t
 
@@ -80,6 +81,10 @@ class _Cadena:
                 return r if isinstance(r, Resultado) else Resultado(r)
 
             return ejecutar
+
+        if nombre == "not_":  # propiedad, no método
+            self._cadena.append(("not_", (), {}))
+            return self
 
         def paso(*args, **kwargs):
             self._cadena.append((nombre, args, kwargs))

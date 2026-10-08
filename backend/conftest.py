@@ -5,6 +5,8 @@ Sin reiniciarlos entre pruebas, una prueba hereda el bloqueo por IP o el overrid
 import pytest
 
 from app import terminal_auth
+from app.batches import terminales as jobs_terminales
+from app.routers import anomalias_terminales
 from app.main import app
 
 
@@ -12,6 +14,8 @@ from app.main import app
 def _aislar_estado_global():
     terminal_auth.limitador.reiniciar()
     terminal_auth._redes_confiables.cache_clear()
+    jobs_terminales._SIN_AUTOR_PREVIO.clear()
+    anomalias_terminales.CACHE.limpiar()
     yield
     terminal_auth.limitador.reiniciar()
     app.dependency_overrides.clear()

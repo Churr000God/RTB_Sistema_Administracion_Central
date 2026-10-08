@@ -171,16 +171,36 @@ MENSAJE_DATO_RELACIONADO = "Un dato relacionado no existe o no está sincronizad
 MENSAJE_REGISTRO_SIMULTANEO = "Otro cambio ocurrió al mismo tiempo; recarga."
 MENSAJE_LOTE_NO_ELEGIBLE = "No se registró nada: algunas altas ya no son elegibles."
 MENSAJE_DATOS_INVALIDOS_TERMINAL = "Los datos enviados no son válidos."
+MENSAJE_AUTO_ASIGNACION = (
+    "No puedes asignarte a ti mismo a una terminal. Sólo el puesto administrador puede hacerlo."
+)
+MENSAJE_AUTO_RECONSENTIMIENTO = (
+    "No puedes registrar tu propio reconsentimiento; lo registra otra persona con permiso."
+)
+MENSAJE_VERSION_BASE_DESACTUALIZADA = (
+    "Otra persona publicó una versión nueva del texto; vuelve a leerlo antes de publicar."
+)
+# Hints de SCJ16 cuyo 409 lleva el campo hermano `consentimiento_vigente` (lo agrega el endpoint).
+HINTS_CON_CONSENTIMIENTO_VIGENTE = ("consentimiento_desactualizado", "version_base_desactualizada")
 
 _SCJ12_POR_HINT = {
     "alta_duplicada": (status.HTTP_409_CONFLICT, MENSAJE_ALTA_DUPLICADA),
     "persona_no_activa": (status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_PERSONA_NO_ACTIVA),
     "terminal_no_valida": (status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_TERMINAL_NO_VALIDA),
+    "auto_asignacion_prohibida": (status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_AUTO_ASIGNACION),
+    "auto_reconsentimiento_prohibido": (
+        status.HTTP_422_UNPROCESSABLE_ENTITY,
+        MENSAJE_AUTO_RECONSENTIMIENTO,
+    ),
 }
 _SCJ16_POR_HINT = {
     "consentimiento_desactualizado": (
         status.HTTP_409_CONFLICT,
         MENSAJE_CONSENTIMIENTO_DESACTUALIZADO,
+    ),
+    "version_base_desactualizada": (
+        status.HTTP_409_CONFLICT,
+        MENSAJE_VERSION_BASE_DESACTUALIZADA,
     ),
     "consentimiento_requerido": (
         status.HTTP_422_UNPROCESSABLE_ENTITY,

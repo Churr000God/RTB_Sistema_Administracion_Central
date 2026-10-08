@@ -25,6 +25,7 @@ PERSONA = "aaaaaaaa-0000-0000-0000-000000000001"
 PERSONA_2 = "bbbbbbbb-0000-0000-0000-000000000002"
 CRUDO = "texto-crudo-id-interno-7002"
 AHORA = datetime.now(timezone.utc)
+CONSENTIMIENTO = {"id": 4, "version": 4, "provisional": False, "cambio_material": True}
 
 
 def _alta(id_=77, estado="activo", persona=PERSONA, terminal=1, **extra):
@@ -32,6 +33,7 @@ def _alta(id_=77, estado="activo", persona=PERSONA, terminal=1, **extra):
         "id": id_, "terminal_id": terminal, "employee_no": 1000 + id_, "persona_id": persona, "estado": estado,
         "huellas_capturadas": 0 if estado != "activo" else 2, "error_detalle": None,
         "creado_en": "2026-10-07T09:00:00+00:00", "actualizado_en": "2026-10-07T09:30:00+00:00",
+        "usuario_creado_en": None, "consentimiento_id": 4,
     }
     fila.update(extra)
     return fila
@@ -62,12 +64,16 @@ def entorno(monkeypatch):
         return entorno.permitido
 
     entorno.permitido = True
+    entorno.pendientes = []
     entorno.admin_generico = False
     monkeypatch.setattr(permisos, "tiene_alguno", tiene_alguno)
     monkeypatch.setattr(permisos, "es_administrador_generico", lambda db, persona: entorno.admin_generico)
 
     def configurar(tablas, parametro=None, settings=None):
+        tablas = dict(tablas)
+        tablas.setdefault("terminal_consentimiento", tabla([CONSENTIMIENTO]))
         db = db_por_nombre(estricto=True, **tablas)
+        db.postgrest.schema.return_value.rpc.return_value.execute.return_value = Resultado(entorno.pendientes)
         servicio = db_por_nombre(parametro=parametro if parametro is not None else tabla([]))
         app.dependency_overrides[get_caller_client] = lambda: db
         app.dependency_overrides[get_caller_identity] = lambda: CALLER
@@ -91,10 +97,16 @@ def _conteos(estados):
     return [Resultado([], sum(1 for e in estados if e == o)) for o in orden]
 
 
-def _tablas_lista(altas, todas=None, nombres=None, creadas=(), total=None, terminal=None):
+def _tablas_lista(altas, todas=None, nombres=None, creadas=(), total=None, terminal=None, pend=None):
+    for c in creadas:  # 88_: usuario_creado_en es una columna de terminal_usuario, no una consulta a la bitácora
+        for a in altas:
+            if a["id"] == c["terminal_usuario_id"]:
+                a["usuario_creado_en"] = c["creado_en"]
     return {
         "terminal": tabla([terminal if terminal is not None else _terminal_fila()]),
         "terminal_usuario": _tabla_secuencia(
+            # con pendientes, primero se piden las altas de la terminal para intersectar (C6); luego la página y los conteos
+            *([Resultado(pend)] if pend else []),
             Resultado(altas, total),
             *_conteos(todas if todas is not None else [a["estado"] for a in altas]),
         ),
@@ -198,14 +210,17 @@ def test_lista_altas_con_nombre_resumen_y_total(entorno):
     assert cuerpo["altas"][1]["accion_disponible"] is None
 
 
-def test_la_alta_no_trae_nada_de_consentimiento_ni_biometria(entorno):
+def test_la_alta_trae_el_resumen_de_consentimiento_pero_ni_texto_ni_biometria(entorno):
     entorno.configurar(_tablas_lista([_alta(77)]))
     a = _get("/api/terminales/1/usuarios").json()["altas"][0]
     assert set(a) == {
         "id", "terminal_id", "employee_no", "persona_id", "persona_nombre", "estado", "huellas_capturadas",
         "creado_en", "actualizado_en", "usuario_creado_en", "caduca_en", "error_codigo", "error_detalle",
-        "accion_disponible",
+        "consentimiento", "consentimiento_vigente_id", "reconsentimiento_pendiente", "es_propia",
+        "reconsentimiento_elegible", "reconsentimiento_razon", "accion_disponible",
     }
+    assert a["consentimiento"] == {"id": 4, "version": 4, "provisional": False}  # sin texto
+    assert a["consentimiento_vigente_id"] == 4 and a["reconsentimiento_pendiente"] is False
 
 
 def test_caduca_en_es_usuario_creado_mas_la_variable_y_solo_en_esperando_huella(entorno):
@@ -241,14 +256,22 @@ def test_sin_altas_esperando_huella_no_lee_la_variable(entorno):
     parametro.execute.assert_not_called()
 
 
-def test_el_usuario_creado_se_lee_de_la_bitacora_con_el_cliente_del_caller(entorno):
-    tablas = _tablas_lista([_alta(77, "esperando_huella")])
+def test_usuario_creado_en_sale_de_la_columna_no_de_la_bitacora(entorno):
+    from app.routers.terminales import COLUMNAS_ALTA
+
+    tablas = _tablas_lista([_alta(77, "esperando_huella", usuario_creado_en="2026-10-08T10:00:00+00:00")])
     entorno.configurar(tablas)
-    _get("/api/terminales/1/usuarios")
-    bit = tablas["bitacora_movimiento_terminal_usuario"]
-    bit.eq.assert_called_with("tipo_movimiento", "usuario_creado")
-    bit.in_.assert_called_with("terminal_usuario_id", [77])
-    bit.order.assert_called_with("creado_en", desc=True)
+    a = _get("/api/terminales/1/usuarios").json()["altas"][0]
+    assert "usuario_creado_en" in COLUMNAS_ALTA and "consentimiento_id" in COLUMNAS_ALTA
+    assert a["usuario_creado_en"] == "2026-10-08T10:00:00Z"
+    tablas["bitacora_movimiento_terminal_usuario"].execute.assert_not_called()
+
+
+def test_reconsentimiento_pendiente_sale_de_la_funcion_unica_de_la_base(entorno):
+    entorno.pendientes = [78]
+    entorno.configurar(_tablas_lista([_alta(77), _alta(78)], pend=[{"id": 77, "persona_id": PERSONA}, {"id": 78, "persona_id": PERSONA}]))
+    por_id = {a["id"]: a for a in _get("/api/terminales/1/usuarios").json()["altas"]}
+    assert por_id[77]["reconsentimiento_pendiente"] is False and por_id[78]["reconsentimiento_pendiente"] is True
 
 
 def test_el_error_del_puente_se_separa_en_codigo_y_detalle(entorno):
@@ -408,7 +431,11 @@ def test_historial_con_nombres_y_terminal_sin_autor(entorno):
     assert por_id[3]["registrado_por_nombre"] is None and por_id[3]["origen"] == "terminal"
     assert por_id[3]["huellas_capturadas"] == 1
     assert por_id[1]["registrado_por_nombre"] == "carlos.ruiz"
-    assert set(por_id[1]) == {"id", "tipo_movimiento", "creado_en", "origen", "registrado_por_nombre", "detalle", "huellas_capturadas"}
+    assert set(por_id[1]) == {
+        "id", "tipo_movimiento", "creado_en", "origen", "registrado_por_nombre", "detalle", "huellas_capturadas",
+        "consentimiento",
+    }
+    assert por_id[1]["consentimiento"] is None  # el mock no trae consentimiento_id
     bit = tablas["bitacora_movimiento_terminal_usuario"]
     bit.order.assert_any_call("creado_en", desc=True)
     bit.order.assert_called_with("id", desc=True)  # orden estable
@@ -861,12 +888,14 @@ def test_columnas_de_altas_y_bitacora_existen_en_el_ddl():
 
     sql = _ddl_80_a_88()
     tu = _cuerpo_tabla(sql, "terminal_usuario")
+    agregadas = set(re.findall(r"ALTER TABLE tiempo\.terminal_usuario\s+ADD COLUMN\s+([a-z_]+)", sql))
     for col in (c.strip() for c in COLUMNAS_ALTA.split(",")):
-        assert re.search(rf"^\s+{col}\s", tu, re.M), f"terminal_usuario.{col}"
+        assert re.search(rf"^\s+{col}\s", tu, re.M) or col in agregadas, f"terminal_usuario.{col}"
     bit = _cuerpo_tabla(sql, "bitacora_movimiento_terminal_usuario")
+    agregadas_bit = set(re.findall(r"ALTER TABLE tiempo\.bitacora_movimiento_terminal_usuario\s+ADD COLUMN\s+([a-z_]+)", sql))
     for col in ("id", "tipo_movimiento", "creado_en", "origen", "registrado_por", "detalle", "huellas_capturadas",
-                "terminal_usuario_id"):
-        assert re.search(rf"^\s+{col}\s", bit, re.M), f"bitacora.{col}"
+                "terminal_usuario_id", "consentimiento_id"):
+        assert re.search(rf"^\s+{col}\s", bit, re.M) or col in agregadas_bit, f"bitacora.{col}"
 
 
 def test_tipos_y_origenes_de_movimiento_que_usa_el_backend_existen_en_el_ddl():
@@ -890,3 +919,21 @@ def test_baja_con_500_utiles_mas_relleno_pasa(entorno):
     """Los espacios sobrantes no cuentan: se mide tras sanear."""
     entorno.configurar(_tablas_baja([_alta(77, "activo")]))
     assert _post_baja({"motivo": "  " + "y" * 500 + "   "}).status_code == 201
+
+
+def test_asignables_persona_repetida_entre_paginas_aparece_una_sola_vez(entorno):
+    """Si el orden cambia entre páginas (altas/bajas concurrentes), una persona puede venir en dos páginas."""
+    from app.routers import terminales as t
+
+    pagina1 = [_p("dup", "Du", "Plicada")] + [_p(f"o-{i}", "N", f"A{i}") for i in range(t.PAGINA_CANDIDATAS - 1)]
+    pagina2 = [_p("dup", "Du", "Plicada"), _p("otra", "Otra", "Persona")]
+    persona = tabla([])
+    persona.execute.side_effect = [Resultado(pagina1), Resultado(pagina2)]
+    tu = tabla([])
+    ocupadas = [{"persona_id": p["id"]} for p in pagina1 if p["id"] != "dup"]
+    tu.execute.side_effect = [Resultado(ocupadas), Resultado([])]
+    tablas = _tablas_asignables([])
+    tablas["persona"], tablas["terminal_usuario"] = persona, tu
+    entorno.configurar(tablas)
+    ids = [x["persona_id"] for x in _get("/api/terminales/1/personas-asignables").json()]
+    assert ids == ["dup", "otra"]
