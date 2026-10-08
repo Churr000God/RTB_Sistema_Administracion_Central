@@ -44,8 +44,8 @@
   </div>
   </div>
 
-  <section data-solo="reconsent"><div class="banner-aviso" role="note"><span data-ic="alert"></span><div><strong>14 personas deben reconsentir.</strong> El texto de consentimiento cambió de forma material (v4, 08 oct 2026). <strong>No se bloquea ninguna marca</strong>: sólo se señala. Cuentan las altas en «Pendiente de alta», «Esperando huella» y «Activo»; las de «Pendiente de baja» y «Baja» no. Ni su estado ni su huella cambian. Registra su nuevo consentimiento por escrito cuando lo recabes. <em>Propuesta pendiente de aprobación del usuario.</em></div></div>
-    <div class="barra-filtros" style="margin-top:0;align-items:center" role="region" aria-label="Acciones en lote"><strong class="num">2 seleccionadas</strong><a href="#" class="enlace-porque">Seleccionar las 14 pendientes</a><span class="rango">(máximo 200 por vez)</span><span style="flex:1"></span><a href="11-reconsentimiento.html?estado=lote" class="boton-con-icono boton-primario" style="padding:.5rem .9rem;border-radius:10px;font-weight:600;font-size:.9rem" >Registrar reconsentimiento de las seleccionadas…</a></div></section>
+  <section data-solo="reconsent"><div class="banner-aviso" role="note"><span data-ic="alert"></span><div><strong>14 personas deben reconsentir</strong> (13 elegibles para que tú las registres; tu propia alta la registra otra persona, salvo que seas el administrador genérico). El texto de consentimiento cambió de forma material (v4, 08 oct 2026). <strong>No se bloquea ninguna marca</strong>: sólo se señala. Cuentan las altas en «Pendiente de alta», «Esperando huella» y «Activo»; las de «Pendiente de baja» y «Baja» no. Ni su estado ni su huella cambian. Registra su nuevo consentimiento por escrito cuando lo recabes. <em>Propuesta pendiente de aprobación del usuario.</em></div></div>
+    <div class="barra-filtros" style="margin-top:0;align-items:center" role="region" aria-label="Acciones en lote"><strong class="num">2 seleccionadas</strong><a href="#" class="enlace-porque">Seleccionar las 13 elegibles</a><span class="rango">(máximo 200 por vez; tu propia alta no es elegible)</span><span style="flex:1"></span><a href="11-reconsentimiento.html?estado=lote" class="boton-con-icono boton-primario" style="padding:.5rem .9rem;border-radius:10px;font-weight:600;font-size:.9rem" >Registrar reconsentimiento de las seleccionadas…</a></div></section>
   <section data-solo="edicion lectura reconsent"><div class="tabla-desplazable"><table>
     <thead><tr><th data-solo="reconsent"><input type="checkbox" aria-label="Seleccionar todas las filas pendientes visibles" style="width:auto"></th><th>Persona</th><th>Nº en la terminal</th><th>Estado</th><th>Huellas</th><th>Asignada</th><th>Detalle</th><th>Acciones</th></tr></thead>
     <tbody>
@@ -77,6 +77,12 @@
         <td class="num">1</td><td class="num">03 oct 2026, 10:30</td><td>—</td>
         <td><span data-solo="edicion reconsent"><button type="button" class="boton-con-icono" data-ic="trash" data-s="14">Dar de baja</button></span><span data-solo="lectura">—</span>
           <span data-solo="reconsent"><button type="button" class="boton-con-icono" data-ic="checkc" data-s="14">Registrar reconsentimiento</button></span> <a href="#" class="enlace-porque" data-ic="history" data-s="14">Historial</a></td></tr>
+      <tr><td data-solo="reconsent"><input type="checkbox" aria-label="María López (tu propia alta): no seleccionable" style="width:auto" disabled></td><td>María López <span class="insignia insignia--neutra">tú</span></td><td class="num">1021</td>
+        <td><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activo</span>
+          <div data-solo="reconsent" style="margin-top:.3rem"><span class="insignia insignia--peligro estado-alta"><span data-ic="alert" data-s="12"></span>Reconsentimiento pendiente</span><div class="ayuda-campo">Confirmó el texto v3 · vigente v4 (cambio material)</div></div></td>
+        <td class="num">2</td><td class="num">22 sep 2026, 09:00</td><td>—</td>
+        <td><span data-solo="edicion reconsent"><button type="button" class="boton-con-icono" data-ic="trash" data-s="14">Dar de baja</button></span><span data-solo="lectura">—</span>
+          <span data-solo="reconsent" class="sin-accion" style="margin-top:.3rem"><span data-ic="lock" data-s="14"></span>No puedes registrar tu propio reconsentimiento; lo registra otra persona.</span> <a href="#" class="enlace-porque" data-ic="history" data-s="14">Historial</a></td></tr>
       <tr><td data-solo="reconsent"><input type="checkbox" aria-label="Seleccionar a Raúl Mena" style="width:auto"></td><td>Raúl Mena</td><td class="num">1035</td>
         <td><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activo</span><div data-solo="reconsent" style="margin-top:.3rem"><span class="insignia insignia--exito estado-alta">Al corriente</span><div class="ayuda-campo">Confirmó el texto v4</div></div></td>
         <td class="num">2</td><td class="num">08 oct 2026, 08:00</td><td>—</td>
@@ -89,7 +95,7 @@
         <td><span class="insignia insignia--neutra estado-alta">Baja</span><div class="ayuda-campo">Dato biométrico dado de baja</div></td>
         <td class="num">—</td><td class="num">10 sep 2026, 09:00</td><td>—</td><td>— <a href="#" class="enlace-porque" data-ic="history" data-s="14">Historial</a></td></tr>
     </tbody></table></div>
-  <p class="pie-tabla">Mostrando 8 altas</p>
+  <p class="pie-tabla">Mostrando 9 altas</p>
   <ul class="leyenda-estados" style="margin-top:1rem">
     <li><strong>Cancelar alta</strong>: en Pendiente de alta / Esperando huella. <strong>Dar de baja</strong>: en Activo. Ninguna en Pendiente de baja ni Baja.</li>
     <li>Un estado se distingue por <strong>icono + texto + color</strong>, nunca sólo color.</li></ul>

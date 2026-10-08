@@ -109,3 +109,9 @@ Todo el **reconsentimiento** (11, y sus huellas en 02, 04, 05 y en el panel de p
 ## Ajuste posterior
 - **Sólo la v1 sembrada es provisional**; dejar de serlo es publicar una versión nueva. El RPC **nunca** publica `provisional=true`: el panel de publicar de 09 ya no tiene la casilla «Marcar como provisional».
 - **Personas asignables** en el modal de asignar (03) muestran **nombre + puesto · área** para distinguir homónimos; en la ficha (06) la persona viene fija con ese mismo dato. Pedido: puesto vigente y área en el listado de personas asignables.
+
+## Cambios menores posteriores
+- **Baja manual:** el motivo es **obligatorio** (mínimo 10, máximo 500) en el modal de baja/cancelar de 03: campo requerido, contador «n / 500 · mínimo 10» y error de campo si falta (estado nuevo «Baja · falta el motivo»); no llama al servidor. Sustituye al motivo opcional anterior.
+- **Reconsentimiento propio prohibido:** la alta de la propia persona del usuario no es elegible (razón fija «No puedes registrar tu propio reconsentimiento»; excepción: administrador genérico). En 02 la fila propia lleva la insignia «tú», su casilla está deshabilitada, no tiene botón y se muestra la razón; «Seleccionar las N elegibles» la excluye. En 11 figura entre las no elegibles si llegara al servidor.
+- **Visibilidad:** el módulo Terminales se ve **sólo** con `terminal_usuario_lectura/edición`; `terminal_config_edicion` por sí solo no da acceso (08, 09 y 10 lo dicen).
+- Pedidos de contrato: motivo de baja mínimo 10 validado en servidor (422); la elegibilidad del reconsentimiento incluye «no es la propia persona del caller (salvo administrador genérico)»; el listado de altas puede marcar `es_propia`/`reconsentimiento_elegible` con su razón.
