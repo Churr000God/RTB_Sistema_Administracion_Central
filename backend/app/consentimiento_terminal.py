@@ -11,6 +11,7 @@ from app.respuestas_error import ErrorConCampos
 
 logger = logging.getLogger(__name__)
 
+CODIGO_POR_HINT = {hint: hint for hint in HINTS_CON_CONSENTIMIENTO_VIGENTE}
 COLUMNAS_CONSENTIMIENTO = "id, version, texto, texto_sha256, provisional, cambio_material, nota, creado_por, creado_en"
 
 
@@ -64,7 +65,7 @@ def error_de_terminal_con_consentimiento(
         except Exception:  # la relectura nunca debe empeorar el error original
             logger.warning("no se pudo releer el texto de consentimiento vigente para el 409")
             vigente = None
-        codigo = error.hint  # consentimiento_desactualizado | version_base_desactualizada
+        codigo = CODIGO_POR_HINT[error.hint]  # lookup constante: el valor sale del backend, nunca de la base
         campos = {"consentimiento_vigente": resumen_vigente(vigente)} if vigente is not None else {}
         return ErrorConCampos(traduccion.status_code, traduccion.detail, campos, codigo=codigo)
     return traduccion

@@ -949,23 +949,25 @@ def _preparar_para_error_rpc(codigo, mensaje):
 
 
 def test_registrar_movimiento_tipo_no_permitido_scj01_devuelve_422():
-    _preparar_para_error_rpc("SCJ01", "tipo no permitido")
+    _preparar_para_error_rpc("SCJ01", "TEXTO-DE-LA-BASE-id-4471 tipo")
 
     response = _pedir_registrar(monto=3.0)
 
     _limpiar()
     assert response.status_code == 422
-    assert response.json()["detail"] == "Tipo de movimiento no permitido por esta vía."  # fijo, no el texto de la base
+    assert response.json()["detail"] == "Tipo de movimiento no permitido por esta vía."  # el del backend
+    assert "4471" not in response.text  # no el que mandó la base
 
 
 def test_registrar_movimiento_monto_invalido_scj02_devuelve_422():
-    _preparar_para_error_rpc("SCJ02", "monto invalido")
+    _preparar_para_error_rpc("SCJ02", "TEXTO-DE-LA-BASE-id-4472 monto")
 
     response = _pedir_registrar(monto=3.0)
 
     _limpiar()
     assert response.status_code == 422
     assert response.json()["detail"] == "El monto debe ser mayor a cero."
+    assert "4472" not in response.text
 
 
 def test_registrar_movimiento_persona_sin_banco_scj03_devuelve_404():

@@ -1,7 +1,6 @@
 """Pedido de contrato (security al frontend, B1): los 409 con campos hermanos llevan un `codigo` ESTABLE para que el cliente no
 deduzca por el texto de `detail`; el `detail` sigue siendo fijo. Cambio aditivo. Mocks; nunca la base real."""
 
-import ast
 import logging
 import re
 from pathlib import Path
@@ -84,72 +83,8 @@ def test_rechazo_generico_es_fijo_y_el_log_va_saneado_y_truncado(caplog):
     assert "\n" not in registro and "\r" not in registro and len(registro) < 600  # sin inyección de línea ni mensaje entero
 
 
-ATRIBUTOS_DE_LA_BASE = {"message", "details", "hint", "code"}
-# Única excepción documentada: parametros.py devuelve str(ValueError) de validar_formato_valor, texto PROPIO del backend (no de la base).
-LISTA_BLANCA = {("parametros.py", "error")}
-
-
-def _nombres_ligados_en_except(arbol) -> dict[ast.AST, set[str]]:
-    """Para cada `except ... as X`, el cuerpo del handler y el nombre X (el error capturado)."""
-    ligados: dict[ast.AST, set[str]] = {}
-    for nodo in ast.walk(arbol):
-        if isinstance(nodo, ast.ExceptHandler) and nodo.name:
-            ligados[nodo] = {nodo.name}
-    return ligados
-
-
-def _depende_del_error(expresion, nombres: set[str]) -> bool:
-    """¿El `detail` usa .message/.details/.hint/.code de un nombre capturado, o el nombre mismo (str(X), f"{X}", X)?"""
-    for n in ast.walk(expresion):
-        if isinstance(n, ast.Attribute) and n.attr in ATRIBUTOS_DE_LA_BASE and isinstance(n.value, ast.Name) and n.value.id in nombres:
-            return True
-        if isinstance(n, ast.Name) and n.id in nombres:
-            return True
-    return False
-
-
-def _fugas_en(arbol, archivo: str) -> list[str]:
-    fugas = []
-    for handler, nombres in _nombres_ligados_en_except(arbol).items():
-        for nodo in ast.walk(handler):
-            if not (isinstance(nodo, ast.Call) and getattr(nodo.func, "id", getattr(nodo.func, "attr", "")) == "HTTPException"):
-                continue
-            argumentos = list(nodo.args[1:2]) + [k.value for k in nodo.keywords if k.arg == "detail"]
-            if any(_depende_del_error(a, nombres) for a in argumentos):
-                if (archivo, next(iter(nombres))) in LISTA_BLANCA:
-                    continue
-                fugas.append(f"{archivo}:{nodo.lineno}")
-    return fugas
-
-
-def test_ningun_router_relaya_el_texto_de_la_base_en_un_http_exception():
-    """Guardia de regresión por AST: ningún HTTPException dentro de un `except ... as X` puede tener un `detail` que dependa de X
-    (X.message/.details/.hint/.code, str(X), f"{X}" o X). Cubre cualquier forma de la fuga, no sólo `error.message` literal."""
-    carpeta = Path(__file__).resolve().parents[1] / "app" / "routers"
-    fugas = []
-    for p in sorted(carpeta.glob("*.py")):
-        fugas += _fugas_en(ast.parse(p.read_text(encoding="utf-8")), p.name)
-    assert fugas == [], fugas
-
-
-@pytest.mark.parametrize(
-    "fuente",
-    [
-        "try:\n    x()\nexcept APIError as error:\n    raise HTTPException(422, error.message)\n",
-        "try:\n    x()\nexcept APIError as e:\n    raise HTTPException(422, str(e))\n",
-        "try:\n    x()\nexcept APIError as e:\n    raise HTTPException(422, f'fallo {e}')\n",
-        "try:\n    x()\nexcept APIError as e:\n    raise HTTPException(status_code=422, detail=e.details)\n",
-        "try:\n    x()\nexcept APIError as e:\n    raise HTTPException(422, (e.hint or '') + 'x')\n",
-        "try:\n    x()\nexcept APIError as e:\n    raise HTTPException(422, detail=f'{e.code}')\n",
-    ],
-)
-def test_la_guardia_ast_detecta_cada_forma_de_fuga(fuente):
-    assert _fugas_en(ast.parse(fuente), "prueba.py") != []
-
-
-def test_la_guardia_ast_no_acusa_mensajes_fijos():
-    fuente = "try:\n    x()\nexcept APIError as e:\n    if e.code == 'X':\n        raise HTTPException(409, MENSAJE)\n    raise HTTPException(422, 'fijo')\n"
-    assert _fugas_en(ast.parse(fuente), "prueba.py") == []
+# La guardia por AST (todas las formas de fuga: directa, por variable, helper con el error como parámetro, respuestas no HTTPException)
+# vive en tests/test_guardia_fugas.py.
 
 
 def test_rechazo_generico_relanza_la_falta_de_migracion_para_el_503_global():

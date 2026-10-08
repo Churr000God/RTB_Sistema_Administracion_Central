@@ -5,6 +5,7 @@ import logging
 import re
 from types import SimpleNamespace
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -536,3 +537,34 @@ def test_la_definicion_unica_de_pendientes_existe_con_grants():
     sql = _ddl88()
     assert "CREATE FUNCTION tiempo.fn_terminal_reconsentimiento_pendiente_ids()" in sql
     assert "GRANT EXECUTE ON FUNCTION tiempo.fn_terminal_reconsentimiento_pendiente_ids() TO authenticated, service_role" in sql
+
+
+# --- ContextoCaller perezoso (testing P3) -----------------------------------------------------------------------------------------
+
+
+def test_listado_sin_altas_propias_no_consulta_el_puesto_administrador(entorno, monkeypatch):
+    espia = MagicMock(return_value=False)
+    monkeypatch.setattr(permisos, "es_administrador_generico", espia)
+    entorno.pendientes = [1]
+    tu = _lista([_alta(1, "activo", OTRA), _alta(2, "activo", OTRA)], pend=[_fila(1)])
+    entorno.configurar(terminal_usuario=tu)
+    assert _get("/api/terminales/1/usuarios").status_code == 200
+    espia.assert_not_called()
+
+
+def test_reconsentimiento_sin_altas_propias_no_consulta_el_puesto_administrador(entorno, monkeypatch):
+    espia = MagicMock(return_value=False)
+    monkeypatch.setattr(permisos, "es_administrador_generico", espia)
+    _con_rpc(entorno)
+    assert _post(RUTA_LOTE, CUERPO).status_code == 201
+    espia.assert_not_called()
+
+
+def test_con_una_alta_propia_se_consulta_una_sola_vez_aunque_haya_varias(entorno, monkeypatch):
+    espia = MagicMock(return_value=False)
+    monkeypatch.setattr(permisos, "es_administrador_generico", espia)
+    entorno.pendientes = [1, 2]
+    tu = _lista([_alta(1, "activo", PROPIA), _alta(2, "activo", PROPIA)], pend=[_fila(1, PROPIA), _fila(2, PROPIA)])
+    entorno.configurar(terminal_usuario=tu)
+    _get("/api/terminales/1/usuarios")
+    assert espia.call_count == 1  # cacheado dentro del ContextoCaller

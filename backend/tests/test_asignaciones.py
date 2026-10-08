@@ -459,6 +459,35 @@ def test_cambiar_puesto_rpc_con_asignacion_cerrada_o_inexistente_devuelve_422():
     assert response.json()["detail"] == "La asignación no existe o ya está cerrada."
 
 
+def test_cambiar_puesto_rpc_con_error_desconocido_devuelve_mensaje_generico_y_no_el_de_la_base():
+    """Cualquier código distinto del único caso deliberado (P0001) cae al mensaje genérico fijo; el texto real va al log."""
+    fake_client = _fake_client_secuencia(
+        _entradas_gate()
+        + [
+            ("puesto", _tabla_select_simple([{"id": PUESTO_NUEVO_ID, "activo": True, "plazas_totales": 2}])),
+            ("asignacion", _tabla_select_eq_is([])),
+            ("asignacion", _tabla_select_simple([])),
+        ]
+    )
+    fake_client.postgrest.schema.return_value.rpc.return_value.execute.side_effect = APIError(
+        {"code": "XX999", "message": "TEXTO-DE-LA-BASE-id-9931"}
+    )
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+
+    client = TestClient(app)
+    response = client.post(
+        f"/api/asignaciones/{ASIGNACION_ID}/cambiar-puesto",
+        json=_cuerpo_cambiar_puesto(),
+        headers={"Authorization": "Bearer fake-token"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 422
+    assert response.json()["detail"] == "La operación no se pudo completar; revisa los datos o avisa a Sistemas."
+    assert "9931" not in response.text and "cerrada" not in response.text  # ni el texto de la base ni el caso P0001
+
+
 def test_cambiar_puesto_exitoso_rpc_devuelve_dict_plano():
     """fn_asignacion_cambiar_puesto RETURNS personas.asignacion (fila única, no SETOF) --
     PostgREST/postgrest-py devuelve resultado.data como dict plano, no lista de un elemento."""

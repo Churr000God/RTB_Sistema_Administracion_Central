@@ -5,6 +5,8 @@ import logging
 import re
 from pathlib import Path
 
+from unittest.mock import MagicMock
+
 import pytest
 from fastapi.testclient import TestClient
 from postgrest.exceptions import APIError
@@ -668,3 +670,58 @@ def test_el_log_del_handler_global_usa_la_plantilla_de_la_ruta_no_la_url(entorno
     mensajes = " ".join(x.getMessage() for x in caplog.records)
     assert "/api/terminales/{terminal_id}/usuarios" in mensajes
     assert "/api/terminales/1/usuarios" not in mensajes and PERSONA not in mensajes
+
+
+# --- pruebas adicionales de testing (P2/P3) ----------------------------------------------------------------------------------
+
+
+def test_asignar_usa_el_terminal_id_de_la_url_en_la_verificacion_el_payload_y_la_relectura(entorno):
+    tablas = _asignar_tablas()
+    _cfg(entorno, tablas)
+    r = _post("/api/terminales/7/usuarios", CUERPO_ASIGNAR)
+    assert r.status_code == 201, r.text
+    tablas["terminal"].eq.assert_any_call("id", 7)  # _verificar_terminal consultó la 7
+    assert tablas["bitacora_movimiento_terminal_usuario"].insert.call_args.args[0]["terminal_id"] == 7
+    assert ("terminal_id", 7) in [c.args for c in tablas["terminal_usuario"].eq.call_args_list]
+
+
+def test_scj16_con_relectura_que_falla_da_409_fijo_sin_vigente_y_con_codigo(entorno):
+    """La base rechaza por consentimiento_desactualizado y, al releer el texto vigente, la red falla: el 409 sale igual, con
+    detail fijo y codigo estable, sin consentimiento_vigente y sin filtrar el error de la relectura."""
+    tablas = _asignar_tablas(error=APIError({"code": "SCJ16", "hint": "consentimiento_desactualizado", "message": CRUDO}))
+    consent = MagicMock()
+    for m in ("select", "order", "limit"):
+        getattr(consent, m).return_value = consent
+    consent.execute.side_effect = [Resultado([V3]), ConnectionError(CRUDO)]  # 1ª: pre-chequeo del endpoint; 2ª: relectura del 409
+    tablas["terminal_consentimiento"] = consent
+    _cfg(entorno, tablas)
+    r = _post(RUTA_ASIGNAR, CUERPO_ASIGNAR)
+    assert r.status_code == 409
+    assert r.json() == {"detail": "El texto de consentimiento cambió; vuelve a leerlo.", "codigo": "consentimiento_desactualizado"}
+    assert "8814" not in r.text
+
+
+def test_publicaron_entre_las_dos_lecturas_da_409(entorno):
+    """El historial trae la v5 como vigente y, al leer el texto completo, ya es la v6: carrera => 409, no un cuerpo incoherente."""
+    v5, v6 = _version(5, 5), _version(6, 6)
+    entorno.configurar(terminal_consentimiento=TablaConCadenas([v5], [v6]), persona=tabla([]))
+    r = _get(RUTA)
+    assert r.status_code == 409 and r.json()["detail"] == "Otro cambio ocurrió al mismo tiempo; recarga."
+
+
+def test_si_la_vigente_desaparece_entre_las_dos_lecturas_da_409(entorno):
+    entorno.configurar(terminal_consentimiento=TablaConCadenas([_version(5, 5)], []), persona=tabla([]))
+    assert _get(RUTA).status_code == 409
+
+
+def test_es_semilla_exige_sin_autor_Y_provisional(entorno):
+    sin_autor_no_provisional = _version(3, 3, creado_por=None, provisional=False)
+    con_autor_provisional = _version(2, 2, creado_por="p-autor", provisional=True)
+    semilla = _version(1, 1, creado_por=None, provisional=True)
+    entorno.configurar(
+        terminal_consentimiento=TablaConCadenas([sin_autor_no_provisional, con_autor_provisional, semilla], [sin_autor_no_provisional]),
+        persona=tabla([{"id": "p-autor", "primer_nombre": "Carlos", "apellido_paterno": "Ruiz"}]),
+    )
+    hist = _get(RUTA).json()["historial"]
+    assert [h["es_semilla"] for h in hist] == [False, False, True]
+    assert hist[1]["publicado_por_nombre"] == "Carlos Ruiz" and hist[0]["publicado_por_nombre"] is None
