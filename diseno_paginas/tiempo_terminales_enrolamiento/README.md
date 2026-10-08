@@ -1,7 +1,7 @@
 # Diseño previo — Enrolamiento de terminal (Paquete 2)
 
-**Estado: BORRADOR sujeto a contrato. No implementar hasta que el usuario lo apruebe y backend publique `/api/terminales`.**
-Fuente: `docs/07-procesos/SCJ-PRO-15_Proceso_Enrolamiento_de_Terminal_V1_1.md` §VI y `docs/03-decisiones/SCJ-DEC-12_*_V2_0.md` §4–§6. Importa el CSS real (`frontend/src/styles/tokens.css`); cada HTML tiene barra para cambiar de estado, `?estado=<clave>` abre uno directo y `?limpio=1` oculta las notas. Reutiliza `_mockup.css/js` (copia de los del Paquete 1, con el grupo «Terminales» en el sidebar). Sin móvil, igual que el resto de mockups.
+**Estado: APROBADO por el usuario el 2026-10-08 (incluye Configuración y reconsentimiento, 09-11). No implementar hasta que backend publique el contrato de `/api/terminales`.**
+Fuente: `docs/07-procesos/SCJ-PRO-15_Proceso_Enrolamiento_de_Terminal_V1_2.md` §VI y `docs/03-decisiones/SCJ-DEC-12_*_V2_1.md` §4–§6. Importa el CSS real (`frontend/src/styles/tokens.css`); cada HTML tiene barra para cambiar de estado, `?estado=<clave>` abre uno directo y `?limpio=1` oculta las notas. Reutiliza `_mockup.css/js` (copia de los del Paquete 1, con el grupo «Terminales» en el sidebar). Sin móvil, igual que el resto de mockups.
 
 | Archivo | Pantalla (SCJ-PRO-15 §VI) |
 |---|---|
@@ -56,3 +56,56 @@ Fuente: `docs/07-procesos/SCJ-PRO-15_Proceso_Enrolamiento_de_Terminal_V1_1.md` �
 4. **Copy de la leyenda de consentimiento**: el texto que aparece al lado de la casilla es una propuesta; el aviso de privacidad real lo provee RH/Legal (SCJ-PRO-15 P7), no se redacta aquí.
 5. **Mínimo de huellas**: la UI muestra el conteo; no se exige mínimo mayor a 1 (P5 abierta).
 6. **¿Se avisa a TI** (correo/notificación) cuando hay una alta en `esperando_huella`? Hoy sólo se ve en la lista; el diseño no inventa notificaciones.
+
+---
+
+# Adenda — Configuración de terminales (09, 10), reconsentimiento (11) y decisiones del usuario
+
+**Decisiones del usuario que cierran preguntas anteriores:** grupo propio «Terminales» (opción A); modal de asignar compartido entre la pantalla de la terminal y la ficha; Anomalías visibles con `terminal_usuario_lectura/edición` (RH, Gerente General, TI); mínimo 1 huella; sin notificaciones por ahora.
+**Configuración:** un solo permiso nuevo, `terminal_config_edicion` (Gerente o Encargado de TI y Gerente General). **No hay permiso de lectura aparte**: la pantalla se ve con la visibilidad del grupo Terminales y RH la ve en sólo lectura. Picos de tasa queda **fijo** (10/persona/hora). Texto de consentimiento: tope **4 000** caracteres, texto plano. La versión que confirmó cada alta se guarda en una **columna** de la bitácora (`consentimiento_id`), no en el `detalle`. Cambiar la caducidad aplica también a las altas en curso (la UI lo avisa y muestra el impacto). **No existe «sin texto publicado»**: la v1 se siembra como provisional. Una versión desactualizada al asignar se rechaza siempre (409). «Motivo del cambio» al publicar: opcional, 200 caracteres.
+
+| Archivo | Contenido |
+|---|---|
+| `09-configuracion-consentimiento.html` | Versión vigente, editor (4 000), vista previa fiel al modal de asignar, historial (con motivo y marca de cambio material), panel de publicar con motivo opcional (200), y **«Cambio material (exige reconsentimiento)»** con el conteo de personas que quedarán pendientes. 16 estados |
+| `10-configuracion-variables.html` | 5 variables: caducidad de altas 4–168 h, antigüedad máx. de llave 3–36 meses, ventana de anomalías 1–90 días, retención de rechazos 30–365 días, traslape de llaves 1–90 días (def. 7). Caducidad con **paso de impacto antes de confirmar**: variante que amplía el plazo y variante que lo acorta (nombra las altas que caducarían en la siguiente corrida) |
+| `11-reconsentimiento.html` (**propuesta**) | Modal «Registrar reconsentimiento»: una persona, lote, todas las pendientes; casilla única de que existen los documentos firmados; éxito, éxito parcial por alta, 409, 403, 503 |
+| `02-usuarios-de-la-terminal.html` (actualizado) | Estado nuevo «Con reconsentimiento pendiente (propuesta)»: insignia por fila con la versión que confirmó, métrica con contador, filtro, casillas de selección, barra de acciones en lote y «Registrar reconsentimiento» por fila |
+| `03-modales-asignar-y-baja.html` (actualizado) | Casilla con el texto de la versión vigente y su número (+ «Provisional»); estado nuevo «texto desactualizado (409)» con «Releer el texto vigente». Se eliminó el estado «sin texto publicado» |
+| `04-historial-de-un-alta.html`, `05-tablero-de-anomalias.html`, `08-navegacion.html` (actualizados) | 04: «Consentimiento vN» (columna) y entrada «Reconsentimiento registrado». 05: décima tarjeta **propuesta** «Reconsentimientos pendientes». 08: permisos simplificados |
+
+## Propuestas pendientes de aprobación del usuario
+Todo el **reconsentimiento** (11, y sus huellas en 02, 04, 05 y en el panel de publicar de 09) es un borrador que el usuario aún no aprueba; el resto de esta adenda refleja decisiones ya tomadas.
+
+## Decisiones de diseño
+1. **Versiones inmutables**; la nueva aplica a asignaciones nuevas, las altas hechas conservan su versión. **Deja de ser provisional publicando una versión nueva sin la marca** (el panel lo dice).
+2. **Publicar en dos pasos** (revisar → panel con motivo, cambio material y confirmación explícita). Inerte mientras envía.
+3. **Cambio material**: casilla propia, no deducida del texto. Si se marca, el panel muestra cuántas personas quedarán pendientes (cifra del servidor al abrir el panel).
+4. **Reconsentimiento no toca nada del enrolamiento**: ni huella, ni estado, ni baja; sólo registra la existencia del documento firmado contra la versión vigente. Quien no reconsiente: se solicita su baja (pasa a captura manual).
+5. **Impacto antes de confirmar** al cambiar la caducidad: cuenta de altas afectadas y, si acorta, nombra las que caducarían en la siguiente corrida; confirmar en rojo.
+6. Lectura (RH): bloque de sólo lectura en lugar del editor, sin botones de edición, con aviso que nombra `terminal_config_edicion`. Sin acceso al grupo: estado vacío que nombra `terminal_usuario_lectura`.
+
+## Pedidos de contrato a backend/db
+1. **Permiso** `terminal_config_edicion` (sembrado a TI y Gerente General; ¿heredable? recomiendo no, como `terminal_usuario_edicion`) y banderas en `GET /api/sesion` (`puede_ver_terminales`, `puede_editar_terminales`, `puede_editar_config_terminales`).
+2. **Consentimiento versionado:** `GET …/configuracion/consentimiento` → `{vigente, historial}` (versión, texto, `provisional` —sólo la v1 sembrada—, `cambio_material`, `motivo_cambio`, `vigente_desde`, `publicado_por_nombre`). `POST` `{texto 1–4000, cambio_material, motivo_cambio≤200, base_version}` → 201; 409 si la vigente cambió; 422 inválido. Para el panel de publicar: el conteo de personas que quedarían pendientes si es material (p. ej. `GET …/consentimiento/impacto` o campo en la respuesta de `GET`).
+3. **Asignar:** `POST …/usuarios {persona_id, consentimiento_id}`; 409 si ya no es el vigente (siempre). El historial del alta devuelve `consentimiento_id`/versión como campo propio.
+4. **Variables:** `GET` (clave, descripción, unidad, `minimo`, `maximo`, valor, `vigente_desde`), `PATCH {valor}` (422 fuera de rango), historial, y `POST …/variables/caducidad_alta_horas/simular {valor}` → `{altas_que_ganan_plazo, altas_que_caducarian_ya:[nombres], altas_por_caducar_nuevas}` para el paso de impacto.
+5. **Reconsentimiento (propuesta):** altas con `reconsentimiento_pendiente` (bool) y `consentimiento_vigente_id`/`consentimiento_confirmado_id`; filtro `reconsentimiento=pendiente` y contador; `POST …/usuarios/{tu_id}/reconsentimiento {consentimiento_id}` y lote `POST …/usuarios/reconsentimientos {tu_ids[], consentimiento_id}` (máx. 200, todo o nada; si alguna no es elegible, error con la lista de no elegibles y su razón); movimiento de bitácora propio sin cambio de estado; categoría 10 en `GET …/anomalias`.
+6. `caduca_en` obligatorio en las altas (ya pedido): ahora la caducidad es configurable y cambia con altas en curso.
+7. Compartir el modal entre la terminal y la ficha: sólo cambia que la ficha agrega el selector de terminal.
+
+## Preguntas abiertas
+1. **Reconsentimiento:** ¿una persona sin reconsentir tiene plazo y consecuencia (p. ej. baja automática) o sólo queda señalada? El diseño sólo señala.
+2. **¿Quién registra el reconsentimiento?** Se propone `terminal_usuario_edicion` (RH, Gerente General, TI), el mismo que asigna.
+4. Rangos de las variables (confirmar los propuestos) y si «traslape de llaves» debe validarse contra la antigüedad máxima de llave.
+
+## Cierres posteriores del usuario (aplicados)
+- **Texto máximo 4 000 caracteres.**
+- **El reconsentimiento pendiente NO bloquea marcas:** sólo se muestra (insignia, filtro y contador en 02; sección en la ficha, 06; tarjeta 10 en 05 con persona, versión anterior y días pendiente).
+- **Quién cuenta como pendiente:** `pendiente_alta`, `esperando_huella` y `activo`; `pendiente_baja` y `baja` no.
+- **Primer texto definitivo que sustituye al provisional:** el reconsentimiento de todos es automático; en el panel de publicar de 09 (estado «Confirmar · reemplaza al provisional») la casilla «Cambio material» aparece marcada y **bloqueada** con la explicación. En versiones posteriores es opcional. El panel muestra cuántas altas quedarían pendientes.
+- **09:** la versión 1 figura «Publicada por Sistema (texto provisional)»; no hay permiso de lectura aparte (`terminal_config_edicion` es el único).
+- **Registro de reconsentimiento (11):** por fila y en lote, **máximo 200 por vez, todo o nada**; antes de la confirmación «tengo los documentos firmados» se muestran la versión y su texto completo; si alguna ya no es elegible se rechaza el lote y se listan las no elegibles con su razón. Si hay más de 200, el botón queda inerte con el motivo.
+
+## Ajuste posterior
+- **Sólo la v1 sembrada es provisional**; dejar de serlo es publicar una versión nueva. El RPC **nunca** publica `provisional=true`: el panel de publicar de 09 ya no tiene la casilla «Marcar como provisional».
+- **Personas asignables** en el modal de asignar (03) muestran **nombre + puesto · área** para distinguir homónimos; en la ficha (06) la persona viene fija con ese mismo dato. Pedido: puesto vigente y área en el listado de personas asignables.

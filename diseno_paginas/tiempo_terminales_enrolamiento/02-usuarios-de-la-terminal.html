@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="_mockup.css">
 </head>
 <body data-activo="Terminales">
-<div class="mock-barra" data-estados="edicion:Con edición,lectura:Sólo lectura,carga:Cargando,vacio:Vacío,error:Error de carga">
+<div class="mock-barra" data-estados="edicion:Con edición,reconsent:Con reconsentimiento pendiente (propuesta),lectura:Sólo lectura,carga:Cargando,vacio:Vacío,error:Error de carga">
   <strong>Borrador 02 · /tiempo/terminales/:id/usuarios</strong><span class="borrador">BORRADOR · sujeto a contrato</span><span>Estado:</span><span class="estados"></span>
   <span>· <a href="?limpio=1">ocultar notas</a></span>
 </div>
@@ -20,67 +20,83 @@
   <nav class="migas"><a href="#">Terminales</a> / <strong>Entrada principal</strong></nav>
   <div class="encabezado-pagina"><div><h1>Usuarios de la terminal</h1>
     <p class="subtitulo-pagina">Entrada principal · DS-K1T-0001 · <span class="contacto"><span class="punto punto--exito"></span>En línea</span>. La huella se enrola en el menú del aparato (TI con RH presente); aquí sólo se asigna, se da seguimiento y se da de baja.</p></div>
-    <span data-solo="edicion"><button type="button" class="boton-con-icono boton-primario" data-ic="userplus">Asignar persona</button></span></div>
+    <span data-solo="edicion reconsent"><button type="button" class="boton-con-icono boton-primario" data-ic="userplus">Asignar persona</button></span></div>
 
   <p class="nota-diseno"><strong>Datos:</strong> <code>GET /api/terminales/{id}/usuarios</code> (filtros <code>estado</code>, <code>persona_id</code>, <code>desde</code>; orden por <code>creado_en</code> desc). Acciones: <code>POST …/usuarios</code> y <code>POST …/usuarios/{tu_id}/baja</code>. <strong>No hay botón "Capturar huella".</strong> "Asignar" y "Cancelar/Dar de baja" sólo con <code>terminal_usuario_edicion</code> (no heredable); en lectura se ocultan y se explica por qué. El nombre de la persona lo resuelve el backend; el aparato sólo conoce el <code>employee_no</code>.</p>
 
   <section data-solo="lectura"><div class="banner-aviso banner-aviso--info" role="note"><span data-ic="lock"></span><div><strong>Puedes consultar estas altas, no modificarlas.</strong> Asignar o dar de baja a una persona requiere el permiso <em>Gestionar usuarios de terminal</em>. Pídeselo a Recursos Humanos o a TI.</div></div></section>
 
-  <div data-solo="edicion lectura">
+  <div data-solo="edicion lectura reconsent">
   <div class="banda-metricas">
     <div class="metrica"><span class="etiqueta-metrica"><span class="punto punto--exito"></span>Activos</span><strong>12</strong></div>
     <div class="metrica"><span class="etiqueta-metrica"><span class="punto punto--aviso"></span>Esperando huella</span><strong>2</strong></div>
     <div class="metrica"><span class="etiqueta-metrica">Pendientes de alta / baja</span><strong>1 / 1</strong></div>
+    <div class="metrica" data-solo="reconsent"><span class="etiqueta-metrica"><span class="punto punto--peligro"></span>Reconsentimiento pendiente</span><strong>14</strong></div>
   </div>
   <div class="barra-filtros">
     <div class="campo-con-icono"><i data-ic-campo="search"></i><input type="search" placeholder="Buscar por persona" aria-label="Buscar por persona"></div>
     <div class="grupo-filtros-secundarios">
       <select aria-label="Filtrar por estado"><option>Estado: Todos</option><option>Pendiente de alta</option><option>Esperando huella</option><option>Activo</option><option>Pendiente de baja</option><option>Baja</option></select>
       <div><label for="d">Asignada desde</label><input id="d" type="date"></div>
+      <select aria-label="Filtrar por reconsentimiento" data-solo="reconsent"><option>Reconsentimiento: Todos</option><option selected>Pendiente (14)</option><option>Al corriente</option></select>
       <select aria-label="Ordenar por"><option>Más recientes primero</option></select>
     </div>
   </div>
   </div>
 
-  <section data-solo="edicion lectura"><div class="tabla-desplazable"><table>
-    <thead><tr><th>Persona</th><th>Nº en la terminal</th><th>Estado</th><th>Huellas</th><th>Asignada</th><th>Detalle</th><th>Acciones</th></tr></thead>
+  <section data-solo="reconsent"><div class="banner-aviso" role="note"><span data-ic="alert"></span><div><strong>14 personas deben reconsentir.</strong> El texto de consentimiento cambió de forma material (v4, 08 oct 2026). <strong>No se bloquea ninguna marca</strong>: sólo se señala. Cuentan las altas en «Pendiente de alta», «Esperando huella» y «Activo»; las de «Pendiente de baja» y «Baja» no. Ni su estado ni su huella cambian. Registra su nuevo consentimiento por escrito cuando lo recabes. <em>Propuesta pendiente de aprobación del usuario.</em></div></div>
+    <div class="barra-filtros" style="margin-top:0;align-items:center" role="region" aria-label="Acciones en lote"><strong class="num">2 seleccionadas</strong><a href="#" class="enlace-porque">Seleccionar las 14 pendientes</a><span class="rango">(máximo 200 por vez)</span><span style="flex:1"></span><a href="11-reconsentimiento.html?estado=lote" class="boton-con-icono boton-primario" style="padding:.5rem .9rem;border-radius:10px;font-weight:600;font-size:.9rem" >Registrar reconsentimiento de las seleccionadas…</a></div></section>
+  <section data-solo="edicion lectura reconsent"><div class="tabla-desplazable"><table>
+    <thead><tr><th data-solo="reconsent"><input type="checkbox" aria-label="Seleccionar todas las filas pendientes visibles" style="width:auto"></th><th>Persona</th><th>Nº en la terminal</th><th>Estado</th><th>Huellas</th><th>Asignada</th><th>Detalle</th><th>Acciones</th></tr></thead>
     <tbody>
-      <tr><td>Ana Torres</td><td class="num">1042</td>
-        <td><span class="insignia insignia--aviso estado-alta"><span data-ic="clock" data-s="12"></span>Pendiente de alta</span><div class="ayuda-campo">El puente aún no la crea en el aparato</div></td>
+      <tr><td data-solo="reconsent"><input type="checkbox" aria-label="Seleccionar a Ana Torres" style="width:auto"></td><td>Ana Torres</td><td class="num">1042</td>
+        <td><span class="insignia insignia--aviso estado-alta"><span data-ic="clock" data-s="12"></span>Pendiente de alta</span><div class="ayuda-campo">El puente aún no la crea en el aparato</div><div data-solo="reconsent" style="margin-top:.3rem"><span class="insignia insignia--peligro estado-alta"><span data-ic="alert" data-s="12"></span>Reconsentimiento pendiente</span><div class="ayuda-campo">Confirmó el texto v3 · vigente v4 (cambio material)</div></div></td>
         <td class="num">—</td><td class="num">07 oct 2026, 09:10</td>
         <td><div class="error-terminal"><span data-ic="alertc" data-s="14"></span>Último error del puente: usuario_ya_existe (reintentando)</div></td>
-        <td><span data-solo="edicion"><button type="button" class="boton-con-icono" data-ic="x" data-s="14">Cancelar alta</button></span><span data-solo="lectura">—</span></td></tr>
-      <tr><td>Luis Ramírez</td><td class="num">1041</td>
+        <td><span data-solo="edicion reconsent"><button type="button" class="boton-con-icono" data-ic="x" data-s="14">Cancelar alta</button></span><span data-solo="lectura">—</span> <span data-solo="reconsent"><button type="button" class="boton-con-icono" data-ic="checkc" data-s="14">Registrar reconsentimiento</button></span></td></tr>
+      <tr><td data-solo="reconsent"><input type="checkbox" aria-label="Seleccionar a Luis Ramírez" style="width:auto"></td><td>Luis Ramírez</td><td class="num">1041</td>
         <td><span class="insignia insignia--info estado-alta"><span data-ic="fingerprint" data-s="12"></span>Esperando huella</span>
           <div class="ayuda-campo">Esperando que TI enrole la huella en la terminal</div>
-          <div class="cuenta-regresiva"><span data-ic="clock" data-s="12"></span>Caduca en 19 h 40 min</div></td>
+          <div class="cuenta-regresiva"><span data-ic="clock" data-s="12"></span>Caduca en 19 h 40 min</div><div data-solo="reconsent" style="margin-top:.3rem"><span class="insignia insignia--peligro estado-alta"><span data-ic="alert" data-s="12"></span>Reconsentimiento pendiente</span><div class="ayuda-campo">Confirmó el texto v3 · vigente v4 (cambio material)</div></div></td>
         <td class="num">0</td><td class="num">07 oct 2026, 08:20</td><td>—</td>
-        <td><span data-solo="edicion"><button type="button" class="boton-con-icono" data-ic="x" data-s="14">Cancelar alta</button></span><span data-solo="lectura">—</span></td></tr>
-      <tr><td>Marta Núñez</td><td class="num">1038</td>
+        <td><span data-solo="edicion reconsent"><button type="button" class="boton-con-icono" data-ic="x" data-s="14">Cancelar alta</button></span><span data-solo="lectura">—</span> <span data-solo="reconsent"><button type="button" class="boton-con-icono" data-ic="checkc" data-s="14">Registrar reconsentimiento</button></span></td></tr>
+      <tr><td data-solo="reconsent"><input type="checkbox" aria-label="Seleccionar a Marta Núñez" style="width:auto"></td><td>Marta Núñez</td><td class="num">1038</td>
         <td><span class="insignia insignia--info estado-alta"><span data-ic="fingerprint" data-s="12"></span>Esperando huella</span>
-          <div class="cuenta-regresiva cuenta-regresiva--urgente"><span data-ic="alert" data-s="12"></span>Caduca en 1 h 05 min · se dará de baja sola</div></td>
+          <div class="cuenta-regresiva cuenta-regresiva--urgente"><span data-ic="alert" data-s="12"></span>Caduca en 1 h 05 min · se dará de baja sola</div><div data-solo="reconsent" style="margin-top:.3rem"><span class="insignia insignia--peligro estado-alta"><span data-ic="alert" data-s="12"></span>Reconsentimiento pendiente</span><div class="ayuda-campo">Confirmó el texto v2 · vigente v4 (cambio material)</div></div></td>
         <td class="num">0</td><td class="num">06 oct 2026, 10:00</td><td>—</td>
-        <td><span data-solo="edicion"><button type="button" class="boton-con-icono" data-ic="x" data-s="14">Cancelar alta</button></span><span data-solo="lectura">—</span></td></tr>
-      <tr><td>Pedro Salas</td><td class="num">1030</td>
-        <td><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activo</span></td>
+        <td><span data-solo="edicion reconsent"><button type="button" class="boton-con-icono" data-ic="x" data-s="14">Cancelar alta</button></span><span data-solo="lectura">—</span> <span data-solo="reconsent"><button type="button" class="boton-con-icono" data-ic="checkc" data-s="14">Registrar reconsentimiento</button></span></td></tr>
+      <tr><td data-solo="reconsent"><input type="checkbox" aria-label="Seleccionar a Pedro Salas" style="width:auto" checked></td><td>Pedro Salas</td><td class="num">1030</td>
+        <td><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activo</span>
+          <div data-solo="reconsent" style="margin-top:.3rem"><span class="insignia insignia--peligro estado-alta"><span data-ic="alert" data-s="12"></span>Reconsentimiento pendiente</span><div class="ayuda-campo">Confirmó el texto v2 · vigente v4 (cambio material)</div></div></td>
         <td class="num">2</td><td class="num">01 oct 2026, 09:00</td><td>—</td>
-        <td><span data-solo="edicion"><button type="button" class="boton-con-icono" data-ic="trash" data-s="14">Dar de baja</button></span><span data-solo="lectura">—</span> <a href="#" class="enlace-porque" data-ic="history" data-s="14">Historial</a></td></tr>
-      <tr><td>Sofía Vega</td><td class="num">1027</td>
+        <td><span data-solo="edicion reconsent"><button type="button" class="boton-con-icono" data-ic="trash" data-s="14">Dar de baja</button></span><span data-solo="lectura">—</span>
+          <span data-solo="reconsent"><button type="button" class="boton-con-icono" data-ic="checkc" data-s="14">Registrar reconsentimiento</button></span> <a href="#" class="enlace-porque" data-ic="history" data-s="14">Historial</a></td></tr>
+      <tr><td data-solo="reconsent"><input type="checkbox" aria-label="Seleccionar a Elena Ríos" style="width:auto" checked></td><td>Elena Ríos</td><td class="num">1033</td>
+        <td><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activo</span>
+          <div data-solo="reconsent" style="margin-top:.3rem"><span class="insignia insignia--peligro estado-alta"><span data-ic="alert" data-s="12"></span>Reconsentimiento pendiente</span><div class="ayuda-campo">Confirmó el texto v3 · vigente v4 (cambio material)</div></div></td>
+        <td class="num">1</td><td class="num">03 oct 2026, 10:30</td><td>—</td>
+        <td><span data-solo="edicion reconsent"><button type="button" class="boton-con-icono" data-ic="trash" data-s="14">Dar de baja</button></span><span data-solo="lectura">—</span>
+          <span data-solo="reconsent"><button type="button" class="boton-con-icono" data-ic="checkc" data-s="14">Registrar reconsentimiento</button></span> <a href="#" class="enlace-porque" data-ic="history" data-s="14">Historial</a></td></tr>
+      <tr><td data-solo="reconsent"><input type="checkbox" aria-label="Seleccionar a Raúl Mena" style="width:auto"></td><td>Raúl Mena</td><td class="num">1035</td>
+        <td><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activo</span><div data-solo="reconsent" style="margin-top:.3rem"><span class="insignia insignia--exito estado-alta">Al corriente</span><div class="ayuda-campo">Confirmó el texto v4</div></div></td>
+        <td class="num">2</td><td class="num">08 oct 2026, 08:00</td><td>—</td>
+        <td><span data-solo="edicion reconsent"><button type="button" class="boton-con-icono" data-ic="trash" data-s="14">Dar de baja</button></span><span data-solo="lectura">—</span> <a href="#" class="enlace-porque" data-ic="history" data-s="14">Historial</a></td></tr>
+      <tr><td data-solo="reconsent"></td><td>Sofía Vega</td><td class="num">1027</td>
         <td><span class="insignia insignia--aviso estado-alta"><span data-ic="clock" data-s="12"></span>Pendiente de baja</span><div class="ayuda-campo">El puente borrará el usuario y sus huellas del aparato</div></td>
         <td class="num">1</td><td class="num">28 sep 2026, 09:00</td><td>baja automática: la persona pasó a suspensión</td>
         <td>— <a href="#" class="enlace-porque" data-ic="history" data-s="14">Historial</a></td></tr>
-      <tr><td>Julio Cano</td><td class="num">1019</td>
+      <tr><td data-solo="reconsent"></td><td>Julio Cano</td><td class="num">1019</td>
         <td><span class="insignia insignia--neutra estado-alta">Baja</span><div class="ayuda-campo">Dato biométrico dado de baja</div></td>
         <td class="num">—</td><td class="num">10 sep 2026, 09:00</td><td>—</td><td>— <a href="#" class="enlace-porque" data-ic="history" data-s="14">Historial</a></td></tr>
     </tbody></table></div>
-  <p class="pie-tabla">Mostrando 6 altas</p>
+  <p class="pie-tabla">Mostrando 8 altas</p>
   <ul class="leyenda-estados" style="margin-top:1rem">
     <li><strong>Cancelar alta</strong>: en Pendiente de alta / Esperando huella. <strong>Dar de baja</strong>: en Activo. Ninguna en Pendiente de baja ni Baja.</li>
     <li>Un estado se distingue por <strong>icono + texto + color</strong>, nunca sólo color.</li></ul>
   </section>
 
   <section data-solo="carga" role="status"><p class="boton-con-icono"><span class="icono-girando" data-ic="loader"></span>Cargando usuarios de la terminal…</p><div style="display:grid;gap:.6rem;margin-top:.5rem"><div class="esqueleto"></div><div class="esqueleto"></div><div class="esqueleto"></div></div></section>
-  <section data-solo="vacio"><div class="estado-vacio"><span data-ic="userplus" data-s="40"></span><p><strong>Esta terminal todavía no tiene personas asignadas.</strong><br>Quien marca por captura manual no necesita asignación.</p><span data-solo="edicion"><button type="button" class="boton-con-icono boton-primario">Asignar persona</button></span></div></section>
+  <section data-solo="vacio"><div class="estado-vacio"><span data-ic="userplus" data-s="40"></span><p><strong>Esta terminal todavía no tiene personas asignadas.</strong><br>Quien marca por captura manual no necesita asignación.</p><span data-solo="edicion reconsent"><button type="button" class="boton-con-icono boton-primario">Asignar persona</button></span></div></section>
   <section data-solo="error"><div class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se pudo cargar los usuarios de la terminal</strong><p>Ocurrió un problema al consultar las altas.</p><button type="button" style="margin-top:.6rem">Reintentar</button></div></section>
 </div></main></div>
 <script src="_mockup.js"></script>

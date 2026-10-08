@@ -136,3 +136,18 @@
 .cuenta-regresiva { font-size: .78rem; color: var(--navy-medio); display: flex; gap: .3rem; align-items: center; }
 .cuenta-regresiva--urgente { color: #8c1d18; font-weight: 600; }
 .error-terminal { font-size: .8rem; color: #8c1d18; display: flex; gap: .3rem; align-items: flex-start; margin-top: .25rem; }
+
+/* ─── Configuración de terminales (permiso provisional terminal_configuracion_*) ─── */
+.pestanas-config { display: flex; gap: .4rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
+.pestanas-config a { text-decoration: none; padding: .4rem .9rem; border-radius: 999px; border: 1px solid var(--linea); background: #fff; color: var(--navy); font-size: .88rem; font-weight: 600; }
+.pestanas-config a[aria-current="page"] { background: var(--teal); color: #fff; border-color: var(--teal); }
+.pestanas-config a:focus-visible { outline: 3px solid var(--teal); outline-offset: 2px; }
+.rejilla-editor { display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr)); align-items: start; }
+.editor-texto textarea { min-height: 13rem; line-height: 1.5; resize: vertical; }
+.vista-previa { border: 1px dashed var(--linea); border-radius: var(--radio-tarjeta); padding: 1rem; background: var(--superficie); }
+.vista-previa h4 { margin: 0 0 .6rem; font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; color: var(--navy-medio); font-family: var(--font-cuerpo); }
+.version-vigente { display: flex; flex-wrap: wrap; gap: .5rem .9rem; align-items: center; margin-bottom: .75rem; }
+.panel-confirmar { border: 2px solid var(--oro); background: #fffaf0; border-radius: var(--radio-tarjeta); padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: .75rem; }
+.chip-permiso { font-family: var(--font-mono); font-size: .75rem; background: rgba(0,43,91,.07); border-radius: 6px; padding: .1rem .4rem; }
+.rango { font-size: .78rem; color: var(--navy-medio); }
+.fila-editando td { background: var(--superficie); }

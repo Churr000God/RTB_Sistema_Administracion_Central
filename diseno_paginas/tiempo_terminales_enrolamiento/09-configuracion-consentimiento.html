@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paquete 2 · 09 Configuración · Consentimiento</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../frontend/src/styles/tokens.css">
+<link rel="stylesheet" href="_mockup.css">
+</head>
+<body data-activo="Configuración">
+<div class="mock-barra" data-estados="edicion:Con edición (v3 definitiva),provisional:Vigente provisional (v1),editando:Editando (cambios sin publicar),confirmar_def:Confirmar · reemplaza al provisional,confirmar:Confirmar publicación,material:Confirmar · cambio material,publicando:Publicando,exito:Publicada,exito_material:Publicada · cambio material,e409:409 versión cambió,e422:422 texto inválido,e403:403 sin permiso,e503:503,lectura:Sólo lectura (RH),sinpermiso:Sin acceso al grupo,carga:Cargando,error:Error de carga">
+  <strong>Borrador 09 · /tiempo/terminales/configuracion (consentimiento)</strong><span class="borrador">BORRADOR · sujeto a contrato</span><span>Estado:</span><span class="estados"></span>
+  <span>· <a href="?limpio=1">ocultar notas</a></span>
+</div>
+<div class="app-shell">
+<aside class="app-shell-aside" id="shell-aside"></aside>
+<main class="app-shell-main">
+<div class="contenedor-pagina contenedor-pagina--ancho">
+  <nav class="migas"><a href="#">Terminales</a> / <strong>Configuración</strong></nav>
+  <div class="encabezado-pagina"><div><h1>Configuración de terminales</h1>
+    <p class="subtitulo-pagina">El texto de consentimiento biométrico y las variables del módulo se editan aquí. La pantalla la ve quien ve el grupo Terminales (<span class="chip-permiso">terminal_usuario_lectura</span> / <span class="chip-permiso">edicion</span>: RH, Gerente General, TI). Editan sólo quienes tengan <span class="chip-permiso">terminal_config_edicion</span> (Gerente o Encargado de TI y Gerente General); RH la ve en sólo lectura.</p></div></div>
+  <nav class="pestanas-config" aria-label="Secciones de configuración">
+    <a href="09-configuracion-consentimiento.html" aria-current="page">Texto de consentimiento</a>
+    <a href="10-configuracion-variables.html" >Variables</a>
+  </nav>
+  <p class="nota-diseno"><strong>Propuesta pendiente de aprobación del usuario.</strong> Modelo supuesto (a confirmar con <code>db</code>): versiones inmutables con <code>version</code>, <code>texto</code> (1–4 000, texto plano, sin HTML), <code>provisional</code> (sólo la v1 sembrada lo es; el RPC nunca publica <code>provisional=true</code>), <code>cambio_material</code>, <code>motivo_cambio</code> (≤ 200, opcional), <code>vigente_desde</code>, <code>publicado_por</code>, <code>publicado_en</code>. <strong>No existe «sin texto publicado»</strong>: la versión 1 se siembra como provisional con el texto de este mockup. La versión que confirmó cada alta vive en una <em>columna</em> de la bitácora (<code>consentimiento_id</code>).</p>
+
+  <section data-solo="carga" role="status"><p class="boton-con-icono"><span class="icono-girando" data-ic="loader"></span>Cargando el texto de consentimiento…</p><div style="display:grid;gap:.6rem;margin-top:.5rem"><div class="esqueleto" style="height:9rem"></div><div class="esqueleto"></div></div></section>
+  <section data-solo="error"><div class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se pudo cargar la configuración</strong><p>Ocurrió un problema al consultar el texto de consentimiento.</p><button type="button" style="margin-top:.6rem">Reintentar</button></div></section>
+  <section data-solo="sinpermiso"><div class="estado-vacio"><span data-ic="lock" data-s="40"></span><p><strong>No tienes acceso a las terminales.</strong><br>Esta pantalla es parte del grupo Terminales. Pídele a Recursos Humanos o a TI el permiso <span class="chip-permiso">terminal_usuario_lectura</span>.</p></div></section>
+
+  <div data-solo="edicion provisional editando confirmar confirmar_def material publicando exito exito_material e409 e422 e403 e503 lectura">
+
+  <section data-solo="lectura"><div class="banner-aviso banner-aviso--info" role="note"><span data-ic="lock"></span><div><strong>Puedes consultar el texto, no modificarlo.</strong> Publicar una versión nueva requiere <span class="chip-permiso">terminal_config_edicion</span> (Gerente o Encargado de TI, Gerente General).</div></div></section>
+
+  <section data-solo="provisional"><div class="banner-aviso" role="note"><span data-ic="alert"></span><div><strong>El texto vigente es provisional.</strong> Es el texto inicial del sistema; el aviso definitivo lo entrega RH/Legal (SCJ-PRO-15 P7). Las asignaciones lo muestran con la marca «Provisional». Deja de serlo publicando una versión nueva sin esa marca.</div></div></section>
+
+  <div class="rejilla-editor">
+    <div class="tarjeta-resumen editor-texto">
+      <h3>Versión vigente</h3>
+      <div class="version-vigente" data-solo="edicion editando confirmar material publicando e409 e422 e403 e503 lectura"><span class="insignia insignia--exito">Vigente</span><strong>Versión 3</strong><span class="rango">desde 02 oct 2026 · publicada por Carlos Ruiz (Gerente de TI)</span></div>
+      <div class="version-vigente" data-solo="provisional confirmar_def"><span class="insignia insignia--aviso">Provisional</span><strong>Versión 1</strong><span class="rango">desde 20 sep 2026 · Sistema (texto provisional)</span></div>
+      <div class="version-vigente" data-solo="exito exito_material"><span class="insignia insignia--exito">Vigente</span><strong>Versión 4</strong><span class="rango">desde 08 oct 2026 · publicada por Carlos Ruiz</span></div>
+
+      <div data-solo="edicion provisional editando confirmar confirmar_def material publicando exito exito_material e409 e422 e403 e503">
+        <label for="txt">Texto de consentimiento (texto plano, hasta 4 000 caracteres)</label>
+        <textarea id="txt" maxlength="4000" aria-describedby="txt-ayuda txt-cont" data-solo="edicion provisional">La persona recibió el aviso de privacidad y otorgó por escrito su consentimiento para el tratamiento de su huella con fines de control de asistencia. La huella queda sólo en el aparato; el sistema guarda únicamente el conteo. Puede revocarlo en cualquier momento solicitando su baja a Recursos Humanos. El documento firmado queda en su expediente.</textarea>
+        <textarea id="txt2" maxlength="4000" aria-describedby="txt-ayuda txt-cont" data-solo="editando confirmar confirmar_def material publicando exito exito_material e409 e422 e403 e503">La persona recibió el aviso de privacidad y otorgó por escrito su consentimiento para el tratamiento de su huella con fines de control de asistencia. La huella queda sólo en el aparato; el sistema guarda únicamente el conteo. Puede revocarlo en cualquier momento solicitando su baja a Recursos Humanos y a Sistemas. El documento firmado queda en su expediente.</textarea>
+        <p class="ayuda-campo" id="txt-ayuda">Se muestra en el modal de asignar, junto a la casilla. No uses HTML ni formato: se muestra como texto. El aviso de privacidad completo es un documento aparte.</p>
+        <div class="modal__contador num" id="txt-cont">412 / 4 000</div>
+        <div data-solo="e422" class="campo-error"><p class="mensaje-campo"><span data-ic="alertc" data-s="14"></span>El texto es obligatorio y debe tener hasta 4 000 caracteres.</p></div>
+      </div>
+      <section data-solo="e409" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se publicó</strong><p>Otra persona publicó una versión nueva mientras editabas. Recarga para ver la versión vigente; tu texto no se perdió, está en el editor.</p><button type="button" style="margin-top:.6rem" class="boton-con-icono">Recargar versión vigente</button></section>
+      <section data-solo="e403" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se publicó</strong><p>No tienes permiso para esta acción.</p></section>
+      <section data-solo="e503" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se publicó</strong><p>Servicio no disponible; reintenta. La versión vigente no cambió.</p></section>
+      <section data-solo="exito" role="status" class="banner-aviso banner-aviso--info"><span data-ic="checkc"></span><div><strong>Versión 4 publicada.</strong> Aplica a las asignaciones nuevas desde ahora. Las altas ya hechas conservan la versión con la que se confirmaron.</div></section>
+      <section data-solo="exito_material" role="status" class="banner-aviso banner-aviso--info"><span data-ic="checkc"></span><div><strong>Versión 4 publicada como cambio material.</strong> 14 personas ya enroladas quedaron con <strong>reconsentimiento pendiente</strong>. <a href="02-usuarios-de-la-terminal.html?estado=reconsent">Ver y registrar reconsentimientos →</a></div></section>
+
+      <div data-solo="lectura"><p style="white-space:pre-line;background:var(--superficie);padding:.8rem;border-radius:10px;font-size:.9rem;margin:0">La persona recibió el aviso de privacidad y otorgó por escrito su consentimiento para el tratamiento de su huella con fines de control de asistencia. La huella queda sólo en el aparato; el sistema guarda únicamente el conteo. Puede revocarlo en cualquier momento solicitando su baja a Recursos Humanos. El documento firmado queda en su expediente.</p><p class="rango" style="margin:.5rem 0 0">Sólo lectura.</p></div>
+
+      <div data-solo="editando e409 e422 e503" class="botonera" style="margin-top:.5rem"><button type="button" class="boton-con-icono">Descartar cambios</button><button type="button" class="boton-con-icono boton-primario">Revisar y publicar…</button></div>
+      <div data-solo="edicion provisional" class="botonera" style="margin-top:.5rem"><button type="button" class="boton-con-icono boton-primario" disabled>Revisar y publicar…</button><span class="rango">Sin cambios por publicar</span></div>
+
+      <div data-solo="confirmar confirmar_def material publicando e403" class="panel-confirmar" role="alertdialog" aria-labelledby="pc">
+        <strong id="pc" style="font-size:1rem"><span data-solo="confirmar material publicando e403">Publicar la versión 4</span><span data-solo="confirmar_def">Publicar la versión 2 — la primera definitiva</span></strong>
+        <ul style="margin:0;padding-left:1.1rem;font-size:.86rem;line-height:1.5">
+          <li>Las <strong>asignaciones nuevas</strong> mostrarán este texto desde ahora.</li>
+          <li>Las <strong>altas ya hechas no cambian</strong>: conservan la versión con la que se confirmaron. Una versión publicada no se edita ni se borra.</li>
+          <li>Queda registrado quién la publicó y cuándo.</li></ul>
+        <div><label for="mot" style="margin-bottom:.25rem">Motivo del cambio (opcional, hasta 200 caracteres)</label><input id="mot" type="text" maxlength="200" placeholder="Ej.: se agregó la referencia a Sistemas para revocar."></div>
+        <label class="casilla-consentimiento" style="margin:0" data-solo="confirmar publicando e403"><input type="checkbox"> <span><strong>Cambio material (exige reconsentimiento).</strong> Opcional: márcalo si el cambio altera la finalidad, el plazo, la forma de borrado o la revocación. Las personas con alta pendiente o activa deberán reconsentir.</span></label>
+        <label class="casilla-consentimiento" style="margin:0" data-solo="material"><input type="checkbox" checked> <span><strong>Cambio material (exige reconsentimiento).</strong> Opcional: márcalo si el cambio altera la finalidad, el plazo, la forma de borrado o la revocación. Las personas con alta pendiente o activa deberán reconsentir.</span></label>
+        <label class="casilla-consentimiento" style="margin:0;background:var(--superficie)" data-solo="confirmar_def"><input type="checkbox" checked disabled aria-describedby="cm-def"> <span><strong>Cambio material (exige reconsentimiento).</strong> <span id="cm-def" style="display:block;color:var(--navy-medio)">Marcado y bloqueado: esta es la primera versión definitiva y reemplaza al texto provisional, así que todas las personas con alta pendiente o activa deben reconsentir con el texto definitivo.</span></span></label>
+        <div data-solo="material confirmar_def" class="banner-aviso" role="note" style="margin:0"><span data-ic="alert"></span><div><strong>14 altas quedarían con «Reconsentimiento pendiente»</strong> (3 en proceso de alta —pendiente de alta o esperando huella— y 11 activas). <strong>No se bloquea ninguna marca</strong>: sólo se señala en «Usuarios de la terminal», en la ficha y en el tablero de anomalías, hasta que RH registre el reconsentimiento. No cuentan las altas en baja ni pendientes de baja. <span class="rango">Cifra calculada por el servidor al abrir este panel.</span></div></div>
+        <label class="casilla-consentimiento" style="margin:0"><input type="checkbox" checked> <span>Confirmo que revisé la vista previa y que quiero publicar esta versión.</span></label>
+        <div class="botonera"><button type="button" class="boton-con-icono" data-solo="confirmar confirmar_def material e403">Volver al editor</button><button type="button" class="boton-con-icono" data-solo="publicando" disabled>Volver al editor</button>
+          <button type="button" class="boton-con-icono boton-primario" data-solo="confirmar material e403">Publicar versión 4</button>
+          <button type="button" class="boton-con-icono boton-primario" data-solo="confirmar_def">Publicar versión 2</button>
+          <button type="button" class="boton-con-icono boton-primario" data-solo="publicando" disabled aria-busy="true"><span class="icono-girando" data-ic="loader"></span>Publicando…</button></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="vista-previa" aria-label="Vista previa del modal de asignar">
+        <h4>Vista previa — así se ve en «Asignar persona»</h4>
+        <div class="casilla-consentimiento" style="background:#fff">
+          <input type="checkbox" disabled aria-hidden="true" tabindex="-1">
+          <div><strong>Consentimiento y aviso de privacidad recabados.</strong>
+            <span style="display:block;font-weight:400;color:var(--navy-medio);white-space:pre-line" data-solo="edicion provisional lectura">La persona recibió el aviso de privacidad y otorgó por escrito su consentimiento para el tratamiento de su huella con fines de control de asistencia. La huella queda sólo en el aparato; el sistema guarda únicamente el conteo. Puede revocarlo en cualquier momento solicitando su baja a Recursos Humanos. El documento firmado queda en su expediente.</span>
+            <span style="display:block;font-weight:400;color:var(--navy-medio);white-space:pre-line" data-solo="editando confirmar confirmar_def material publicando exito exito_material e409 e422 e403 e503">La persona recibió el aviso de privacidad y otorgó por escrito su consentimiento para el tratamiento de su huella con fines de control de asistencia. La huella queda sólo en el aparato; el sistema guarda únicamente el conteo. Puede revocarlo en cualquier momento solicitando su baja a Recursos Humanos y a Sistemas. El documento firmado queda en su expediente.</span>
+            <span class="rango" style="display:block;margin-top:.4rem" data-solo="edicion lectura">Versión 3 (vigente)</span>
+            <span class="rango" style="display:block;margin-top:.4rem" data-solo="provisional">Versión 1 <span class="insignia insignia--aviso" style="margin-left:.3rem">Provisional</span></span>
+            <span class="rango" style="display:block;margin-top:.4rem" data-solo="editando e409 e422 e503">Versión 4 (borrador, sin publicar)</span>
+            <span class="rango" style="display:block;margin-top:.4rem" data-solo="confirmar material publicando exito exito_material e403">Versión 4 (se publicará como definitiva, sin la marca «Provisional»)</span>
+            <span class="rango" style="display:block;margin-top:.4rem" data-solo="confirmar_def">Versión 2 (primera definitiva, sin la marca «Provisional»)</span></div>
+        </div>
+        <p class="ayuda-campo" style="margin:.6rem 0 0">El título en negrita es fijo (es el acto que se confirma). Sólo el texto de abajo se edita.</p>
+      </div>
+
+      <div class="tarjeta-resumen" style="margin-top:1.25rem">
+        <h3>Historial de versiones</h3>
+        <div class="tabla-desplazable"><table>
+          <thead><tr><th>Versión</th><th>Vigente desde</th><th>Hasta</th><th>Publicada por</th><th>Motivo del cambio</th><th>Estado</th></tr></thead>
+          <tbody>
+            <tr data-solo="exito exito_material"><td>4</td><td class="num">08 oct 2026</td><td>—</td><td>Carlos Ruiz</td><td>Se agregó la referencia a Sistemas para revocar. <span data-solo="exito_material" class="insignia insignia--peligro">Cambio material</span></td><td><span class="insignia insignia--exito">Vigente</span></td></tr>
+            <tr data-solo="provisional confirmar_def"><td>1</td><td class="num">20 sep 2026</td><td>—</td><td>Sistema (texto provisional)</td><td>Texto inicial</td><td><span class="insignia insignia--exito">Vigente</span> <span class="insignia insignia--aviso">Provisional</span></td></tr>
+            <tr data-solo="edicion editando confirmar material publicando e409 e422 e403 e503 lectura exito exito_material"><td>3</td><td class="num">02 oct 2026</td><td class="num"><span data-solo="exito exito_material">08 oct 2026</span></td><td>Carlos Ruiz</td><td>Versión definitiva entregada por RH</td><td><span data-solo="edicion editando confirmar confirmar_def material publicando e409 e422 e403 e503 lectura" class="insignia insignia--exito">Vigente</span><span data-solo="exito exito_material" class="insignia insignia--neutra">Reemplazada</span></td></tr>
+            <tr data-solo="edicion editando confirmar material publicando e409 e422 e403 e503 lectura exito exito_material"><td>2</td><td class="num">29 sep 2026</td><td class="num">01 oct 2026</td><td>Carlos Ruiz</td><td>—</td><td><span class="insignia insignia--neutra">Reemplazada</span> <span class="insignia insignia--aviso">Provisional</span></td></tr>
+            <tr data-solo="edicion editando confirmar material publicando e409 e422 e403 e503 lectura exito exito_material"><td>1</td><td class="num">20 sep 2026</td><td class="num">28 sep 2026</td><td>Sistema (texto provisional)</td><td>Texto inicial</td><td><span class="insignia insignia--neutra">Reemplazada</span> <span class="insignia insignia--aviso">Provisional</span></td></tr>
+          </tbody></table></div>
+        <p class="ayuda-campo" style="margin:.6rem 0 0">Cada alta registra qué versión confirmó RH (columna <code>consentimiento_id</code>; visible en el historial del alta, mockup 04). Ver una versión antigua es sólo lectura.</p>
+      </div>
+    </div>
+  </div>
+  </div>
+</div></main></div>
+<script src="_mockup.js"></script>
+</body></html>

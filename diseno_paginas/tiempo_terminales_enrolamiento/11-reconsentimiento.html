@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paquete 2 · 11 Reconsentimiento</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../frontend/src/styles/tokens.css">
+<link rel="stylesheet" href="_mockup.css">
+</head>
+<body data-activo="Terminales">
+<div class="mock-barra" data-estados="uno:Una persona,lote:Lote (2 seleccionadas),todas:Todas las pendientes (14),sin:Sin confirmar la casilla,cargando:Enviando,ok:Éxito,noeleg:No elegibles · nada se registró,excede:Más de 200 seleccionadas,e409:409 texto cambió,e403:403,e503:503">
+  <strong>Borrador 11 · modal «Registrar reconsentimiento» (propuesta)</strong><span class="borrador">BORRADOR · sujeto a contrato</span><span>Estado:</span><span class="estados"></span>
+  <span>· <a href="?limpio=1">ocultar notas</a></span>
+</div>
+<div class="app-shell">
+<aside class="app-shell-aside" id="shell-aside"></aside>
+<main class="app-shell-main">
+<div class="contenedor-pagina contenedor-pagina--ancho">
+<p class="nota-diseno"><strong>Propuesta pendiente de aprobación del usuario.</strong> Aplica cuando se publica una versión del texto marcada como <em>cambio material</em> (09): las personas ya enroladas (<code>activo</code>) deben reconsentir. El reconsentimiento <strong>no reenrola la huella ni cambia el estado del alta</strong>; sólo registra que existe el consentimiento firmado de la versión vigente. Se registra por fila (02) o en lote. Endpoints supuestos: <code>POST /api/terminales/{id}/usuarios/{tu_id}/reconsentimiento {consentimiento_id}</code> y <code>POST …/usuarios/reconsentimientos {tu_ids[], consentimiento_id}</code> (todo o nada, máx. 200; si alguna no es elegible, error con la lista de no elegibles y su razón). Gate: <code>terminal_usuario_edicion</code>.</p>
+<div class="modal-fondo"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="t" aria-describedby="c">
+  <div data-solo="uno lote todas sin cargando noeleg excede e409 e403 e503" style="display:contents">
+    <h2 id="t">Registrar reconsentimiento</h2>
+    <p class="modal__contexto" id="c">
+      <span data-solo="uno">Pedro Salas · nº 1030 · Entrada principal. Confirmó el texto <strong>v2</strong>; el vigente es la <strong>v4</strong> (cambio material del 08 oct 2026).</span>
+      <span data-solo="lote sin cargando noeleg e409 e403 e503">Se registrará el reconsentimiento de <strong>2 personas</strong> (Pedro Salas, Elena Ríos) con el texto vigente <strong>v4</strong> (cambio material del 08 oct 2026).</span>
+      <span data-solo="todas excede">Se registrará el reconsentimiento de <strong><span data-solo="todas">las 14 personas pendientes</span><span data-solo="excede">las 214 altas seleccionadas</span></strong> con el texto vigente <strong>v4</strong> (cambio material del 08 oct 2026).</span></p>
+    <div class="vista-previa" style="background:#fff"><h4>Texto de la versión 4 · cambio material · vigente desde 08 oct 2026</h4><p style="white-space:pre-line;margin:0;font-size:.88rem;color:var(--navy)">La persona recibió el aviso de privacidad y otorgó por escrito su consentimiento para el tratamiento de su huella con fines de control de asistencia. La huella queda sólo en el aparato; el sistema guarda únicamente el conteo. Puede revocarlo en cualquier momento solicitando su baja a Recursos Humanos y a Sistemas. El documento firmado queda en su expediente.</p></div>
+    <p class="ayuda-campo" style="margin:0">Lee el texto antes de confirmar: el reconsentimiento que registres debe corresponder a <strong>esta</strong> versión. Se registran como máximo <strong>200 por vez</strong>, <strong>todo o nada</strong>.</p>
+    <div class="modal__advertencia" role="note" style="background:var(--superficie);border-color:var(--linea);color:var(--navy-medio)"><span data-ic="circle"></span><div><strong>Qué hace y qué no.</strong> Registra, a nombre tuyo y con la fecha de hoy, que el nuevo consentimiento existe. <strong>No</strong> reenrola ninguna huella, <strong>no</strong> cambia el estado de las altas y <strong>no</strong> las da de baja. Si una persona no reconsiente, no la registres: solicita su baja (pasa a captura manual).</div></div>
+    <div class="casilla-consentimiento" data-solo="uno lote todas cargando noeleg e409 e403 e503"><input type="checkbox" id="rc" aria-describedby="rc-d" checked>
+      <label for="rc" style="margin:0;font-weight:500;color:var(--navy)"><strong>Confirmo que los documentos firmados existen.</strong>
+        <span id="rc-d" style="display:block;font-weight:400;color:var(--navy-medio)"><span data-solo="uno">El reconsentimiento firmado de la persona, con el texto de la versión 4, está en su expediente de RH.</span><span data-solo="lote cargando noeleg e409 e403 e503">Los reconsentimientos firmados de las 2 personas, con el texto de la versión 4, están en sus expedientes de RH.</span><span data-solo="todas">Los reconsentimientos firmados de las 14 personas, con el texto de la versión 4, están en sus expedientes de RH. Revisa que no falte ninguno: el registro en lote no distingue personas.</span></span></label></div>
+    <div class="casilla-consentimiento campo-error" data-solo="sin"><input type="checkbox" id="rc2" aria-describedby="rc-e"><label for="rc2" style="margin:0;font-weight:500;color:var(--navy)"><strong>Confirmo que los documentos firmados existen.</strong></label></div>
+    <div data-solo="sin" class="campo-error"><p class="mensaje-campo" id="rc-e"><span data-ic="alertc" data-s="14"></span>Confirma que existen los documentos firmados para poder registrar.</p></div>
+    <div data-solo="excede" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>Son demasiadas para una sola vez</strong><p>Seleccionaste 214 altas y el máximo es 200 por vez. Registra primero 200 y repite con el resto.</p></div>
+    <div data-solo="noeleg" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se registró nada</strong><p>2 de las 14 altas ya no son elegibles, así que el lote completo se rechazó (todo o nada). Quítalas de la selección y vuelve a intentar.</p>
+      <div class="tabla-desplazable" style="margin-top:.5rem"><table><thead><tr><th>Persona</th><th>Por qué no es elegible</th></tr></thead><tbody><tr><td>Julio Cano</td><td>Ya estaba al corriente (alguien más la registró)</td></tr><tr><td>Sofía Vega</td><td>Su alta está en baja o pendiente de baja</td></tr></tbody></table></div><button type="button" class="boton-con-icono" style="margin-top:.6rem">Actualizar la lista</button></div>
+    <div data-solo="e409" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se registró</strong><p>El texto de consentimiento cambió mientras tenías esta ventana abierta (ahora es la versión 5). Léelo de nuevo: el reconsentimiento debe corresponder al texto vigente.</p><button type="button" class="boton-con-icono" style="margin-top:.6rem">Releer el texto vigente</button></div>
+    <div data-solo="e403" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se registró</strong><p>No tienes permiso para esta acción.</p></div>
+    <div data-solo="e503" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se registró</strong><p>Servicio no disponible; reintenta. No se registró nada.</p></div>
+    <div class="modal__botonera">
+      <span data-solo="uno lote todas sin noeleg e409 e403 e503" style="display:contents"><button type="button" class="boton-con-icono">Cancelar</button><button type="button" class="boton-con-icono boton-primario" data-ic="checkc">Registrar reconsentimiento</button></span>
+      <span data-solo="excede" style="display:contents"><button type="button" class="boton-con-icono">Cancelar</button><button type="button" class="boton-con-icono boton-primario" aria-disabled="true" style="opacity:.55;cursor:not-allowed" data-ic="checkc">Registrar reconsentimiento</button></span>
+      <span data-solo="cargando" style="display:contents"><button type="button" class="boton-con-icono" disabled>Cancelar</button><button type="button" class="boton-con-icono boton-primario" disabled aria-busy="true"><span class="icono-girando" data-ic="loader"></span>Registrando…</button></span>
+    </div>
+  </div>
+  <div data-solo="ok" style="display:contents" role="status"><h2><span data-ic="checkc" data-s="22" style="color:var(--teal)"></span> Reconsentimiento registrado</h2>
+    <p class="modal__contexto">Quedó registrado el reconsentimiento de <strong>2 personas</strong> con el texto v4. Su alta y su huella no cambian. Quedan 12 pendientes.</p>
+    <div class="modal__botonera"><button type="button" class="boton-con-icono boton-primario">Cerrar</button></div></div>
+</div></div>
+<section class="escenario" style="margin-top:2rem"><h2>Reglas</h2><ul style="font-size:.85rem;color:var(--navy-medio);line-height:1.6;padding-left:1.1rem">
+<li><strong>Una sola confirmación explícita</strong> de que existen los documentos firmados, también en lote (la UI no los verifica: es una declaración de quien registra y queda a su nombre).</li>
+<li><strong>Siempre contra la versión vigente</strong>: si cambió mientras el modal estaba abierto, 409 y se pide releer (misma regla que asignar).</li>
+<li><strong>Máximo 200 por vez y todo o nada</strong>: si alguna ya no es elegible (ya al corriente, en baja o pendiente de baja) se rechaza el lote completo y se listan las no elegibles con su razón; si son más de 200, el botón queda inerte con el motivo.</li>
+<li><strong>No bloquea marcas</strong>: el reconsentimiento pendiente sólo se señala.</li>
+<li>Selección en 02: casillas por fila, «seleccionar las N pendientes» (todas las pendientes, no sólo las visibles) y una barra de acciones en lote; el filtro «Reconsentimiento: Pendiente» las aísla.</li></ul></section>
+</div></main></div>
+<script src="_mockup.js"></script>
+</body></html>

@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="_mockup.css">
 </head>
 <body data-activo="Directorio">
-<div class="mock-barra" data-estados="sin_alta:Sin alta,esperando:Esperando huella,activo:Activa,baja:Pendiente de baja,lectura:Sin alta · sólo lectura,carga:Cargando,error:Error de carga">
+<div class="mock-barra" data-estados="sin_alta:Sin alta,esperando:Esperando huella,activo:Activa,reconsent:Activa · reconsentimiento pendiente (propuesta),baja:Pendiente de baja,lectura:Sin alta · sólo lectura,carga:Cargando,error:Error de carga">
   <strong>Borrador 06 · sección «Terminal» de /personas/:id</strong><span class="borrador">BORRADOR · sujeto a contrato</span><span>Estado:</span><span class="estados"></span>
   <span>· <a href="?limpio=1">ocultar notas</a></span>
 </div>
@@ -19,7 +19,7 @@
 <div class="contenedor-pagina contenedor-pagina--ancho">
   <nav class="migas"><a href="#">Personas</a> / <strong>Ana Torres</strong></nav>
   <div class="encabezado-pagina"><div><h1>Ana Torres</h1><p class="subtitulo-pagina">Ficha de persona (el resto de la ficha no cambia).</p></div></div>
-  <p class="nota-diseno"><strong>Sección nueva «Terminal»</strong> bajo «Datos personales»: la ve quien ya ve la ficha <em>y</em> tiene <code>terminal_usuario_lectura</code>; el botón sólo con edición. Datos: <code>GET /api/terminales</code> + <code>…/usuarios?persona_id=</code> por terminal (<em>pedido a backend:</em> una consulta por persona, p. ej. <code>GET /api/personas/{id}/terminales</code>, para no hacer N llamadas). "Asignar a la terminal" abre el mismo modal de 03 (con selector de terminal). Mismo patrón que «Crear acceso a Kairos».</p>
+  <p class="nota-diseno"><strong>Sección nueva «Terminal»</strong> bajo «Datos personales»: la ve quien ya ve la ficha <em>y</em> tiene <code>terminal_usuario_lectura</code>; el botón sólo con edición. Datos: <code>GET /api/terminales</code> + <code>…/usuarios?persona_id=</code> por terminal (<em>pedido a backend:</em> una consulta por persona, p. ej. <code>GET /api/personas/{id}/terminales</code>, para no hacer N llamadas). "Asignar a la terminal" abre el mismo modal de 03: aquí la persona viene fija (nombre + puesto · área, para que no haya duda de quién es) y lo que se elige es la terminal. Mismo patrón que «Crear acceso a Kairos».</p>
   <div class="tarjeta-resumen"><h3>Datos personales</h3><p class="ayuda-campo">(sin cambios)</p></div>
   <div class="tarjeta-resumen" style="margin-top:1rem">
     <div class="fila-cabecera-tarjeta" style="display:flex;justify-content:space-between;align-items:center"><h3><span data-ic="terminal" data-s="18"></span> Terminal de checado</h3>
@@ -30,6 +30,7 @@
       <p class="ayuda-campo" data-solo="lectura" style="margin:.5rem 0 0">Asignarla requiere el permiso <em>Gestionar usuarios de terminal</em>.</p></section>
     <section data-solo="esperando"><p style="margin:.5rem 0"><span class="insignia insignia--info estado-alta"><span data-ic="fingerprint" data-s="12"></span>Esperando huella</span> · Entrada principal · nº 1042</p><p class="ayuda-campo" style="margin:0">Esperando que TI enrole la huella en la terminal. <span class="cuenta-regresiva" style="display:inline-flex"><span data-ic="clock" data-s="12"></span>Caduca en 19 h 40 min</span></p><p style="margin:.75rem 0 0"><a href="#">Ver en Usuarios de la terminal →</a></p></section>
     <section data-solo="activo"><p style="margin:.5rem 0"><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activa</span> · Entrada principal · nº 1042 · 2 huellas</p><p style="margin:.75rem 0 0"><a href="#">Ver en Usuarios de la terminal →</a></p></section>
+    <section data-solo="reconsent"><p style="margin:.5rem 0"><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activa</span> <span class="insignia insignia--peligro estado-alta"><span data-ic="alert" data-s="12"></span>Reconsentimiento pendiente</span> · Entrada principal · nº 1042 · 2 huellas</p><p class="ayuda-campo" style="margin:0">Confirmó el texto <strong>v2</strong>; el vigente es la <strong>v4</strong> (cambio material del 08 oct 2026). Pendiente hace 3 días. <strong>No afecta sus marcas</strong>: sólo se señala hasta que RH registre su nuevo consentimiento.</p><p style="margin:.75rem 0 0"><a href="02-usuarios-de-la-terminal.html?estado=reconsent">Registrar reconsentimiento en Usuarios de la terminal →</a></p></section>
     <section data-solo="baja"><p style="margin:.5rem 0"><span class="insignia insignia--aviso estado-alta"><span data-ic="clock" data-s="12"></span>Pendiente de baja</span> · Entrada principal</p><p class="ayuda-campo" style="margin:0">El puente borrará el usuario y sus huellas del aparato. Reactivar a la persona no la reenrola: habrá que asignarla de nuevo.</p></section>
   </div>
 </div></main></div>

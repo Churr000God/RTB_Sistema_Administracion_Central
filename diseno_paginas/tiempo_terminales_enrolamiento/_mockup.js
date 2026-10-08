@@ -38,7 +38,7 @@ document.querySelectorAll('[data-ic]').forEach((el) => { el.innerHTML = ic(el.da
     ['Marcas', ['Captura manual', 'Registro de marcas', 'Tramos', 'Días']],
     ['Autorizaciones', ['Excepciones pendientes', 'Ausencias']],
     ['Reportes', ['Banco de horas', 'Alertas de retardo']],
-    ['Terminales', ['Terminales', 'Anomalías']],
+    ['Terminales', ['Terminales', 'Anomalías', 'Configuración']],
     ['Parámetros', []],
   ];
   aside.innerHTML = `<div class="app-shell-wordmark">Kairos</div><nav class="app-shell-nav" aria-label="Principal">` +

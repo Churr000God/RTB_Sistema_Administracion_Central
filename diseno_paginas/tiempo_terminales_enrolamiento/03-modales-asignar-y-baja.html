@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="_mockup.css">
 </head>
 <body data-activo="Terminales">
-<div class="mock-barra" data-estados="a_ini:Asignar · inicial,a_auto:Asignar · es la propia persona,a_sin:Asignar · sin consentimiento,a_cargando:Asignar · enviando,a_ok:Asignar · éxito,a_409:Asignar · 409 duplicada,a_422:Asignar · 422,a_403:Asignar · 403,b_cancelar:Cancelar alta,b_baja:Dar de baja,b_cargando:Baja · enviando,b_ok:Baja · éxito,b_409:Baja · 409">
+<div class="mock-barra" data-estados="a_ini:Asignar · inicial,a_prov:Asignar · texto provisional,a_409v:Asignar · texto desactualizado (409),a_auto:Asignar · es la propia persona,a_sin:Asignar · sin consentimiento,a_cargando:Asignar · enviando,a_ok:Asignar · éxito,a_409:Asignar · 409 duplicada,a_422:Asignar · 422,a_403:Asignar · 403,b_cancelar:Cancelar alta,b_baja:Dar de baja,b_cargando:Baja · enviando,b_ok:Baja · éxito,b_409:Baja · 409">
   <strong>Borrador 03 · modales de /tiempo/terminales/:id/usuarios</strong><span class="borrador">BORRADOR · sujeto a contrato</span><span>Estado:</span><span class="estados"></span>
   <span>· <a href="?limpio=1">ocultar notas</a></span>
 </div>
@@ -21,23 +21,26 @@
 <div class="modal-fondo"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="t" aria-describedby="c">
 
 <!-- ASIGNAR -->
-<div data-solo="a_ini a_auto a_sin a_cargando a_409 a_422 a_403" style="display:contents">
+<div data-solo="a_ini a_prov a_409v a_auto a_sin a_cargando a_409 a_422 a_403" style="display:contents">
   <h2 id="t">Asignar persona a la terminal</h2>
   <p class="modal__contexto" id="c">Terminal <strong>Entrada principal</strong> · DS-K1T-0001. Se crea el usuario en el aparato; la huella la enrola TI en el menú de la terminal, con RH presente.</p>
   <div><label for="p">Persona (sólo activas, sin alta vigente en esta terminal)</label>
-    <select id="p"><option>Selecciona una persona…</option><option>Ana Torres</option><option>Luis Ramírez</option><option selected>Ana Torres</option></select></div>
+    <select id="p"><option>Selecciona una persona…</option><option selected>Ana Torres — Auxiliar de almacén · Bodega</option><option>Ana Torres — Analista de nómina · Administración</option><option>Luis Ramírez — Chofer · Reparto</option></select>
+    <p class="ayuda-campo" style="margin:.3rem 0 0">Se muestra nombre y puesto (o área) para distinguir homónimos.</p></div>
   <div data-solo="a_auto" class="banner-aviso" role="note"><span data-ic="alert"></span><div><strong>Te estás asignando a ti misma.</strong> Sólo el puesto administrador puede hacerlo; si tu puesto no lo es, el sistema lo rechazará.</div></div>
-  <div class="casilla-consentimiento" id="cons">
+    <div data-solo="a_409v" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se asignó</strong><p>El texto de consentimiento cambió mientras tenías esta ventana abierta (ahora es la versión 4). Léelo de nuevo y confirma otra vez.</p><button type="button" class="boton-con-icono" style="margin-top:.6rem">Releer el texto vigente</button></div>
+  <div class="casilla-consentimiento" id="cons" data-solo="a_ini a_prov a_409v a_auto a_sin a_cargando a_409 a_422 a_403">
     <input type="checkbox" id="chk" aria-describedby="chk-d">
     <label for="chk" style="margin:0;font-weight:500;color:var(--navy)"><strong>Consentimiento y aviso de privacidad recabados.</strong>
-      <span id="chk-d" style="display:block;font-weight:400;color:var(--navy-medio)">La persona recibió el aviso de privacidad y otorgó por escrito su consentimiento para el tratamiento de su huella. El documento firmado queda en su expediente de RH. Sin él, la persona marca por captura manual y no se asigna.</span></label>
+      <span id="chk-d" style="display:block;font-weight:400;color:var(--navy-medio);white-space:pre-line">La persona recibió el aviso de privacidad y otorgó por escrito su consentimiento para el tratamiento de su huella con fines de control de asistencia. La huella queda sólo en el aparato; el sistema guarda únicamente el conteo. Puede revocarlo en cualquier momento solicitando su baja a Recursos Humanos. El documento firmado queda en su expediente.</span>
+      <span style="display:block;margin-top:.4rem;font-weight:400;font-size:.78rem;color:var(--navy-medio)">Texto versión 3 · vigente desde 02 oct 2026 <span data-solo="a_prov" class="insignia insignia--aviso" style="margin-left:.3rem">Provisional — pendiente del texto definitivo de RH/Legal</span></span></label>
   </div>
   <div data-solo="a_sin" class="campo-error"><p class="mensaje-campo"><span data-ic="alertc" data-s="14"></span>Confirma que el consentimiento está recabado para poder asignar.</p></div>
   <div data-solo="a_409" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se asignó</strong><p>La persona ya tiene un alta vigente en esta terminal.</p></div>
   <div data-solo="a_422" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se asignó</strong><p>La persona no está sincronizada en el esquema de tiempo; avisa a Sistemas.</p></div>
   <div data-solo="a_403" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se asignó</strong><p>No tienes permiso para esta acción.</p></div>
   <div class="modal__botonera">
-    <span data-solo="a_ini a_auto a_sin a_409 a_422 a_403" style="display:contents"><button type="button" class="boton-con-icono">Cancelar</button><button type="button" class="boton-con-icono boton-primario" data-ic="userplus">Asignar</button></span>
+    <span data-solo="a_ini a_prov a_409v a_auto a_sin a_409 a_422 a_403" style="display:contents"><button type="button" class="boton-con-icono">Cancelar</button><button type="button" class="boton-con-icono boton-primario" data-ic="userplus">Asignar</button></span>
     <span data-solo="a_cargando" style="display:contents"><button type="button" class="boton-con-icono" disabled>Cancelar</button><button type="button" class="boton-con-icono boton-primario" disabled aria-busy="true"><span class="icono-girando" data-ic="loader"></span>Asignando…</button></span>
   </div>
 </div>
@@ -69,6 +72,8 @@
 </div>
 </div></div>
 <section class="escenario" style="margin-top:2rem"><h2>Reglas</h2><ul style="font-size:.85rem;color:var(--navy-medio);line-height:1.6;padding-left:1.1rem">
+<li><strong>Personas asignables:</strong> cada opción lleva nombre + puesto · área para distinguir homónimos. <em>Pedido:</em> que el listado de personas asignables (o <code>GET /api/personas</code>) devuelva puesto vigente y área; si una persona no tiene asignación vigente se muestra sólo el nombre.</li>
+<li><strong>Texto y versión:</strong> el texto de la casilla viene de la versión vigente (<a href="09-configuracion-consentimiento.html">Configuración → Texto de consentimiento</a>) y se muestra con su número; si es provisional, con esa marca. Siempre hay una versión (la 1 se siembra como provisional): no existe «sin texto». Al asignar, el cliente manda <code>consentimiento_id</code> y el servidor lo guarda en una <strong>columna</strong> de la bitácora; si ya no es el vigente, <strong>siempre rechaza con 409</strong> y la UI pide releer (estado «texto desactualizado»).</li>
 <li><strong>Consentimiento:</strong> casilla obligatoria, sin marcar por defecto; "Asignar" no se bloquea: al enviar sin marcar muestra el error del campo (así el motivo se entiende, en vez de un botón gris sin explicación).</li>
 <li><strong>Auto-asignación:</strong> aviso informativo, no bloqueo en cliente — el frontend no sabe si el caller es administrador genérico; decide el backend (422). El 422 se muestra con su <code>detail</code>.</li>
 <li><strong>Baja:</strong> el botón principal dice la consecuencia ("Cancelar el alta" / "Dar de baja definitivamente"), no "Aceptar". Motivo opcional ≤ 500.</li>

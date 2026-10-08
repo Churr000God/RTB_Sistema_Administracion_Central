@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paquete 2 · 10 Configuración · Variables</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../frontend/src/styles/tokens.css">
+<link rel="stylesheet" href="_mockup.css">
+</head>
+<body data-activo="Configuración">
+<div class="mock-barra" data-estados="edicion:Con edición,editando:Editando caducidad,invalido:Valor fuera de rango,impacto_alarga:Confirmar · amplía plazo,impacto_baja:Confirmar · acorta plazo,guardando:Guardando,exito:Guardada,e409:409,e403:403,e503:503,lectura:Sólo lectura (RH),sinpermiso:Sin acceso al grupo,carga:Cargando,error:Error de carga,vacio:Historial vacío">
+  <strong>Borrador 10 · /tiempo/terminales/configuracion (variables)</strong><span class="borrador">BORRADOR · sujeto a contrato</span><span>Estado:</span><span class="estados"></span>
+  <span>· <a href="?limpio=1">ocultar notas</a></span>
+</div>
+<div class="app-shell">
+<aside class="app-shell-aside" id="shell-aside"></aside>
+<main class="app-shell-main">
+<div class="contenedor-pagina contenedor-pagina--ancho">
+  <nav class="migas"><a href="#">Terminales</a> / <strong>Configuración</strong></nav>
+  <div class="encabezado-pagina"><div><h1>Configuración de terminales</h1>
+    <p class="subtitulo-pagina">Variables del módulo, con el esquema de vigencias de Parámetros del sistema: cada cambio abre una vigencia nueva desde hoy y conserva el historial. La pantalla la ve quien ve el grupo Terminales; edita sólo quien tenga <span class="chip-permiso">terminal_config_edicion</span> (Gerente o Encargado de TI, Gerente General). RH la ve en sólo lectura.</p></div></div>
+  <nav class="pestanas-config" aria-label="Secciones de configuración">
+    <a href="09-configuracion-consentimiento.html">Texto de consentimiento</a>
+    <a href="10-configuracion-variables.html" aria-current="page">Variables</a>
+  </nav>
+  <p class="nota-diseno"><strong>Propuesta pendiente de aprobación del usuario.</strong> Cinco variables (el umbral de picos de tasa quedó <strong>fijo</strong> en 10 marcas/persona/hora y ya no se edita). Mismo patrón que <code>tiempo.parametro</code> (vigencia desde hoy, borde inclusivo, un segundo cambio el mismo día es <code>UPDATE</code> in-place); catálogo (descripción, unidad, mín/máx) en código de backend. Endpoints supuestos: <code>GET /api/terminales/configuracion/variables</code>, <code>PATCH …/variables/{clave} {valor}</code>, <code>GET …/variables/historial</code> y, para el aviso de impacto, <code>POST …/variables/caducidad_alta_horas/simular {valor}</code>.</p>
+
+  <section data-solo="carga" role="status"><p class="boton-con-icono"><span class="icono-girando" data-ic="loader"></span>Cargando variables…</p><div style="display:grid;gap:.6rem;margin-top:.5rem"><div class="esqueleto"></div><div class="esqueleto"></div><div class="esqueleto"></div></div></section>
+  <section data-solo="error"><div class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se pudieron cargar las variables</strong><p>Ocurrió un problema al consultar la configuración.</p><button type="button" style="margin-top:.6rem">Reintentar</button></div></section>
+  <section data-solo="sinpermiso"><div class="estado-vacio"><span data-ic="lock" data-s="40"></span><p><strong>No tienes acceso a las terminales.</strong><br>Esta pantalla es parte del grupo Terminales. Pídele a Recursos Humanos o a TI el permiso <span class="chip-permiso">terminal_usuario_lectura</span>.</p></div></section>
+
+  <div data-solo="edicion editando invalido impacto_alarga impacto_baja guardando exito e409 e403 e503 lectura vacio">
+  <section data-solo="lectura"><div class="banner-aviso banner-aviso--info" role="note"><span data-ic="lock"></span><div><strong>Puedes consultar las variables, no modificarlas.</strong> Cambiarlas requiere <span class="chip-permiso">terminal_config_edicion</span> (Gerente o Encargado de TI, Gerente General).</div></div></section>
+  <section data-solo="exito" role="status"><div class="banner-aviso banner-aviso--info"><span data-ic="checkc"></span><div><strong>Caducidad de altas actualizada a 48 h.</strong> Vigente desde hoy, 08 oct 2026. Aplica también a las 3 altas que ya esperaban huella.</div></div></section>
+  <section data-solo="e409" role="alert"><div class="tarjeta-error"><strong><span data-ic="alertc"></span>No se guardó</strong><p>La variable cambió mientras la editabas. Recarga para ver el valor vigente.</p><button type="button" style="margin-top:.6rem">Recargar</button></div></section>
+  <section data-solo="e403" role="alert"><div class="tarjeta-error"><strong><span data-ic="alertc"></span>No se guardó</strong><p>No tienes permiso para esta acción.</p></div></section>
+  <section data-solo="e503" role="alert"><div class="tarjeta-error"><strong><span data-ic="alertc"></span>No se guardó</strong><p>Servicio no disponible; reintenta. El valor vigente no cambió.</p></div></section>
+
+  <div class="tarjeta-resumen">
+    <h3>Valores vigentes</h3>
+    <div class="tabla-desplazable"><table>
+      <thead><tr><th>Variable</th><th>Valor</th><th>Unidad</th><th>Rango permitido</th><th>Vigente desde</th><th></th></tr></thead>
+      <tbody>
+        <tr class="fila-editando"><td><strong>Caducidad de altas sin huella</strong><p class="ayuda-campo">Horas que un alta puede quedar en «Esperando huella» antes de darse de baja sola (SCJ-PRO-15 §IV.1). <strong>El cambio aplica también a las altas que ya están esperando.</strong></p></td>
+          <td class="num">
+            <span data-solo="edicion lectura vacio e403 e503 e409">24</span>
+            <span data-solo="exito">48</span>
+            <span data-solo="editando"><input type="number" value="48" min="4" max="168" aria-label="Caducidad de altas sin huella, en horas" style="width:7rem"></span>
+            <span data-solo="invalido"><div class="campo-error"><input type="number" value="2" min="4" max="168" aria-invalid="true" aria-describedby="e-cad" aria-label="Caducidad de altas sin huella, en horas" style="width:7rem"><p class="mensaje-campo" id="e-cad"><span data-ic="alertc" data-s="14"></span>Debe ser un entero entre 4 y 168.</p></div></span>
+            <span data-solo="impacto_alarga guardando"><input type="number" value="48" disabled aria-label="Caducidad de altas sin huella, en horas" style="width:7rem"></span>
+            <span data-solo="impacto_baja"><input type="number" value="12" disabled aria-label="Caducidad de altas sin huella, en horas" style="width:7rem"></span>
+          </td>
+          <td>horas</td><td class="rango">4 – 168</td><td class="num"><span data-solo="exito">08 oct 2026</span><span data-solo="edicion editando invalido impacto_alarga impacto_baja guardando lectura vacio e403 e503 e409">20 sep 2026</span></td>
+          <td>
+            <span data-solo="edicion e403 e503 e409 exito"><button type="button" class="boton-con-icono">Editar</button></span>
+            <span data-solo="editando invalido"><div class="botonera"><button type="button" class="boton-con-icono">Cancelar</button><button type="button" class="boton-con-icono boton-primario">Revisar impacto…</button></div></span>
+            <span data-solo="guardando"><div class="botonera"><button type="button" class="boton-con-icono" disabled>Cancelar</button><button type="button" class="boton-con-icono boton-primario" disabled aria-busy="true"><span class="icono-girando" data-ic="loader"></span>Guardando…</button></div></span>
+            <span data-solo="lectura">—</span></td></tr>
+        <tr data-solo="impacto_alarga"><td colspan="6" style="background:#fffaf0"><div class="panel-confirmar" role="alertdialog" aria-labelledby="ia">
+          <strong id="ia" style="font-size:1rem">Cambiar la caducidad de 24 h a 48 h</strong>
+          <p style="margin:0;font-size:.88rem">Aplica desde hoy <strong>también a las altas que ya están esperando huella</strong>. Con este cambio:</p>
+          <ul style="margin:0;padding-left:1.1rem;font-size:.86rem;line-height:1.5"><li><strong>3 altas</strong> en «Esperando huella» ganan 24 h más (hoy caducan entre 1 h y 19 h).</li><li>1 de ellas (Marta Núñez) <strong>deja de estar «por caducar»</strong>.</li><li>Ninguna alta cambia de estado ahora.</li></ul>
+          <div class="botonera"><button type="button" class="boton-con-icono">Volver</button><button type="button" class="boton-con-icono boton-primario">Confirmar cambio a 48 h</button></div></div></td></tr>
+        <tr data-solo="impacto_baja"><td colspan="6" style="background:#fdecea"><div class="panel-confirmar" role="alertdialog" aria-labelledby="ib" style="border-color:#b3261e;background:#fff">
+          <strong id="ib" style="font-size:1rem">Cambiar la caducidad de 24 h a 12 h</strong>
+          <p style="margin:0;font-size:.88rem">Aplica desde hoy <strong>también a las altas que ya están esperando huella</strong>. Con este cambio:</p>
+          <ul style="margin:0;padding-left:1.1rem;font-size:.86rem;line-height:1.5"><li><strong>2 altas</strong> ya llevan más de 12 h y <strong>caducarán en la siguiente corrida</strong> (se pedirá su baja y el puente borrará su usuario del aparato): Luis Ramírez, Marta Núñez.</li><li>1 alta más pasará a «por caducar» (menos de 1 h).</li></ul>
+          <p class="rango" style="margin:0">Si alguna debe conservarse, enrola su huella antes de confirmar. Para volver a enrolar una caducada hay que asignarla de nuevo.</p>
+          <div class="botonera"><button type="button" class="boton-con-icono">Volver</button><button type="button" class="boton-peligro boton-con-icono">Confirmar cambio a 12 h</button></div></div></td></tr>
+        <tr><td><strong>Antigüedad máxima de la llave del puente</strong><p class="ayuda-campo">Meses tras los cuales el tablero marca la llave para rotar.</p></td><td class="num">12</td><td>meses</td><td class="rango">3 – 36</td><td class="num">20 sep 2026</td><td><span data-solo="edicion editando invalido impacto_alarga impacto_baja guardando exito e403 e503 e409"><button type="button" class="boton-con-icono">Editar</button></span><span data-solo="lectura">—</span></td></tr>
+        <tr><td><strong>Ventana de anomalías</strong><p class="ayuda-campo">Días hacia atrás que considera el tablero por defecto.</p></td><td class="num">7</td><td>días</td><td class="rango">1 – 90</td><td class="num">20 sep 2026</td><td><span data-solo="edicion editando invalido impacto_alarga impacto_baja guardando exito e403 e503 e409"><button type="button" class="boton-con-icono">Editar</button></span><span data-solo="lectura">—</span></td></tr>
+        <tr><td><strong>Retención de rechazos</strong><p class="ayuda-campo">Días que se conservan las marcas rechazadas antes de purgarlas.</p></td><td class="num">90</td><td>días</td><td class="rango">30 – 365</td><td class="num">20 sep 2026</td><td><span data-solo="edicion editando invalido impacto_alarga impacto_baja guardando exito e403 e503 e409"><button type="button" class="boton-con-icono">Editar</button></span><span data-solo="lectura">—</span></td></tr>
+        <tr><td><strong>Traslape de llaves</strong><p class="ayuda-campo">Días que pueden convivir la llave vieja y la nueva del puente al rotar; un traslape abierto más tiempo se marca en el tablero.</p></td><td class="num">7</td><td>días</td><td class="rango">1 – 90</td><td class="num">20 sep 2026</td><td><span data-solo="edicion editando invalido impacto_alarga impacto_baja guardando exito e403 e503 e409"><button type="button" class="boton-con-icono">Editar</button></span><span data-solo="lectura">—</span></td></tr>
+      </tbody></table></div>
+    <ul class="leyenda-estados" style="margin-top:1rem"><li>Un cambio rige desde <strong>hoy</strong> (no se agenda a futuro) y no reescribe el pasado.</li><li>Un segundo cambio del mismo día reemplaza al primero.</li><li><strong>Picos de tasa</strong> ya no es configurable: fijo en 10 marcas por persona y hora.</li></ul>
+  </div>
+
+  <div class="tarjeta-resumen" style="margin-top:1.25rem">
+    <h3>Historial de cambios</h3>
+    <div class="barra-filtros"><div class="campo-con-icono"><i data-ic-campo="search"></i><input type="search" placeholder="Buscar por variable o persona" aria-label="Buscar por variable o persona"></div>
+      <div class="grupo-filtros-secundarios"><select aria-label="Ordenar por"><option>Más recientes primero</option><option>Variable (A-Z)</option></select></div></div>
+    <div class="tabla-desplazable" data-solo="edicion editando invalido impacto_alarga impacto_baja guardando e403 e503 e409 lectura"><table>
+      <thead><tr><th>Variable</th><th>Valor</th><th>Vigente desde</th><th>Vigente hasta</th><th>Modificado por</th><th>Estado</th></tr></thead>
+      <tbody>
+        <tr><td>Caducidad de altas sin huella</td><td class="num">24 h</td><td class="num">20 sep 2026</td><td>—</td><td>Carlos Ruiz</td><td><span class="insignia insignia--exito">Vigente</span></td></tr>
+        <tr><td>Antigüedad máxima de la llave</td><td class="num">12 meses</td><td class="num">20 sep 2026</td><td>—</td><td>Carlos Ruiz</td><td><span class="insignia insignia--exito">Vigente</span></td></tr>
+        <tr><td>Ventana de anomalías</td><td class="num">7 días</td><td class="num">20 sep 2026</td><td>—</td><td>Carlos Ruiz</td><td><span class="insignia insignia--exito">Vigente</span></td></tr>
+        <tr><td>Retención de rechazos</td><td class="num">90 días</td><td class="num">20 sep 2026</td><td>—</td><td>Carlos Ruiz</td><td><span class="insignia insignia--exito">Vigente</span></td></tr>
+        <tr><td>Traslape de llaves</td><td class="num">7 días</td><td class="num">20 sep 2026</td><td>—</td><td>Carlos Ruiz</td><td><span class="insignia insignia--exito">Vigente</span></td></tr>
+      </tbody></table></div>
+    <div class="tabla-desplazable" data-solo="exito"><table>
+      <thead><tr><th>Variable</th><th>Valor</th><th>Vigente desde</th><th>Vigente hasta</th><th>Modificado por</th><th>Estado</th></tr></thead>
+      <tbody>
+        <tr><td>Caducidad de altas sin huella</td><td class="num">48 h</td><td class="num">08 oct 2026</td><td>—</td><td>Carlos Ruiz</td><td><span class="insignia insignia--exito">Vigente</span></td></tr>
+        <tr><td>Caducidad de altas sin huella</td><td class="num">24 h</td><td class="num">20 sep 2026</td><td class="num">07 oct 2026</td><td>Carlos Ruiz</td><td><span class="insignia insignia--neutra">Reemplazada</span></td></tr>
+      </tbody></table></div>
+    <section data-solo="vacio"><div class="estado-vacio"><p>Todavía no hay cambios registrados. Los valores iniciales son los del alta del módulo.</p></div></section>
+  </div>
+  </div>
+</div></main></div>
+<script src="_mockup.js"></script>
+</body></html>
