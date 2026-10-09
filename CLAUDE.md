@@ -436,6 +436,17 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   retomar este trabajo.** Bitácora de la sesión:
   `bitacora/2026-10-07_sesion_terminal_hikvision_correcciones_y_paquete1.md`. Ensayos `BEGIN…ROLLBACK`
   de cada migración: `db/ensayos/` (con su README).
+- **Retiro de `terminal_checador` (`93_*.sql`, 9 de octubre de 2026):** el rol de `37_*.sql` (único
+  consumidor: el checador básico, apagado) pierde su policy `terminal_inserta_su_origen`, `INSERT` en
+  `tiempo.marca`, `USAGE` del esquema y su membresía en `authenticator`; queda vacío y NOLOGIN (el
+  `DROP ROLE` es un corte aparte tras actualizar `verificar_ddl.sql`, que lo nombra en ~15 consultas).
+  Es higiene, no mitigación: el usuario decidió **no rotar** `SUPABASE_JWT_SECRET`/
+  `SERVICE_ROLE_KEY` (riesgo aceptado; la copia del `.env` en el Pi del puente se borró), y con
+  cualquiera de los dos se escribe por caminos más anchos. Gotcha PG17: `postgres` sólo alcanzaba ese
+  rol por la cadena vía `authenticator` (su membresía directa es sólo ADMIN OPTION); cortarla exige un
+  `GRANT … WITH SET TRUE` temporal para ensayar privilegios residuales. Pendiente propuesto de
+  `security`: `94_` que revoque a `anon` los GRANT de tablas de `tiempo` y `TRUNCATE`/`REFERENCES`/
+  `TRIGGER` (ver `db/ensayos/README.md`). El diccionario de datos pasó a V1.5.
 - **`78_*.sql` nunca se había aplicado y su fix era evadible; cerrado con `86_*.sql` (7 de octubre
   de 2026):** al documentar el DDL, `db` contrastó los scripts con la base real y encontró 49
   funciones contra 50 definidas: `78_*` (constraint trigger que impide resolver a mano una
@@ -509,7 +520,7 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   `http://localhost:5173` fijo a mano — esa configuración no vive en este repositorio. Al pasar a
   producción (`docker compose … prod`, frontend en `:8080`) hay que actualizarla ahí también, o
   los links de invitación/recuperación de contraseña no aterrizan en la app.
-- El DDL llega hasta `db/ddl/92_*.sql` (93 archivos, `00` a `92`) y TODO está aplicado en la base real (`88_`-`92_` aplicados el 8 de octubre de 2026 tras ensayos `BEGIN…ROLLBACK` 143/143, 60/60, 21/21, 22/22 y 38/38; `verificar_ddl.sql` completo en 0 filas, 72 funciones, 77 policies, 53 permisos). `92_` ata autor y hora de `personas.bitacora_movimiento_persona` (el INSERT en `personas.usuario` debe hacerse siempre con `service_role`). `personas.permiso`
+- El DDL llega hasta `db/ddl/93_*.sql` (94 archivos, `00` a `93`) y TODO está aplicado en la base real (`88_`-`92_` aplicados el 8 de octubre de 2026 tras ensayos `BEGIN…ROLLBACK` 143/143, 60/60, 21/21, 22/22 y 38/38; `93_` aplicado el 9 de octubre de 2026 tras ensayo `BEGIN…ROLLBACK` 19/19 y revisión de `security`; `verificar_ddl.sql` completo en 0 filas, 72 funciones, 76 policies, 53 permisos; única excepción: 1 huérfano de `auth.users`, `prueba-diagnostico-local@example.com`, ajeno al DDL, aceptado por el usuario el 9 de octubre de 2026 — se deja). `92_` ata autor y hora de `personas.bitacora_movimiento_persona` (el INSERT en `personas.usuario` debe hacerse siempre con `service_role`). `personas.permiso`
   es la única tabla del proyecto con clave natural (`codigo varchar PRIMARY KEY`) en vez de `uuid`
   — decisión deliberada, fiel a la redacción literal de `SCJ-PRO-05`, no un descuido a corregir.
 - Las tablas de bitácora inmutables (`bitacora_movimiento_persona`,
