@@ -69,7 +69,7 @@ Llama `fn_marca_terminal_registrar(p_terminal_id, p_eventos jsonb)` (`service_ro
 | `terminal_id` | opcional, ≤ 32; si viene debe igualar la serie de la credencial | — |
 | `version_software` | **obligatorio**, 1–16 caracteres; el backend lo **inyecta en cada evento** | — |
 | `eventos` | lista de **1 a 200** objetos (`422` si 0 o > 200) | — |
-| `evento_id` | — | UUID. **Determinista**: `uuid5(NAMESPACE, "<serie de la terminal>:<serialNo>")` con `NAMESPACE = uuid5(NAMESPACE_URL, "https://scj.invalid/terminal/evento/v1")`; el mismo evento físico = el mismo id, también tras reinstalar el Pi (`puente/src/puente/ingesta.py::evento_id_de`) |
+| `evento_id` | — | UUID. **Determinista**: `uuid5(NAMESPACE, nombre)` con `NAMESPACE = uuid5(NAMESPACE_URL, "https://scj.invalid/terminal/evento/v1")` y `nombre = "<serie de la terminal>:<serialNo>"` en la **generación 0** (la de siempre) o `"<serie>:g<gen>:<serialNo>"` en la **generación `gen` ≥ 1**, que sólo sube una persona tras reiniciar o reemplazar la terminal (sus `serialNo` se reutilizan) para no chocar con los ya enviados. El mismo evento físico = el mismo id, también tras reinstalar el Pi. El servidor sólo ve el UUID: no cambia nada de su lado (`puente/src/puente/ingesta.py::evento_id_de`) |
 | `employee_no` | — | entero 1–99 999 999 |
 | `secuencia_local` | — | entero ≥ 0, propio del Pi, **sólo sobre marcas aceptadas**, nunca baja (persistido) |
 | `momento_dispositivo` | — | ISO 8601 con fecha, hora y **zona** (`Z` o `±hh:mm`); 2024-01-01 ≤ t ≤ ahora + 1 año |
