@@ -265,3 +265,23 @@ def test_uvicorn_real_una_peticion_normal_sigue_funcionando(servidor):
     respuesta = _leer_respuesta(s)
     s.close()
     assert _estado(respuesta) == 401  # sin credencial: llegó al app, no al límite
+
+
+def test_solo_el_error_de_parseo_de_json_se_convierte_a_422_por_su_causa(cliente):
+    """B4: se detecta por la CAUSA (JSONDecodeError/UnicodeDecodeError), no por el texto; un 400 cualquiera NO se altera."""
+    from fastapi import HTTPException
+
+    def raro():
+        raise HTTPException(400, "There was an error parsing the body")  # mismo texto, SIN causa de JSON
+
+    _ruta_temporal("/api/terminal/_raro", raro)
+    try:
+        r = cliente.get("/api/terminal/_raro")
+    finally:
+        _quitar("/api/terminal/_raro")
+    assert r.status_code == 400 and r.json() == {"detail": "There was an error parsing the body"}
+
+
+def test_un_json_con_bytes_invalidos_tambien_se_convierte_por_su_causa(cliente):
+    r = cliente.post("/api/terminal/marcas", content=b"\xff\xfe\x00{", headers={**_auth(), "Content-Type": "application/json"})
+    assert r.status_code == 422 and r.json() == {"detail": "Los datos enviados no son válidos."}

@@ -160,7 +160,7 @@ def test_sin_credencial_es_401():
 
 
 def test_el_detalle_se_limpia_y_se_acota_a_500():
-    sucio = "  hola\x00 \x07mundo​  <b>negrita</b>\n\n\ttexto   final ‮"
+    sucio = "  hola\x00 \x07mundo\u200b  <b>negrita</b>\n\n\ttexto   final \u202e"
     assert sanear_detalle("err", sucio) == "err: hola mundo negrita texto final"
     largo = sanear_detalle("err", "a b " * 400)
     assert len(largo) == 500 and largo.startswith("err: a b a b")
@@ -179,7 +179,7 @@ def test_nfkc_normaliza_ancho_completo_y_compatibilidad():
     [
         "fingerData", "FINGERDATA", "{\"fingerData\": \"AAAA\"}", "FingerPrint", "fingerprintdata", "CaptureFingerPrint",
         "template", "TEMPLATE", "plantilla", "Plantilla de huella", "base64", "Base64:",
-        "finger Data", "finger-data", "f i n g e r d a t a", "finger​Data", "fin­ger⁠Data",
+        "finger Data", "finger-data", "f i n g e r d a t a", "finger\u200bData", "fin\u00adger\u2060Data",
         "ｆｉｎｇｅｒＤａｔａ", "ﬁngerdata", "finger_Print", "temp late", "plan-tilla",
         "A" * 64, "a1b2" * 16, "0123456789abcdef" * 4, "x" * 200,
         "ok " + "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo=" * 3,
@@ -271,3 +271,48 @@ def test_firma_tipos_y_resultados_del_rpc_coinciden_con_83_y_91():
     for res in ("registrado", "ya_aplicado", "no_encontrado", "limitado"):
         assert f"'{res}'" in sql or f"'{res}'" in cuerpo
     assert "c_tope_error_hora  constant integer := 20" in cuerpo
+
+
+# --- bajos de security (B2/B4 de la revisión de B2-B3) -----------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("sucio", ["x\ud800y", "\udc00inicio", "fin\udfff", "a𐀀b"])
+def test_un_sustituto_suelto_en_el_detalle_no_llega_al_rpc(sucio):
+    """Un sustituto no se puede codificar en UTF-8: llegaría al RPC como 22P05 y se perdería el reporte."""
+    limpio = sanear_detalle("err", sucio)
+    limpio.encode("utf-8")  # no levanta
+    assert not any(0xD800 <= ord(c) <= 0xDFFF for c in limpio) and limpio.startswith("err")
+
+
+def test_los_invisibles_del_filtro_estan_escritos_con_escapes_en_el_codigo():
+    """B4: ningún carácter invisible literal en el fuente (se revisaría mal y podría ocultar texto)."""
+    fuente = (Path(__file__).resolve().parents[1] / "app" / "detalle_terminal.py").read_text(encoding="utf-8")
+    invisibles = [c for c in fuente if ord(c) in (0xAD, 0x61C, 0xFEFF) or 0x200B <= ord(c) <= 0x200F or 0x2028 <= ord(c) <= 0x202E
+                  or 0x2060 <= ord(c) <= 0x2069 or ord(c) >= 0xE0000]
+    assert invisibles == []
+    barra = chr(92)
+    assert barra + "u200b-" + barra + "u200f" in fuente and barra + "ufeff" in fuente
+
+
+def test_el_detalle_con_sustituto_suelto_por_http_es_un_422_de_protocolo():
+    """El envoltorio (Pydantic) ya rechaza una cadena no codificable en UTF-8: 422 fijo, sin eco; el saneo es la segunda barrera."""
+    e = Entorno()
+    r = e.cliente.post(
+        "/api/terminal/movimientos",
+        content=__import__("json").dumps(_m("error", codigo="x", detalle="a" + chr(0xD800) + "b"), ensure_ascii=True),
+        headers={"Authorization": f"Bearer {LLAVE}", "Content-Type": "application/json"},
+    )
+    assert r.status_code == 422 and r.json() == {"detail": "Los datos enviados no son válidos."} and e.llamadas() == []
+
+
+@pytest.mark.parametrize("codigo", ["huella_no_capturada", "usuario_ya_existe", "timeout_terminal", "sin_respuesta", "isapi_401"])
+def test_los_codigos_neutros_pasan(codigo):
+    """B3: el filtro también juzga `codigo`; los códigos del Pi deben ser neutros (sin los términos reservados)."""
+    e = Entorno()
+    assert e.post(_m("error", codigo=codigo)).status_code == 200
+
+
+def test_el_contrato_publica_los_terminos_reservados():
+    doc = (Path(__file__).resolve().parents[2] / "docs" / "07-procesos" / "CONTRATO_API_PUENTE_TERMINAL.md").read_text(encoding="utf-8")
+    for termino in ("fingerprint", "fingerdata", "template", "plantilla", "base64"):
+        assert f"`{termino}`" in doc, termino

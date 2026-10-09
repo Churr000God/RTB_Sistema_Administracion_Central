@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 
@@ -44,7 +45,6 @@ advertir_despliegue(os.environ)
 
 app.add_exception_handler(ErrorConCampos, manejar_error_con_campos)
 
-MENSAJE_PARSEO_FASTAPI = "There was an error parsing the body"  # el 400 que FastAPI levanta si el cuerpo no es JSON válido
 
 
 def _datos_invalidos_terminal() -> JSONResponse:
@@ -61,8 +61,13 @@ async def manejar_validacion(request: Request, exc: RequestValidationError) -> J
 
 
 async def manejar_http(request: Request, exc: StarletteHTTPException) -> JSONResponse:
-    """Un JSON mal formado llega como 400 «error parsing the body»: en /api/terminal/* se unifica con el 422 de validación."""
-    if es_ruta_terminal(get_route_path(request.scope)) and exc.status_code == 400 and exc.detail == MENSAJE_PARSEO_FASTAPI:
+    """Un JSON mal formado llega como 400 «error parsing the body»: en /api/terminal/* se unifica con el 422 de validación. Se
+    detecta por la CAUSA (JSONDecodeError / UnicodeDecodeError), no por el texto literal que FastAPI pueda cambiar."""
+    if (
+        es_ruta_terminal(get_route_path(request.scope))
+        and exc.status_code == 400
+        and isinstance(exc.__cause__, (json.JSONDecodeError, UnicodeDecodeError))
+    ):
         return _datos_invalidos_terminal()
     return await http_exception_handler(request, exc)
 

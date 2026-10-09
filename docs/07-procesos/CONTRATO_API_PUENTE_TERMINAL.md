@@ -186,6 +186,11 @@ Llama `fn_terminal_movimiento_registrar(p_terminal_id, p_terminal_usuario_id, p_
   quita marcado `<…>`, colapsa espacios y trunca a 500; se guarda **`"<codigo>: <detalle>"`** (≤ 500 en total), el formato que ya separa el
   tablero web. Un `detalle` que contenga `fingerData` o «plantilla» se rechaza con `422` **sin guardar nada**: el contrato del Pi es
   **nunca** mandar cuerpos ISAPI, cabeceras ni datos de otros usuarios ni plantillas (`SCJ-DEC-12 §12`).
+- **Términos reservados (el Pi debe usar códigos y mensajes neutros):** el filtro juzga el `detalle` **y** el `codigo`, normalizados (NFKC,
+  minúsculas, sin invisibles y también «aplastados» sin separadores), y rechaza con `422` lo que contenga `fingerprint`, `fingerdata`,
+  `template`, `plantilla` o `base64`, o una racha de ≥ 64 caracteres base64/hexadecimales. Códigos neutros válidos: `huella_no_capturada`,
+  `usuario_ya_existe`, `timeout_terminal`, `sin_respuesta`, `isapi_401`. Un `422` aquí es la red de seguridad, no el camino normal.
+- Un texto con sustitutos Unicode sueltos se guarda sin ellos (si no, llegaría a la base como `22P05` y se perdería el reporte).
 - El backend **no** acepta `employee_no`, `persona_id` ni `terminal_id` aquí: la alta se resuelve por `(terminal_usuario_id, terminal de
   la credencial)`.
 
@@ -235,5 +240,8 @@ cola**); `22023/huellas_invalidas` → `422`; `SCJ12/terminal_no_valida` → `40
   `sincronizado`, y `deriva` si la hora del aparato y la del Pi difieren más del umbral.
 - **Llave `scjt_` robada:** permite mandar marcas de esa terminal hasta que se revoque (`SCJ-DEC-12 §1`); cada marca sólo puede ser de un
   `employee_no` enrolado en esa terminal y con topes de tasa en el RPC.
+- **Heurística de carga binaria (residuo aceptado):** una carga partida en rachas de < 64 caracteres, o escrita con homógrafos (cirílico/griego
+  parecido al latino) o con marcas combinantes, puede esquivar el filtro; es defensa en profundidad, no una garantía. La garantía es el
+  contrato del Pi (nunca leer `fingerData`: lista blanca de métodos y rutas ISAPI, CI que falla ante esos términos).
 - **Puente:** un `422` de lote significa bug del Pi, no «reintenta igual»: el Pi **biseca** el lote o envía unitario, y el evento que aun solo da
   `422` pasa a `pendiente_intervencion` sin bloquear a los demás. `Retry-After` se acota a 1 s–15 min con jitter.

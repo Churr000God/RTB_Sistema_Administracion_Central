@@ -9,7 +9,7 @@ import unicodedata
 
 LIMITE_DETALLE = 500
 # Invisibles / reordenamiento Unicode (mismos que el texto de consentimiento y 91_*.sql).
-_INVISIBLES = re.compile("[­؜​-‏ -‮⁠-⁤⁦-⁩﻿\U000e0000-\U000e007f]")
+_INVISIBLES = re.compile(r"[\u00ad\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\ufeff\U000e0000-\U000e007f]")
 _CONTROLES = re.compile("[\x00-\x1f\x7f-\x9f]")
 _MARCADO = re.compile(r"<[^>]*>?")
 _ESPACIOS = re.compile(r"\s+")
@@ -19,7 +19,7 @@ _TERMINOS_PROHIBIDOS = (
     "fingerdata", "fingerprint", "fingerprintdata", "capturefingerprint", "template", "plantilla", "base64",
 )
 # Carga binaria: una racha larga de base64/hexadecimal.
-_CARGA_BINARIA = re.compile(r"[A-Za-z0-9+/=_-]{64,}")
+_CARGA_BINARIA = re.compile(r"[A-Za-z0-9+/=_-]{65,}")
 
 
 class DetalleProhibido(ValueError):
@@ -43,6 +43,9 @@ def sanear_detalle(codigo: str, detalle: str | None) -> str:
     if _contiene_prohibido(crudo) or _contiene_prohibido(codigo):
         raise DetalleProhibido
     limpio = _MARCADO.sub(" ", _CONTROLES.sub(" ", _INVISIBLES.sub("", unicodedata.normalize("NFKC", crudo))))
+    # Un sustituto suelto («x\ud800y») no se puede codificar en UTF-8: llegaría al RPC como 22P05 y se perdería el reporte.
+    # Se quita DESPUÉS de normalizar, justo antes de componer, para que nada posterior pueda reintroducirlo.
+    limpio = limpio.encode("utf-8", "ignore").decode("utf-8")
     limpio = _ESPACIOS.sub(" ", limpio).strip()
     compuesto = f"{codigo}: {limpio}" if limpio else codigo
     return compuesto[:LIMITE_DETALLE]
