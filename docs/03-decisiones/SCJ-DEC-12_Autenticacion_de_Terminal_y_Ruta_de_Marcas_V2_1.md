@@ -133,8 +133,10 @@ persona y el límite por terminal serían convenciones del código.
 **B — El backend mintea un JWT de 60 s con `role=terminal_checador`.** Conserva la RLS y el trigger.
 *Descartada por el usuario:* obliga a guardar `SUPABASE_JWT_SECRET` en el backend (el secreto con
 el que se firma cualquier rol) y agrega PyJWT; además, sin `SELECT`, el rol no puede ni leer el
-`RETURNING` ni resolver `employee_no`. El rol `terminal_checador` **sigue existiendo** (`37_*.sql`,
-sin cambios) pero el puente ya no lo usa.
+`RETURNING` ni resolver `employee_no`. El rol `terminal_checador` (`37_*.sql`) lo deja sin uso el puente y
+`93_tiempo_retira_terminal_checador.sql` lo retira (policy, privilegios y membresía en
+`authenticator`; el rol queda vacío y `NOLOGIN`). No mitiga la fuga de `SUPABASE_JWT_SECRET`: quien
+lo tenga puede firmar un JWT con un rol más ancho; sólo rotar la cierra.
 
 **C — RPC `SECURITY DEFINER`** *(elegida por el usuario).*
 `tiempo.fn_marca_terminal_registrar(p_terminal_id bigint, p_eventos jsonb)`. *A favor:* el

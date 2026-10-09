@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/aplicar_ddl.sh
 #
-# Aplica todo el DDL de RTB-CRM-APP (db/ddl/00_*.sql a db/ddl/92_*.sql, 93 archivos) contra una
+# Aplica todo el DDL de RTB-CRM-APP (db/ddl/00_*.sql a db/ddl/93_*.sql, 94 archivos) contra una
 # base de Supabase VACÍA. NO es idempotente — pensado para una sola corrida sobre schema limpio.
 # Si algo falla a mitad, el script corta (no sigue aplicando a ciegas) y la salida es:
 #   DROP SCHEMA personas CASCADE; DROP SCHEMA tiempo CASCADE; DROP ROLE terminal_checador;
@@ -25,7 +25,8 @@
 #     privilegios de supabase_storage_admin; si falla, aplicar a mano en el dashboard)
 #   - db/ddl/37_tiempo_rls_terminal.sql (CREATE ROLE terminal_checador + GRANT a authenticator —
 #     necesita CREATEROLE; si falla, correrlo desde el SQL Editor del dashboard, que corre como
-#     postgres)
+#     postgres). Retirado por db/ddl/93_tiempo_retira_terminal_checador.sql (el rol queda vacío);
+#     93_ hace REVOKE ... FROM authenticator y puede pedir el mismo privilegio.
 # El script no los trata distinto en la corrida normal — el corte al primer error ya los aísla:
 # si cualquiera de los dos falla, el script para ahí mismo y el archivo que falló queda impreso
 # en la última línea.

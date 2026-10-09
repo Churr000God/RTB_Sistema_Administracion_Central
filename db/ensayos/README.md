@@ -17,6 +17,7 @@ sólo actúa como *caller*). Se conservan porque son la evidencia y el banco de 
 | `ensayo_90.sql` (+ `verificar_90.sql`) | `88_` + `90_` (`fn_terminal_anomalias`) | 21/21 PASS (8-oct-2026) — evidencia histórica no re-ejecutable |
 | `ensayo_91.sql` (+ `verificar_91.sql`) | `88_` + `91_` (autor de la baja por persona inactiva, detalle del Pi sin invisibles) | 22/22 PASS (8-oct-2026, `ROLLBACK`, sobre `88_` ya aplicada) — no re-ejecutable ahora que `91_` está aplicada |
 | `ensayo_92.sql` (+ `verificar_92.sql`) | `92_` (policy y hora de la bitácora de personas, limpieza de invisibles del detalle de terminal) | 38/38 PASS (8-oct-2026, `ROLLBACK`) — evidencia histórica no re-ejecutable (`92_` ya aplicada) |
+| `ensayo_93.sql` (+ `verificar_93.sql`) | `93_` (retiro del rol/policy `terminal_checador`; camino PostgREST `SET ROLE`, privilegios residuales, RPC y captura manual intactos) | 19/19 PASS (9-oct-2026, `ROLLBACK`, sin residuo) — evidencia histórica no re-ejecutable (`93_` aplicada el 9-oct-2026; `verificar_ddl.sql` completo en 0 filas) |
 | `ensayo_correccion.sql` | comportamiento de corregir una marca en un tramo (confirmó la inconsistencia que motivó `87_`) | inferencia confirmada |
 | `ensayo_78.sql` | comportamiento de `78_` | **obsoleto, nunca corrido** (`86_` lo reemplaza) |
 
@@ -50,3 +51,11 @@ sólo actúa como *caller*). Se conservan porque son la evidencia y el banco de 
 - `ensayo_88/89/90` aplican la migración **dentro** de la transacción: fallan por "ya existe" si esa migración ya está aplicada; también `88_` aborta
   (a propósito) si `terminal_usuario` o la bitácora tienen filas. Los tres reinician la secuencia del `employee_no` con `ALTER SEQUENCE ... RESTART`
   transaccional.
+
+## Pendiente propuesto (sin DDL todavía): `94_` de endurecimiento de `anon`
+Propuesta de `security` tras el retiro de `terminal_checador` (`93_`), **no escrita ni aplicada**: `tiempo.marca` (y por el mismo patrón el resto de las
+tablas de `tiempo`, por el `GRANT ALL` schema-wide de `38_tiempo_permisos.sql`) sigue con privilegios de tabla para `anon` (`arDxtm`: SELECT, INSERT, UPDATE,
+DELETE, TRUNCATE, REFERENCES, TRIGGER) y `authenticated`; la barrera real es RLS deny-by-default (sin policy para `anon`, el ensayo `93_` caso 24 lo confirmó:
+`anon` no inserta). Un `94_` haría `REVOKE ALL` explícito a `anon` sobre las tablas de `tiempo` que ninguna ruta pública usa y `REVOKE TRUNCATE, REFERENCES,
+TRIGGER` a `anon` y `authenticated` (`TRUNCATE` no está sujeto a RLS). Antes de escribirlo: inventario por tabla de qué rol necesita qué (`verificar_ddl.sql` ya
+lista los casos especiales) y ensayo `BEGIN … ROLLBACK`; avisar a `backend` por `orchestrator` (los routers con `get_caller_client` dependen de los GRANT de `authenticated`).

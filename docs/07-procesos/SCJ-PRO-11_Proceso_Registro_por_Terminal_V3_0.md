@@ -108,13 +108,17 @@ completo es `SCJ-PRO-15`.
 
 **Mecanismo original (V1.0, R503Pro), ya no usado por el puente Hikvision:** rol de Postgres
 dedicado `terminal_checador`, con JWT firmado con el secreto del proyecto (claim
-`role=terminal_checador`). El rol y su policy siguen existiendo en la base
-(`db/ddl/37_tiempo_rls_terminal.sql`) con el mismo alcance mínimo; este documento no los retira,
-simplemente el puente nuevo no los necesita.
+`role=terminal_checador`). Nació en `db/ddl/37_tiempo_rls_terminal.sql` con `INSERT` en
+`tiempo.marca` forzado a `origen='terminal'` por la policy `terminal_inserta_su_origen`. El puente
+nuevo no lo necesita, y `db/ddl/93_tiempo_retira_terminal_checador.sql` lo **retira**: borra la
+policy, revoca `INSERT` y `USAGE` del esquema y quita la membresía en `authenticator`, de modo que
+un JWT con ese claim ya no es utilizable. El rol queda vacío y `NOLOGIN` (se borra en un corte
+aparte, para no romper `db/verificar_ddl.sql`). Desde entonces el único camino de escritura de
+marcas de terminal es `fn_marca_terminal_registrar` (§V).
 
-| Rol `terminal_checador` — alcance sin cambio | |
+| Rol `terminal_checador` — retirado por `93_` | |
 |---|---|
-| Puede: `INSERT` en `tiempo.marca`, forzado a `origen='terminal'` por la policy | No puede: `SELECT`/`UPDATE`/`DELETE` en `tiempo.marca`, ni ninguna otra tabla de `tiempo` o `personas` |
+| Puede: nada. Antes de `93_`: `INSERT` en `tiempo.marca` con `origen='terminal'` | No puede: nada en `tiempo` ni `personas` (ni `SELECT`, ni `UPDATE`/`DELETE`, ni `USAGE` del esquema); PostgREST ya no puede hacer `SET ROLE` a él |
 
 ---
 
@@ -184,8 +188,10 @@ de 2026).
 
 Ya implementado en `db/ddl/`:
 
-- `37_tiempo_rls_terminal.sql` — rol `terminal_checador`, RLS de `tiempo.marca` (primera de todo el
-  esquema `tiempo`). Se conserva sin cambio; el puente Hikvision no lo usa (§III).
+- `93_tiempo_retira_terminal_checador.sql` — retira el rol, la policy y los privilegios de
+  `37_` (el rol queda vacío; sin consumidor vivo desde `SCJ-DEC-12`).
+- `37_tiempo_rls_terminal.sql` — (histórico, retirado por `93_`) rol `terminal_checador`, RLS de `tiempo.marca` (primera de todo el
+  esquema `tiempo`). Ya no aplica el rol ni su policy (§III); el resto de `37_` es historia.
 - `fn_marca_valida_revision`/`trg_marca_valida_revision` en `02_tiempo.sql` — los 4 motivos de
   revisión calculados.
 - `80_tiempo_terminal_usuario.sql` — `tiempo.terminal`, `tiempo.terminal_usuario`, la secuencia
