@@ -137,6 +137,11 @@ class TestComunes:
             [_alta(1, 100_000_000, "activo")],
             [_alta(1, 1000, "activo", huellas=11)],
             [_alta(1, 1000, "activo", huellas=-1)],
+            [_alta(True, 1000, "activo")], [_alta(1, True, "activo")],                  # bool NO es entero
+            [_alta("1", 1000, "activo")], [_alta(1, "1000", "activo")],                # cadena NO es entero
+            [_alta(1.0, 1000, "activo")], [_alta(1, 1000.0, "activo")],                # float NO es entero
+            [_alta(1, 1000, "activo", huellas=2.0)], [_alta(1, 1000, "activo", huellas="2")],
+            [_alta(1, 1000, "activo", huellas=True)],
             ["x"], [None], [[1, 2]],
         ],
     )

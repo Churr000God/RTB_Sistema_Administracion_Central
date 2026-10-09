@@ -140,7 +140,7 @@ Respuesta `200`:
  ]}
 ```
 
-- Fuente: `fn_terminal_mapa(p_terminal_id)` filtrado **en el backend** a `pendiente_alta`, `pendiente_baja` y `esperando_huella`, ordenado
+- Fuente: `fn_terminal_mapa(p_terminal_id)` filtrado **en el backend (en Python, por `accion`; el RPC devuelve todas las altas no-`baja`)** a `pendiente_alta`, `pendiente_baja` y `esperando_huella`, ordenado
   por `employee_no`. Sin paginación (decenas de filas).
 - `accion` la calcula el backend (una sola regla): `pendiente_alta → crear_usuario` · `esperando_huella → sondear_huellas` ·
   `pendiente_baja → borrar_usuario`.

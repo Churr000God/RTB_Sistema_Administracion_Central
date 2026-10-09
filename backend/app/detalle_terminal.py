@@ -19,7 +19,7 @@ _TERMINOS_PROHIBIDOS = (
     "fingerdata", "fingerprint", "fingerprintdata", "capturefingerprint", "template", "plantilla", "base64",
 )
 # Carga binaria: una racha larga de base64/hexadecimal.
-_CARGA_BINARIA = re.compile(r"[A-Za-z0-9+/=_-]{65,}")
+_CARGA_BINARIA = re.compile(r"[A-Za-z0-9+/=_-]{64,}")
 
 
 class DetalleProhibido(ValueError):

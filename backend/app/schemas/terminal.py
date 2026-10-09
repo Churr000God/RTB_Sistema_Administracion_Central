@@ -4,7 +4,7 @@ campos de más."""
 
 from datetime import datetime
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StrictInt
 
 
 class LatidoIn(BaseModel):
@@ -87,10 +87,11 @@ class AltaTerminalOut(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    terminal_usuario_id: int = Field(ge=1)
-    employee_no: int = Field(ge=1, le=99_999_999)
+    # StrictInt: una fila del RPC con True / "1000" / 2.0 no se re-serializa en silencio, es un 503 (forma inesperada).
+    terminal_usuario_id: StrictInt = Field(ge=1)
+    employee_no: StrictInt = Field(ge=1, le=99_999_999)
     estado: EstadoAltaTerminal
-    huellas_capturadas: int = Field(ge=0, le=10)
+    huellas_capturadas: StrictInt = Field(ge=0, le=10)
     accion: AccionPuente | None = None
 
 
@@ -105,7 +106,7 @@ class AltasTerminalOut(BaseModel):
 
 import re as _re
 
-from pydantic import StrictInt, model_validator
+from pydantic import model_validator
 
 TipoMovimiento = Literal["usuario_creado", "huella_capturada", "baja_confirmada", "error"]
 FORMATO_CODIGO_ERROR = _re.compile(r"[a-z0-9_]{1,40}")
