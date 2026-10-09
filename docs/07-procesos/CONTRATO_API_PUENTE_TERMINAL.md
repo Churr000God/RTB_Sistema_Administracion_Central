@@ -249,5 +249,10 @@ cola**); `22023/huellas_invalidas` → `422`; `SCJ12/terminal_no_valida` → `40
   §1** (o que no cumpla `[a-z0-9_]{1,40}`) a un código fijo y neutro (p. ej. `codigo_desconocido`) **antes** de llamar a `pasar_a_intervencion` o
   `registrar_fallo_transitorio`. Si no, el almacén lanza `ErrorAlmacen` y la marca reintenta **sin contador** (el mismo fallo que tuvo
   `Retry-After` NaN): el contador de intentos y el tope de 50 intentos / 24 h sólo avanzan si la llamada se completa. Lo mismo vale para
-  `Retry-After` ilegible: se trata como ausente. Un `429` de lote (`diferir`) cuenta el tope de 24 h desde el primer contacto y, al cumplirse,
-  deja la marca en `pendiente_intervencion` con `plazo_agotado`.
+  `Retry-After` ilegible: se trata como ausente. El tope de 50 intentos / 24 h aplica **sólo a los `rechazo_transitorio` por resultado**. Un fallo de LOTE (red, `5xx`,
+  `408/423/425`, `429`, respuesta ilegible) es un **backoff global** del Pi (5 s, 15 s, 1 min, 5 min, tope 15 min, piso de 5 s aunque `Retry-After` diga
+  menos) que **no toca intentos ni mueve ninguna marca**; si dura 24 h el Pi **alerta**, no manda las marcas a intervención (un servidor caído
+  no es culpa de las marcas). Un `401` pausa 15 min con alerta; un `403` o una redirección **detiene** la subida hasta que una persona la reanude.
+  Un `422/413` biseca el lote; las marcas aisladas sólo van a intervención si en el mismo ciclo el servidor aceptó algo, y 3 aisladas seguidas
+  (o más del 20 % del ciclo) detienen la subida en vez de vaciar el outbox. El contenido de cada resultado de `/marcas` se juzga por resultado
+  (un código fuera del catálogo: definitivo -> `codigo_desconocido`, transitorio -> `error_interno`); sólo la estructura invalida el lote.
