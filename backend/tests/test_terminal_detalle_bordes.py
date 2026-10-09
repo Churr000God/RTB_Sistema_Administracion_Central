@@ -72,3 +72,10 @@ def test_respuesta_rara_del_rpc_es_exactamente_503_fijo(respuesta):
 def test_una_clave_extra_del_rpc_en_movimientos_no_se_reenvia():
     r = Entorno({"resultado": "registrado", "estado": "activo", "persona_id": "uuid-secreto"}).post(_m())
     assert r.status_code == 200 and r.json() == {"resultado": "registrado", "estado": "activo"}
+
+
+def test_borde_de_la_carga_binaria_63_pasa_y_64_se_rechaza():
+    """El contrato dice «racha de >= 64»: el umbral es exacto (5aedf53 lo dejó en 65 por una mutación sin restaurar)."""
+    assert sanear_detalle("err", "a" * 63).endswith("a" * 63)
+    with pytest.raises(DetalleProhibido):
+        sanear_detalle("err", "a" * 64)
