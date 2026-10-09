@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 from postgrest.exceptions import APIError
 
+from _mocks_supabase import rpc_con_firma_real
 from app import terminal_auth
 from app.config import Settings, get_settings
 from app.deps import get_service_client
@@ -49,9 +50,10 @@ def _settings(**cambios) -> Settings:
 def _db(autenticar=AUTENTICADA, latido=LATIDO_OK):
     """Mock del cliente service_role: `rpc(nombre, params)` devuelve datos distintos por nombre."""
     db = MagicMock()
+    db.postgrest.schema.return_value.rpc = rpc_con_firma_real()
     respuestas = {"fn_terminal_autenticar": autenticar, "fn_terminal_latido": latido}
 
-    def rpc(nombre, params=None):
+    def rpc(nombre, params):
         constructor = MagicMock()
         constructor.execute.return_value.data = respuestas[nombre]
         return constructor
@@ -728,8 +730,9 @@ def test_cambio_de_ip_deja_un_warning_con_el_id_de_credencial(caplog):
 def test_el_handler_generico_de_main_no_serializa_la_excepcion():
     """Un error no previsto en el endpoint se responde como 500 genérico, sin str(exc)."""
     db = MagicMock()
+    db.postgrest.schema.return_value.rpc = rpc_con_firma_real()
 
-    def rpc(nombre, params=None):
+    def rpc(nombre, params):
         constructor = MagicMock()
         if nombre == "fn_terminal_autenticar":
             constructor.execute.return_value.data = AUTENTICADA

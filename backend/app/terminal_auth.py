@@ -31,6 +31,8 @@ from postgrest.exceptions import APIError
 from pydantic import BaseModel, ValidationError
 from supabase import Client
 
+from starlette._utils import get_route_path
+
 from app.config import Settings, get_settings
 from app.deps import get_service_client
 
@@ -48,6 +50,11 @@ MENSAJE_NO_DISPONIBLE = "Servicio no disponible; reintenta."
 # Un año, sin includeSubDomains: el host del API puede ser el mismo del frontend.
 HSTS = "max-age=31536000"
 RUTA_TERMINAL = "/api/terminal"
+
+
+def es_ruta_terminal(ruta: str) -> bool:
+    """`/api/terminal` y `/api/terminal/…`, NO `/api/terminales/…` (el prefijo a secas atrapaba también la API web)."""
+    return ruta == RUTA_TERMINAL or ruta.startswith(RUTA_TERMINAL + "/")
 BLOQUEO_MAXIMO_SEG = 3600
 OLVIDO_REINCIDENCIA_SEG = 86_400  # sin fallos durante 24 h, la reincidencia se olvida
 IPS_BUENAS_MAX = 64
@@ -411,14 +418,97 @@ def get_terminal_actual(
     return identidad
 
 
-async def hsts_terminal(request: Request, call_next):
-    """HSTS en toda respuesta de /api/terminal/*, incluidos los 401/403/429 (SCJ-DEC-12 §7). Las
-    respuestas 500 de excepciones no capturadas NO pasan por aquí (las genera ServerErrorMiddleware,
-    por fuera): el handler de Exception de main.py agrega el mismo encabezado."""
-    respuesta = await call_next(request)
-    if request.url.path.startswith(RUTA_TERMINAL):
-        respuesta.headers["Strict-Transport-Security"] = HSTS
-    return respuesta
+class CabecerasTerminal:
+    """Middleware ASGI puro: HSTS (SCJ-DEC-12 §7) y `Cache-Control: no-store` en TODA respuesta de /api/terminal/*, incluidos los
+    4xx/5xx de los handlers de excepciones y el 413 del límite de cuerpo. Las respuestas 500 de excepciones no capturadas las genera
+    ServerErrorMiddleware, por fuera de este middleware: el handler global de main.py agrega los mismos encabezados."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or not es_ruta_terminal(get_route_path(scope)):
+            return await self.app(scope, receive, send)
+
+        async def send_con_cabeceras(mensaje):
+            if mensaje["type"] == "http.response.start":
+                cabeceras = list(mensaje.get("headers", []))
+                existentes = {k.lower() for k, _ in cabeceras}
+                if b"strict-transport-security" not in existentes:
+                    cabeceras.append((b"strict-transport-security", HSTS.encode()))
+                if b"cache-control" not in existentes:
+                    cabeceras.append((b"cache-control", b"no-store"))
+                mensaje = {**mensaje, "headers": cabeceras}
+            await send(mensaje)
+
+        await self.app(scope, receive, send_con_cabeceras)
+
+
+LIMITE_CUERPO_TERMINAL = 256 * 1024  # 256 KB (igual que client_max_body_size de nginx, SCJ-DEC-12 §7); un lote de 200 marcas pesa ≈ 40 KB
+MENSAJE_CUERPO_GRANDE = "El cuerpo de la petición es demasiado grande."
+
+
+class LimiteCuerpoTerminal:
+    """Middleware ASGI puro: en /api/terminal/* responde 413 a un cuerpo mayor al límite ANTES de parsear JSON y ANTES de
+    autenticar, tanto por `Content-Length` como contando los bytes que llegan (un cliente que miente o usa chunked no lo evita).
+    No lee el cuerpo entero en memoria. Al pasarse del límite corta el flujo (el app ve una desconexión) y esta clase reemplaza
+    cualquier respuesta que el app intente dar por el 413 (FastAPI convertiría el corte en un 400)."""
+
+    def __init__(self, app, limite: int = LIMITE_CUERPO_TERMINAL) -> None:
+        self.app = app
+        self.limite = limite
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or not es_ruta_terminal(get_route_path(scope)):
+            return await self.app(scope, receive, send)
+        declarado = dict(scope["headers"]).get(b"content-length")
+        if declarado and declarado.isdigit() and int(declarado) > self.limite:
+            return await self._rechazar(send)
+
+        recibido = 0
+        excedido = False
+        respondido = False
+
+        async def receive_limitado():
+            nonlocal recibido, excedido
+            if excedido:
+                return {"type": "http.disconnect"}
+            mensaje = await receive()
+            if mensaje["type"] == "http.request":
+                recibido += len(mensaje.get("body", b""))
+                if recibido > self.limite:
+                    excedido = True
+                    return {"type": "http.disconnect"}
+            return mensaje
+
+        async def send_vigilado(mensaje):
+            nonlocal respondido
+            if excedido:
+                if not respondido:
+                    respondido = True
+                    await self._rechazar(send)
+                return  # se descarta todo lo demás que el app quiera enviar
+            await send(mensaje)
+
+        await self.app(scope, receive_limitado, send_vigilado)
+        if excedido and not respondido:  # el app terminó sin responder
+            await self._rechazar(send)
+
+    async def _rechazar(self, send):
+        cuerpo = b'{"detail":"' + MENSAJE_CUERPO_GRANDE.encode() + b'"}'
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 413,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"content-length", str(len(cuerpo)).encode()),
+                    (b"strict-transport-security", HSTS.encode()),
+                    (b"cache-control", b"no-store"),
+                ],
+            }
+        )
+        await send({"type": "http.response.body", "body": cuerpo})
 
 
 def advertir_despliegue(entorno: Mapping[str, str]) -> list[str]:

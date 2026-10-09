@@ -2,15 +2,19 @@ import logging
 import os
 
 from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
+from starlette._utils import get_route_path
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from postgrest.exceptions import APIError
 
 from app.config import parse_frontend_urls
-from app.errores import CODIGOS_MIGRACION_FALTANTE
+from app.errores import CODIGOS_MIGRACION_FALTANTE, MENSAJE_DATOS_INVALIDOS
 from app.respuestas_error import ErrorConCampos, manejar_error_con_campos
 from app.scheduler import lifespan
-from app.terminal_auth import HSTS, RUTA_TERMINAL, advertir_despliegue, hsts_terminal
+from app.terminal_auth import HSTS, CabecerasTerminal, LimiteCuerpoTerminal, advertir_despliegue, es_ruta_terminal
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +35,40 @@ app.add_middleware(
 )
 
 # HSTS en toda respuesta de /api/terminal/* (SCJ-DEC-12 §7), incluidos 401/403/429.
-app.middleware("http")(hsts_terminal)
+app.add_middleware(LimiteCuerpoTerminal)
+app.add_middleware(CabecerasTerminal)  # el más externo: cubre también el 413 y las respuestas de los handlers
 
 # Avisos de despliegue (FORWARDED_ALLOW_IPS='*', proxies /0): sólo WARNING, no falla el arranque.
 advertir_despliegue(os.environ)
 
 
 app.add_exception_handler(ErrorConCampos, manejar_error_con_campos)
+
+MENSAJE_PARSEO_FASTAPI = "There was an error parsing the body"  # el 400 que FastAPI levanta si el cuerpo no es JSON válido
+
+
+def _datos_invalidos_terminal() -> JSONResponse:
+    return JSONResponse(status_code=422, content={"detail": MENSAJE_DATOS_INVALIDOS})
+
+
+async def manejar_validacion(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """En /api/terminal/* la validación del cuerpo responde SIEMPRE el mismo 422 fijo y SIN eco del input (el cuerpo del Pi podría
+    llevar datos que no deben volver a salir); el resto de la API conserva el 422 estándar de FastAPI. Es un error de protocolo: el
+    Pi no reintenta el mismo lote."""
+    if es_ruta_terminal(get_route_path(request.scope)):
+        return _datos_invalidos_terminal()
+    return await request_validation_exception_handler(request, exc)
+
+
+async def manejar_http(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """Un JSON mal formado llega como 400 «error parsing the body»: en /api/terminal/* se unifica con el 422 de validación."""
+    if es_ruta_terminal(get_route_path(request.scope)) and exc.status_code == 400 and exc.detail == MENSAJE_PARSEO_FASTAPI:
+        return _datos_invalidos_terminal()
+    return await http_exception_handler(request, exc)
+
+
+app.add_exception_handler(RequestValidationError, manejar_validacion)
+app.add_exception_handler(StarletteHTTPException, manejar_http)
 
 # PostgREST: función/columna/tabla inexistente = falta aplicar una migración (p. ej. 88_). Orden de despliegue: 88_ -> backend -> 89_.
 MENSAJE_SERVICIO_NO_DISPONIBLE = "Servicio no disponible. Avisa a Sistemas."
@@ -61,9 +92,10 @@ async def manejador_excepciones_no_capturadas(request: Request, exc: Exception) 
     navegador reporta cualquier 500 no anticipado como bloqueo de CORS en vez del error real)."""
     logger.exception("Excepción no capturada en %s %s", request.method, ruta_para_log(request))
     respuesta = JSONResponse(status_code=500, content={"detail": "Error interno del servidor."})
-    if request.url.path.startswith(RUTA_TERMINAL):
-        # ServerErrorMiddleware queda por fuera del middleware HSTS: se agrega acá (SCJ-DEC-12 §7)
+    if es_ruta_terminal(request.url.path):
+        # ServerErrorMiddleware queda por fuera de CabecerasTerminal: se agrega acá (SCJ-DEC-12 §7)
         respuesta.headers["Strict-Transport-Security"] = HSTS
+        respuesta.headers["Cache-Control"] = "no-store"
     origen = request.headers.get("origin")
     if origen in ORIGENES_PERMITIDOS:
         respuesta.headers["Access-Control-Allow-Origin"] = origen

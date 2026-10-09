@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 from postgrest.exceptions import APIError
 
+from _mocks_supabase import rpc_con_firma_real
 from app import terminal_auth
 from app.config import Settings, get_settings
 from app.deps import get_service_client
@@ -35,8 +36,9 @@ def _settings() -> Settings:
 
 def _db(latido=LATIDO_OK, error_latido=None):
     db = MagicMock()
+    db.postgrest.schema.return_value.rpc = rpc_con_firma_real()
 
-    def rpc(nombre, params=None):
+    def rpc(nombre, params):
         constructor = MagicMock()
         if nombre == "fn_terminal_autenticar":
             constructor.execute.return_value.data = AUTENTICADA
