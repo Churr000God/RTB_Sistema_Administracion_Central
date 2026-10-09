@@ -245,3 +245,9 @@ cola**); `22023/huellas_invalidas` → `422`; `SCJ12/terminal_no_valida` → `40
   contrato del Pi (nunca leer `fingerData`: lista blanca de métodos y rutas ISAPI, CI que falla ante esos términos).
 - **Puente:** un `422` de lote significa bug del Pi, no «reintenta igual»: el Pi **biseca** el lote o envía unitario, y el evento que aun solo da
   `422` pasa a `pendiente_intervencion` sin bloquear a los demás. `Retry-After` se acota a 1 s–15 min con jitter.
+- **Puente, códigos desconocidos del servidor:** el llamador del almacén (P3) debe **mapear cualquier `codigo` que no esté en la lista cerrada de
+  §1** (o que no cumpla `[a-z0-9_]{1,40}`) a un código fijo y neutro (p. ej. `codigo_desconocido`) **antes** de llamar a `pasar_a_intervencion` o
+  `registrar_fallo_transitorio`. Si no, el almacén lanza `ErrorAlmacen` y la marca reintenta **sin contador** (el mismo fallo que tuvo
+  `Retry-After` NaN): el contador de intentos y el tope de 50 intentos / 24 h sólo avanzan si la llamada se completa. Lo mismo vale para
+  `Retry-After` ilegible: se trata como ausente. Un `429` de lote (`diferir`) cuenta el tope de 24 h desde el primer contacto y, al cumplirse,
+  deja la marca en `pendiente_intervencion` con `plazo_agotado`.
