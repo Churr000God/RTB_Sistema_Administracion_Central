@@ -1,0 +1,132 @@
+--- vigente (83_)
++++ nuevo (95_)
+@@ -1,3 +1,3 @@
+-CREATE FUNCTION tiempo.fn_marca_terminal_registrar(p_terminal_id bigint, p_eventos jsonb)
++CREATE OR REPLACE FUNCTION tiempo.fn_marca_terminal_registrar(p_terminal_id bigint, p_eventos jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+@@ -17,4 +17,6 @@
+   c_instante_max_futuro   constant interval    := interval '1 year';
+   c_holgura_alta          constant interval    := interval '1 hour';      -- tolerancia del reloj frente a la vida de la alta
++  c_holgura_huella        constant interval    := interval '5 minutes';   -- 95_: tolerancia del reloj del aparato frente a usuario_creado_en
++  c_espera_activacion     constant text        := '2s';                   -- 95_: lock_timeout de la activación por huella (M1 de security)
+ 
+   v_serie          varchar(32);
+@@ -47,4 +49,10 @@
+   v_cons           text;
+   v_carrera        boolean;
++  v_modo           text;         -- 95_: 'huella' o NULL (único valor significativo de modo_verificacion)
++  v_marca_id       bigint;       -- 95_: marca confirmada o ya existente del evento (evidencia de la activación)
++  v_alta_id        bigint;       -- 95_: terminal_usuario.id de la alta resuelta
++  v_alta_usuario_creado timestamptz;   -- 95_: terminal_usuario.usuario_creado_en
++  v_recepcion      timestamptz;  -- 95_: momento_recepcion de la marca evidencia
++  v_lock_previo    text;         -- 95_: lock_timeout vigente antes de la activación, para restaurarlo
+ BEGIN
+   SELECT t.terminal_id, t.activa INTO v_serie, v_activa
+@@ -93,4 +101,8 @@
+     v_eid := NULL;
+     v_carrera := false;
++    v_modo := NULL;
++    v_marca_id := NULL;
++    v_alta_id := NULL;
++    v_alta_usuario_creado := NULL;
+ 
+     -- evento_id: se valida con regex en vez de un bloque con EXCEPTION (cada bloque con EXCEPTION es una
+@@ -113,4 +125,8 @@
+       v_reloj   := v_evento->>'estado_reloj';
+       v_version := v_evento->>'version_software';
++      -- 95_: modo de verificación. EXACTAMENTE la cadena 'huella'; cualquier otra cosa (ausente, otro tipo, otra cadena, mayúsculas) es NULL.
++      -- Nunca vuelve forma_invalida a un evento: el campo es auxiliar y perder una marca legítima por él sería peor.
++      v_modo := CASE WHEN jsonb_typeof(v_evento->'modo_verificacion') = 'string'
++                          AND (v_evento->>'modo_verificacion') = 'huella' THEN 'huella' END;
+ 
+       IF v_emp IS NULL OR v_emp NOT BETWEEN 1 AND 99999999
+@@ -152,6 +168,6 @@
+       -- estado: resuelve también altas en 'baja' (una marca legítima encolada antes de la baja).
+       -- Sin alta, o alta aún en pendiente_alta (el aparato no pudo crear ese usuario): no_enrolado.
+-      SELECT tu.persona_id, tu.estado, tu.creado_en, tu.actualizado_en
+-        INTO v_persona, v_estado_alta, v_alta_creada, v_alta_actualizada
++      SELECT tu.persona_id, tu.estado, tu.creado_en, tu.actualizado_en, tu.id, tu.usuario_creado_en
++        INTO v_persona, v_estado_alta, v_alta_creada, v_alta_actualizada, v_alta_id, v_alta_usuario_creado
+       FROM tiempo.terminal_usuario tu
+       WHERE tu.terminal_id = p_terminal_id AND tu.employee_no = v_emp;
+@@ -188,6 +204,7 @@
+       v_n := COALESCE((v_personas_hora ->> v_persona::text)::bigint, 0);
+       IF v_n >= c_tope_persona_hora THEN
+-        RAISE WARNING 'alarma_tasa_persona terminal_id=% employee_no=% marcas_ultima_hora=%',
+-          p_terminal_id, v_emp, v_n;
++        -- 95_: el log nunca lleva employee_no ni persona_id (regla de security); solo terminal_id y el contador.
++        RAISE WARNING 'alarma_tasa_persona terminal_id=% marcas_ultima_hora=%',
++          p_terminal_id, v_n;
+       END IF;
+ 
+@@ -198,7 +215,7 @@
+            AND v_exist.momento_dispositivo = v_momento
+            AND v_exist.secuencia_local IS NOT DISTINCT FROM v_seq THEN
+-          v_estado := 'duplicado';
++          v_estado := 'duplicado'; v_marca_id := v_exist.id;
+         ELSE
+-          RAISE WARNING 'conflicto_evento terminal_id=% employee_no=%', p_terminal_id, v_emp;
++          RAISE WARNING 'conflicto_evento terminal_id=% evento_id=%', p_terminal_id, v_eid;
+           v_estado := 'rechazo_definitivo'; v_codigo := 'conflicto_evento';
+         END IF;
+@@ -213,5 +230,6 @@
+         VALUES
+           (v_eid, v_persona, v_serie, v_seq, v_momento,
+-           v_desfase, v_reloj_ins, v_version, 'terminal', false);
++           v_desfase, v_reloj_ins, v_version, 'terminal', false)
++        RETURNING id INTO v_marca_id;
+         v_estado := 'confirmado';
+         -- Contadores del lote (B1): lo recién confirmado cuenta para los topes y el tope de secuencia.
+@@ -251,7 +269,7 @@
+            AND v_exist.momento_dispositivo = v_momento
+            AND v_exist.secuencia_local IS NOT DISTINCT FROM v_seq THEN
+-          v_estado := 'duplicado';
++          v_estado := 'duplicado'; v_marca_id := v_exist.id;
+         ELSE
+-          RAISE WARNING 'conflicto_evento terminal_id=% employee_no=%', p_terminal_id, v_emp;
++          RAISE WARNING 'conflicto_evento terminal_id=% evento_id=%', p_terminal_id, v_eid;
+           v_estado := 'rechazo_definitivo'; v_codigo := 'conflicto_evento';
+         END IF;
+@@ -266,4 +284,41 @@
+     END;
+ 
++    -- 95_ (B de SCJ-DEC-12 / diseño huella): la PRIMERA marca verificada por huella de un empleado cuya alta sigue en esperando_huella la
++    -- activa (movimiento 'huella_inferida'). Aplica a 'confirmado' y a 'duplicado' (un reenvío repara una activación que no ocurrió). La
++    -- marca ya quedó registrada: nada de lo que pase aquí puede rechazarla ni tumbar el lote (sub-bloque propio con su EXCEPTION).
++    -- Condiciones: modo exacto 'huella'; alta leída en esperando_huella; la marca ocurrió (momento_dispositivo) no antes de 5 min
++    -- antes de que se creó el usuario en el aparato Y fue RECIBIDA después de ese instante (el reloj de fábrica del aparato puede
++    -- ir horas adelantado: la recepción es la que no se puede falsear desde el aparato).
++    IF v_estado IN ('confirmado', 'duplicado')
++       AND v_modo = 'huella'
++       AND v_estado_alta = 'esperando_huella'
++       AND v_marca_id IS NOT NULL AND v_alta_id IS NOT NULL
++       AND v_alta_usuario_creado IS NOT NULL
++       AND v_momento >= v_alta_usuario_creado - c_holgura_huella THEN
++      BEGIN
++        SELECT m.momento_recepcion INTO v_recepcion FROM tiempo.marca m WHERE m.id = v_marca_id;
++        IF FOUND AND v_recepcion >= v_alta_usuario_creado THEN
++          -- FOR UPDATE BLOQUEANTE con espera acotada (M1 de security): si se omitieran las filas bloqueadas y la caducidad ya tuviera la alta, esta marca la
++          -- saltaría y la caducidad borraría la huella recién verificada. lock_timeout es LOCAL a la transacción: se restaura al terminar.
++          v_lock_previo := current_setting('lock_timeout');
++          PERFORM set_config('lock_timeout', c_espera_activacion, true);
++          PERFORM 1 FROM tiempo.terminal_usuario tu2 WHERE tu2.id = v_alta_id AND tu2.estado = 'esperando_huella' FOR UPDATE;
++          IF FOUND THEN   -- si la caducidad ganó (la alta ya no está en esperando_huella) no se activa nada
++            INSERT INTO tiempo.bitacora_movimiento_terminal_usuario
++              (terminal_usuario_id, terminal_id, persona_id, employee_no, tipo_movimiento, detalle, origen, registrado_por, marca_id)
++            VALUES
++              (v_alta_id, p_terminal_id, v_persona, v_emp, 'huella_inferida', 'primera marca verificada por huella', 'terminal', NULL, v_marca_id);
++          END IF;
++          PERFORM set_config('lock_timeout', v_lock_previo, true);
++        END IF;
++      EXCEPTION
++        WHEN SQLSTATE 'SCJ11' THEN
++          NULL;   -- carrera con una baja u otro movimiento: la marca queda confirmada, la alta sigue su camino
++        WHEN OTHERS THEN
++          -- 55P03 (espera agotada), 40P01 (interbloqueo), SCJ12 (marca_no_corresponde)… sólo el SQLSTATE, nunca el texto del error ni datos de la persona.
++          RAISE WARNING 'fn_marca_terminal_registrar: activación por huella no aplicada sqlstate=% terminal_id=%', SQLSTATE, p_terminal_id;
++      END;
++    END IF;
++
+     IF v_estado = 'rechazo_definitivo' THEN
+       BEGIN

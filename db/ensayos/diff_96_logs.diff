@@ -1,0 +1,25 @@
+--- vigente (84_)
++++ nuevo (96_)
+@@ -16,9 +16,9 @@
+   v_n     bigint;
+ BEGIN
+-  RAISE WARNING 'marca_rechazada terminal_id=% codigo=% evento_id=% employee_no=%',
++  -- 96_: el log nunca lleva employee_no ni persona_id (regla de security); solo terminal_id, codigo y evento_id.
++  RAISE WARNING 'marca_rechazada terminal_id=% codigo=% evento_id=%',
+     p_terminal_id,
+     left(COALESCE(p_codigo, '-'), 30),
+-    left(regexp_replace(COALESCE(p_evento->>'evento_id', '-'), '[^0-9a-fA-F-]', '?', 'g'), 40),
+-    left(regexp_replace(COALESCE(p_evento->>'employee_no', '-'), '[^0-9]', '?', 'g'), 12);
++    left(regexp_replace(COALESCE(p_evento->>'evento_id', '-'), '[^0-9a-fA-F-]', '?', 'g'), 40);
+ 
+   IF p_codigo IS NULL OR p_codigo NOT IN ('forma_invalida', 'no_enrolado', 'secuencia_duplicada',
+--- vigente (91_)
++++ nuevo (96_)
+@@ -30,5 +30,6 @@
+   LIMIT 1;
+   IF v_autor IS NULL THEN
+-    RAISE WARNING 'fn_terminal_baja_por_persona_inactiva: sin autor derivable para la persona %', p_persona_id;
++    -- 96_: sin persona_id en el log (regla de security); el job y el hook del backend registran el -1 de retorno.
++    RAISE WARNING 'fn_terminal_baja_por_persona_inactiva: sin autor derivable';
+     RETURN -1;
+   END IF;

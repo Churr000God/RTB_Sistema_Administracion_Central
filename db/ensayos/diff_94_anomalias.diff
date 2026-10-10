@@ -1,0 +1,109 @@
+--- vigente (90_)
++++ nuevo (94_)
+@@ -1,3 +1,3 @@
+-CREATE FUNCTION tiempo.fn_terminal_anomalias(
++CREATE OR REPLACE FUNCTION tiempo.fn_terminal_anomalias(
+   p_terminal_id      bigint,
+   p_categoria        text,
+@@ -16,4 +16,8 @@
+   c_pico_terminal_hora constant integer := 1000;   -- igual que c_alarma_terminal_hora de fn_marca_terminal_registrar (83_)
+   c_ventana_max        constant interval := interval '90 days';
++  c_inferidas_dia      constant integer  := 5;                 -- 94_: más de 5 'huella_inferida' en un día local = alerta
++  c_manuales_min       constant integer  := 3;                 -- 94_: la mitad-manual sólo cuenta con al menos 3 confirmaciones manuales en el día
++  c_sin_marcas_dias    constant interval := interval '7 days'; -- 94_: alta inferida/manual sin ninguna marca más en este plazo
++  c_zona               constant text     := 'America/Mexico_City';
+   v_serie   varchar;
+   v_res     jsonb;
+@@ -24,5 +28,6 @@
+   END IF;
+ 
+-  IF p_categoria IS NULL OR p_categoria NOT IN ('marcas_posteriores_a_baja', 'picos_de_tasa', 'huecos_de_secuencia') THEN
++  IF p_categoria IS NULL OR p_categoria NOT IN ('marcas_posteriores_a_baja', 'picos_de_tasa', 'huecos_de_secuencia',
++                                                'huellas_inferidas_exceso', 'inferida_sin_marcas', 'asignador_confirmador') THEN
+     RAISE EXCEPTION 'Categoría desconocida: %', p_categoria USING ERRCODE = '22023', HINT = 'categoria_invalida';
+   END IF;
+@@ -88,5 +93,5 @@
+     INTO v_res;
+ 
+-  ELSE  -- huecos_de_secuencia
++  ELSIF p_categoria = 'huecos_de_secuencia' THEN
+     WITH orden AS (
+       SELECT m.secuencia_local, m.momento_recepcion,
+@@ -107,4 +112,77 @@
+              'items', COALESCE((SELECT jsonb_agg(to_jsonb(pag) ORDER BY pag.desde DESC) FROM pag), '[]'::jsonb))
+     INTO v_res;
++
++  ELSIF p_categoria = 'huellas_inferidas_exceso' THEN
++    -- 94_: activaciones por día local de la terminal. Alerta si hubo más de c_inferidas_dia 'huella_inferida' en el día, o si las
++    -- confirmaciones MANUALES (>= c_manuales_min) son más de la mitad de las activaciones del día (la vía automática no está
++    -- funcionando). Nota: sin conteo del aparato, casi toda activación es inferida o manual, así que "la mitad de las altas del
++    -- día" se mide sobre las activaciones, no sobre las altas asignadas.
++    WITH act AS (
++      SELECT (b.creado_en AT TIME ZONE c_zona)::date AS dia, b.tipo_movimiento
++      FROM tiempo.bitacora_movimiento_terminal_usuario b
++      WHERE b.terminal_id = p_terminal_id
++        AND b.tipo_movimiento IN ('huella_inferida', 'huella_confirmada_manual', 'huella_capturada')
++        AND b.creado_en >= p_desde AND b.creado_en <= p_hasta
++    ), por_dia AS (
++      SELECT dia,
++             (count(*) FILTER (WHERE tipo_movimiento = 'huella_inferida'))::integer          AS inferidas,
++             (count(*) FILTER (WHERE tipo_movimiento = 'huella_confirmada_manual'))::integer AS manuales,
++             count(*)::integer                                                              AS activaciones
++      FROM act GROUP BY dia
++    ), base AS (
++      SELECT dia, inferidas, manuales, activaciones, c_inferidas_dia AS limite_inferidas
++      FROM por_dia
++      WHERE inferidas > c_inferidas_dia OR (manuales >= c_manuales_min AND manuales * 2 > activaciones)
++    ), pag AS (
++      SELECT * FROM base ORDER BY dia DESC LIMIT p_limite OFFSET p_desplazamiento
++    )
++    SELECT jsonb_build_object(
++             'total', (SELECT count(*) FROM base),
++             'items', COALESCE((SELECT jsonb_agg(to_jsonb(pag) ORDER BY pag.dia DESC) FROM pag), '[]'::jsonb))
++    INTO v_res;
++
++  ELSIF p_categoria = 'inferida_sin_marcas' THEN
++    -- 94_: alta activada por inferencia o confirmación manual hace más de 7 días y SIN ninguna marca más de esa persona en la
++    -- terminal en los 7 días siguientes a la activación (la marca que sirvió de evidencia no cuenta).
++    WITH base AS (
++      SELECT tu.id AS terminal_usuario_id, tu.persona_id, tu.huella_evidencia AS evidencia, b.creado_en AS activada_en
++      FROM tiempo.terminal_usuario tu
++      JOIN tiempo.bitacora_movimiento_terminal_usuario b
++        ON b.terminal_usuario_id = tu.id AND b.tipo_movimiento IN ('huella_inferida', 'huella_confirmada_manual')
++      WHERE tu.terminal_id = p_terminal_id AND tu.estado = 'activo' AND tu.huella_evidencia IN ('inferida', 'manual')
++        AND b.creado_en >= p_desde AND b.creado_en <= p_hasta
++        AND b.creado_en <= clock_timestamp() - c_sin_marcas_dias
++        AND NOT EXISTS (
++          SELECT 1 FROM tiempo.marca m
++          WHERE m.persona_id = tu.persona_id AND m.terminal_id = v_serie AND m.origen = 'terminal'
++            AND m.momento_recepcion > b.creado_en AND m.momento_recepcion <= b.creado_en + c_sin_marcas_dias
++            AND (b.marca_id IS NULL OR m.id <> b.marca_id))
++    ), pag AS (
++      SELECT * FROM base ORDER BY activada_en DESC, terminal_usuario_id DESC LIMIT p_limite OFFSET p_desplazamiento
++    )
++    SELECT jsonb_build_object(
++             'total', (SELECT count(*) FROM base),
++             'items', COALESCE((SELECT jsonb_agg(to_jsonb(pag) ORDER BY pag.activada_en DESC, pag.terminal_usuario_id DESC) FROM pag), '[]'::jsonb))
++    INTO v_res;
++
++  ELSE  -- asignador_confirmador
++    -- 94_: confirmaciones manuales hechas por la misma persona que asignó la alta (la variante barata de los cuatro ojos).
++    WITH base AS (
++      SELECT b.terminal_usuario_id, tu.persona_id, b.creado_en AS confirmada_en, b.registrado_por AS usuario_id
++      FROM tiempo.bitacora_movimiento_terminal_usuario b
++      JOIN tiempo.terminal_usuario tu ON tu.id = b.terminal_usuario_id
++      WHERE b.terminal_id = p_terminal_id AND b.tipo_movimiento = 'huella_confirmada_manual'
++        AND b.creado_en >= p_desde AND b.creado_en <= p_hasta
++        AND EXISTS (
++          SELECT 1 FROM tiempo.bitacora_movimiento_terminal_usuario a
++          WHERE a.terminal_usuario_id = b.terminal_usuario_id AND a.tipo_movimiento = 'asignado'
++            AND a.registrado_por = b.registrado_por)
++    ), pag AS (
++      SELECT * FROM base ORDER BY confirmada_en DESC, terminal_usuario_id DESC LIMIT p_limite OFFSET p_desplazamiento
++    )
++    SELECT jsonb_build_object(
++             'total', (SELECT count(*) FROM base),
++             'items', COALESCE((SELECT jsonb_agg(to_jsonb(pag) ORDER BY pag.confirmada_en DESC, pag.terminal_usuario_id DESC) FROM pag), '[]'::jsonb))
++    INTO v_res;
+   END IF;
+ 

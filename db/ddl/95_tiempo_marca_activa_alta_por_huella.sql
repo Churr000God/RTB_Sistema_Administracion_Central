@@ -1,0 +1,401 @@
+-- 95_tiempo_marca_activa_alta_por_huella.sql
+-- Vía B del diseño de huella sin conteo (ver 94_tiempo_terminal_huella_evidencia.sql): fn_marca_terminal_registrar activa una alta que sigue en
+-- 'esperando_huella' cuando llega la PRIMERA marca verificada por huella de ese empleado (movimiento 'huella_inferida', 94_).
+--
+-- Cómo sabe el RPC que la marca fue por HUELLA: campo OPCIONAL nuevo del evento, `modo_verificacion`, cuyo único valor significativo es la cadena
+-- exacta 'huella' (sin lower() ni LIKE). Ausente, de otro tipo o con cualquier otra cadena => la marca se registra igual y NO activa nada. No se
+-- guarda en tiempo.marca (los campos de la marca están cerrados por SCJ-CDT-01): es una señal de un solo uso, y la evidencia queda en la bitácora
+-- (huella_inferida.marca_id). El backend (lista blanca) descarta cualquier otro valor/tipo/longitud a NULL ANTES del RPC y el puente sólo lo manda
+-- para eventos minor 38 (CONTRATO_API_PUENTE_TERMINAL.md §1, actualizado en el mismo corte de código).
+--
+-- Qué cambia en la función (diff literal contra 83_ en db/ensayos/diff_95_marca.diff; el resto del cuerpo es idéntico):
+--   - Variables y constantes nuevas (v_modo, v_marca_id, v_alta_id, v_alta_usuario_creado, v_recepcion, v_lock_previo, c_holgura_huella = 5 min,
+--     c_espera_activacion = '2s').
+--   - Lee modo_verificacion en la validación de forma (sin volver forma_invalida al evento).
+--   - El paso 4 (resolución de la alta) además lee terminal_usuario.id y usuario_creado_en.
+--   - El INSERT de la marca hace RETURNING id; en 'duplicado' se toma el id de la marca existente.
+--   - Después de resolver el evento (y antes del rechazo definitivo): bloque de activación, en sub-bloque propio con EXCEPTION.
+--
+-- Condiciones de la activación (todas): estado del evento confirmado o duplicado; modo = 'huella'; la alta estaba en esperando_huella; la marca
+-- ocurrió (momento_dispositivo) no antes de 5 minutos antes de usuario_creado_en; fue RECIBIDA (momento_recepcion) a partir de usuario_creado_en
+-- (el reloj de fábrica del aparato va en UTC+8, unas 14 h adelantado, y pasaría siempre la condición del dispositivo: la de recepción es la que no
+-- se falsea desde el aparato); y, dentro del lock de la alta, que siga en esperando_huella. El trigger de 94_ revalida la marca (misma terminal,
+-- misma persona, origen terminal, recibida después de usuario_creado_en, usada una sola vez: SCJ12 marca_no_corresponde).
+--
+-- Concurrencia (M1 de security): FOR UPDATE BLOQUEANTE con lock_timeout = 2 s (set_config local a la transacción, restaurado al terminar y revertido
+-- por la propia subtransacción si algo falla). NO SKIP LOCKED: si la caducidad (85_/94_) ya tiene bloqueada la alta, la activación espera; cuando la
+-- caducidad termina, la alta está en pendiente_baja y la activación no hace nada (la caducidad ganó); si la activación gana el lock, la caducidad
+-- re-lee FOR UPDATE exigiendo esperando_huella y la salta. Orden de locks: advisory por terminal -> alta; nadie toma la alta y luego el advisory. Un
+-- interbloqueo (40P01, alta A retenida por este lote y alta B por una corrida de caducidad) o una espera agotada (55P03) caen en el WHEN OTHERS:
+-- WARNING con sólo el SQLSTATE, la marca queda confirmada y la alta se activará con la siguiente marca o por confirmación manual. Desde 94_ la
+-- caducidad usa FOR UPDATE SKIP LOCKED (nunca espera), así que ya no puede cerrar un ciclo con este lote; la espera de 2 s solo puede ocurrir contra
+-- un movimiento breve del Pi o una acción web sobre la misma alta.
+-- SCJ11 (carrera con una baja u otro movimiento) se ignora en silencio y NUNCA falla el lote.
+--
+-- Logs sin identidad (regla de security «nunca employee_no ni persona_id en logs»): los tres WARNING del cuerpo que llevaban employee_no (alarma_tasa_persona y
+-- conflicto_evento, dos veces) ahora llevan solo terminal_id y el contador, o el evento_id (uuid, relacionable con tiempo.marca_rechazada).
+--
+-- APLICAR con `psql --single-transaction -f 95_*.sql` (sin BEGIN/COMMIT en el archivo). Depende de 94_ (tipo huella_inferida, marca_id,
+-- huella_evidencia). Sin tablas, columnas, policies ni permisos nuevos.
+--
+-- Inventario de RLS/privilegios: fn_marca_terminal_registrar sigue SECURITY DEFINER, SET search_path = tiempo, personas, pg_temp, REVOKE EXECUTE
+-- FROM PUBLIC, anon, authenticated y GRANT EXECUTE sólo a service_role (se repiten abajo; CREATE OR REPLACE no hereda nada).
+--
+-- REVERSA (sin riesgo de datos; las altas ya activadas permanecen porque son filas de bitácora): CREATE OR REPLACE FUNCTION con el cuerpo de 83_
+-- (copia literal en db/ensayos/vigente_95_marca_83.sql, cambiando sólo CREATE FUNCTION por CREATE OR REPLACE FUNCTION), repitiendo SECURITY DEFINER,
+-- SET search_path = tiempo, personas, pg_temp, y el REVOKE/GRANT de abajo.
+
+CREATE OR REPLACE FUNCTION tiempo.fn_marca_terminal_registrar(p_terminal_id bigint, p_eventos jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = tiempo, personas, pg_temp
+AS $$
+DECLARE
+  -- Valores iniciales ajustables (SCJ-DEC-12 Q10-Q14). No son constantes mudas: se cambian aquí.
+  c_tope_lote             constant integer     := 200;
+  c_tope_persona_hora     constant integer     := 10;       -- más de esto en 1 h: alarma, se inserta
+  c_alarma_terminal_hora  constant integer     := 1000;     -- más de esto en 1 h: alarma, se inserta
+  c_tope_terminal_hora    constant integer     := 5000;     -- más de esto en 1 h: rechazo transitorio
+  c_salto_secuencia       constant bigint      := 1000000;
+  c_futuro_reloj          constant interval    := interval '5 minutes';
+  c_pasado_reloj          constant interval    := interval '7 days';
+  c_instante_minimo       constant timestamptz := timestamptz '2024-01-01 00:00:00+00';
+  c_instante_max_futuro   constant interval    := interval '1 year';
+  c_holgura_alta          constant interval    := interval '1 hour';      -- tolerancia del reloj frente a la vida de la alta
+  c_holgura_huella        constant interval    := interval '5 minutes';   -- 95_: tolerancia del reloj del aparato frente a usuario_creado_en
+  c_espera_activacion     constant text        := '2s';                   -- 95_: lock_timeout de la activación por huella (M1 de security)
+
+  v_serie          varchar(32);
+  v_activa         boolean;
+  v_resultados     jsonb := '[]'::jsonb;
+  rec              record;
+  v_evento         jsonb;
+  v_idx            integer;
+  v_estado         text;
+  v_codigo         text;
+  v_eid            uuid;
+  v_emp            integer;
+  v_seq            bigint;
+  v_momento        timestamptz;
+  v_desfase        text;
+  v_reloj          text;
+  v_reloj_ins      text;
+  v_version        text;
+  v_persona        uuid;
+  v_estado_alta    varchar(20);
+  v_max_seq        bigint;
+  v_n              bigint;
+  v_min            integer;
+  v_alta_creada    timestamptz;
+  v_alta_actualizada timestamptz;
+  v_n_term         bigint;       -- marcas de la terminal en la última hora (se calcula UNA vez por lote)
+  v_personas_hora  jsonb;        -- marcas por persona en la última hora (UNA vez por lote)
+  v_max_lote       bigint;       -- max(secuencia_local) de la terminal (UNA vez por lote)
+  v_exist          tiempo.marca;
+  v_cons           text;
+  v_carrera        boolean;
+  v_modo           text;         -- 95_: 'huella' o NULL (único valor significativo de modo_verificacion)
+  v_marca_id       bigint;       -- 95_: marca confirmada o ya existente del evento (evidencia de la activación)
+  v_alta_id        bigint;       -- 95_: terminal_usuario.id de la alta resuelta
+  v_alta_usuario_creado timestamptz;   -- 95_: terminal_usuario.usuario_creado_en
+  v_recepcion      timestamptz;  -- 95_: momento_recepcion de la marca evidencia
+  v_lock_previo    text;         -- 95_: lock_timeout vigente antes de la activación, para restaurarlo
+BEGIN
+  SELECT t.terminal_id, t.activa INTO v_serie, v_activa
+  FROM tiempo.terminal t WHERE t.id = p_terminal_id;
+  IF NOT FOUND OR NOT v_activa THEN
+    RAISE EXCEPTION 'La terminal % no existe o no está activa', p_terminal_id
+      USING ERRCODE = 'SCJ12', HINT = 'terminal_no_valida';
+  END IF;
+
+  IF p_eventos IS NULL OR jsonb_typeof(p_eventos) <> 'array'
+     OR jsonb_array_length(p_eventos) < 1 OR jsonb_array_length(p_eventos) > c_tope_lote THEN
+    RAISE EXCEPTION 'lote inválido: se espera un arreglo de 1 a % eventos', c_tope_lote
+      USING ERRCODE = '22023', HINT = 'lote_invalido';
+  END IF;
+
+  -- Un lote a la vez por terminal, aunque haya varios workers del backend.
+  PERFORM pg_advisory_xact_lock(hashtext('fn_marca_terminal_registrar'),
+                                (p_terminal_id % 2147483647)::integer);
+
+  -- B1 (security): los conteos de tope y el max(secuencia_local) se calculan UNA vez y se actualizan
+  -- conforme se inserta, en vez de dos o tres consultas por evento.
+  SELECT COALESCE(max(m.secuencia_local), 0) INTO v_max_lote
+  FROM tiempo.marca m WHERE m.terminal_id = v_serie AND m.origen = 'terminal';
+  SELECT count(*) INTO v_n_term FROM tiempo.marca m
+  WHERE m.terminal_id = v_serie AND m.origen = 'terminal' AND m.momento_recepcion > now() - interval '1 hour';
+  SELECT COALESCE(jsonb_object_agg(s.persona_id::text, s.c), '{}'::jsonb) INTO v_personas_hora
+  FROM (SELECT m.persona_id, count(*) AS c FROM tiempo.marca m
+        WHERE m.momento_recepcion > now() - interval '1 hour'
+          AND m.persona_id IN (SELECT tu.persona_id FROM tiempo.terminal_usuario tu WHERE tu.terminal_id = p_terminal_id)
+        GROUP BY m.persona_id) s;
+
+  -- En orden de secuencia_local (un evento sin secuencia válida va al final); el índice original se
+  -- conserva en la respuesta.
+  FOR rec IN
+    SELECT (o.ord - 1)::integer AS idx,
+           o.elem               AS ev,
+           CASE WHEN jsonb_typeof(o.elem) = 'object' AND (o.elem->>'secuencia_local') ~ '^[0-9]{1,18}$'
+                THEN (o.elem->>'secuencia_local')::bigint END AS orden_seq
+    FROM jsonb_array_elements(p_eventos) WITH ORDINALITY AS o(elem, ord)
+    ORDER BY orden_seq NULLS LAST, o.ord
+  LOOP
+    v_idx := rec.idx;
+    v_evento := rec.ev;
+    v_estado := NULL;
+    v_codigo := NULL;
+    v_eid := NULL;
+    v_carrera := false;
+    v_modo := NULL;
+    v_marca_id := NULL;
+    v_alta_id := NULL;
+    v_alta_usuario_creado := NULL;
+
+    -- evento_id: se valida con regex en vez de un bloque con EXCEPTION (cada bloque con EXCEPTION es una
+    -- subtransacción; ver B2 de la cabecera).
+    IF jsonb_typeof(v_evento) = 'object'
+       AND (v_evento->>'evento_id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+      v_eid := (v_evento->>'evento_id')::uuid;
+    END IF;
+
+    <<ev>>
+    BEGIN
+      -- 1. Forma. Todo cast y rango dentro de este sub-bloque: un error de clase 22 cae al handler.
+      IF jsonb_typeof(v_evento) <> 'object' OR v_eid IS NULL THEN
+        v_estado := 'rechazo_definitivo'; v_codigo := 'forma_invalida'; EXIT ev;
+      END IF;
+
+      v_emp     := (v_evento->>'employee_no')::integer;
+      v_seq     := (v_evento->>'secuencia_local')::bigint;
+      v_desfase := v_evento->>'desfase_local';
+      v_reloj   := v_evento->>'estado_reloj';
+      v_version := v_evento->>'version_software';
+      -- 95_: modo de verificación. EXACTAMENTE la cadena 'huella'; cualquier otra cosa (ausente, otro tipo, otra cadena, mayúsculas) es NULL.
+      -- Nunca vuelve forma_invalida a un evento: el campo es auxiliar y perder una marca legítima por él sería peor.
+      v_modo := CASE WHEN jsonb_typeof(v_evento->'modo_verificacion') = 'string'
+                          AND (v_evento->>'modo_verificacion') = 'huella' THEN 'huella' END;
+
+      IF v_emp IS NULL OR v_emp NOT BETWEEN 1 AND 99999999
+         OR v_seq IS NULL OR v_seq < 0
+         OR (v_evento->>'momento_dispositivo') IS NULL
+         -- M2 (security): ISO 8601 con fecha, hora y zona, anclada al inicio y al final. Descarta formatos
+         -- locales ('06/10/2026 10:00:00Z'), palabras ('yesterday 10:00Z') e infinity/-infinity.
+         OR (v_evento->>'momento_dispositivo') !~
+            '^[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}(:[0-9]{2}(\.[0-9]{1,6})?)?(Z|[+-][0-9]{2}(:?[0-9]{2})?)$'
+         OR v_desfase IS NULL OR v_desfase !~ '^[+-][0-9]{2}:[0-9]{2}$'
+         OR v_reloj IS NULL OR v_reloj NOT IN ('sincronizado', 'deriva', 'sin_sincronizar')
+         OR v_version IS NULL OR char_length(v_version) NOT BETWEEN 1 AND 16 THEN
+        v_estado := 'rechazo_definitivo'; v_codigo := 'forma_invalida'; EXIT ev;
+      END IF;
+
+      v_momento := (v_evento->>'momento_dispositivo')::timestamptz;
+
+      -- Rango real del desfase (validación nueva del RPC; el CHECK de marca sólo valida el formato):
+      -- -12:00 .. +14:00, minutos 00-59.
+      v_min := substr(v_desfase, 2, 2)::integer * 60 + substr(v_desfase, 5, 2)::integer;
+      IF substr(v_desfase, 5, 2)::integer > 59
+         OR (substr(v_desfase, 1, 1) = '-' AND v_min > 720)
+         OR (substr(v_desfase, 1, 1) = '+' AND v_min > 840) THEN
+        v_estado := 'rechazo_definitivo'; v_codigo := 'forma_invalida'; EXIT ev;
+      END IF;
+
+      -- 2. Absurdos de fecha: el único rechazo por tiempo.
+      IF NOT isfinite(v_momento) OR v_momento < c_instante_minimo OR v_momento > now() + c_instante_max_futuro THEN
+        v_estado := 'rechazo_definitivo'; v_codigo := 'forma_invalida'; EXIT ev;
+      END IF;
+
+      -- 3. secuencia_local acotada por la última recibida de esta terminal (calculada una vez por lote
+      -- y actualizada al confirmar cada marca).
+      IF v_seq > v_max_lote + c_salto_secuencia THEN
+        v_estado := 'rechazo_definitivo'; v_codigo := 'secuencia_fuera_de_rango'; EXIT ev;
+      END IF;
+
+      -- 4. Resolución employee_no -> persona. UNIQUE (terminal_id, employee_no) sin condición de
+      -- estado: resuelve también altas en 'baja' (una marca legítima encolada antes de la baja).
+      -- Sin alta, o alta aún en pendiente_alta (el aparato no pudo crear ese usuario): no_enrolado.
+      SELECT tu.persona_id, tu.estado, tu.creado_en, tu.actualizado_en, tu.id, tu.usuario_creado_en
+        INTO v_persona, v_estado_alta, v_alta_creada, v_alta_actualizada, v_alta_id, v_alta_usuario_creado
+      FROM tiempo.terminal_usuario tu
+      WHERE tu.terminal_id = p_terminal_id AND tu.employee_no = v_emp;
+      IF NOT FOUND OR v_estado_alta = 'pendiente_alta' THEN
+        v_estado := 'rechazo_definitivo'; v_codigo := 'no_enrolado'; EXIT ev;
+      END IF;
+
+      -- M1 (security): el employee_no nunca se reutiliza y las altas en 'baja' siguen resolviendo (una marca
+      -- legítima encolada antes de la baja), pero eso no debe servir para falsear marcas fuera de la vida de la
+      -- alta: (a) una marca de una alta en 'baja' con momento posterior a su baja (+1 h de holgura de reloj)
+      -- y (b) cualquier marca anterior a la creación de la alta (-1 h) se rechazan como no_enrolado. Para
+      -- una alta en 'baja', actualizado_en es el momento de baja_confirmada (después no admite más
+      -- movimientos).
+      IF (v_estado_alta = 'baja' AND v_momento > v_alta_actualizada + c_holgura_alta)
+         OR v_momento < v_alta_creada - c_holgura_alta THEN
+        v_estado := 'rechazo_definitivo'; v_codigo := 'no_enrolado'; EXIT ev;
+      END IF;
+
+      -- 5. Degradación del reloj: sólo puede empeorarse, nunca mejorarse. No se rechaza.
+      v_reloj_ins := v_reloj;
+      IF v_reloj = 'sincronizado'
+         AND (v_momento > now() + c_futuro_reloj OR v_momento < now() - c_pasado_reloj) THEN
+        v_reloj_ins := 'deriva';
+      END IF;
+
+      -- 6. Topes de tasa (última hora, por momento_recepcion).
+      -- Los conteos se calcularon UNA vez antes del bucle y se suman al confirmar (B1).
+      IF v_n_term >= c_tope_terminal_hora THEN
+        v_estado := 'rechazo_transitorio'; v_codigo := 'tope_terminal'; EXIT ev;
+      END IF;
+      IF v_n_term >= c_alarma_terminal_hora THEN
+        RAISE WARNING 'alarma_tasa_terminal terminal_id=% marcas_ultima_hora=%', p_terminal_id, v_n_term;
+      END IF;
+      v_n := COALESCE((v_personas_hora ->> v_persona::text)::bigint, 0);
+      IF v_n >= c_tope_persona_hora THEN
+        -- 95_: el log nunca lleva employee_no ni persona_id (regla de security); solo terminal_id y el contador.
+        RAISE WARNING 'alarma_tasa_persona terminal_id=% marcas_ultima_hora=%',
+          p_terminal_id, v_n;
+      END IF;
+
+      -- 7. Duplicado / conflicto por evento_id (idempotencia).
+      SELECT m.* INTO v_exist FROM tiempo.marca m WHERE m.evento_id = v_eid;
+      IF FOUND THEN
+        IF v_exist.terminal_id = v_serie AND v_exist.persona_id = v_persona
+           AND v_exist.momento_dispositivo = v_momento
+           AND v_exist.secuencia_local IS NOT DISTINCT FROM v_seq THEN
+          v_estado := 'duplicado'; v_marca_id := v_exist.id;
+        ELSE
+          RAISE WARNING 'conflicto_evento terminal_id=% evento_id=%', p_terminal_id, v_eid;
+          v_estado := 'rechazo_definitivo'; v_codigo := 'conflicto_evento';
+        END IF;
+        EXIT ev;
+      END IF;
+
+      -- 8. INSERT. origen y requiere_revision los fija esta función, no el evento.
+      BEGIN
+        INSERT INTO tiempo.marca
+          (evento_id, persona_id, terminal_id, secuencia_local, momento_dispositivo,
+           desfase_local, estado_reloj, version_software, origen, requiere_revision)
+        VALUES
+          (v_eid, v_persona, v_serie, v_seq, v_momento,
+           v_desfase, v_reloj_ins, v_version, 'terminal', false)
+        RETURNING id INTO v_marca_id;
+        v_estado := 'confirmado';
+        -- Contadores del lote (B1): lo recién confirmado cuenta para los topes y el tope de secuencia.
+        v_n_term := v_n_term + 1;
+        v_personas_hora := jsonb_set(v_personas_hora, ARRAY[v_persona::text],
+          to_jsonb(COALESCE((v_personas_hora ->> v_persona::text)::bigint, 0) + 1));
+        v_max_lote := GREATEST(v_max_lote, v_seq);
+      EXCEPTION
+        WHEN unique_violation THEN
+          GET STACKED DIAGNOSTICS v_cons = CONSTRAINT_NAME;
+          IF v_cons = 'uq_marca_evento_id' THEN
+            v_carrera := true;
+          ELSIF v_cons = 'uq_marca_terminal_secuencia' THEN
+            v_estado := 'rechazo_definitivo'; v_codigo := 'secuencia_duplicada';
+          ELSE
+            RAISE WARNING 'fn_marca_terminal_registrar: unicidad no prevista en terminal_id=%', p_terminal_id;
+            v_estado := 'rechazo_transitorio'; v_codigo := 'error_interno';
+          END IF;
+        -- B3 (security): sólo un CHECK propio de tiempo.marca (ck_marca_*) es un rechazo definitivo de forma.
+        -- Cualquier otro 22/23502/23514 ocurrido dentro del INSERT (p. ej. de un trigger) es un error del
+        -- servidor, no del evento: transitorio, el Pi reintenta.
+        WHEN data_exception OR not_null_violation OR check_violation THEN
+          GET STACKED DIAGNOSTICS v_cons = CONSTRAINT_NAME;
+          IF v_cons LIKE 'ck\_marca\_%' THEN
+            v_estado := 'rechazo_definitivo'; v_codigo := 'forma_invalida';
+          ELSE
+            RAISE WARNING 'fn_marca_terminal_registrar: error de datos dentro del INSERT sqlstate=% terminal_id=%',
+              SQLSTATE, p_terminal_id;
+            v_estado := 'rechazo_transitorio'; v_codigo := 'error_interno';
+          END IF;
+      END;
+
+      -- Carrera por evento_id: otro lote insertó el mismo evento entre el SELECT y el INSERT.
+      IF v_carrera THEN
+        SELECT m.* INTO v_exist FROM tiempo.marca m WHERE m.evento_id = v_eid;
+        IF FOUND AND v_exist.terminal_id = v_serie AND v_exist.persona_id = v_persona
+           AND v_exist.momento_dispositivo = v_momento
+           AND v_exist.secuencia_local IS NOT DISTINCT FROM v_seq THEN
+          v_estado := 'duplicado'; v_marca_id := v_exist.id;
+        ELSE
+          RAISE WARNING 'conflicto_evento terminal_id=% evento_id=%', p_terminal_id, v_eid;
+          v_estado := 'rechazo_definitivo'; v_codigo := 'conflicto_evento';
+        END IF;
+      END IF;
+    EXCEPTION
+      WHEN data_exception OR not_null_violation OR check_violation THEN
+        v_estado := 'rechazo_definitivo'; v_codigo := 'forma_invalida';
+      WHEN OTHERS THEN
+        RAISE WARNING 'fn_marca_terminal_registrar: error no previsto sqlstate=% terminal_id=%',
+          SQLSTATE, p_terminal_id;
+        v_estado := 'rechazo_transitorio'; v_codigo := 'error_interno';
+    END;
+
+    -- 95_ (B de SCJ-DEC-12 / diseño huella): la PRIMERA marca verificada por huella de un empleado cuya alta sigue en esperando_huella la
+    -- activa (movimiento 'huella_inferida'). Aplica a 'confirmado' y a 'duplicado' (un reenvío repara una activación que no ocurrió). La
+    -- marca ya quedó registrada: nada de lo que pase aquí puede rechazarla ni tumbar el lote (sub-bloque propio con su EXCEPTION).
+    -- Condiciones: modo exacto 'huella'; alta leída en esperando_huella; la marca ocurrió (momento_dispositivo) no antes de 5 min
+    -- antes de que se creó el usuario en el aparato Y fue RECIBIDA después de ese instante (el reloj de fábrica del aparato puede
+    -- ir horas adelantado: la recepción es la que no se puede falsear desde el aparato).
+    IF v_estado IN ('confirmado', 'duplicado')
+       AND v_modo = 'huella'
+       AND v_estado_alta = 'esperando_huella'
+       AND v_marca_id IS NOT NULL AND v_alta_id IS NOT NULL
+       AND v_alta_usuario_creado IS NOT NULL
+       AND v_momento >= v_alta_usuario_creado - c_holgura_huella THEN
+      BEGIN
+        SELECT m.momento_recepcion INTO v_recepcion FROM tiempo.marca m WHERE m.id = v_marca_id;
+        IF FOUND AND v_recepcion >= v_alta_usuario_creado THEN
+          -- FOR UPDATE BLOQUEANTE con espera acotada (M1 de security): si se omitieran las filas bloqueadas y la caducidad ya tuviera la alta, esta marca la
+          -- saltaría y la caducidad borraría la huella recién verificada. lock_timeout es LOCAL a la transacción: se restaura al terminar.
+          v_lock_previo := current_setting('lock_timeout');
+          PERFORM set_config('lock_timeout', c_espera_activacion, true);
+          PERFORM 1 FROM tiempo.terminal_usuario tu2 WHERE tu2.id = v_alta_id AND tu2.estado = 'esperando_huella' FOR UPDATE;
+          IF FOUND THEN   -- si la caducidad ganó (la alta ya no está en esperando_huella) no se activa nada
+            INSERT INTO tiempo.bitacora_movimiento_terminal_usuario
+              (terminal_usuario_id, terminal_id, persona_id, employee_no, tipo_movimiento, detalle, origen, registrado_por, marca_id)
+            VALUES
+              (v_alta_id, p_terminal_id, v_persona, v_emp, 'huella_inferida', 'primera marca verificada por huella', 'terminal', NULL, v_marca_id);
+          END IF;
+          PERFORM set_config('lock_timeout', v_lock_previo, true);
+        END IF;
+      EXCEPTION
+        WHEN SQLSTATE 'SCJ11' THEN
+          NULL;   -- carrera con una baja u otro movimiento: la marca queda confirmada, la alta sigue su camino
+        WHEN OTHERS THEN
+          -- 55P03 (espera agotada), 40P01 (interbloqueo), SCJ12 (marca_no_corresponde)… sólo el SQLSTATE, nunca el texto del error ni datos de la persona.
+          RAISE WARNING 'fn_marca_terminal_registrar: activación por huella no aplicada sqlstate=% terminal_id=%', SQLSTATE, p_terminal_id;
+      END;
+    END IF;
+
+    IF v_estado = 'rechazo_definitivo' THEN
+      BEGIN
+        PERFORM tiempo.fn_terminal_rechazo_registrar(p_terminal_id, v_evento, v_codigo);
+      EXCEPTION WHEN OTHERS THEN
+        RAISE WARNING 'fn_marca_terminal_registrar: no se pudo registrar el rechazo sqlstate=%', SQLSTATE;
+      END;
+    END IF;
+
+    v_resultados := v_resultados || jsonb_build_array(
+      jsonb_build_object('indice', v_idx, 'evento_id', v_eid, 'estado', v_estado)
+      || CASE WHEN v_codigo IS NOT NULL THEN jsonb_build_object('codigo', v_codigo) ELSE '{}'::jsonb END);
+  END LOOP;
+
+  RETURN jsonb_build_object(
+    'momento_recepcion', now(),
+    'resultados', (SELECT COALESCE(jsonb_agg(r ORDER BY (r->>'indice')::integer), '[]'::jsonb)
+                   FROM jsonb_array_elements(v_resultados) AS r)
+  );
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION tiempo.fn_marca_terminal_registrar(bigint, jsonb)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION tiempo.fn_marca_terminal_registrar(bigint, jsonb) TO service_role;
+
+COMMENT ON FUNCTION tiempo.fn_marca_terminal_registrar(bigint, jsonb) IS
+  'SCJ-DEC-12 §3/§6. Ruta de marcas del puente: recibe un lote de eventos de UNA terminal (p_eventos jsonb) y devuelve '
+  '{momento_recepcion, resultados:[{indice, evento_id, estado, codigo?}]}. Resuelve employee_no a persona_id en la base (nunca sale del servidor), '
+  'fija origen=terminal, degrada estado_reloj, aplica topes de tasa y es idempotente por evento_id. 95_: si el evento trae modo_verificacion = '
+  '''huella'' y su alta sigue en esperando_huella, la activa con un movimiento huella_inferida (FOR UPDATE con lock_timeout 2 s; un fallo de la '
+  'activación nunca rechaza la marca ni tumba el lote). SECURITY DEFINER, search_path = tiempo, personas, pg_temp, EXECUTE sólo service_role. Al '
+  'reescribirla repetir SECURITY DEFINER y SET search_path.';

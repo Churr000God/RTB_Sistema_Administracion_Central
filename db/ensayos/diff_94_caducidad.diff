@@ -1,0 +1,24 @@
+--- vigente (85_)
++++ nuevo (94_)
+@@ -1,3 +1,3 @@
+-CREATE FUNCTION tiempo.fn_terminal_baja_por_caducidad(p_horas integer DEFAULT 24)
++CREATE OR REPLACE FUNCTION tiempo.fn_terminal_baja_por_caducidad(p_horas integer DEFAULT 24)
+ RETURNS integer
+ LANGUAGE plpgsql
+@@ -27,5 +27,6 @@
+       AND NOT EXISTS (
+         SELECT 1 FROM tiempo.bitacora_movimiento_terminal_usuario h
+-        WHERE h.terminal_usuario_id = tu.id AND h.tipo_movimiento = 'huella_capturada')
++        WHERE h.terminal_usuario_id = tu.id
++          AND h.tipo_movimiento IN ('huella_capturada', 'huella_inferida', 'huella_confirmada_manual'))
+       AND (SELECT max(c.creado_en)
+              FROM tiempo.bitacora_movimiento_terminal_usuario c
+@@ -46,5 +47,7 @@
+     -- Carrera con huella_capturada (ver cabecera): se re-lee la alta FOR UPDATE exigiendo que siga en
+     -- esperando_huella; si el Pi ya la pasó a activo, no se le da de baja.
+-    PERFORM 1 FROM tiempo.terminal_usuario t WHERE t.id = rec.id AND t.estado = 'esperando_huella' FOR UPDATE;
++    -- 94_ (R1 de security): SKIP LOCKED. La caducidad NUNCA espera ni cierra ciclos con una activacion (fn_marca_terminal_registrar) ni con un
++    -- movimiento del Pi: si otra transaccion tiene la alta, o ya no esta en esperando_huella, se pospone a la siguiente corrida (posponer una baja es inocuo).
++    PERFORM 1 FROM tiempo.terminal_usuario t WHERE t.id = rec.id AND t.estado = 'esperando_huella' FOR UPDATE SKIP LOCKED;
+     IF NOT FOUND THEN
+       CONTINUE;

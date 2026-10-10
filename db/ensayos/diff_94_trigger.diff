@@ -1,0 +1,112 @@
+--- vigente (88_)
++++ nuevo (94_)
+@@ -12,4 +12,17 @@
+   v_vigente_ver  integer;
+   v_usuario_creado_en timestamptz;
++  v_evidencia    varchar(10);
++  v_marca        tiempo.marca%ROWTYPE;
++  v_serie        varchar(32);
++  v_asigno       uuid;
++  v_nota         text;
++  -- ======================= DECISIONES AJUSTABLES (94_) =======================
++  -- D2 (cuatro ojos): si es true, quien confirma la huella a mano no puede ser quien hizo el 'asignado' de esa alta (salvo el
++  -- administrador genérico). Por omisión false: la variante barata es la alerta de anomalías 'asignador_confirmador'.
++  c_cuatro_ojos      constant boolean := false;
++  -- D5 (nota): caracteres mínimos (ya saneados y sin espacios en los extremos) de la nota en 'huella_confirmada_manual'.
++  -- 0 = nota opcional. En 'huella_inferida' no hay nota: el detalle es fijo.
++  c_nota_min_manual  constant integer := 10;
++  -- ===========================================================================
+ BEGIN
+   -- ---- Filtro de autorización (88_, M1 de security) ---------------------------------------
+@@ -25,4 +38,13 @@
+   END IF;
+ 
++  -- ---- huella_inferida: rechazo PREVIO a leer la alta (R2 de security, cierra el oraculo minimo de SCJ11/SCJ12) --------------
++  -- Solo fn_marca_terminal_registrar (95_), como dueno/service_role, origen terminal y sin autor, puede escribir este tipo. A un llamador de la API
++  -- (anon/authenticated) o a cualquier otro origen se le contesta SIEMPRE lo mismo, sin tocar ni bloquear la alta y sin revelar su estado.
++  IF NEW.tipo_movimiento = 'huella_inferida'
++     AND (NEW.origen IS DISTINCT FROM 'terminal' OR NEW.registrado_por IS NOT NULL OR auth.role() IN ('anon', 'authenticated')) THEN
++    RAISE EXCEPTION 'La marca no corresponde a esta alta o ya se usó como evidencia'
++      USING ERRCODE = 'SCJ12', HINT = 'marca_no_corresponde';
++  END IF;
++
+   -- ---- asignado: crea la fila viva -------------------------------------------------------
+   IF NEW.tipo_movimiento = 'asignado' THEN
+@@ -128,4 +150,5 @@
+   v_consent := v_vivo.consentimiento_id;
+   v_usuario_creado_en := v_vivo.usuario_creado_en;
++  v_evidencia := v_vivo.huella_evidencia;   -- 94_: sólo sube (conteo > inferida > manual); ver cada rama
+ 
+   IF NEW.tipo_movimiento = 'usuario_creado' THEN
+@@ -144,4 +167,65 @@
+     v_estado  := 'activo';
+     v_huellas := NEW.huellas_capturadas;
++    v_evidencia := 'conteo';   -- 94_: el conteo del aparato es la evidencia más fuerte; sustituye a 'inferida'/'manual'
++
++  ELSIF NEW.tipo_movimiento = 'huella_confirmada_manual' THEN
++    -- 94_ (C): una persona con terminal_usuario_edicion declara que la huella quedó enrolada en el aparato. Sin conteo
++    -- (huellas_capturadas no cambia) y sin tocar el consentimiento: el de 'asignado' sigue ligado a la alta (consentimiento_id).
++    IF v_vivo.estado IS DISTINCT FROM 'esperando_huella' THEN
++      RAISE EXCEPTION 'huella_confirmada_manual exige estado esperando_huella (estado actual: %)', v_vivo.estado
++        USING ERRCODE = 'SCJ11', HINT = 'transicion_invalida';
++    END IF;
++    -- Nadie confirma la huella de su PROPIA alta, salvo el administrador genérico (misma regla que auto-asignación y
++    -- auto-reconsentimiento). El actor sale de NEW.registrado_por (la policy lo ata a auth.uid()).
++    IF NEW.registrado_por IS NOT NULL
++       AND v_vivo.persona_id IS NOT DISTINCT FROM personas.fn_persona_de_usuario(NEW.registrado_por)
++       AND NOT personas.fn_usuario_es_administrador_generico(NEW.registrado_por) THEN
++      RAISE EXCEPTION 'No puedes confirmar tu propia huella; la confirma otra persona con permiso'
++        USING ERRCODE = 'SCJ12', HINT = 'auto_confirmacion_huella_prohibida';
++    END IF;
++    -- [D2] Cuatro ojos (apagado por omisión, ver c_cuatro_ojos).
++    IF c_cuatro_ojos AND NOT personas.fn_usuario_es_administrador_generico(NEW.registrado_por) THEN
++      SELECT a.registrado_por INTO v_asigno
++      FROM tiempo.bitacora_movimiento_terminal_usuario a
++      WHERE a.terminal_usuario_id = v_vivo.id AND a.tipo_movimiento = 'asignado'
++      ORDER BY a.id LIMIT 1;
++      IF v_asigno IS NOT DISTINCT FROM NEW.registrado_por THEN
++        RAISE EXCEPTION 'Quien asignó la alta no puede confirmar su huella; la confirma otra persona con permiso'
++          USING ERRCODE = 'SCJ12', HINT = 'misma_persona_que_asigno';
++      END IF;
++    END IF;
++    -- [D5] Nota. El detalle ya llega saneado (trigger a0_ de 92_: sin invisibles ni separadores de línea).
++    v_nota := btrim(COALESCE(NEW.detalle, ''));
++    IF char_length(v_nota) < c_nota_min_manual THEN
++      RAISE EXCEPTION 'La confirmación manual exige una nota de al menos % caracteres', c_nota_min_manual
++        USING ERRCODE = 'SCJ12', HINT = 'nota_requerida';
++    END IF;
++    NEW.detalle := NULLIF(v_nota, '');
++    v_estado    := 'activo';
++    v_evidencia := 'manual';
++
++  ELSIF NEW.tipo_movimiento = 'huella_inferida' THEN
++    -- 94_ (B): sólo la escribe fn_marca_terminal_registrar (95_) como dueño/service_role, nunca un humano (la policy no deja
++    -- insertar este tipo). La evidencia es UNA marca de la propia terminal y de la propia persona, recibida después de que
++    -- se creó el usuario en el aparato, y usada una sola vez.
++    IF v_vivo.estado IS DISTINCT FROM 'esperando_huella' THEN
++      RAISE EXCEPTION 'huella_inferida exige estado esperando_huella (estado actual: %)', v_vivo.estado
++        USING ERRCODE = 'SCJ11', HINT = 'transicion_invalida';
++    END IF;
++    SELECT t.terminal_id INTO v_serie FROM tiempo.terminal t WHERE t.id = v_vivo.terminal_id;
++    SELECT m.* INTO v_marca FROM tiempo.marca m WHERE m.id = NEW.marca_id;
++    IF NEW.marca_id IS NULL OR NOT FOUND
++       OR v_marca.origen IS DISTINCT FROM 'terminal'
++       OR v_marca.terminal_id IS DISTINCT FROM v_serie
++       OR v_marca.persona_id IS DISTINCT FROM v_vivo.persona_id
++       OR v_vivo.usuario_creado_en IS NULL
++       OR v_marca.momento_recepcion < v_vivo.usuario_creado_en
++       OR EXISTS (SELECT 1 FROM tiempo.bitacora_movimiento_terminal_usuario u WHERE u.marca_id = NEW.marca_id) THEN
++      RAISE EXCEPTION 'La marca no corresponde a esta alta o ya se usó como evidencia'
++        USING ERRCODE = 'SCJ12', HINT = 'marca_no_corresponde';
++    END IF;
++    NEW.detalle := 'primera marca verificada por huella';   -- fijo: ningún texto del Pi
++    v_estado    := 'activo';
++    v_evidencia := 'inferida';
+ 
+   ELSIF NEW.tipo_movimiento = 'baja_solicitada' THEN
+@@ -204,4 +288,5 @@
+   SET estado = v_estado,
+       huellas_capturadas = v_huellas,
++      huella_evidencia = v_evidencia,
+       error_detalle = v_error,
+       consentimiento_id = v_consent,

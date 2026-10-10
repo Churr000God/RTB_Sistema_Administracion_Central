@@ -18,6 +18,8 @@ sólo actúa como *caller*). Se conservan porque son la evidencia y el banco de 
 | `ensayo_91.sql` (+ `verificar_91.sql`) | `88_` + `91_` (autor de la baja por persona inactiva, detalle del Pi sin invisibles) | 22/22 PASS (8-oct-2026, `ROLLBACK`, sobre `88_` ya aplicada) — no re-ejecutable ahora que `91_` está aplicada |
 | `ensayo_92.sql` (+ `verificar_92.sql`) | `92_` (policy y hora de la bitácora de personas, limpieza de invisibles del detalle de terminal) | 38/38 PASS (8-oct-2026, `ROLLBACK`) — evidencia histórica no re-ejecutable (`92_` ya aplicada) |
 | `ensayo_93.sql` (+ `verificar_93.sql`) | `93_` (retiro del rol/policy `terminal_checador`; camino PostgREST `SET ROLE`, privilegios residuales, RPC y captura manual intactos) | 19/19 PASS (9-oct-2026, `ROLLBACK`, sin residuo) — evidencia histórica no re-ejecutable (`93_` aplicada el 9-oct-2026; `verificar_ddl.sql` completo en 0 filas) |
+| `ensayo_94.sql` (+ `verificar_94.sql`) | `94_` (huella sin conteo: huella_confirmada_manual, huella_inferida, huella_evidencia, caducidad con tres evidencias, anomalías nuevas) | **escrito, sin correr** (a la espera de revisión de `security` y OK del usuario) |
+| `ensayo_95.sql` (+ `ensayo_95_concurrencia.sh`) | `94_` + `95_` (activación por la primera marca por huella dentro de `fn_marca_terminal_registrar`, regresión de todos sus códigos) y concurrencia con 2 conexiones | **escrito, sin correr** |
 | `ensayo_correccion.sql` | comportamiento de corregir una marca en un tramo (confirmó la inconsistencia que motivó `87_`) | inferencia confirmada |
 | `ensayo_78.sql` | comportamiento de `78_` | **obsoleto, nunca corrido** (`86_` lo reemplaza) |
 
@@ -52,10 +54,17 @@ sólo actúa como *caller*). Se conservan porque son la evidencia y el banco de 
   (a propósito) si `terminal_usuario` o la bitácora tienen filas. Los tres reinician la secuencia del `employee_no` con `ALTER SEQUENCE ... RESTART`
   transaccional.
 
-## Pendiente propuesto (sin DDL todavía): `94_` de endurecimiento de `anon`
+## Pendiente propuesto (sin DDL todavía): `96_` de endurecimiento de `anon`
 Propuesta de `security` tras el retiro de `terminal_checador` (`93_`), **no escrita ni aplicada**: `tiempo.marca` (y por el mismo patrón el resto de las
 tablas de `tiempo`, por el `GRANT ALL` schema-wide de `38_tiempo_permisos.sql`) sigue con privilegios de tabla para `anon` (`arDxtm`: SELECT, INSERT, UPDATE,
 DELETE, TRUNCATE, REFERENCES, TRIGGER) y `authenticated`; la barrera real es RLS deny-by-default (sin policy para `anon`, el ensayo `93_` caso 24 lo confirmó:
-`anon` no inserta). Un `94_` haría `REVOKE ALL` explícito a `anon` sobre las tablas de `tiempo` que ninguna ruta pública usa y `REVOKE TRUNCATE, REFERENCES,
+`anon` no inserta). Un `96_` (renumerado: `94_` y `95_` son ahora la huella sin conteo) haría `REVOKE ALL` explícito a `anon` sobre las tablas de `tiempo` que ninguna ruta pública usa y `REVOKE TRUNCATE, REFERENCES,
 TRIGGER` a `anon` y `authenticated` (`TRUNCATE` no está sujeto a RLS). Antes de escribirlo: inventario por tabla de qué rol necesita qué (`verificar_ddl.sql` ya
 lista los casos especiales) y ensayo `BEGIN … ROLLBACK`; avisar a `backend` por `orchestrator` (los routers con `get_caller_client` dependen de los GRANT de `authenticated`).
+
+## Pendiente anotado (sin hacer): mensajes de `RAISE EXCEPTION` que interpolan valores
+Segundo paso de la regla «nunca identidad en logs» (security, 9-oct-2026). Los `RAISE EXCEPTION` de `fn_bitacora_terminal_usuario_aplica` que interpolan valores
+(«employee_no % no coincide con el de la alta %», «La persona % ya tiene un alta vigente en la terminal %», «terminal_usuario % no existe», «terminal_id/persona_id
+no coinciden…») terminan en el log del servidor aunque el backend no los muestre. Recomendación: mensajes fijos + `HINT` estable, aplicándolo en el próximo corte
+que toque cada función (no en 94_/95_). Los `RAISE WARNING` ya están cubiertos: 95_ (`fn_marca_terminal_registrar`), 96_ (`fn_terminal_rechazo_registrar` y
+`fn_terminal_baja_por_persona_inactiva`) y la consulta estática 59 de `verificar_ddl.sql`.
