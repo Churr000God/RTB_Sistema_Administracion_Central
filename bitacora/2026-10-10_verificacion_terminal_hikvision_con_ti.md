@@ -42,10 +42,15 @@ Estos hallazgos corrigen supuestos del puente. Cada uno requiere un cambio y su 
 - Configurar NTP o aceptar la hora manual con revisión periódica.
 - Si se requiere distinguir entrada de salida, configurar el modo de asistencia en el aparato.
 
+## Decisiones del usuario (10 de octubre de 2026, después de la verificación)
+
+- **La terminal solo registrará asistencia.** No controlará ninguna puerta. El derecho de puerta que el firmware obliga a enviar queda como un valor técnico sin efecto físico, con la **condición escrita de que ningún relevador ni cerradura se conecte a la salida de la terminal** mientras los usuarios de asistencia tengan derecho de puerta. Si algún día se quisiera controlar una puerta, hay que separar el control de acceso físico de la asistencia y decidirlo de forma explícita.
+- **Se acepta la hora manual de la terminal con revisión periódica**, sin NTP por ahora. Consecuencias: el reloj puede derivar, así que el puente debe medir y alertar el desfase contra la hora del servidor (T-PI-7), y TI debe revisar y corregir la hora del aparato con una periodicidad fija (propuesta: cada semana durante el primer mes y después cada mes, y siempre tras un corte de energía). El umbral de alerta y la periodicidad se fijan en T-PI-7 y en el procedimiento de operación.
+
 ## Preguntas nuevas
 
-- ¿La terminal controlará una puerta o solo registrará asistencia? Define el derecho de puerta del alta.
-- ¿Se aceptará la hora manual de la terminal con revisión periódica, o se configura NTP en la red aislada?
+- ¿Qué periodicidad exacta de revisión de la hora y qué umbral de desfase (minutos) se adoptan? Propuesta: alerta a partir de 2 minutos de desfase y revisión semanal el primer mes.
+- ¿Se hace la prueba de derecho de puerta vacío con un usuario sintético? Ya no es necesaria para la seguridad física (no hay puerta), pero reduciría el privilegio técnico de los usuarios; queda opcional.
 
 ## Nota para la retrospectiva
 
