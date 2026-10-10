@@ -53,6 +53,7 @@ class Contexto:
     activa: bool = True
     ultimo_contacto_en: datetime | None = None
     contacto_ilegible: bool = False
+    ingesta_detenida: bool | None = None   # 99_: el puente reportó en su último latido que su ingesta espera a una persona
     umbral_sin_contacto_seg: int = 300
 
 
@@ -415,6 +416,7 @@ MENSAJES_SIN_CONTACTO = {
     "nunca_comunicada": "La terminal aún no se ha comunicado.",
     "sin_latido_revisar": "El puente lleva unos minutos sin enviar latido.",
     "sin_latido_atender": "El puente lleva más de 15 minutos sin enviar latido. Revisa el servicio del puente y la red.",
+    "ingesta_detenida": "La ingesta del puente está detenida y espera a una persona.",
 }
 
 
@@ -425,12 +427,16 @@ def _terminal_sin_contacto(ctx, limite, desplazamiento):
     if ctx.contacto_ilegible:
         raise ValueError("ultimo_contacto_en ilegible")
     nivel, segundos = estado_contacto(ctx.activa, ctx.ultimo_contacto_en, ctx.ahora, ctx.umbral_sin_contacto_seg)
+    hallazgos: list[dict] = []
     if nivel == "nunca":
-        return 1, [{"codigo": "nunca_comunicada", "mensaje": MENSAJES_SIN_CONTACTO["nunca_comunicada"], "minutos_sin_latido": None}]
-    if nivel == "sin_contacto":
+        hallazgos.append({"codigo": "nunca_comunicada", "mensaje": MENSAJES_SIN_CONTACTO["nunca_comunicada"], "minutos_sin_latido": None})
+    elif nivel == "sin_contacto":
         codigo = "sin_latido_atender" if segundos >= UMBRAL_ATENDER_SIN_LATIDO_SEG else "sin_latido_revisar"
-        return 1, [{"codigo": codigo, "mensaje": MENSAJES_SIN_CONTACTO[codigo], "minutos_sin_latido": segundos // 60}]
-    return 0, []
+        hallazgos.append({"codigo": codigo, "mensaje": MENSAJES_SIN_CONTACTO[codigo], "minutos_sin_latido": segundos // 60})
+    # 99_: la ingesta detenida alarma (atender) AUNQUE el contacto sea fresco; solo un True EXACTO cuenta (None = el puente no lo reporta, False = sin problema) y una terminal inactiva no alarma.
+    if ctx.activa and ctx.ingesta_detenida is True:
+        hallazgos.append({"codigo": "ingesta_detenida", "mensaje": MENSAJES_SIN_CONTACTO["ingesta_detenida"], "minutos_sin_latido": segundos // 60 if segundos is not None else None})
+    return len(hallazgos), hallazgos
 
 
 NOTA_INTERRUPTOR_HUELLA = "Es un ajuste global del sistema, no de esta terminal."
@@ -461,7 +467,7 @@ CATEGORIAS: tuple[Categoria, ...] = (
     # 15, POR terminal: el puente no envía latido. Aviso PASIVO; no exige marca_lectura (solo el gate del tablero).
     Categoria(
         "terminal_sin_contacto", 15, "Terminal sin contacto", "revisar", False, _terminal_sin_contacto, NOTA_SIN_CONTACTO,
-        nivel_de=lambda items: "atender" if items and items[0].get("codigo") == "sin_latido_atender" else "revisar",
+        nivel_de=lambda items: "atender" if any(i.get("codigo") in ("sin_latido_atender", "ingesta_detenida") for i in items) else "revisar",
     ),
 )
 POR_CLAVE = {c.clave: c for c in CATEGORIAS}

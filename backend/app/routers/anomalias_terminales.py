@@ -87,7 +87,7 @@ def _terminal(db: Client, terminal_id: int) -> dict:
     filas = (
         db.postgrest.schema("tiempo")
         .table("terminal")
-        .select("id, terminal_id, reloj_desfase_seg, activa, ultimo_contacto_en")
+        .select("id, terminal_id, reloj_desfase_seg, activa, ultimo_contacto_en, ingesta_detenida")
         .eq("id", terminal_id)
         .execute()
         .data
@@ -103,6 +103,7 @@ def _contexto(db, db_servicio, terminal, desde, hasta, ahora, umbral_sin_contact
         db=db, db_servicio=db_servicio, terminal_id=terminal["id"], serie=terminal["terminal_id"],
         reloj_desfase_seg=terminal.get("reloj_desfase_seg"), desde=desde, hasta=hasta, ahora=ahora,
         activa=terminal.get("activa", True), ultimo_contacto_en=ultimo, contacto_ilegible=ilegible, umbral_sin_contacto_seg=umbral_sin_contacto_seg,
+        ingesta_detenida=terminal.get("ingesta_detenida") if isinstance(terminal.get("ingesta_detenida"), bool) else None,       # solo un booleano real (un 1 o "true" no cuentan)
     )
 
 

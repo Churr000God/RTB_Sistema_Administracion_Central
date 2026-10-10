@@ -1000,3 +1000,50 @@ def test_el_detalle_ver_todos_de_la_categoria_15(entorno):
     entorno.configurar(caller={"terminal": tabla([{**TERMINAL, "ultimo_contacto_en": _hace(minutes=20)}])})
     d = _get(f"{RUTA}/terminal_sin_contacto").json()
     assert d["total"] == 1 and d["items"][0]["codigo"] == "sin_latido_atender"
+
+
+# --- 99_: la ingesta detenida alarma en la tarjeta 15 -----------------------------------------------------------------------------------------------------
+
+
+MENSAJE_INGESTA = "La ingesta del puente está detenida y espera a una persona."
+
+
+def test_la_ingesta_detenida_es_atender_aunque_el_contacto_sea_fresco(entorno):
+    t = _t15(entorno, ultimo_contacto_en=_hace(seconds=10), ingesta_detenida=True)
+    assert (t["estado"], t["nivel"], t["total"]) == ("con_hallazgos", "atender", 1)
+    assert t["ejemplos"] == [{"codigo": "ingesta_detenida", "mensaje": MENSAJE_INGESTA, "minutos_sin_latido": 0}]
+
+
+@pytest.mark.parametrize("valor", [False, None, 1, "true", "yes", 0, "1"])
+def test_solo_un_true_exacto_cuenta_como_ingesta_detenida(entorno, valor):
+    t = _t15(entorno, ultimo_contacto_en=_hace(seconds=10), ingesta_detenida=valor)
+    assert t["estado"] == "sin_hallazgos" and t["total"] == 0
+
+
+def test_una_terminal_inactiva_no_alarma_aunque_reporte_la_ingesta_detenida(entorno):
+    t = _t15(entorno, activa=False, ultimo_contacto_en=_hace(hours=3), ingesta_detenida=True)
+    assert t["estado"] == "sin_hallazgos"
+
+
+def test_sin_latido_y_con_la_ingesta_detenida_salen_las_dos_cosas_y_el_nivel_es_atender(entorno):
+    t = _t15(entorno, ultimo_contacto_en=_hace(minutes=7), ingesta_detenida=True)
+    assert t["total"] == 2 and t["nivel"] == "atender"
+    assert [e["codigo"] for e in t["ejemplos"]] == ["sin_latido_revisar", "ingesta_detenida"]
+
+
+def test_nunca_comunicada_con_ingesta_detenida_true_no_revienta_y_el_minuto_es_null(entorno):
+    t = _t15(entorno, ultimo_contacto_en=None, ingesta_detenida=True)
+    assert [e["codigo"] for e in t["ejemplos"]] == ["nunca_comunicada", "ingesta_detenida"] and t["ejemplos"][1]["minutos_sin_latido"] is None
+
+
+def test_el_ejemplo_de_ingesta_detenida_no_lleva_motivo_ni_identidades(entorno):
+    t = _t15(entorno, ultimo_contacto_en=_hace(seconds=10), ingesta_detenida=True, ultima_ip="10.1.1.1", hash="a" * 64)
+    assert set(t["ejemplos"][0]) == {"codigo", "mensaje", "minutos_sin_latido"} and "10.1.1.1" not in str(t) and "a" * 64 not in str(t) and "SERIE-1" not in str(t)
+
+
+def test_el_tablero_pide_la_columna_ingesta_detenida_de_la_terminal(entorno):
+    entorno.configurar()
+    _get()
+    tabla_terminal = entorno.db.postgrest.schema.return_value.table("terminal")
+    llamadas_select = [c.args[0] for c in tabla_terminal.select.call_args_list]
+    assert any("ingesta_detenida" in s for s in llamadas_select)
