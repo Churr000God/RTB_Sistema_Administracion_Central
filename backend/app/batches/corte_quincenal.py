@@ -76,7 +76,7 @@ from supabase import Client
 from app.batches._orquestacion import finalizar_corrida, upsert_corrida_en_progreso
 from app.config import get_settings
 from app.deps import get_service_client
-from app.registro_seguro import descripcion_segura
+from app.registro_seguro import descripcion_segura, lista_acotada
 
 TIPO_BATCH = "corte_quincenal"
 DOMINGO = 6  # date.weekday(): lunes=0 ... domingo=6
@@ -431,7 +431,7 @@ def ejecutar_corte_quincenal(fecha_corte: date, db: Client | None = None) -> dic
         f"{contadores[SALTADA_YA_PROCESADA]} ya procesada(s), {pendientes} pendiente(s) de cierre de día"
     )
     if errores or pendientes:
-        logger.error("corte_quincenal fecha_corte=%s errores=%s", fecha_corrida_iso, errores)
+        logger.error("corte_quincenal fecha_corte=%s errores=%s", fecha_corrida_iso, lista_acotada(errores))
         detalle = f"{resumen}, {len(errores)} error(es) -- ver logs del servidor."
         estado_final = "fallida"
     else:

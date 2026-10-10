@@ -17,7 +17,7 @@ from supabase import Client
 from app.batches._orquestacion import finalizar_corrida, upsert_corrida_en_progreso
 from app.config import get_settings
 from app.deps import get_service_client
-from app.registro_seguro import descripcion_segura
+from app.registro_seguro import descripcion_segura, lista_acotada
 
 UNIQUE_VIOLATION = "23505"
 TIPO_BATCH = "de_confianza"
@@ -91,7 +91,7 @@ def ejecutar_batch_de_confianza(fecha: date, db: Client | None = None) -> dict:
         # RLS de corrida_batch sólo exige fn_caller_activo(), sin permiso específico (a
         # propósito) -- detalle no debe llevar persona_id crudo. El detalle completo (con
         # persona_id) va al log del servidor, no a la fila.
-        logger.error("batch de_confianza fecha=%s errores=%s", fecha_iso, errores)
+        logger.error("batch de_confianza fecha=%s errores=%s", fecha_iso, lista_acotada(errores))
         detalle = (
             f"{creados} día(s) creado(s), {ya_existian} ya existían, "
             f"{len(errores)} error(es) -- ver logs del servidor."

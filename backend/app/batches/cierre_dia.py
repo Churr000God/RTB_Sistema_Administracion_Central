@@ -43,7 +43,7 @@ from app.batches._orquestacion import finalizar_corrida, upsert_corrida_en_progr
 from app.catalogo_motivos_revision import MOTIVO_PARIDAD_IMPAR
 from app.config import get_settings
 from app.deps import get_service_client
-from app.registro_seguro import descripcion_segura
+from app.registro_seguro import descripcion_segura, lista_acotada
 
 TIPO_BATCH = "cierre_dia"
 DOMINGO = 6  # date.weekday(): lunes=0 ... domingo=6
@@ -342,7 +342,7 @@ def ejecutar_cierre_dia(fecha: date, db: Client | None = None) -> dict:
         f"saltada(s)"
     )
     if errores:
-        logger.error("cierre_dia fecha=%s errores=%s", fecha_iso, errores)
+        logger.error("cierre_dia fecha=%s errores=%s", fecha_iso, lista_acotada(errores))
         detalle = f"{resumen}, {len(errores)} error(es) -- ver logs del servidor."
         estado_final = "fallida"
     else:

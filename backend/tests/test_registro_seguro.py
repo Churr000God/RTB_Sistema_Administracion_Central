@@ -191,3 +191,33 @@ def test_ningun_batch_formatea_el_objeto_de_la_excepcion_en_cadenas_ni_logs(modu
                 if isinstance(interior, ast.Call) and isinstance(interior.func, ast.Attribute) and interior.func.attr in ("error", "warning", "info", "critical"):
                     if any(isinstance(a, ast.Name) and a.id == nombre for a in interior.args[1:]):
                         raise AssertionError(f"{modulo}: se registra el objeto `{nombre}` en la línea {interior.lineno}")
+
+
+# --- L2 (b): las listas de errores por persona se acotan a 20 y «y N más» ------------------------------------------------------------------------------------------
+
+
+def test_lista_acotada_deja_hasta_20_y_cuenta_el_resto():
+    from app.registro_seguro import lista_acotada
+
+    assert lista_acotada([str(i) for i in range(20)]) == [str(i) for i in range(20)]
+    sal = lista_acotada([str(i) for i in range(57)])
+    assert sal[:20] == [str(i) for i in range(20)] and sal[20] == "y 37 más" and len(sal) == 21
+    assert lista_acotada([]) == [] and lista_acotada(["a"], 0) == ["y 1 más"]
+
+
+def test_el_batch_de_confianza_registra_a_lo_mas_20_personas_y_el_resto_como_conteo(monkeypatch, caplog):
+    from app.batches import de_confianza
+
+    personas = [f"persona-{i:03d}" for i in range(45)]
+    monkeypatch.setattr(de_confianza, "upsert_corrida_en_progreso", lambda db, tipo, fecha: {"id": 1})
+    monkeypatch.setattr(de_confianza, "_personas_de_confianza_vigentes", lambda db, fecha: personas)
+    monkeypatch.setattr(de_confianza, "finalizar_corrida", lambda db, corrida, estado, detalle: {"estado": estado, "detalle": detalle})
+
+    def revienta(db, persona, fecha):
+        raise APIError({"code": "23505", "message": SECRETO})
+
+    monkeypatch.setattr(de_confianza, "_crear_dia_si_no_existe", revienta)
+    with caplog.at_level(logging.DEBUG):
+        r = de_confianza.ejecutar_batch_de_confianza(date(2026, 10, 9), db=MagicMock())
+    assert caplog.text.count("persona-0") == 20 and "persona-020" not in caplog.text and "y 25 más" in caplog.text and SECRETO not in caplog.text
+    assert "45 error(es)" in r["detalle"]                                  # el conteo real sigue en el detalle de la corrida

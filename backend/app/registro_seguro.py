@@ -29,3 +29,13 @@ def descripcion_segura(exc: BaseException) -> str:
     if isinstance(exc, APIError):
         return f"APIError sqlstate={exc.code}"
     return type(exc).__qualname__
+
+
+MAXIMO_EN_LISTA = 20
+
+
+def lista_acotada(elementos: list[str], maximo: int = MAXIMO_EN_LISTA) -> list[str]:
+    """Para registrar una lista de errores por persona: los primeros `maximo` y un «y N más» (el log no crece con el número de fallos y no vuelca todos los ids de golpe)."""
+    if len(elementos) <= maximo:
+        return list(elementos)
+    return [*elementos[:maximo], f"y {len(elementos) - maximo} más"]
