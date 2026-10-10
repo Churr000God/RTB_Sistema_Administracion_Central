@@ -117,6 +117,10 @@ def alarma_de(crudo: Any) -> dict:
     return sin
 
 
+def instante_de_texto(texto: str | None) -> datetime | None:
+    return _instante(texto)
+
+
 def _instante(texto: str | None) -> datetime | None:
     if not texto:
         return None
@@ -164,6 +168,38 @@ def construir_estado(
         "requisitos": requisitos,
         "alarma": alarma_de(crudo),
     }
+
+
+# --- validación del cuerpo SIN eco (C3) ----------------------------------------------------------------------------------------------------------
+
+
+def codigo_de_validacion(errores: list[dict], ruta: str) -> tuple[str, str]:
+    """(codigo, detail fijo) de un RequestValidationError del interruptor, decidido por el NOMBRE del campo que falló, nunca por su valor. No devuelve `input`, `ctx`, `loc` ni `msg`."""
+    from app.errores import (
+        MENSAJE_INTERRUPTOR_HASTA,
+        MENSAJE_INTERRUPTOR_NOTA,
+        MENSAJE_INTERRUPTOR_NOTA_APAGAR,
+        MENSAJE_INTERRUPTOR_SOLICITUD,
+    )
+
+    campos = {str(e.get("loc", ("",))[-1]) for e in errores if e.get("loc")}
+    if "nota" in campos:
+        if ruta.rstrip("/").endswith("/apagar"):
+            return "nota_invalida", MENSAJE_INTERRUPTOR_NOTA_APAGAR
+        return "nota_requerida", MENSAJE_INTERRUPTOR_NOTA
+    if campos & {"hasta_fecha", "hasta_base"}:
+        return "hasta_invalido", MENSAJE_INTERRUPTOR_HASTA
+    return "cuerpo_invalido", MENSAJE_INTERRUPTOR_SOLICITUD
+
+
+def normalizar_nota(nota: str) -> str:
+    """Para comparar notas (C6): espacios colapsados y minúsculas plegadas."""
+    return " ".join(nota.split()).casefold()
+
+
+def mismo_instante(a: datetime | None, b: datetime | None) -> bool:
+    """Compara por INSTANTE a la precisión de un segundo (C5): `…Z` y `…-06:00` del mismo instante coinciden."""
+    return a is not None and b is not None and a.astimezone(timezone.utc).replace(microsecond=0) == b.astimezone(timezone.utc).replace(microsecond=0)
 
 
 # --- cabeceras --------------------------------------------------------------------------------------------------------------------

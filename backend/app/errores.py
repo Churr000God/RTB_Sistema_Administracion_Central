@@ -343,3 +343,62 @@ def manejar_error_terminal_web(
     if traduccion is not None:
         raise traduccion from None
     raise error
+
+
+# --- interruptor de la activación por huella (97_; CONTRATO_API_INTERRUPTOR_INFERIR_HUELLA.md §6) -------------------------------------------------
+MENSAJE_INTERRUPTOR_SIN_PERMISO = "No tienes permiso para cambiar el interruptor de la activación por huella."
+MENSAJE_INTERRUPTOR_NOTA = "La nota debe tener entre 10 y 500 caracteres."
+MENSAJE_INTERRUPTOR_NOTA_APAGAR = "La nota no puede pasar de 500 caracteres."
+MENSAJE_INTERRUPTOR_HASTA = "El vencimiento debe ser una fecha futura de a lo más 30 días."
+MENSAJE_INTERRUPTOR_SOLICITUD = "La solicitud no es válida."
+MENSAJE_INTERRUPTOR_SIN_TERMINAL = "No hay ninguna terminal activa; no se puede encender."
+MENSAJE_INTERRUPTOR_INCONSISTENTE = "El ajuste está en un estado inconsistente; avisa a Sistemas."
+MENSAJE_INTERRUPTOR_SIN_CONSENTIMIENTO = (
+    "Falta publicar el texto de consentimiento biométrico definitivo; mientras solo exista el provisional no se puede encender."
+)
+MENSAJE_INTERRUPTOR_REINTENTAR = "El cambio no se pudo aplicar por una operación concurrente; vuelve a intentarlo."
+MENSAJE_INTERRUPTOR_INESPERADO = "El servicio no respondió como se esperaba; intenta de nuevo o avisa a Sistemas."
+SQLSTATE_REINTENTAR = frozenset({"55P03", "40P01", "40001"})  # lock no disponible, deadlock, fallo de serialización
+MENSAJE_ERROR_INTERNO = "Error interno del servidor."
+MENSAJE_INTERRUPTOR_SERVICIO = "Servicio no disponible. Avisa a Sistemas."
+
+
+def traducir_error_interruptor_huella(error: APIError) -> HTTPException | None:
+    """Traduce los errores de `fn_terminal_inferir_huella_cambiar` por SQLSTATE/HINT estable a un `ErrorConCampos` (status + `detail` fijo + `codigo` estable). El texto de la base
+    NUNCA llega a la respuesta y el log lleva solo el SQLSTATE (nunca la nota). Devuelve None si el error no es de esta familia (el llamador lo trata como 500 sin texto)."""
+    from app.respuestas_error import ErrorConCampos
+
+    codigo, hint = error.code, error.hint or ""
+
+    def err(estado: int, mensaje: str, id_: str | None = None) -> ErrorConCampos:
+        return ErrorConCampos(estado, mensaje, {}, codigo=id_)
+
+    if codigo in SQLSTATE_REINTENTAR:
+        logger.warning("interruptor de la activación por huella: operación concurrente (sqlstate %s)", codigo)
+        return err(status.HTTP_503_SERVICE_UNAVAILABLE, MENSAJE_INTERRUPTOR_REINTENTAR, "reintentar")
+    if codigo == PERMISO_DENEGADO:
+        if hint != HINT_SIN_PERMISO:
+            logger.error("la base respondió 42501 sin hint en el interruptor; revisar grants/policies")
+        return err(status.HTTP_403_FORBIDDEN, MENSAJE_INTERRUPTOR_SIN_PERMISO)
+    if codigo == "SCJ16" and hint == "sin_consentimiento_vigente":
+        return err(status.HTTP_409_CONFLICT, MENSAJE_INTERRUPTOR_SIN_CONSENTIMIENTO, "sin_consentimiento_vigente")
+    if codigo == "SCJ02":
+        logger.error("interruptor de la activación por huella: falta la siembra de 97_ (sqlstate SCJ02)")
+        return err(status.HTTP_503_SERVICE_UNAVAILABLE, MENSAJE_INTERRUPTOR_SERVICIO)
+    if codigo == "22023":
+        if hint == "nota_requerida":
+            return err(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_INTERRUPTOR_NOTA, "nota_requerida")
+        if hint == "hasta_invalido":
+            return err(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_INTERRUPTOR_HASTA, "hasta_invalido")
+        if hint == "terminal_no_activa":
+            return err(status.HTTP_409_CONFLICT, MENSAJE_INTERRUPTOR_SIN_TERMINAL, "terminal_no_activa")
+        if hint == "vigencias_inconsistentes":
+            logger.error("interruptor de la activación por huella: vigencias inconsistentes (sqlstate 22023)")
+            return err(status.HTTP_409_CONFLICT, MENSAJE_INTERRUPTOR_INCONSISTENTE, "vigencias_inconsistentes")
+        # parametros_invalidos NO es culpa del usuario (el esquema cerrado lo impide): bug -> 500 con ERROR; clave_no_editable es inalcanzable por esta ruta -> 503 con ERROR
+        if hint == "clave_no_editable":
+            logger.error("interruptor de la activación por huella: clave_no_editable (sqlstate 22023), inalcanzable por esta ruta")
+            return err(status.HTTP_503_SERVICE_UNAVAILABLE, MENSAJE_INTERRUPTOR_INESPERADO)
+        logger.error("interruptor de la activación por huella: parámetros rechazados por la base (sqlstate 22023, bug del backend)")
+        return err(status.HTTP_500_INTERNAL_SERVER_ERROR, MENSAJE_ERROR_INTERNO)
+    return None

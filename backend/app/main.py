@@ -13,7 +13,7 @@ from postgrest.exceptions import APIError
 
 from app.config import parse_frontend_urls
 from app.errores import CODIGOS_MIGRACION_FALTANTE, MENSAJE_DATOS_INVALIDOS
-from app.interruptor_huella import PREFIJO as PREFIJO_INTERRUPTOR_HUELLA, SinCacheInterruptor
+from app.interruptor_huella import PREFIJO as PREFIJO_INTERRUPTOR_HUELLA, SinCacheInterruptor, codigo_de_validacion
 from app.respuestas_error import ErrorConCampos, manejar_error_con_campos
 from app.scheduler import lifespan
 from app.terminal_auth import HSTS, CabecerasTerminal, LimiteCuerpoTerminal, advertir_despliegue, es_ruta_terminal
@@ -59,6 +59,10 @@ async def manejar_validacion(request: Request, exc: RequestValidationError) -> J
     Pi no reintenta el mismo lote."""
     if es_ruta_terminal(get_route_path(request.scope)):
         return _datos_invalidos_terminal()
+    if get_route_path(request.scope).startswith(PREFIJO_INTERRUPTOR_HUELLA):
+        # La nota es texto libre: el 422 estándar de FastAPI repite el `input` y el `ctx`. Aquí solo {detail, codigo} fijos, decididos por el NOMBRE del campo.
+        codigo, detalle = codigo_de_validacion(exc.errors(), get_route_path(request.scope))
+        return JSONResponse(status_code=422, content={"detail": detalle, "codigo": codigo})
     return await request_validation_exception_handler(request, exc)
 
 

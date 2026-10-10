@@ -15,11 +15,26 @@ from supabase import Client
 
 from app import permisos
 from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
-from app.errores import CODIGOS_MIGRACION_FALTANTE
-from app.interruptor_huella import PREFIJO, construir_estado
+from app.errores import (
+    CODIGOS_MIGRACION_FALTANTE,
+    MENSAJE_ERROR_INTERNO,
+    MENSAJE_INTERRUPTOR_HASTA,
+    traducir_error_interruptor_huella,
+)
+from app.interruptor_huella import (
+    PREFIJO,
+    construir_estado,
+    fecha_valida,
+    instante_de_fecha,
+    instante_de_texto,
+    mismo_instante,
+    normalizar_estado,
+    normalizar_nota,
+)
 from app.permisos import requiere_permiso
+from app.respuestas_error import ErrorConCampos
 from app.routers.config_terminales import _nombres_de_autores
-from app.schemas.interruptor_huella import EstadoInterruptorOut
+from app.schemas.interruptor_huella import ApagarIn, CambioOut, EncenderIn, EstadoInterruptorOut, RenovarIn
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +43,12 @@ router = APIRouter(prefix=PREFIJO, tags=["terminales"])
 # El ESTADO está abierto a los tres permisos de lectura de Terminales; el NOMBRE del autor, el historial y las escrituras son más estrechos (C1).
 _PERMISO_VER = requiere_permiso("terminal_usuario_lectura", "terminal_usuario_edicion", "terminal_config_edicion")
 PERMISOS_VER_NOMBRES = ("terminal_config_edicion", "terminal_usuario_edicion")
+_PERMISO_CAMBIAR = requiere_permiso("terminal_config_edicion")  # gate débil; la autorización real es la de la función (persona activa + permiso, no heredable)
 
+MENSAJE_YA_ENCENDIDO = "Ya está encendido; usa Renovar para cambiar el vencimiento."
+MENSAJE_NO_ENCENDIDO = "No está encendido; usa Encender."
+MENSAJE_ESTADO_DESACTUALIZADO = "El interruptor cambió mientras lo editabas; revisa el estado actual."
+MENSAJE_NOTA_REPETIDA = "Escribe un motivo nuevo para la renovación."
 MENSAJE_RESPUESTA_INESPERADA = "El servicio no respondió como se esperaba; intenta de nuevo o avisa a Sistemas."
 TIPO_ACTIVACION = "huella_inferida"
 
@@ -119,3 +139,120 @@ def obtener_estado(
 ) -> dict:
     """Estado efectivo del interruptor (CONTRATO §1). Gate: los tres permisos de lectura de Terminales."""
     return armar_estado(db, db_servicio, caller, leer_estado_crudo(db_servicio))
+
+
+# --- escrituras (cliente del CALLER; el gate está dentro de la función) -------------------------------------------------------------------------------
+
+
+def _conflicto(codigo: str, mensaje: str, estado_publico: dict | None) -> ErrorConCampos:
+    return ErrorConCampos(status.HTTP_409_CONFLICT, mensaje, {} if estado_publico is None else {"estado": estado_publico}, codigo=codigo)
+
+
+def _hasta_invalido() -> ErrorConCampos:
+    return ErrorConCampos(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_INTERRUPTOR_HASTA, {}, codigo="hasta_invalido")
+
+
+def _validar_fecha(fecha) -> None:
+    """Recalcula el rango con el reloj de ESTA petición: nunca se confía en lo que mostró el GET (puede haber pasado la medianoche)."""
+    if not fecha_valida(fecha, _ahora()):
+        raise _hasta_invalido()
+
+
+def _estado_previo(db_servicio: Client) -> dict:
+    """Estado leído con service_role para los chequeos de cortesía (la base sigue siendo idempotente y la autoridad)."""
+    crudo = leer_estado_crudo(db_servicio)
+    estado = normalizar_estado(crudo)
+    if estado is None:
+        logger.error("fn_terminal_inferir_huella_estado devolvió una forma inesperada")
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, MENSAJE_RESPUESTA_INESPERADA)
+    return {"crudo": crudo, "normalizado": estado}
+
+
+def _ultima_nota(db_servicio: Client) -> str | None:
+    """La última nota registrada del interruptor, SOLO para compararla (no se devuelve ni se registra). None si no hay o si no se pudo leer."""
+    try:
+        filas = (
+            db_servicio.postgrest.schema("tiempo").table("bitacora_config_terminal").select("nota").not_.is_("nota", "null").order("id", desc=True).limit(1).execute().data
+        )
+        return filas[0]["nota"] if filas and isinstance(filas[0].get("nota"), str) else None
+    except Exception:  # noqa: BLE001 - el chequeo de nota repetida es de cortesía: no bloquea si no se puede leer
+        logger.warning("no se pudo leer la última nota del interruptor para compararla")
+        return None
+
+
+def _cambiar(db: Client, activa: bool, nota: str | None, hasta_iso: str | None) -> dict:
+    """Llama la función con el cliente del CALLER. Todo APIError conocido se traduce a un mensaje fijo; cualquier otro se registra SOLO con su SQLSTATE (su DETAIL puede traer la fila
+    con la nota) y sale como 500 sin texto. Una migración sin aplicar sigue al handler global."""
+    try:
+        datos = db.postgrest.schema("tiempo").rpc("fn_terminal_inferir_huella_cambiar", {"p_activa": activa, "p_nota": nota, "p_hasta": hasta_iso}).execute().data
+    except APIError as error:
+        if error.code in CODIGOS_MIGRACION_FALTANTE:
+            raise
+        traduccion = traducir_error_interruptor_huella(error)
+        if traduccion is not None:
+            raise traduccion from None
+        logger.error("fn_terminal_inferir_huella_cambiar falló (sqlstate %s)", error.code)
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, MENSAJE_ERROR_INTERNO) from None
+    if not isinstance(datos, dict) or datos.get("resultado") not in ("actualizada", "sin_cambio") or not isinstance(datos.get("estado"), dict):
+        logger.error("fn_terminal_inferir_huella_cambiar devolvió una forma inesperada")
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, MENSAJE_RESPUESTA_INESPERADA)
+    return datos
+
+
+def _respuesta(db: Client, db_servicio: Client, caller: CallerIdentity, datos: dict) -> dict:
+    return {"resultado": datos["resultado"], "estado": armar_estado(db, db_servicio, caller, datos["estado"])}
+
+
+@router.post("/encender", response_model=CambioOut)
+def encender(
+    datos: EncenderIn,
+    db: Client = Depends(get_caller_client),
+    caller: CallerIdentity = Depends(get_caller_identity),
+    _permiso: None = Depends(_PERMISO_CAMBIAR),
+    db_servicio: Client = Depends(get_service_client),
+) -> dict:
+    """Enciende (CONTRATO §3.1). `hasta_fecha` vence a las 23:59:59 de México de ese día."""
+    _validar_fecha(datos.hasta_fecha)
+    previo = _estado_previo(db_servicio)
+    if previo["normalizado"]["activo"]:
+        raise _conflicto("ya_esta_encendido", MENSAJE_YA_ENCENDIDO, armar_estado(db, db_servicio, caller, previo["crudo"]))
+    resultado = _cambiar(db, True, datos.nota, instante_de_fecha(datos.hasta_fecha).isoformat())
+    return _respuesta(db, db_servicio, caller, resultado)
+
+
+@router.post("/renovar", response_model=CambioOut)
+def renovar(
+    datos: RenovarIn,
+    db: Client = Depends(get_caller_client),
+    caller: CallerIdentity = Depends(get_caller_identity),
+    _permiso: None = Depends(_PERMISO_CAMBIAR),
+    db_servicio: Client = Depends(get_service_client),
+) -> dict:
+    """Renueva el vencimiento (CONTRATO §3.2): exige nota NUEVA y el `hasta` que la pantalla tenía."""
+    _validar_fecha(datos.hasta_fecha)
+    base = instante_de_texto(datos.hasta_base)
+    if base is None:
+        raise _hasta_invalido()
+    previo = _estado_previo(db_servicio)
+    if not previo["normalizado"]["activo"]:
+        raise _conflicto("no_esta_encendido", MENSAJE_NO_ENCENDIDO, None)
+    if not mismo_instante(base, instante_de_texto(previo["normalizado"]["hasta"])):
+        raise _conflicto("estado_desactualizado", MENSAJE_ESTADO_DESACTUALIZADO, armar_estado(db, db_servicio, caller, previo["crudo"]))
+    ultima = _ultima_nota(db_servicio)
+    if ultima is not None and normalizar_nota(ultima) == normalizar_nota(datos.nota):
+        raise ErrorConCampos(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_NOTA_REPETIDA, {}, codigo="nota_repetida")
+    resultado = _cambiar(db, True, datos.nota, instante_de_fecha(datos.hasta_fecha).isoformat())
+    return _respuesta(db, db_servicio, caller, resultado)
+
+
+@router.post("/apagar", response_model=CambioOut)
+def apagar(
+    datos: ApagarIn,
+    db: Client = Depends(get_caller_client),
+    caller: CallerIdentity = Depends(get_caller_identity),
+    _permiso: None = Depends(_PERMISO_CAMBIAR),
+    db_servicio: Client = Depends(get_service_client),
+) -> dict:
+    """Apaga (CONTRATO §3.3): siempre se puede; la nota es opcional."""
+    resultado = _cambiar(db, False, datos.nota or None, None)
+    return _respuesta(db, db_servicio, caller, resultado)

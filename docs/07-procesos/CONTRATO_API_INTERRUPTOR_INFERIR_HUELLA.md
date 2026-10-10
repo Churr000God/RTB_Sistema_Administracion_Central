@@ -212,7 +212,7 @@ Mismo patrón que `traducir_error_terminal_web` (devuelve `HTTPException|None`; 
 | cualquier otro | 500 genérico | — | — |
 | router: `ya_esta_encendido` / `no_esta_encendido` / `estado_desactualizado` | 409 | el mismo | textos de §3; `ya_esta_encendido` y `estado_desactualizado` llevan `estado` hermano |
 | router: `nota_repetida` (C6) | 422 | `nota_repetida` | «Escribe un motivo nuevo para la renovación.» |
-| router: validación de cuerpo (C3) | 422 | `nota_requerida` / `hasta_invalido` / `cuerpo_invalido` | textos fijos; **sin eco** del cuerpo |
+| router: validación de cuerpo (C3) | 422 | `nota_requerida` / `nota_invalida` (solo en `…/apagar`: «La nota no puede pasar de 500 caracteres.») / `hasta_invalido` / `cuerpo_invalido` | textos fijos; **sin eco** del cuerpo; el cuerpo que no es JSON también da `cuerpo_invalido` |
 
 ### 6.2 Textos fijos de `motivo` / alarma
 | `motivo` / `codigo` | `mensaje` |
