@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { AppShell } from "../layouts/AppShell";
 
-type Props = { activa: "consentimiento" | "variables"; children: ReactNode };
+type Props = { activa: "consentimiento" | "variables" | "huella"; children: ReactNode };
 
 // Marco común de Configuración de terminales (consentimiento y variables). Se ve con la misma
 // visibilidad del grupo Terminales; editar exige terminal_config_edicion (RH la ve en sólo lectura).
@@ -36,6 +36,12 @@ export function ConfiguracionTerminalesLayout({ activa, children }: Props) {
             aria-current={activa === "variables" ? "page" : undefined}
           >
             Variables
+          </a>
+          <a
+            href="/tiempo/terminales/configuracion/activacion-por-huella"
+            aria-current={activa === "huella" ? "page" : undefined}
+          >
+            Activación por huella
           </a>
         </nav>
         {children}

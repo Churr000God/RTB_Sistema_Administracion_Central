@@ -43,6 +43,7 @@ import { RestablecerContrasenaPage } from "./pages/RestablecerContrasenaPage";
 import { RevocarPermisoPage } from "./pages/RevocarPermisoPage";
 import { TerminarAsignacionPage } from "./pages/TerminarAsignacionPage";
 import { ConsentimientoTerminalesPage } from "./pages/ConsentimientoTerminalesPage";
+import { ActivacionHuellaPage } from "./pages/ActivacionHuellaPage";
 import { VariablesTerminalesPage } from "./pages/VariablesTerminalesPage";
 import { AnomaliasTerminalesPage } from "./pages/AnomaliasTerminalesPage";
 import { TerminalesPage } from "./pages/TerminalesPage";
@@ -100,4 +101,5 @@ export const router = createBrowserRouter([
   { path: "/tiempo/terminales/anomalias", element: <AnomaliasTerminalesPage /> },
   { path: "/tiempo/terminales/configuracion", element: <ConsentimientoTerminalesPage /> },
   { path: "/tiempo/terminales/configuracion/variables", element: <VariablesTerminalesPage /> },
+  { path: "/tiempo/terminales/configuracion/activacion-por-huella", element: <ActivacionHuellaPage /> },
 ]);
