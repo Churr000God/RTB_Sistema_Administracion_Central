@@ -83,10 +83,12 @@
       <dl style="margin:.5rem 0 0;display:grid;grid-template-columns:max-content 1fr;gap:.25rem 1rem;font-size:.9rem">
         <span data-solo="lectura_red_activo" style="display:contents">
           <dt class="rango">Activo hasta</dt><dd style="margin:0">24 oct 2026 <span class="rango">(se apaga solo al vencer)</span></dd>
+          <dt class="rango">Altas activadas por esta vía</dt><dd style="margin:0">7 desde que se encendió <span class="rango">(informativo)</span></dd>
         </span>
         <span data-solo="activo lectura_activo ok_encendido a_fuera" style="display:contents">
           <dt class="rango">Encendido por</dt><dd style="margin:0">Carlos Ruiz · 10 oct 2026, 09:30</dd>
           <dt class="rango">Activo hasta</dt><dd style="margin:0">24 oct 2026 <span class="rango">(se apaga solo al vencer)</span></dd>
+          <dt class="rango">Altas activadas por esta vía</dt><dd style="margin:0">7 desde que se encendió <span class="rango">(informativo)</span></dd>
         </span>
         <span data-solo="ok_renovado" style="display:contents">
           <dt class="rango">Encendido por</dt><dd style="margin:0">Carlos Ruiz · 10 oct 2026, 09:30</dd>
@@ -111,7 +113,7 @@
           <dt class="rango">Estado</dt><dd style="margin:0">Apagado por falla cerrada. No hay un vencimiento vigente.</dd>
         </span>
       </dl>
-      <p class="rango" style="margin:.6rem 0 0">«Activo hasta» se muestra sólo como fecha: la hora exacta del vencimiento está por confirmar con backend. El motivo (nota) de cada cambio está en el historial de abajo.</p>
+      <p class="rango" style="margin:.6rem 0 0">«Activo hasta» es una fecha: el interruptor vence al final de ese día (23:59:59, hora de México). Si el servidor no informa el conteo de altas activadas, la fila no se muestra. El motivo (nota) de cada cambio está en el historial de abajo.</p>
     </div>
 
     <div class="banner-aviso" role="note" style="margin-top:1rem"><span data-ic="alert"></span><div>
@@ -183,12 +185,12 @@
         <p class="ayuda-campo" id="nt3-a" style="margin:.3rem 0 0"><span data-solo="m_renovar e_repetida e_conc e_no" style="display:contents">Al renovar la nota empieza vacía a propósito: explica por qué se extiende, no por qué se encendió. </span>Queda en el historial con tu nombre. No escribas datos personales de nadie.</p></div>
 
       <!-- Vencimiento: el contrato exige un instante con zona (ISO 8601), por eso fecha + hora. -->
-      <div data-solo="m_fecha e_hasta" class="campo-error"><label for="hf">Vence el (máximo 30 días desde ahora)</label>
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap"><input id="hf" type="date" value="2026-12-31" min="2026-10-10" max="2026-11-09" aria-invalid="true" aria-describedby="hf-e" data-hasta style="flex:1 1 9rem"><input type="time" value="11:00" aria-label="Hora de vencimiento (hora de México)" data-hora style="flex:0 0 7rem"></div>
+      <div data-solo="m_fecha e_hasta" class="campo-error"><label for="hf">Activo hasta (fecha)</label>
+        <input id="hf" type="date" value="2026-12-31" min="2026-10-10" max="2026-11-09" aria-invalid="true" aria-describedby="hf-e" data-hasta style="max-width:12rem">
         <p class="mensaje-campo" id="hf-e"><span data-ic="alertc" data-s="14"></span><span data-solo="m_fecha">El vencimiento debe ser una fecha futura de a lo más 30 días.</span><span data-solo="e_hasta">El vencimiento debe ser una fecha futura de a lo más 30 días.</span></p></div>
-      <div data-solo="m_encender m_corta e_consent e_terminal e_nota e_permiso e_ya e_incons e_503 m_enviando m_renovar e_repetida e_conc e_no"><label for="hf2">Vence el (máximo 30 días desde ahora)</label>
-        <div style="display:flex;gap:.5rem;flex-wrap:wrap"><input id="hf2" type="date" value="2026-10-24" min="2026-10-10" max="2026-11-09" aria-describedby="hf2-a" data-hasta style="flex:1 1 9rem"><input type="time" value="11:00" aria-label="Hora de vencimiento (hora de México)" data-hora style="flex:0 0 7rem"></div>
-        <p class="ayuda-campo" id="hf2-a" style="margin:.3rem 0 0" data-ayuda-fecha>Se apaga solo al llegar esa fecha y hora (hora de México). Ahora son las 10 oct 2026, 11:20; el tope es el 09 nov 2026, 11:20.</p></div>
+      <div data-solo="m_encender m_corta e_consent e_terminal e_nota e_permiso e_ya e_incons e_503 m_enviando m_renovar e_repetida e_conc e_no"><label for="hf2">Activo hasta (fecha)</label>
+        <input id="hf2" type="date" value="2026-10-24" min="2026-10-10" max="2026-11-09" aria-describedby="hf2-a" data-hasta style="max-width:12rem">
+        <p class="ayuda-campo" id="hf2-a" style="margin:.3rem 0 0" data-ayuda-fecha>Vence al final de ese día (23:59, hora de México). Puedes elegir del 10 oct al 09 nov 2026; el servidor manda el rango permitido.</p></div>
       <div class="botonera" style="margin-top:.4rem" aria-label="Atajos de plazo"><span class="rango" style="align-self:center">Atajos:</span>
         <button type="button" class="boton-con-icono" data-atajo="7">7 días</button><button type="button" class="boton-con-icono" data-atajo="14">14 días</button><button type="button" class="boton-con-icono" data-atajo="30">30 días</button></div>
 
@@ -238,17 +240,17 @@
   <li><strong>Tres niveles de visibilidad (security):</strong> con <code>terminal_config_edicion</code> ves y cambias todo; con <code>terminal_usuario_edicion</code> ves estado, quién lo encendió, notas e historial, sin botones; con <code>terminal_usuario_lectura</code> sólo ves el estado (apagado/encendido/vencido, fecha, alarma), <em>sin nombre, sin nota y sin historial</em> (el servidor responde 403 al historial y la pantalla ni lo pide). Las alarmas las ven los tres.</li>
   <li><strong>Renovar:</strong> el servidor rechaza una nota idéntica a la anterior (<code>nota_repetida</code>). Si el estado cambió mientras el modal estaba abierto (<code>estado_desactualizado</code>), el modal se cierra, la pantalla se refresca con el estado devuelto y un aviso lo dice; lo escrito no se guarda. Si al apagar ya estaba apagado (<code>sin_cambio</code>), aviso «Ya estaba apagado».</li>
   <li><strong>Concurrencia:</strong> «El cambio no se pudo aplicar por una operación concurrente; vuelve a intentarlo.» (<code>reintentar</code>) con botón Reintentar; conserva lo escrito.</li>
-  <li><strong>Sin conteos:</strong> no se muestra cuántas altas activó esta vía (pendiente de backend); «Activo hasta» se muestra sólo como fecha.</li></ul></section>
+  <li><strong>Conteo y fecha:</strong> «Altas activadas por esta vía» sale de <code>altas_activadas_desde_encendido</code> (los tres permisos de lectura; se oculta si es null). «Activo hasta» es una fecha limitada por <code>fecha_minima</code>/<code>fecha_maxima</code> del servidor; vence 23:59:59 hora de México.</li></ul></section>
 </div></main></div>
 <script src="_mockup.js"></script>
 <script>
 /* Interacción del mockup: abrir modales desde los botones, contador de la nota, atajos 7/14/30 y validación del vencimiento. */
 (function () {
-  const AHORA = new Date(2026, 9, 10, 11, 20);
+  const AHORA = new Date(2026, 9, 10);
   const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   const dos = (n) => String(n).padStart(2, '0');
   const iso = (d) => d.getFullYear() + '-' + dos(d.getMonth() + 1) + '-' + dos(d.getDate());
-  const humana = (d) => dos(d.getDate()) + ' ' + meses[d.getMonth()] + ' ' + d.getFullYear() + ', ' + dos(d.getHours()) + ':' + dos(d.getMinutes());
+  const humana = (d) => dos(d.getDate()) + ' ' + meses[d.getMonth()] + ' ' + d.getFullYear();
   const ir = (e) => { const b = document.querySelector('.mock-barra button[data-e="' + e + '"]'); if (b) b.click(); };
 
   document.querySelectorAll('[data-abre]').forEach((b) => b.addEventListener('click', () => ir(b.dataset.abre)));
@@ -264,27 +266,24 @@
 
   function validar(contenedor) {
     const f = contenedor.querySelector('input[data-hasta]');
-    const h = contenedor.querySelector('input[data-hora]');
     const ayuda = contenedor.querySelector('[data-ayuda-fecha]');
     if (!f || !f.value || !ayuda) return;
-    const v = new Date(f.value + 'T' + (h && h.value ? h.value : '00:00') + ':00');
-    const dias = (v - AHORA) / 86400000;
-    const ok = dias > 0 && dias <= 30;
-    ayuda.textContent = ok ? 'Se apaga solo el ' + humana(v) + ' (hora de México).'
-      : dias <= 0 ? 'El vencimiento debe ser posterior a ahora (10 oct 2026, 11:20).' : 'El vencimiento no puede pasar de 30 días: el tope es el 09 nov 2026, 11:20.';
-    ayuda.style.color = ok ? '' : 'var(--rojo, #b3261e)';
+    const v = new Date(f.value + 'T00:00:00');
+    const dias = Math.round((v - AHORA) / 86400000);
+    const ok = dias >= 0 && dias <= 30;
+    ayuda.textContent = ok ? 'Vence el ' + humana(v) + ' a las 23:59 (hora de México).'
+      : dias < 0 ? 'La fecha ya pasó: elige hoy o una fecha posterior.' : 'El tope es el 09 nov 2026: elige esa fecha o una anterior.';
   }
 
   document.querySelectorAll('[data-atajo]').forEach((b) => b.addEventListener('click', () => {
     const modal = b.closest('.modal');
     const f = [...modal.querySelectorAll('input[data-hasta]')].find((i) => i.offsetParent !== null) || modal.querySelector('input[data-hasta]');
-    const h = f.parentElement.querySelector('input[data-hora]');
-    const d = new Date(AHORA); d.setDate(d.getDate() + (+b.dataset.atajo)); d.setMinutes(0);
-    f.value = iso(d); if (h) h.value = dos(d.getHours()) + ':00';
-    validar(f.parentElement.parentElement);
+    const d = new Date(AHORA); d.setDate(d.getDate() + (+b.dataset.atajo));
+    f.value = iso(d);
+    validar(f.parentElement);
   }));
 
-  document.querySelectorAll('input[data-hasta], input[data-hora]').forEach((i) => i.addEventListener('input', () => validar(i.parentElement.parentElement)));
+  document.querySelectorAll('input[data-hasta]').forEach((i) => i.addEventListener('input', () => validar(i.parentElement)));
 })();
 </script>
 </body></html>
