@@ -712,3 +712,107 @@ def test_el_diseno_de_los_hint_coincide_con_la_funcion_de_la_base():
         assert f"'{hint}'" in sql
     assert "fn_terminal_inferir_huella_cambiar(p_activa boolean, p_nota text, p_hasta timestamptz DEFAULT NULL)" in sql
     assert "ERRCODE = 'SCJ16'" in sql
+
+
+# ===== PARTE 4: historial ===============================================================================================================================================
+
+
+def _fila(i, **cambios):
+    base = {"id": i, "creado_en": "2026-10-12T16:03:11+00:00", "clave": "terminal_inferir_huella_activa", "operacion": "UPDATE", "valor_anterior": "0", "valor_nuevo": "1",
+            "nota": NOTA, "registrado_por": AUTOR, "via_funcion": True}
+    return base | cambios
+
+
+def _historial(entorno, filas, **kw):
+    entorno.configurar(usuario=kw.pop("usuario", None), bitacora_config_terminal=tabla(filas))
+    # el historial se lee con el cliente del CALLER: la tabla va en su base
+    entorno.caller_db.postgrest.schema.return_value.table.side_effect = lambda n: {
+        "bitacora_config_terminal": tabla(filas), "usuario": tabla([{"auth_user_id": AUTOR, "nombre_usuario": "Carlos Ruiz"}]) if kw.get("autor", True) else tabla([])}[n]
+    return TestClient(app, raise_server_exceptions=False).get(RUTA + "/historial", headers=AUTH)
+
+
+def test_el_historial_trae_solo_columnas_seguras_y_el_nombre_del_autor(entorno):
+    r = _historial(entorno, [_fila(2, clave="terminal_inferir_huella_hasta", valor_anterior="1970-01-01T00:00:00Z", valor_nuevo="2026-11-03T05:59:59Z"), _fila(1)])
+    assert r.status_code == 200
+    items = r.json()["items"]
+    assert [i["id"] for i in items] == [2, 1] and items[0]["clave"] == "terminal_inferir_huella_hasta" and items[0]["autor_nombre"] == "Carlos Ruiz" and items[0]["nota"] == NOTA
+    assert set(items[0]) == {"id", "creado_en", "clave", "operacion", "valor_anterior", "valor_nuevo", "nota", "autor_nombre", "via_funcion"}
+    assert AUTOR not in r.text and r.headers["cache-control"] == "no-store"
+
+
+def test_el_historial_pide_solo_esas_columnas_ordenado_y_acotado_con_el_cliente_del_caller(entorno):
+    entorno.configurar()
+    tablas = {}
+
+    def resolver(nombre):
+        tablas.setdefault(nombre, tabla([_fila(1)] if nombre == "bitacora_config_terminal" else []))
+        return tablas[nombre]
+
+    entorno.caller_db.postgrest.schema.return_value.table.side_effect = resolver
+    r = TestClient(app, raise_server_exceptions=False).get(RUTA + "/historial?limite=7", headers=AUTH)
+    assert r.status_code == 200
+    t = tablas["bitacora_config_terminal"]
+    t.select.assert_called_with(router_ih.COLUMNAS_HISTORIAL)
+    t.order.assert_called_with("id", desc=True)
+    t.limit.assert_called_with(7)
+    for prohibida in ("rol_jwt", "usuario_sesion", "txid"):
+        assert prohibida not in router_ih.COLUMNAS_HISTORIAL
+    assert not [c for c in entorno.svc.postgrest.schema.return_value.table.call_args_list if c.args == ("bitacora_config_terminal",)]    # nunca con service_role
+
+
+@pytest.mark.parametrize("limite", ["0", "101", "x", "-1"])
+def test_el_limite_del_historial_esta_acotado(entorno, limite):
+    entorno.configurar()
+    r = TestClient(app, raise_server_exceptions=False).get(RUTA + f"/historial?limite={limite}", headers=AUTH)
+    assert r.status_code == 422 and set(r.json()) == {"detail", "codigo"}
+
+
+@pytest.mark.parametrize("codigos,http", [({"terminal_usuario_lectura"}, 403), (set(), 403), ({"terminal_usuario_edicion"}, 200), ({"terminal_config_edicion"}, 200)])
+def test_el_historial_es_solo_para_quien_edita_terminales(entorno, codigos, http):
+    entorno.codigos = codigos
+    r = _historial(entorno, [_fila(1)])
+    assert r.status_code == http
+    if http == 403:
+        assert NOTA not in r.text
+
+
+def test_si_la_persona_no_se_resuelve_el_autor_es_null_y_no_el_uuid(entorno):
+    r = _historial(entorno, [_fila(1)], autor=False)
+    assert r.status_code == 200 and r.json()["items"][0]["autor_nombre"] is None and AUTOR not in r.text
+
+
+def test_un_cambio_directo_sin_autor_ni_nota_se_muestra_con_via_funcion_falsa(entorno):
+    r = _historial(entorno, [_fila(5, registrado_por=None, nota=None, via_funcion=False, operacion="UPDATE_VIGENCIA", valor_anterior="1", valor_nuevo="1")])
+    i = r.json()["items"][0]
+    assert i["via_funcion"] is False and i["autor_nombre"] is None and i["nota"] is None and i["operacion"] == "UPDATE_VIGENCIA"
+
+
+@pytest.mark.parametrize("mala", [_fila(1, clave="otra_clave"), _fila(1, operacion="TRUNCATE"), _fila(1, via_funcion=None)])
+def test_una_fila_fuera_del_contrato_no_se_devuelve_como_si_nada(entorno, mala):
+    r = _historial(entorno, [mala])
+    assert r.status_code == 500 or r.status_code == 503                       # la respuesta no cumple el esquema: nunca se entrega tal cual
+    assert NOTA not in r.text
+
+
+def test_si_falla_la_lectura_del_historial_es_503_sin_texto_de_la_base(entorno, caplog):
+    entorno.configurar()
+    roto = tabla([])
+    roto.execute.side_effect = APIError({"code": "XX000", "message": f"boom {NOTA_SECRETA}"})
+    entorno.caller_db.postgrest.schema.return_value.table.side_effect = lambda n: roto
+    with caplog.at_level(logging.DEBUG):
+        r = TestClient(app, raise_server_exceptions=False).get(RUTA + "/historial", headers=AUTH)
+    assert r.status_code == 503 and r.json() == {"detail": router_ih.MENSAJE_RESPUESTA_INESPERADA} and NOTA_SECRETA not in r.text + caplog.text
+
+
+def test_la_forma_inesperada_de_la_bitacora_es_503(entorno):
+    entorno.configurar()
+    entorno.caller_db.postgrest.schema.return_value.table.side_effect = lambda n: tabla({"no": "es lista"})
+    assert TestClient(app, raise_server_exceptions=False).get(RUTA + "/historial", headers=AUTH).status_code == 503
+
+
+def test_los_valores_de_clave_y_operacion_son_los_del_check_de_la_base():
+    sql = DDL.read_text(encoding="utf-8")
+    for valor in ("terminal_inferir_huella_activa", "terminal_inferir_huella_hasta", "INSERT", "UPDATE", "UPDATE_VIGENCIA", "DELETE"):
+        assert f"'{valor}'" in sql
+    import re
+    assert re.search(r"via_funcion\s+boolean NOT NULL", sql)

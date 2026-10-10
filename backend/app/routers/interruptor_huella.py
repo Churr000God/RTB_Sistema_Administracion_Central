@@ -9,7 +9,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
@@ -34,7 +34,7 @@ from app.interruptor_huella import (
 from app.permisos import requiere_permiso
 from app.respuestas_error import ErrorConCampos
 from app.routers.config_terminales import _nombres_de_autores
-from app.schemas.interruptor_huella import ApagarIn, CambioOut, EncenderIn, EstadoInterruptorOut, RenovarIn
+from app.schemas.interruptor_huella import ApagarIn, CambioOut, EncenderIn, EstadoInterruptorOut, HistorialOut, RenovarIn
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,7 @@ router = APIRouter(prefix=PREFIJO, tags=["terminales"])
 # El ESTADO está abierto a los tres permisos de lectura de Terminales; el NOMBRE del autor, el historial y las escrituras son más estrechos (C1).
 _PERMISO_VER = requiere_permiso("terminal_usuario_lectura", "terminal_usuario_edicion", "terminal_config_edicion")
 PERMISOS_VER_NOMBRES = ("terminal_config_edicion", "terminal_usuario_edicion")
+_PERMISO_HISTORIAL = requiere_permiso(*PERMISOS_VER_NOMBRES)  # C1: el historial lleva notas de texto libre y autores; la lectura a secas no lo ve
 _PERMISO_CAMBIAR = requiere_permiso("terminal_config_edicion")  # gate débil; la autorización real es la de la función (persona activa + permiso, no heredable)
 
 MENSAJE_YA_ENCENDIDO = "Ya está encendido; usa Renovar para cambiar el vencimiento."
@@ -139,6 +140,43 @@ def obtener_estado(
 ) -> dict:
     """Estado efectivo del interruptor (CONTRATO §1). Gate: los tres permisos de lectura de Terminales."""
     return armar_estado(db, db_servicio, caller, leer_estado_crudo(db_servicio))
+
+
+COLUMNAS_HISTORIAL = "id, creado_en, clave, operacion, valor_anterior, valor_nuevo, nota, registrado_por, via_funcion"
+
+
+@router.get("/historial", response_model=HistorialOut)
+def historial(
+    limite: int = Query(50, ge=1, le=100),
+    db: Client = Depends(get_caller_client),
+    _permiso: None = Depends(_PERMISO_HISTORIAL),
+) -> dict:
+    """Rastro inmutable del interruptor (CONTRATO §2), con el cliente del CALLER (la policy SELECT de la bitácora es la autorización real). Solo columnas seguras; el autor se
+    resuelve con el mismo cliente y es null si la RLS no deja verlo (jamás el uuid)."""
+    try:
+        filas = db.postgrest.schema("tiempo").table("bitacora_config_terminal").select(COLUMNAS_HISTORIAL).order("id", desc=True).limit(limite).execute().data
+    except APIError as error:
+        if error.code in CODIGOS_MIGRACION_FALTANTE:
+            raise
+        logger.error("no se pudo leer la bitácora del interruptor (sqlstate %s)", error.code)
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, MENSAJE_RESPUESTA_INESPERADA) from None
+    if not isinstance(filas, list):
+        logger.error("la bitácora del interruptor devolvió una forma inesperada")
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, MENSAJE_RESPUESTA_INESPERADA)
+    try:
+        nombres = _nombres_de_autores(db, [f.get("registrado_por") for f in filas if isinstance(f.get("registrado_por"), str)])
+    except Exception:  # noqa: BLE001
+        logger.warning("no se pudo resolver los autores del historial del interruptor")
+        nombres = {}
+    return {
+        "items": [
+            {
+                "id": f["id"], "creado_en": f["creado_en"], "clave": f["clave"], "operacion": f["operacion"], "valor_anterior": f.get("valor_anterior"),
+                "valor_nuevo": f.get("valor_nuevo"), "nota": f.get("nota"), "autor_nombre": nombres.get(f.get("registrado_por")), "via_funcion": f["via_funcion"],
+            }
+            for f in filas
+        ]
+    }
 
 
 # --- escrituras (cliente del CALLER; el gate está dentro de la función) -------------------------------------------------------------------------------

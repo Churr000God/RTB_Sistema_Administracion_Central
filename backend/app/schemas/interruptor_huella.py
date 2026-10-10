@@ -45,6 +45,24 @@ Nota = Annotated[str, StringConstraints(strip_whitespace=True, min_length=10, ma
 NotaOpcional = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]
 
 
+class HistorialItemOut(BaseModel):
+    """Solo columnas seguras de tiempo.bitacora_config_terminal: sin rol_jwt, usuario_sesion, txid ni el uuid del autor."""
+
+    id: int
+    creado_en: str
+    clave: Literal["terminal_inferir_huella_activa", "terminal_inferir_huella_hasta"]
+    operacion: Literal["INSERT", "UPDATE", "UPDATE_VIGENCIA", "DELETE"]
+    valor_anterior: str | None = None
+    valor_nuevo: str | None = None
+    nota: str | None = None
+    autor_nombre: str | None = None
+    via_funcion: bool
+
+
+class HistorialOut(BaseModel):
+    items: list[HistorialItemOut]
+
+
 class EncenderIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     nota: Nota
