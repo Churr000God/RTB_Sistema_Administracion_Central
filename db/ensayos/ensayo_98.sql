@@ -1,7 +1,7 @@
--- Ensayo de 98_tiempo_marca_respeta_interruptor_huella.sql (con 97_, que 98_ necesita y aún no está aplicado). Regresión completa de ensayo_95 con el interruptor ENCENDIDO + casos con el interruptor apagado/inválido. NO es DDL versionado. NO correr sin OK explícito del usuario (en el chat de la sesión que lo
+-- Ensayo de 98_tiempo_marca_respeta_interruptor_huella.sql (97_, que 98_ necesita, ya está aplicado en la base real). Regresión completa de ensayo_95 con el interruptor ENCENDIDO + casos con el interruptor apagado/inválido. NO es DDL versionado. NO correr sin OK explícito del usuario (en el chat de la sesión que lo
 -- corre) ni antes de la revisión de security.
 --   psql -X "$DATABASE_URL_DIRECTA" -v ON_ERROR_STOP=1 -f db/ensayos/ensayo_98.sql     (SIN -1; puerto 5432, no el pooler 6543)
--- Todo dentro de BEGIN … ROLLBACK. Aplica 97_ y 98_ ENCIMA de lo ya aplicado (88_-96_: 94_, 95_ y 96_ están aplicados en la base real). Terminal, personas, usuarios, altas y marcas SINTÉTICOS; el admin real
+-- Todo dentro de BEGIN … ROLLBACK. Aplica SOLO 98_ ENCIMA de lo ya aplicado (88_-97_: 94_, 95_, 96_ y 97_ están aplicados en la base real). Terminal, personas, usuarios, altas y marcas SINTÉTICOS; el admin real
 -- sólo es caller (y, en un caso, persona de una alta sintética); todo se revierte (las secuencias identity avanzan igual).
 \set ON_ERROR_STOP on
 BEGIN;
@@ -14,7 +14,6 @@ CREATE TEMP TABLE _res (n serial, caso text, ok boolean, detalle text);
 GRANT ALL ON _ens, _res TO PUBLIC;
 GRANT USAGE ON SEQUENCE _res_n_seq TO PUBLIC;
 
-\ir ../ddl/97_tiempo_terminal_inferir_huella_interruptor.sql
 \ir ../ddl/98_tiempo_marca_respeta_interruptor_huella.sql
 
 INSERT INTO _ens
