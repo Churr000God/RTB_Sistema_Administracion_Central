@@ -1,0 +1,43 @@
+--- vigente (89_)
++++ nuevo (97_)
+@@ -1,3 +1,3 @@
+-CREATE FUNCTION tiempo.fn_terminal_config_actualizar(p_clave text, p_valor text)
++CREATE OR REPLACE FUNCTION tiempo.fn_terminal_config_actualizar(p_clave text, p_valor text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+@@ -21,17 +21,25 @@
+   END IF;
+ 
++  -- 97_: las dos claves del interruptor de la activación por huella NO se editan por aquí (ni siquiera con permiso): solo con
++  -- fn_terminal_inferir_huella_cambiar (nota, vencimiento, consentimiento vigente y rastro). Ya están fuera del catálogo; este guard
++  -- evita que un alta futura del catálogo por descuido reabra la ruta.
++  IF p_clave IN ('terminal_inferir_huella_activa', 'terminal_inferir_huella_hasta') THEN
++    RAISE EXCEPTION 'Esta clave no se edita desde la configuración general de terminales'
++      USING ERRCODE = '22023', HINT = 'clave_no_editable';
++  END IF;
++
+   SELECT * INTO v_cat FROM tiempo.fn_terminal_config_catalogo() c WHERE c.clave = p_clave;
+   IF NOT FOUND THEN
+-    RAISE EXCEPTION 'La clave % no es editable desde la configuración de terminales', p_clave
++    RAISE EXCEPTION 'La clave no es editable desde la configuración de terminales'
+       USING ERRCODE = '22023', HINT = 'clave_no_editable';
+   END IF;
+ 
+   IF p_valor IS NULL OR btrim(p_valor) !~ '^[0-9]{1,4}$' THEN
+-    RAISE EXCEPTION 'El valor debe ser un entero entre % y %', v_cat.minimo, v_cat.maximo
++    RAISE EXCEPTION 'El valor debe ser un entero dentro del rango permitido'
+       USING ERRCODE = '22023', HINT = 'valor_invalido';
+   END IF;
+   v_valor := btrim(p_valor)::integer;
+   IF v_valor < v_cat.minimo OR v_valor > v_cat.maximo THEN
+-    RAISE EXCEPTION 'El valor debe estar entre % y %', v_cat.minimo, v_cat.maximo
++    RAISE EXCEPTION 'El valor está fuera del rango permitido'
+       USING ERRCODE = '22023', HINT = 'valor_invalido';
+   END IF;
+@@ -67,5 +75,5 @@
+ 
+   IF v_activa_id IS NULL THEN
+-    RAISE EXCEPTION 'No existe un parámetro activo con clave %', p_clave
++    RAISE EXCEPTION 'No existe un parámetro activo para esa clave'
+       USING ERRCODE = 'SCJ02';
+   END IF;

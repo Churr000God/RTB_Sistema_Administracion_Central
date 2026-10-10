@@ -20,6 +20,8 @@ sólo actúa como *caller*). Se conservan porque son la evidencia y el banco de 
 | `ensayo_93.sql` (+ `verificar_93.sql`) | `93_` (retiro del rol/policy `terminal_checador`; camino PostgREST `SET ROLE`, privilegios residuales, RPC y captura manual intactos) | 19/19 PASS (9-oct-2026, `ROLLBACK`, sin residuo) — evidencia histórica no re-ejecutable (`93_` aplicada el 9-oct-2026; `verificar_ddl.sql` completo en 0 filas) |
 | `ensayo_94.sql` (+ `verificar_94.sql`) | `94_` (huella sin conteo: huella_confirmada_manual, huella_inferida, huella_evidencia, caducidad con tres evidencias, anomalías nuevas) | **escrito, sin correr** (a la espera de revisión de `security` y OK del usuario) |
 | `ensayo_95.sql` (+ `ensayo_95_concurrencia.sh`) | `94_` + `95_` (activación por la primera marca por huella dentro de `fn_marca_terminal_registrar`, regresión de todos sus códigos) y concurrencia con 2 conexiones | **escrito, sin correr** |
+| `ensayo_97.sql` | `97_` (interruptor de la activación por huella: siembra de las dos claves, CHECK, bitácora de configuración, trigger de auditoría, función dedicada, lector de estado efectivo, `fn_terminal_config_actualizar` rechazando las claves) | **escrito, sin correr** (diseño: `DISENO_interruptor_inferir_huella.md`) |
+| `ensayo_98.sql` | `97_` + `98_` (`fn_marca_terminal_registrar` respeta el interruptor): regresión completa de `ensayo_95` con el interruptor encendido más apagado, vencido, solapado, ausente, corrupto, lectura fallida, medianoche UTC y la integración con la función dedicada | **escrito, sin correr** |
 | `ensayo_correccion.sql` | comportamiento de corregir una marca en un tramo (confirmó la inconsistencia que motivó `87_`) | inferencia confirmada |
 | `ensayo_78.sql` | comportamiento de `78_` | **obsoleto, nunca corrido** (`86_` lo reemplaza) |
 
@@ -68,3 +70,7 @@ Segundo paso de la regla «nunca identidad en logs» (security, 9-oct-2026). Los
 no coinciden…») terminan en el log del servidor aunque el backend no los muestre. Recomendación: mensajes fijos + `HINT` estable, aplicándolo en el próximo corte
 que toque cada función (no en 94_/95_). Los `RAISE WARNING` ya están cubiertos: 95_ (`fn_marca_terminal_registrar`), 96_ (`fn_terminal_rechazo_registrar` y
 `fn_terminal_baja_por_persona_inactiva`) y la consulta estática 59 de `verificar_ddl.sql`.
+
+## Documentos de diseño (texto, sin SQL)
+- `DISENO_interruptor_inferir_huella.md` — diseño v4 del interruptor de la activación por huella (`97_`/`98_`).
+- `BORRADOR_inventario_anon.md` — borrador de inventario del endurecimiento de `anon` (parte B); sin SQL ni consulta a la base.

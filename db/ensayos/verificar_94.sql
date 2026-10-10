@@ -56,14 +56,14 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_policies p WHERE p.schemaname = 'tiempo' AND 
 UNION ALL
 SELECT 'trigger de transiciones: no es DEFINER con search_path exacto, o le faltan las ramas/hints de 94_', f.proname
 FROM fn f WHERE f.proname = 'fn_bitacora_terminal_usuario_aplica'
-  AND NOT (f.prosecdef AND f.proconfig = ARRAY['search_path=tiempo, personas, pg_temp']
+  AND NOT (f.prosecdef AND f.provolatile = 'v' AND f.proconfig = ARRAY['search_path=tiempo, personas, pg_temp']
            AND f.prosrc LIKE '%huella_inferida%' AND f.prosrc LIKE '%huella_confirmada_manual%' AND f.prosrc LIKE '%marca_no_corresponde%'
            AND f.prosrc LIKE '%auto_confirmacion_huella_prohibida%' AND f.prosrc LIKE '%nota_requerida%' AND f.prosrc LIKE '%huella_evidencia%'
            AND f.prosrc LIKE '%c_cuatro_ojos%' AND f.prosrc LIKE '%c_nota_min_manual%')
 UNION ALL
 SELECT 'caducidad: no es DEFINER con search_path exacto o no considera las tres evidencias', f.proname
 FROM fn f WHERE f.proname = 'fn_terminal_baja_por_caducidad'
-  AND NOT (f.prosecdef AND f.proconfig = ARRAY['search_path=tiempo, personas, pg_temp']
+  AND NOT (f.prosecdef AND f.provolatile = 'v' AND f.proconfig = ARRAY['search_path=tiempo, personas, pg_temp']
            AND f.prosrc LIKE '%huella_inferida%' AND f.prosrc LIKE '%huella_confirmada_manual%' AND f.prosrc LIKE '%huella_capturada%'
            AND f.prosrc LIKE '%FOR UPDATE SKIP LOCKED%')
 UNION ALL

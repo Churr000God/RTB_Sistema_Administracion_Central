@@ -1,0 +1,42 @@
+--- vigente (95_)
++++ nuevo (98_)
+@@ -55,9 +55,10 @@
+   v_recepcion      timestamptz;  -- 95_: momento_recepcion de la marca evidencia
+   v_lock_previo    text;         -- 95_: lock_timeout vigente antes de la activación, para restaurarlo
++  v_inferir        boolean := false;   -- 98_: interruptor de la activación por huella (APAGADO salvo lectura válida)
+ BEGIN
+   SELECT t.terminal_id, t.activa INTO v_serie, v_activa
+   FROM tiempo.terminal t WHERE t.id = p_terminal_id;
+   IF NOT FOUND OR NOT v_activa THEN
+-    RAISE EXCEPTION 'La terminal % no existe o no está activa', p_terminal_id
++    RAISE EXCEPTION 'La terminal no existe o no está activa'
+       USING ERRCODE = 'SCJ12', HINT = 'terminal_no_valida';
+   END IF;
+@@ -65,5 +66,5 @@
+   IF p_eventos IS NULL OR jsonb_typeof(p_eventos) <> 'array'
+      OR jsonb_array_length(p_eventos) < 1 OR jsonb_array_length(p_eventos) > c_tope_lote THEN
+-    RAISE EXCEPTION 'lote inválido: se espera un arreglo de 1 a % eventos', c_tope_lote
++    RAISE EXCEPTION 'Lote inválido: se espera un arreglo de 1 a 200 eventos'
+       USING ERRCODE = '22023', HINT = 'lote_invalido';
+   END IF;
+@@ -72,4 +73,14 @@
+   PERFORM pg_advisory_xact_lock(hashtext('fn_marca_terminal_registrar'),
+                                 (p_terminal_id % 2147483647)::integer);
++
++  -- 98_: interruptor de la activación por huella, leído UNA vez por lote con la ÚNICA definición del estado efectivo (97_). Cualquier cosa que no sea
++  -- «activo = verdadero» (interruptor en 0, vencido, vigencias inconsistentes, parámetro ausente, lectura fallida) es APAGADO: la marca se registra y se
++  -- responde exactamente igual y solo la activación no ocurre; el lote nunca se rechaza. No se usa el lector tolerante de 89_ (acota el valor).
++  BEGIN
++    v_inferir := COALESCE((tiempo.fn_terminal_inferir_huella_estado() ->> 'activo')::boolean, false);
++  EXCEPTION WHEN OTHERS THEN
++    v_inferir := false;
++    RAISE WARNING 'fn_marca_terminal_registrar: interruptor de inferencia ilegible sqlstate=% terminal_id=%', SQLSTATE, p_terminal_id;
++  END;
+ 
+   -- B1 (security): los conteos de tope y el max(secuencia_local) se calculan UNA vez y se actualizan
+@@ -291,4 +302,5 @@
+     -- ir horas adelantado: la recepción es la que no se puede falsear desde el aparato).
+     IF v_estado IN ('confirmado', 'duplicado')
++       AND v_inferir
+        AND v_modo = 'huella'
+        AND v_estado_alta = 'esperando_huella'

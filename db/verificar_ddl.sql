@@ -1068,7 +1068,9 @@ WHERE t.clave = 'terminal_traslape_llave_max_dias' AND t.vigente_hasta IS NULL
 UNION ALL
 SELECT 'clave terminal_ fuera del catálogo', p.clave
 FROM tiempo.parametro p
-WHERE p.clave LIKE 'terminal\_%' AND p.clave NOT IN (SELECT clave FROM tiempo.fn_terminal_config_catalogo());
+WHERE p.clave LIKE 'terminal\_%' AND p.clave NOT IN (SELECT clave FROM tiempo.fn_terminal_config_catalogo())
+  -- 97_: las dos claves del interruptor de la activación por huella viven FUERA del catálogo a propósito (las comprueba la sección 60).
+  AND p.clave NOT IN ('terminal_inferir_huella_activa', 'terminal_inferir_huella_hasta');
 
 -- 52) Funciones de 89_ y el guard de fn_parametro_actualizar_valor: SECURITY DEFINER/INVOKER esperado, search_path exacto, EXECUTE exactamente para los
 -- roles esperados (nadie más, PUBLIC tampoco), dueño igual al de tiempo.marca, y las condiciones críticas en el cuerpo (prosrc).
@@ -1357,14 +1359,14 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_policies p WHERE p.schemaname = 'tiempo' AND 
 UNION ALL
 SELECT 'trigger de transiciones: no es DEFINER con search_path exacto, o le faltan las ramas/hints de 94_', f.proname
 FROM fn f WHERE f.proname = 'fn_bitacora_terminal_usuario_aplica'
-  AND NOT (f.prosecdef AND f.proconfig = ARRAY['search_path=tiempo, personas, pg_temp']
+  AND NOT (f.prosecdef AND f.provolatile = 'v' AND f.proconfig = ARRAY['search_path=tiempo, personas, pg_temp']
            AND f.prosrc LIKE '%huella_inferida%' AND f.prosrc LIKE '%huella_confirmada_manual%' AND f.prosrc LIKE '%marca_no_corresponde%'
            AND f.prosrc LIKE '%auto_confirmacion_huella_prohibida%' AND f.prosrc LIKE '%nota_requerida%' AND f.prosrc LIKE '%huella_evidencia%'
            AND f.prosrc LIKE '%c_cuatro_ojos%' AND f.prosrc LIKE '%c_nota_min_manual%')
 UNION ALL
 SELECT 'caducidad: no es DEFINER con search_path exacto o no considera las tres evidencias', f.proname
 FROM fn f WHERE f.proname = 'fn_terminal_baja_por_caducidad'
-  AND NOT (f.prosecdef AND f.proconfig = ARRAY['search_path=tiempo, personas, pg_temp']
+  AND NOT (f.prosecdef AND f.provolatile = 'v' AND f.proconfig = ARRAY['search_path=tiempo, personas, pg_temp']
            AND f.prosrc LIKE '%huella_inferida%' AND f.prosrc LIKE '%huella_confirmada_manual%' AND f.prosrc LIKE '%huella_capturada%'
            AND f.prosrc LIKE '%FOR UPDATE SKIP LOCKED%')
 UNION ALL
@@ -1423,3 +1425,137 @@ FROM t
 WHERE s1 ~* 'RAISE\s+(WARNING|NOTICE|LOG|INFO)[^;]*(employee_no|persona_id|persona %)'
    OR s2 ~* 'RAISE\s+(WARNING|NOTICE|LOG|INFO)[^;]*(\mv_emp\M|\mv_persona\M|\mp_persona\M|\mp_persona_id\M|\mrec\.(persona_id|employee_no)\M|NEW\.employee_no|NEW\.persona_id)'
 ORDER BY 1;
+
+-- 60) Interruptor de la activación por huella (97_): filas sembradas, formato, bitácora de configuración (inmutable, sin INSERT para nadie), trigger de auditoría y funciones.
+-- Todas las partes son consultas de VIOLACIONES; un objeto que falta devuelve una fila (no un error). Esperado: 0 filas DESPUÉS de aplicar 97_.
+-- (Consulta informativa del estado actual, para ejecutar a mano:  SELECT tiempo.fn_terminal_inferir_huella_estado();  y las últimas filas de tiempo.bitacora_config_terminal.)
+WITH k(clave) AS (VALUES ('terminal_inferir_huella_activa'), ('terminal_inferir_huella_hasta')),
+f(proname, definer, vol, search_path, roles) AS (VALUES
+  ('fn_parametro_inferir_audita',            true,  'v', 'search_path=tiempo, pg_temp',                 ARRAY[]::text[]),
+  ('fn_parametro_inferir_escribe',           true,  'v', 'search_path=tiempo, pg_temp',                 ARRAY[]::text[]),
+  ('fn_texto_sin_invisibles',                false, 'i', 'search_path=pg_temp',                         ARRAY[]::text[]),
+  ('fn_terminal_inferir_huella_cambiar',     true,  'v', 'search_path=tiempo, personas, pg_temp',       ARRAY['authenticated']),
+  ('fn_terminal_inferir_huella_estado',      true,  's', 'search_path=tiempo, pg_temp',                 ARRAY['service_role']),
+  ('fn_terminal_config_actualizar',          true,  'v', 'search_path=tiempo, personas, pg_temp',       ARRAY['authenticated']),
+  ('fn_bitacora_config_terminal_inmutable',  false, 'v', 'search_path=tiempo, pg_temp',                 ARRAY[]::text[]),
+  ('fn_bitacora_config_terminal_truncate',   false, 'v', 'search_path=tiempo, pg_temp',                 ARRAY[]::text[])
+)
+SELECT 'clave sin UNA vigencia activa' AS problema, k.clave AS detalle
+FROM k WHERE (SELECT count(*) FROM tiempo.parametro p WHERE p.clave = k.clave AND p.vigente_hasta IS NULL) <> 1
+UNION ALL
+SELECT 'valor del interruptor distinto de 0/1', p.valor
+FROM tiempo.parametro p WHERE p.clave = 'terminal_inferir_huella_activa' AND p.vigente_hasta IS NULL AND p.valor NOT IN ('0', '1')
+UNION ALL
+SELECT 'vencimiento con formato inválido', p.valor
+FROM tiempo.parametro p WHERE p.clave = 'terminal_inferir_huella_hasta' AND p.vigente_hasta IS NULL
+  AND p.valor !~ '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\.[0-9]{1,6})?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$'
+UNION ALL
+SELECT 'clave del interruptor DENTRO del catálogo de fn_terminal_config_catalogo', c.clave
+FROM tiempo.fn_terminal_config_catalogo() c WHERE c.clave IN (SELECT clave FROM k)
+UNION ALL
+SELECT 'falta o difiere el CHECK', e.nombre
+FROM (VALUES ('ck_parametro_inferir_huella_activa', 'terminal_inferir_huella_activa'), ('ck_parametro_inferir_huella_hasta', 'terminal_inferir_huella_hasta')) AS e(nombre, frag)
+WHERE NOT EXISTS (SELECT 1 FROM pg_constraint c WHERE c.conrelid = 'tiempo.parametro'::regclass AND c.conname = e.nombre AND strpos(pg_get_constraintdef(c.oid), e.frag) > 0)
+UNION ALL
+SELECT 'falta la bitácora de configuración', NULL WHERE to_regclass('tiempo.bitacora_config_terminal') IS NULL
+UNION ALL
+SELECT 'la bitácora de configuración no tiene RLS', NULL FROM pg_class WHERE oid = to_regclass('tiempo.bitacora_config_terminal') AND NOT relrowsecurity
+UNION ALL
+SELECT 'privilegio de tabla de más en la bitácora', r.rol || ' ' || p.priv
+FROM (VALUES ('anon'), ('authenticated'), ('service_role'), ('terminal_checador')) AS r(rol)
+CROSS JOIN (VALUES ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) AS p(priv)
+WHERE has_table_privilege(r.rol, to_regclass('tiempo.bitacora_config_terminal'), p.priv)
+UNION ALL
+SELECT 'privilegio de columna de más en la bitácora', r.rol || ' ' || p.priv
+FROM (VALUES ('anon'), ('authenticated'), ('service_role'), ('terminal_checador')) AS r(rol)
+CROSS JOIN (VALUES ('INSERT'), ('UPDATE'), ('REFERENCES')) AS p(priv)
+WHERE has_any_column_privilege(r.rol, to_regclass('tiempo.bitacora_config_terminal'), p.priv)
+UNION ALL
+SELECT 'SELECT de la bitácora distinto del esperado', r.rol
+FROM (VALUES ('anon', false), ('authenticated', true), ('service_role', true), ('terminal_checador', false)) AS r(rol, debe)
+WHERE to_regclass('tiempo.bitacora_config_terminal') IS NOT NULL
+  AND has_table_privilege(r.rol, to_regclass('tiempo.bitacora_config_terminal'), 'SELECT') <> r.debe
+UNION ALL
+SELECT 'la bitácora de configuración no tiene exactamente 1 policy SELECT authenticated con permiso', NULL
+WHERE to_regclass('tiempo.bitacora_config_terminal') IS NOT NULL
+  AND (SELECT count(*) FROM pg_policies WHERE schemaname = 'tiempo' AND tablename = 'bitacora_config_terminal') <> 1
+UNION ALL
+SELECT 'policy de la bitácora distinta de la esperada', NULL
+WHERE to_regclass('tiempo.bitacora_config_terminal') IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM pg_policies p WHERE p.schemaname = 'tiempo' AND p.tablename = 'bitacora_config_terminal'
+                  AND p.policyname = 'bitacora_config_terminal_select_lectura' AND p.cmd = 'SELECT' AND p.roles = '{authenticated}'
+                  AND p.qual LIKE '%terminal_config_edicion%' AND p.qual LIKE '%fn_caller_activo%')
+UNION ALL
+SELECT 'trigger de la bitácora ausente, deshabilitado o con tipo distinto', e.tgname
+FROM (VALUES ('trg_bitacora_config_terminal_inmutable', 27), ('trg_bitacora_config_terminal_truncate', 34)) AS e(tgname, tipo)
+WHERE NOT EXISTS (SELECT 1 FROM pg_trigger t WHERE t.tgrelid = to_regclass('tiempo.bitacora_config_terminal') AND t.tgname = e.tgname
+                  AND NOT t.tgisinternal AND t.tgenabled = 'O' AND t.tgtype = e.tipo)
+UNION ALL
+SELECT 'trigger de auditoría de tiempo.parametro ausente, deshabilitado o con tipo distinto (AFTER ROW INSERT|UPDATE|DELETE = 29)', 'trg_parametro_inferir_huella_audita'
+WHERE NOT EXISTS (SELECT 1 FROM pg_trigger t JOIN pg_proc p ON p.oid = t.tgfoid
+                  WHERE t.tgrelid = 'tiempo.parametro'::regclass AND t.tgname = 'trg_parametro_inferir_huella_audita' AND NOT t.tgisinternal
+                    AND t.tgenabled = 'O' AND t.tgtype = 29 AND p.proname = 'fn_parametro_inferir_audita')
+UNION ALL
+SELECT 'función ausente', f.proname
+FROM f WHERE NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'tiempo' AND p.proname = f.proname)
+UNION ALL
+SELECT 'SECURITY DEFINER distinto de lo esperado', f.proname
+FROM f JOIN pg_proc p ON p.proname = f.proname JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'tiempo'
+WHERE p.prosecdef IS DISTINCT FROM f.definer
+UNION ALL
+SELECT 'volatilidad distinta de la esperada', f.proname
+FROM f JOIN pg_proc p ON p.proname = f.proname JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'tiempo'
+WHERE p.provolatile::text <> f.vol
+UNION ALL
+SELECT 'search_path distinto de ' || f.search_path, f.proname
+FROM f JOIN pg_proc p ON p.proname = f.proname JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'tiempo'
+WHERE p.proconfig IS DISTINCT FROM ARRAY[f.search_path]
+UNION ALL
+SELECT 'EXECUTE a PUBLIC', f.proname
+FROM f JOIN pg_proc p ON p.proname = f.proname JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'tiempo'
+WHERE EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')
+UNION ALL
+SELECT 'EXECUTE distinto de lo esperado para ' || r.rol, f.proname
+FROM f JOIN pg_proc p ON p.proname = f.proname JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'tiempo'
+CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role'), ('terminal_checador')) AS r(rol)
+WHERE has_function_privilege(r.rol, p.oid, 'EXECUTE') <> (r.rol = ANY (f.roles))
+UNION ALL
+SELECT 'dueño distinto del de tiempo.marca', f.proname
+FROM f JOIN pg_proc p ON p.proname = f.proname JOIN pg_namespace n ON n.oid = p.pronamespace AND n.nspname = 'tiempo'
+WHERE p.proowner <> (SELECT relowner FROM pg_class WHERE oid = 'tiempo.marca'::regclass)
+UNION ALL
+SELECT 'condiciones críticas ausentes en el cuerpo', c.proname || ': ' || c.fragmento
+FROM (VALUES
+  ('fn_terminal_inferir_huella_cambiar', 'terminal_config_edicion'),
+  ('fn_terminal_inferir_huella_cambiar', 'nota_requerida'),
+  ('fn_terminal_inferir_huella_cambiar', 'hasta_invalido'),
+  ('fn_terminal_inferir_huella_cambiar', 'sin_consentimiento_vigente'),
+  ('fn_terminal_inferir_huella_cambiar', 'terminal_no_activa'),
+  ('fn_terminal_inferir_huella_cambiar', 'scj.txid_interruptor'),
+  ('fn_terminal_inferir_huella_estado',  'vigencias_inconsistentes'),
+  ('fn_terminal_inferir_huella_estado',  '''30 days'''),
+  ('fn_terminal_inferir_huella_estado',  'hasta_excede_tope'),
+  ('fn_parametro_inferir_audita',        'scj.txid_interruptor'),
+  ('fn_parametro_inferir_audita',        'txid_current()'),
+  ('fn_terminal_config_actualizar',      'terminal_inferir_huella_activa'),
+  ('fn_terminal_config_actualizar',      'clave_no_editable')
+) AS c(proname, fragmento)
+WHERE NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                  WHERE n.nspname = 'tiempo' AND p.proname = c.proname AND strpos(p.prosrc, c.fragmento) > 0)
+UNION ALL
+SELECT 'el lector de estado nombra al lector tolerante (acota el valor)', p.proname
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'tiempo' AND p.proname = 'fn_terminal_inferir_huella_estado' AND strpos(p.prosrc, 'fn_terminal_config_valor') > 0;
+
+-- 61) fn_marca_terminal_registrar tras 98_: lee el estado EFECTIVO del interruptor con la única definición, no usa el lector tolerante, sigue DEFINER con search_path exacto
+-- y EXECUTE solo service_role. Esperado: 0 filas DESPUÉS de aplicar 98_.
+SELECT 'fn_marca_terminal_registrar: propiedades o contenido de 98_ incorrectos' AS problema, p.proname AS detalle
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'tiempo' AND p.proname = 'fn_marca_terminal_registrar'
+  AND NOT (p.prosecdef AND p.proconfig = ARRAY['search_path=tiempo, personas, pg_temp']
+           AND p.prosrc LIKE '%fn_terminal_inferir_huella_estado%' AND p.prosrc LIKE '%AND v_inferir%'
+           AND p.prosrc NOT LIKE '%fn_terminal_config_valor%' AND p.prosrc NOT LIKE '%SKIP LOCKED%' AND p.prosrc NOT LIKE '%SQLERRM%'
+           AND has_function_privilege('service_role', p.oid, 'EXECUTE')
+           AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
+           AND NOT has_function_privilege('terminal_checador', p.oid, 'EXECUTE')
+           AND NOT EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE'));
