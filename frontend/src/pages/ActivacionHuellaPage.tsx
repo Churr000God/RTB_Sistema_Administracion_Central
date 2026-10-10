@@ -39,7 +39,8 @@ function vencimiento(estado: EstadoInterruptorHuella): string {
 }
 
 function InsigniaEstado({ estado }: { estado: EstadoInterruptorHuella }) {
-  const sinRegistro = estado.alarma.nivel === "atender" && estado.estado === "encendido";
+  const atender = estado.alarma.activa && estado.alarma.nivel === "atender";
+  const sinRegistro = atender && estado.estado === "encendido";
   if (estado.estado === "encendido") {
     return (
       <Badge variante={sinRegistro ? "peligro" : "exito"} className="estado-alta">
@@ -59,9 +60,9 @@ function InsigniaEstado({ estado }: { estado: EstadoInterruptorHuella }) {
   }
   if (estado.estado === "inconsistente") {
     return (
-      <Badge variante={estado.alarma.nivel === "atender" ? "peligro" : "aviso"} className="estado-alta">
+      <Badge variante={atender ? "peligro" : "aviso"} className="estado-alta">
         <AlertTriangle size={12} aria-hidden="true" />
-        {estado.alarma.nivel === "atender" ? "Apagado por seguridad" : "Apagado · ajuste inconsistente"}
+        {atender ? "Apagado por seguridad" : "Apagado · ajuste inconsistente"}
       </Badge>
     );
   }

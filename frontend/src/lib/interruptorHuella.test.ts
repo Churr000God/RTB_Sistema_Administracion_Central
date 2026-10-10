@@ -156,3 +156,20 @@ describe("textoDeCodigoDeEstado", () => {
     expect(textoDeCodigoDeEstado(undefined)).toBeNull();
   });
 });
+
+describe("validación de forma (huecos de mutación)", () => {
+  it("fecha_maxima que no es string o alarma.activa no booleana se rechazan", () => {
+    expect(esEstadoInterruptor({ ...ESTADO_APAGADO, fecha_maxima: 20261109 })).toBe(false);
+    expect(esEstadoInterruptor({ ...ESTADO_APAGADO, fecha_maxima: null })).toBe(false);
+    expect(esEstadoInterruptor({ ...ESTADO_APAGADO, fecha_minima: 20261010 })).toBe(false);
+    expect(esEstadoInterruptor({ ...ESTADO_APAGADO, alarma: { ...ESTADO_APAGADO.alarma, activa: "no" } })).toBe(false);
+    expect(esEstadoInterruptor({ ...ESTADO_APAGADO, alarma: { ...ESTADO_APAGADO.alarma, activa: undefined } })).toBe(false);
+    expect(esEstadoInterruptor({ ...ESTADO_APAGADO, alarma: "x" })).toBe(false);
+  });
+
+  it("fechaEnRango rechaza una fecha sin ceros («2026-10-5») aunque quede ordenada dentro del rango", () => {
+    expect(fechaEnRango("2026-10-5", "2026-10-01", "2026-11-09")).toBe(false);
+    expect(fechaEnRango("2026-1-15", "2026-01-01", "2026-12-31")).toBe(false);
+    expect(fechaEnRango("2026-10-05", "2026-10-01", "2026-11-09")).toBe(true);
+  });
+});

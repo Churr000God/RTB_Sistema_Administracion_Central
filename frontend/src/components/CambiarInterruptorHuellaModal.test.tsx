@@ -249,3 +249,104 @@ describe("CambiarInterruptorHuellaModal · éxito sin fecha (security F4)", () =
     expect(aviso.texto).not.toMatch(/null/);
   });
 });
+
+describe("CambiarInterruptorHuellaModal · huecos de mutación", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 10, 11, 20));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const VENCIDO = estadoApi({ activo: false, estado: "vencido", vencido: true, motivo: "vencido", hasta: "2026-10-06T05:59:59Z", hasta_fecha: "2026-10-05" });
+
+  it("encender NUNCA manda hasta_base, ni siquiera «Encender de nuevo» desde vencido (que sí trae un hasta)", async () => {
+    vi.mocked(apiFetch).mockReturnValue(respuesta(200, { resultado: "actualizada", estado: ESTADO_ENCENDIDO }));
+    montar("encender", VENCIDO);
+    await userEvent.type(screen.getByLabelText(/motivo/i), NOTA);
+    await userEvent.click(boton(/encender la activación/i));
+    const cuerpo = cuerpoPost();
+    expect(Object.keys(cuerpo).sort()).toEqual(["hasta_fecha", "nota"]);
+    expect(cuerpo).not.toHaveProperty("hasta_base");
+  });
+
+  it("renovar sin hasta en el estado no inventa hasta_base", async () => {
+    vi.mocked(apiFetch).mockReturnValue(respuesta(200, { resultado: "actualizada", estado: ESTADO_ENCENDIDO }));
+    montar("renovar", estadoApi({ hasta: null }));
+    await userEvent.type(screen.getByLabelText(/motivo/i), NOTA);
+    await userEvent.click(boton(/renovar la activación/i));
+    expect(cuerpoPost()).not.toHaveProperty("hasta_base");
+  });
+
+  it("200 con forma inválida: error genérico, el botón principal sigue habilitado y nada se rompe", async () => {
+    vi.mocked(apiFetch).mockReturnValue(respuesta(200, { resultado: "actualizada", estado: { activo: true } }));
+    const props = montar("encender");
+    await userEvent.type(screen.getByLabelText(/motivo/i), NOTA);
+    await userEvent.click(boton(/encender la activación/i));
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo completar. Inténtalo de nuevo.");
+    expect(boton(/encender la activación/i)).toBeEnabled();
+    expect(props.onActualizado).not.toHaveBeenCalled();
+    expect(props.onCerrar).not.toHaveBeenCalled();
+  });
+
+  it("no_esta_encendido: se oculta el botón principal y Actualizar estado pide recargar", async () => {
+    vi.mocked(apiFetch).mockReturnValue(respuesta(409, { codigo: "no_esta_encendido", detail: "x" }));
+    const props = montar("renovar");
+    await userEvent.type(screen.getByLabelText(/motivo/i), NOTA);
+    await userEvent.click(boton(/renovar la activación/i));
+    await screen.findByRole("alert");
+    expect(screen.queryByRole("button", { name: /renovar la activación|reintentar/i })).not.toBeInTheDocument();
+    await userEvent.click(boton(/actualizar estado/i));
+    expect(props.onRecargar).toHaveBeenCalledTimes(1);
+  });
+
+  it("terminal_no_activa: enlace «Ver Terminales →»; otros errores no lo muestran", async () => {
+    vi.mocked(apiFetch).mockReturnValueOnce(respuesta(409, { codigo: "terminal_no_activa", detail: "x" }));
+    montar("encender");
+    await userEvent.type(screen.getByLabelText(/motivo/i), NOTA);
+    await userEvent.click(boton(/encender la activación/i));
+    expect(await screen.findByRole("link", { name: /ver terminales/i })).toHaveAttribute("href", "/tiempo/terminales");
+    expect(screen.queryByRole("link", { name: /texto de consentimiento/i })).not.toBeInTheDocument();
+  });
+
+  it("un error genérico no muestra ningún enlace", async () => {
+    vi.mocked(apiFetch).mockReturnValue(respuesta(500, {}));
+    montar("encender");
+    await userEvent.type(screen.getByLabelText(/motivo/i), NOTA);
+    await userEvent.click(boton(/encender la activación/i));
+    await screen.findByRole("alert");
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("renovar: texto de éxito exacto y título «No se renovó» en el error; encender usa «No se encendió»", async () => {
+    vi.mocked(apiFetch).mockReturnValueOnce(respuesta(422, { codigo: "nota_repetida", detail: "x" }));
+    const props = montar("renovar");
+    await userEvent.type(screen.getByLabelText(/motivo/i), NOTA);
+    await userEvent.click(boton(/renovar la activación/i));
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent("No se renovó");
+    expect(alerta).not.toHaveTextContent("No se encendió");
+    vi.mocked(apiFetch).mockReturnValueOnce(respuesta(200, { resultado: "actualizada", estado: estadoApi({ hasta_fecha: "2026-10-30" }) }));
+    await userEvent.click(boton(/renovar la activación/i));
+    expect(props.onActualizado.mock.calls[0][1]).toEqual({
+      tipo: "exito",
+      texto: "Vencimiento renovado: ahora hasta el 30 oct 2026. Tu nota quedó en el historial.",
+    });
+  });
+
+  it("encender: texto de éxito exacto y título «No se encendió» en el error", async () => {
+    vi.mocked(apiFetch).mockReturnValueOnce(respuesta(403, {}));
+    const props = montar("encender");
+    await userEvent.type(screen.getByLabelText(/motivo/i), NOTA);
+    await userEvent.click(boton(/encender la activación/i));
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se encendió");
+    vi.mocked(apiFetch).mockReturnValueOnce(respuesta(200, { resultado: "actualizada", estado: ESTADO_ENCENDIDO }));
+    await userEvent.click(boton(/encender la activación/i));
+    expect(props.onActualizado.mock.calls[0][1]).toEqual({
+      tipo: "exito",
+      texto: "Activación por huella encendida hasta el 24 oct 2026. Apágala cuando termine el alta supervisada.",
+    });
+  });
+});

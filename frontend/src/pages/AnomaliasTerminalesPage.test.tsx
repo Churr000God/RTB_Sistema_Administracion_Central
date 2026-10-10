@@ -506,3 +506,30 @@ describe("AnomaliasTerminalesPage · categoría 14 (interruptor_huella)", () => 
     expect(container.querySelector("b")).toBeNull();
   });
 });
+
+describe("AnomaliasTerminalesPage · enlace de la tarjeta 14 (huecos de mutación)", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+    window.history.replaceState(null, "", "/tiempo/terminales/anomalias");
+  });
+
+  it("otra tarjeta con hallazgos NO muestra «Ir a Configuración → Activación por huella»", async () => {
+    mockApi({
+      anomalias: () =>
+        new Response(JSON.stringify({ terminal_id: 1, desde: "2026-10-01T00:00:00Z", hasta: "2026-10-08T00:00:00Z", generado_en: "2026-10-08T00:00:00Z", categorias: CON_HALLAZGOS })),
+    });
+    render(<AnomaliasTerminalesPage />);
+    await screen.findByRole("heading", { name: /1 · marcas posteriores a la baja/i });
+    expect(screen.queryByRole("link", { name: /activación por huella/i })).not.toBeInTheDocument();
+  });
+
+  it("la tarjeta 14 en error o sin hallazgos tampoco lleva el enlace", async () => {
+    mockApi({
+      anomalias: () =>
+        new Response(JSON.stringify({ terminal_id: 1, desde: "2026-10-01T00:00:00Z", hasta: "2026-10-08T00:00:00Z", generado_en: "2026-10-08T00:00:00Z", categorias: [tarjeta("interruptor_huella", 14, "Interruptor de la activación por huella", { estado: "error" })] })),
+    });
+    render(<AnomaliasTerminalesPage />);
+    await screen.findByRole("heading", { name: /14 · interruptor/i });
+    expect(screen.queryByRole("link", { name: /activación por huella/i })).not.toBeInTheDocument();
+  });
+});

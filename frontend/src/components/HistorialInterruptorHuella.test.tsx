@@ -115,3 +115,26 @@ describe("HistorialInterruptorHuella · renovaciones y cambios fuera de la funci
     expect(within(fila).getByText("Fuera de la función")).toBeInTheDocument();
   });
 });
+
+describe("HistorialInterruptorHuella · huecos de mutación", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  it("nota null => «—» (no vacío ni «null»)", async () => {
+    vi.mocked(apiFetch).mockReturnValue(
+      respuesta(200, { items: [{ id: 1, creado_en: "2026-10-10T15:30:00Z", clave: "terminal_inferir_huella_activa", operacion: "UPDATE", valor_anterior: "1", valor_nuevo: "0", nota: null, autor_nombre: "Carlos Ruiz", via_funcion: true }] }),
+    );
+    render(<HistorialInterruptorHuella puedeVer version={0} />);
+    const fila = (await screen.findByText("Carlos Ruiz")).closest("tr")!;
+    const celdas = within(fila).getAllByRole("cell");
+    expect(celdas[2]).toHaveTextContent(/^—$/);
+    expect(fila).not.toHaveTextContent(/null/);
+  });
+
+  it("con puedeVer=false jamás pide el historial aunque cambie la versión", () => {
+    const { rerender } = render(<HistorialInterruptorHuella puedeVer={false} version={0} />);
+    rerender(<HistorialInterruptorHuella puedeVer={false} version={3} />);
+    expect(apiFetch).not.toHaveBeenCalled();
+  });
+});

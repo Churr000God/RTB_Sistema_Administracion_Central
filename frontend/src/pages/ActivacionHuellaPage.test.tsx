@@ -345,3 +345,157 @@ describe("ActivacionHuellaPage · textos locales por código (security F3)", () 
     expect(screen.queryByText(/otro texto/)).not.toBeInTheDocument();
   });
 });
+
+describe("ActivacionHuellaPage · huecos de mutación", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  const APAGADO_EXTRA = { activo: false, estado: "apagado", motivo: "apagado", hasta: null, hasta_fecha: null, encendido_por_nombre: null, altas_activadas_desde_encendido: null };
+
+  it("fail-closed: con una sesión incompleta (banderas ausentes) no hay botones ni se pide el historial", async () => {
+    mockApi({ sesion: { puede_editar_config_terminales: undefined, puede_editar_terminales: undefined } });
+    render(<ActivacionHuellaPage />);
+    expect(await screen.findByText(/encendido hasta el/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /encender|renovar|apagar/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/encendido por/i)).not.toBeInTheDocument();
+    expect(vi.mocked(apiFetch).mock.calls.some(([p]) => String(p).includes("/historial"))).toBe(false);
+  });
+
+  it("puede_ver_terminales ausente no bloquea la lectura (la autoridad es el 403 del servidor) pero tampoco da botones", async () => {
+    mockApi({ sesion: { puede_ver_terminales: undefined, puede_editar_config_terminales: undefined, puede_editar_terminales: undefined } });
+    render(<ActivacionHuellaPage />);
+    expect(await screen.findByText(/encendido hasta el/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /encender|renovar|apagar/i })).not.toBeInTheDocument();
+  });
+
+  it("sin cargar la sesión (falla) no aparece el banner de permisos, aunque el estado ya cargó", async () => {
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === "/api/sesion") return Promise.resolve(new Response(null, { status: 500 }));
+      if (path === RUTA) return Promise.resolve(new Response(JSON.stringify(ESTADO_ENCENDIDO)));
+      return Promise.resolve(new Response(JSON.stringify({ items: [] })));
+    });
+    render(<ActivacionHuellaPage />);
+    expect(await screen.findByText(/encendido hasta el/i)).toBeInTheDocument();
+    expect(screen.queryByText(/puedes consultar este ajuste|ves el estado del ajuste/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /encender|renovar|apagar/i })).not.toBeInTheDocument();
+  });
+
+  it("GET 403 de la pantalla => sin acceso, no «error»", async () => {
+    mockApi({ sesion: CONFIG, estado: new Response(JSON.stringify({ detail: "No tienes permiso para esta acción." }), { status: 403 }) });
+    render(<ActivacionHuellaPage />);
+    expect(await screen.findByText(/no tienes acceso a las terminales/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no se pudo cargar el estado/i)).not.toBeInTheDocument();
+  });
+
+  it("con la activación encendida no existe el botón «Encender…»", async () => {
+    mockApi({ sesion: CONFIG });
+    render(<ActivacionHuellaPage />);
+    await screen.findByRole("button", { name: /renovar…/i });
+    expect(screen.queryByRole("button", { name: /encender/i })).not.toBeInTheDocument();
+  });
+
+  it("«Recomendado: apágalo» sólo aparece con el interruptor encendido y alarma atender (no con sin_respaldo apagado)", async () => {
+    mockApi({ sesion: CONFIG, estado: estadoApi({ ...APAGADO_EXTRA, estado: "inconsistente", motivo: "sin_respaldo_de_la_funcion", alarma: ALARMA_SIN_RESPALDO }) });
+    render(<ActivacionHuellaPage />);
+    await screen.findByRole("alert");
+    expect(screen.queryByText(/recomendado: apágalo/i)).not.toBeInTheDocument();
+  });
+
+  it("alarma con activa=false no pinta banner aunque traiga nivel y mensaje", async () => {
+    mockApi({ sesion: CONFIG, estado: estadoApi({ alarma: { activa: false, nivel: "atender", codigo: "sin_registro", mensaje: "Mensaje que no debe verse." } }) });
+    render(<ActivacionHuellaPage />);
+    await screen.findByText(/encendido hasta el/i);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText(/mensaje que no debe verse/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/sin registro válido/i)).not.toBeInTheDocument();
+  });
+
+  it("nombre null con detalle => «Sin registro»", async () => {
+    mockApi({ sesion: CONFIG, estado: estadoApi({ encendido_por_nombre: null, encendido_en: null }) });
+    render(<ActivacionHuellaPage />);
+    expect(await screen.findByText("Sin registro")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["vencido", estadoApi({ ...APAGADO_EXTRA, estado: "vencido", vencido: true, motivo: "vencido", hasta: "2026-10-06T05:59:59Z", hasta_fecha: "2026-10-05" })],
+    ["inconsistente", estadoApi({ ...APAGADO_EXTRA, estado: "inconsistente", motivo: "vigencias_inconsistentes", alarma: ALARMA_REVISAR })],
+  ])("%s no muestra el texto del apagado normal ni «Encendido por»", async (_nombre, estado) => {
+    mockApi({ sesion: CONFIG, estado });
+    render(<ActivacionHuellaPage />);
+    await screen.findByRole("button", { name: /encender/i });
+    expect(screen.queryByText(/las altas nuevas se activan con «confirmar huella»/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/encendido por/i)).not.toBeInTheDocument();
+  });
+
+  it("umbral de la anomalía 11: exactamente 5 NO sugiere revisar el tablero; 6 sí", async () => {
+    mockApi({ sesion: CONFIG, estado: estadoApi({ altas_activadas_desde_encendido: 5 }) });
+    const { unmount } = render(<ActivacionHuellaPage />);
+    expect(await screen.findByText(/5 desde que se encendió/i)).toBeInTheDocument();
+    expect(screen.queryByText(/más de 5 en total/i)).not.toBeInTheDocument();
+    unmount();
+    mockApi({ sesion: CONFIG, estado: estadoApi({ altas_activadas_desde_encendido: 6 }) });
+    render(<ActivacionHuellaPage />);
+    expect(await screen.findByText(/6 desde que se encendió/i)).toBeInTheDocument();
+    expect(screen.getByText(/más de 5 en total/i)).toBeInTheDocument();
+  });
+
+  it("conteo 0 es un número válido y se muestra", async () => {
+    mockApi({ sesion: CONFIG, estado: estadoApi({ altas_activadas_desde_encendido: 0 }) });
+    render(<ActivacionHuellaPage />);
+    expect(await screen.findByText(/0 desde que se encendió/i)).toBeInTheDocument();
+  });
+
+  it("precedencia cuando faltan ambos requisitos: explica primero el consentimiento", async () => {
+    mockApi({ sesion: CONFIG, estado: estadoApi({ ...APAGADO_EXTRA, requisitos: { consentimiento_publicado: false, terminal_activa: false } }) });
+    render(<ActivacionHuellaPage />);
+    expect(await screen.findByText(/falta publicar el texto de consentimiento biométrico definitivo/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no hay ninguna terminal activa/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /encender…/i })).toBeDisabled();
+  });
+
+  it("Encender habilitado con ambos requisitos cumplidos y sin mensaje de requisito", async () => {
+    mockApi({ sesion: CONFIG, estado: estadoApi({ ...APAGADO_EXTRA }) });
+    render(<ActivacionHuellaPage />);
+    expect(await screen.findByRole("button", { name: /encender…/i })).toBeEnabled();
+    expect(screen.queryByText(/no se puede encender todavía/i)).not.toBeInTheDocument();
+  });
+
+  it("no_esta_encendido al renovar: «Actualizar estado» vuelve a pedir el estado y cierra el modal", async () => {
+    let pedidos = 0;
+    mockApi({
+      sesion: CONFIG,
+      extra: (path, init) => {
+        if (path === RUTA) pedidos += 1;
+        return path === `${RUTA}/renovar` && init?.method === "POST"
+          ? new Response(JSON.stringify({ codigo: "no_esta_encendido", detail: "x" }), { status: 409 })
+          : undefined;
+      },
+    });
+    render(<ActivacionHuellaPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /renovar…/i }));
+    await userEvent.type(screen.getByLabelText(/motivo/i), "Se extiende hasta el cierre del inventario.");
+    await userEvent.click(screen.getByRole("button", { name: /renovar la activación/i }));
+    await screen.findByText(/ya no está encendido/i);
+    expect(pedidos).toBe(1);
+    await userEvent.click(screen.getByRole("button", { name: /actualizar estado/i }));
+    await waitFor(() => expect(pedidos).toBe(2));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("ActivacionHuellaPage · la insignia respeta alarma.activa", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  it("inconsistente con alarma inactiva (aunque traiga nivel atender) no dice «Apagado por seguridad»", async () => {
+    mockApi({
+      sesion: CONFIG,
+      estado: estadoApi({ activo: false, estado: "inconsistente", motivo: "vigencias_inconsistentes", hasta: null, hasta_fecha: null, alarma: { activa: false, nivel: "atender", codigo: null, mensaje: null } }),
+    });
+    render(<ActivacionHuellaPage />);
+    expect(await screen.findByText(/apagado · ajuste inconsistente/i)).toBeInTheDocument();
+    expect(screen.queryByText("Apagado por seguridad")).not.toBeInTheDocument();
+  });
+});
