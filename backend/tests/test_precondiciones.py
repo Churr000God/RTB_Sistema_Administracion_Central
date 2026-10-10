@@ -197,14 +197,14 @@ def test_n2_la_comprobacion_nunca_pasa_un_parametro_distinto_de_nulo_a_la_funcio
 
 
 def test_99_la_comprobacion_del_latido_usa_una_terminal_que_nunca_existe_y_todo_lo_demas_nulo():
-    """fn_terminal_latido SÍ escribe, pero valida la terminal ANTES (SCJ12 si no existe o no está activa). La comprobación pasa la terminal 0 (los ids son identity desde 1) y nulos."""
+    """fn_terminal_latido SÍ escribe, pero valida la terminal ANTES (SCJ12 si no existe o no está activa). La comprobación pasa la terminal -1 (los ids son identity desde 1: nunca negativos) y nulos."""
     from app.precondiciones import FUNCIONES_REQUERIDAS
 
     latido = [f for f in FUNCIONES_REQUERIDAS if f[1] == "fn_terminal_latido"]
     assert len(latido) == 1
     parametros = latido[0][2]
     assert list(parametros) == ["p_terminal_id", "p_hora_terminal", "p_alcanzable", "p_reloj_sincronizado", "p_version_pi", "p_marcas_pendientes", "p_ingesta_detenida"]
-    assert parametros["p_terminal_id"] == 0 and all(v is None for k, v in parametros.items() if k != "p_terminal_id")
+    assert parametros["p_terminal_id"] == -1 and all(v is None for k, v in parametros.items() if k != "p_terminal_id")
 
 
 def test_99_la_firma_de_7_argumentos_ausente_es_un_faltante_y_scj12_significa_que_existe():

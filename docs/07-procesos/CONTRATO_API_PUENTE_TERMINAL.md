@@ -140,7 +140,7 @@ Cuerpo cerrado (`extra="forbid"`: un campo desconocido es 422), todos opcionales
 - Se pasa al RPC **solo por nombre** (`p_ingesta_detenida`) y **solo si el puente lo mandó**: la llamada de 6 argumentos sigue siendo válida (el argumento 7 tiene `DEFAULT NULL`). Compatible hacia atrás: un puente viejo no lo manda y todo sigue igual.
 - **Orden de despliegue:** base (`99_`, ya aplicado) → este backend → el puente con `PUENTE_LATIDO_INGESTA_DETENIDA=1` (antes de eso el puente no manda el campo, porque el esquema cerrado de un backend viejo lo rechazaría con 422 y todos los latidos fallarían).
 - Lo consume la tarjeta 15 del tablero de anomalías (`CONTRATO_API_TERMINALES_PAQUETE_2.md` §9): `ingesta_detenida = true` ⇒ `atender`, código `ingesta_detenida`, aunque el contacto sea fresco.
-- La precondición de esquema del arranque exige la columna y la firma de 7 argumentos (la comprobación llama la función con la terminal 0, que nunca existe, y SCJ12 significa «existe»).
+- La precondición de esquema del arranque exige la columna y la firma de 7 argumentos (la comprobación llama la función con la terminal -1, que nunca existe, y SCJ12 significa «existe»).
 
 ## 2. `GET /api/terminal/cola` — trabajo pendiente del Pi
 
