@@ -92,6 +92,8 @@ T-PI-1 a T-PI-5 completos y T-PI-6 corte A (detección e informe, sin borrado), 
 
 **Al compactar (10 de octubre de 2026):** todas las tareas de análisis y diseño terminaron. No hay trabajo de código en vuelo salvo que `backend` commitea el paso 1 del puente y guarda su diseño v3. Nada nuevo se aplicó en la base después de `96_`.
 
+**Estado final de `checador-fisico`:** el paso 1 del diseño v3 (simulador fiel) está commiteado como `6aca7f5` (local, sin push, 1908 pruebas pasando) y **sin revisión de `security` todavía**; el diseño v3 está en `puente/DISENO_v3_tras_verificacion.md` (sin commit). `origin/main` de `checador-fisico` está en `949c5d1`.
+
 **Cómo retomar:**
 
 1. Leer este documento y los tres de apoyo: `2026-10-10_verificacion_terminal_hikvision_con_ti.md`, `db/ensayos/DISENO_interruptor_inferir_huella.md` y `puente/DISENO_v3_tras_verificacion.md` (en `checador-fisico`).
