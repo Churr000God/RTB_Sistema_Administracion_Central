@@ -104,12 +104,17 @@ export function ActivacionHuellaPage() {
     cargar();
   }, [cargandoSesion, sinAccesoPorSesion, cargar]);
 
-  function alActualizar(nuevo: EstadoInterruptorHuella, mensaje: AvisoInterruptor) {
-    setDatos(nuevo);
-    setEstado("listo");
+  function alActualizar(nuevo: EstadoInterruptorHuella | null, mensaje: AvisoInterruptor) {
     setAviso(mensaje);
     setModal(null);
     setVersionHistorial((v) => v + 1);
+    if (nuevo) {
+      setDatos(nuevo);
+      setEstado("listo");
+    } else {
+      // El cambio ya se aplicó pero el servidor no armó el estado: se recarga con el GET, sin usar el null.
+      cargar();
+    }
   }
 
   const sinAcceso = sinAccesoPorSesion || estado === "sin_acceso";

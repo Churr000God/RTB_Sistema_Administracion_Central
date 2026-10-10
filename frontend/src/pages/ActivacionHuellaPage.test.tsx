@@ -499,3 +499,57 @@ describe("ActivacionHuellaPage · la insignia respeta alarma.activa", () => {
     expect(screen.queryByText("Apagado por seguridad")).not.toBeInTheDocument();
   });
 });
+
+describe("ActivacionHuellaPage · 200 con estado null", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  it("encender: muestra el éxito genérico y RECARGA el estado con el GET (no usa el null)", async () => {
+    let pedidos = 0;
+    let aplicado = false;
+    mockApi({
+      sesion: CONFIG,
+      extra: (path, init) => {
+        if (path === RUTA) {
+          pedidos += 1;
+          return new Response(JSON.stringify(aplicado ? ESTADO_ENCENDIDO : ESTADO_APAGADO));
+        }
+        if (path === `${RUTA}/encender` && init?.method === "POST") {
+          aplicado = true;
+          return new Response(JSON.stringify({ resultado: "actualizada", estado: null }));
+        }
+        return undefined;
+      },
+    });
+    render(<ActivacionHuellaPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /encender…/i }));
+    await userEvent.type(screen.getByLabelText(/motivo/i), "Alta supervisada del turno de reparto.");
+    await userEvent.click(screen.getByRole("button", { name: /encender la activación/i }));
+    expect(await screen.findByText(/activación por huella encendida\. apágala cuando termine el alta supervisada; recargamos el estado/i)).toBeInTheDocument();
+    expect(await screen.findByText(/encendido hasta el 24 oct 2026, 23:59/i)).toBeInTheDocument();
+    expect(pedidos).toBe(2);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText(/no se pudo cargar el estado/i)).not.toBeInTheDocument();
+  });
+
+  it("apagar con estado null: recarga y deja el interruptor apagado", async () => {
+    let apagado = false;
+    mockApi({
+      sesion: CONFIG,
+      extra: (path, init) => {
+        if (path === RUTA) return new Response(JSON.stringify(apagado ? ESTADO_APAGADO : ESTADO_ENCENDIDO));
+        if (path === `${RUTA}/apagar` && init?.method === "POST") {
+          apagado = true;
+          return new Response(JSON.stringify({ resultado: "actualizada", estado: null }));
+        }
+        return undefined;
+      },
+    });
+    render(<ActivacionHuellaPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /^apagar…$/i }));
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /apagar la activación/i }));
+    expect(await screen.findByText(/activación por huella apagada\./i)).toBeInTheDocument();
+    expect(await screen.findByText("Apagado")).toBeInTheDocument();
+  });
+});

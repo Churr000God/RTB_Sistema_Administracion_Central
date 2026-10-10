@@ -8,6 +8,7 @@ import {
   MAX_NOTA_INTERRUPTOR,
   RUTA_INTERRUPTOR,
   esResultadoCambio,
+  esResultadoSinEstado,
   sanearNota,
   textoDeError,
   type EstadoInterruptorHuella,
@@ -15,7 +16,7 @@ import {
 import type { AvisoInterruptor } from "./CambiarInterruptorHuellaModal";
 
 type Props = {
-  onActualizado: (estado: EstadoInterruptorHuella, aviso: AvisoInterruptor) => void;
+  onActualizado: (estado: EstadoInterruptorHuella | null, aviso: AvisoInterruptor) => void;
   onCerrar: () => void;
 };
 
@@ -35,7 +36,7 @@ export function ApagarInterruptorHuellaModal({ onActualizado, onCerrar }: Props)
         method: "POST",
         body: JSON.stringify(limpia ? { nota: limpia } : {}),
       });
-      if (!esResultadoCambio(datos)) throw new ErrorApi(200, null, null);
+      if (!esResultadoCambio(datos) && !esResultadoSinEstado(datos)) throw new ErrorApi(200, null, null);
       onActualizado(
         datos.estado,
         datos.resultado === "sin_cambio"

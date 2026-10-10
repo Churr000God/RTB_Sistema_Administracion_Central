@@ -350,3 +350,37 @@ describe("CambiarInterruptorHuellaModal · huecos de mutación", () => {
     });
   });
 });
+
+describe("CambiarInterruptorHuellaModal · 200 con estado null (cambio aplicado, estado no armado)", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 10, 11, 20));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each([["encender"], ["renovar"]] as const)("%s: es éxito, aviso genérico sin fecha y estado null para que la pantalla recargue", async (modo) => {
+    vi.mocked(apiFetch).mockReturnValue(respuesta(200, { resultado: "actualizada", estado: null }));
+    const props = montar(modo);
+    await userEvent.type(screen.getByLabelText(/motivo/i), NOTA);
+    await userEvent.click(boton(modo === "renovar" ? /renovar la activación/i : /encender la activación/i));
+    expect(props.onActualizado).toHaveBeenCalledTimes(1);
+    const [estado, aviso] = props.onActualizado.mock.calls[0] as [unknown, { tipo: string; texto: string }];
+    expect(estado).toBeNull();
+    expect(aviso.tipo).toBe("exito");
+    expect(aviso.texto).toMatch(/recargamos el estado/i);
+    expect(aviso.texto).not.toMatch(/null|undefined|hasta el/);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("sin `resultado` (o ilegible) sigue siendo error aunque estado sea null", async () => {
+    vi.mocked(apiFetch).mockReturnValue(respuesta(200, { estado: null }));
+    const props = montar("encender");
+    await userEvent.type(screen.getByLabelText(/motivo/i), NOTA);
+    await userEvent.click(boton(/encender la activación/i));
+    expect(await screen.findByRole("alert")).toHaveTextContent("No se pudo completar. Inténtalo de nuevo.");
+    expect(props.onActualizado).not.toHaveBeenCalled();
+  });
+});

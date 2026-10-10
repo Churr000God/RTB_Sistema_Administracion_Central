@@ -76,6 +76,14 @@ export function esResultadoCambio(datos: unknown): datos is ResultadoCambio {
   return (d.resultado === "actualizada" || d.resultado === "sin_cambio") && esEstadoInterruptor(d.estado);
 }
 
+// El cambio ya se aplicó pero el backend no pudo armar el estado (200 con estado: null): es un éxito, y la
+// pantalla debe recargar el estado con el GET sin usar el null. Sólo un `resultado` ausente o ilegible es error.
+export function esResultadoSinEstado(datos: unknown): datos is { resultado: ResultadoCambio["resultado"]; estado: null } {
+  if (!datos || typeof datos !== "object") return false;
+  const d = datos as Record<string, unknown>;
+  return (d.resultado === "actualizada" || d.resultado === "sin_cambio") && d.estado === null;
+}
+
 export const MIN_NOTA_INTERRUPTOR = 10;
 export const MAX_NOTA_INTERRUPTOR = 500;
 

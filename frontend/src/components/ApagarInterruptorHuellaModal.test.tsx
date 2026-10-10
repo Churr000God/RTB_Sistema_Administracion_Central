@@ -99,3 +99,31 @@ describe("ApagarInterruptorHuellaModal", () => {
     expect(props.onCerrar).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("ApagarInterruptorHuellaModal · 200 con estado null", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  it("actualizada: éxito y estado null", async () => {
+    vi.mocked(apiFetch).mockReturnValue(respuesta(200, { resultado: "actualizada", estado: null }));
+    const props = montar();
+    await userEvent.click(apagar());
+    expect(props.onActualizado).toHaveBeenCalledWith(null, expect.objectContaining({ tipo: "exito" }));
+  });
+
+  it("sin_cambio: aviso de que ya estaba apagado", async () => {
+    vi.mocked(apiFetch).mockReturnValue(respuesta(200, { resultado: "sin_cambio", estado: null }));
+    const props = montar();
+    await userEvent.click(apagar());
+    expect(props.onActualizado).toHaveBeenCalledWith(null, expect.objectContaining({ tipo: "aviso", texto: expect.stringContaining("Ya estaba apagado") }));
+  });
+
+  it("sin resultado sigue siendo error", async () => {
+    vi.mocked(apiFetch).mockReturnValue(respuesta(200, { estado: null }));
+    const props = montar();
+    await userEvent.click(apagar());
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(props.onActualizado).not.toHaveBeenCalled();
+  });
+});

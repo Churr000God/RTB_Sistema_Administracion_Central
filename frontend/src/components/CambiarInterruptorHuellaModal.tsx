@@ -11,6 +11,7 @@ import {
   MIN_NOTA_INTERRUPTOR,
   RUTA_INTERRUPTOR,
   esResultadoCambio,
+  esResultadoSinEstado,
   estadoDelError,
   fechaDeAtajo,
   fechaEnRango,
@@ -26,7 +27,8 @@ type Props = {
   modo: "encender" | "renovar";
   estado: EstadoInterruptorHuella;
   // El cambio se aplicó, o el servidor devolvió el estado actual (409): la pantalla se refresca con él.
-  onActualizado: (estado: EstadoInterruptorHuella, aviso: AvisoInterruptor) => void;
+  // estado null = el cambio se aplicó pero el servidor no pudo armar el estado: la pantalla lo recarga con el GET.
+  onActualizado: (estado: EstadoInterruptorHuella | null, aviso: AvisoInterruptor) => void;
   // Volver a pedir el estado (no_esta_encendido).
   onRecargar: () => void;
   onCerrar: () => void;
@@ -70,6 +72,15 @@ export function CambiarInterruptorHuellaModal({ modo, estado, onActualizado, onR
         method: "POST",
         body: JSON.stringify(cuerpo),
       });
+      if (esResultadoSinEstado(datos)) {
+        onActualizado(null, {
+          tipo: "exito",
+          texto: renovar
+            ? "Vencimiento renovado. Tu nota quedó en el historial; recargamos el estado."
+            : "Activación por huella encendida. Apágala cuando termine el alta supervisada; recargamos el estado.",
+        });
+        return;
+      }
       if (!esResultadoCambio(datos)) throw new ErrorApi(200, null, null);
       onActualizado(datos.estado, {
         tipo: "exito",

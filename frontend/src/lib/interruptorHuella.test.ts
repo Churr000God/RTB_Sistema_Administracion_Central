@@ -5,6 +5,7 @@ import {
   describirCambio,
   esEstadoInterruptor,
   esResultadoCambio,
+  esResultadoSinEstado,
   estadoDelError,
   fechaDeAtajo,
   fechaEnRango,
@@ -171,5 +172,18 @@ describe("validación de forma (huecos de mutación)", () => {
     expect(fechaEnRango("2026-10-5", "2026-10-01", "2026-11-09")).toBe(false);
     expect(fechaEnRango("2026-1-15", "2026-01-01", "2026-12-31")).toBe(false);
     expect(fechaEnRango("2026-10-05", "2026-10-01", "2026-11-09")).toBe(true);
+  });
+});
+
+describe("esResultadoSinEstado", () => {
+  it("resultado válido con estado null es éxito sin estado; ausente o ilegible no", () => {
+    expect(esResultadoSinEstado({ resultado: "actualizada", estado: null })).toBe(true);
+    expect(esResultadoSinEstado({ resultado: "sin_cambio", estado: null })).toBe(true);
+    expect(esResultadoSinEstado({ estado: null })).toBe(false);
+    expect(esResultadoSinEstado({ resultado: "otra", estado: null })).toBe(false);
+    expect(esResultadoSinEstado({ resultado: "actualizada" })).toBe(false);
+    expect(esResultadoSinEstado({ resultado: "actualizada", estado: undefined })).toBe(false);
+    expect(esResultadoSinEstado({ resultado: "actualizada", estado: { activo: true } })).toBe(false);
+    expect(esResultadoSinEstado(null)).toBe(false);
   });
 });
