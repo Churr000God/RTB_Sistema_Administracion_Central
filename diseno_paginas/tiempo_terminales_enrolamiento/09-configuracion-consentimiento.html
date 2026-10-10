@@ -23,6 +23,7 @@
   <nav class="pestanas-config" aria-label="Secciones de configuración">
     <a href="09-configuracion-consentimiento.html" aria-current="page">Texto de consentimiento</a>
     <a href="10-configuracion-variables.html" >Variables</a>
+    <a href="13-configuracion-activacion-por-huella.html">Activación por huella</a>
   </nav>
   <p class="nota-diseno"><strong>Propuesta pendiente de aprobación del usuario.</strong> Modelo supuesto (a confirmar con <code>db</code>): versiones inmutables con <code>version</code>, <code>texto</code> (1–4 000, texto plano, sin HTML), <code>provisional</code> (sólo la v1 sembrada lo es; el RPC nunca publica <code>provisional=true</code>), <code>cambio_material</code>, <code>motivo_cambio</code> (≤ 200, opcional), <code>vigente_desde</code>, <code>publicado_por</code>, <code>publicado_en</code>. <strong>No existe «sin texto publicado»</strong>: la versión 1 se siembra como provisional con el texto de este mockup. La versión que confirmó cada alta vive en una <em>columna</em> de la bitácora (<code>consentimiento_id</code>). <strong>El historial no trae el texto de cada versión</strong>: sólo la vigente lo trae; «Ver texto» de una anterior hace una segunda petición <code>GET …/consentimiento/{version}</code> (carga, error con reintento, 404 fijo).</p>
 

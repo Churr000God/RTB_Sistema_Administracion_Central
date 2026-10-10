@@ -14,6 +14,7 @@ Fuente: `docs/07-procesos/SCJ-PRO-15_Proceso_Enrolamiento_de_Terminal_V1_2.md` �
 | `07-aviso-al-suspender-persona.html` | 6. Banner `baja_terminal_pendiente` al suspender / dar de baja |
 | `08-navegacion.html` | 7. Entrada de sidebar: opción A (grupo propio, recomendada) vs B (dentro de Parámetros) |
 | `12-confirmar-huella-y-evidencia.html` | Confirmar huella (botón + modal), etiquetas de evidencia (conteo/inferida/manual) y anomalías 11–13 — BORRADOR pendiente de aprobación (sin conteo, B+C) |
+| `13-configuracion-activacion-por-huella.html` | Interruptor de la activación por huella (vía B): estados apagado/activo/vencido, alarmas, encender/renovar/apagar, errores por código y sólo lectura — BORRADOR pendiente de aprobación; tercera pestaña de Configuración |
 
 ## Invariantes del proceso que el diseño respeta
 - **No hay botón «Capturar huella».** La huella se enrola en el menú del aparato (TI con RH presente); la UI sólo asigna, hace seguimiento y da de baja. `esperando_huella` dice «Esperando que TI enrole la huella en la terminal».

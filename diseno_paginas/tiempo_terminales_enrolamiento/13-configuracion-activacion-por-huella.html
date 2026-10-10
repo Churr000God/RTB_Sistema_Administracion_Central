@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paquete 2 · 13 Activación por huella</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../frontend/src/styles/tokens.css">
+<link rel="stylesheet" href="_mockup.css">
+</head>
+<body data-activo="Configuración">
+<div class="mock-barra" data-estados="apagado:Apagado,sin_consent:Apagado · falta consentimiento definitivo,sin_terminal:Apagado · sin terminal activa,activo:Encendido,vencido:Vencido,a_sinrespaldo:ALARMA atender · sin respaldo,a_fuera:ALARMA atender · cambio fuera de la función,a_sinregistro:ALARMA atender · sin registro,r_incons:ALARMA revisar · ajuste inconsistente,lectura_apagado:Sólo lectura · apagado,lectura_activo:Sólo lectura · encendido,lectura_alarma:Sólo lectura · alarma,lectura_red_activo:Sólo lectura reducida · encendido,lectura_red_alarma:Sólo lectura reducida · alarma,refresco:Renovar · el estado cambió (pantalla refrescada),ok_sin_cambio:Apagar · ya estaba apagado,hist_vacio:Historial vacío,hist_error:Historial con error,carga:Cargando,error:Error de carga (503),ok_encendido:Éxito · encendido,ok_renovado:Éxito · renovado,ok_apagado:Éxito · apagado,tablero:Tarjeta 14 del tablero,m_encender:Modal · Encender,m_corta:Encender · nota corta,m_fecha:Encender · fecha inválida,m_enviando:Encender · enviando,e_consent:Error · sin consentimiento,e_terminal:Error · terminal no activa,e_nota:Error · nota (servidor),e_hasta:Error · vencimiento (servidor),e_permiso:Error · sin permiso,e_ya:Error · ya está encendido,e_incons:Error · ajuste inconsistente,e_503:Error · servicio no disponible,m_renovar:Modal · Renovar,e_repetida:Renovar · nota repetida,e_conc:Error · operación concurrente,e_no:Renovar · no está encendido,m_apagar:Modal · Apagar,m_apagando:Apagar · enviando">
+  <strong>Borrador 13 · /tiempo/terminales/configuracion (activación por huella)</strong><span class="borrador">BORRADOR · diseñado contra CONTRATO_API_INTERRUPTOR_INFERIR_HUELLA.md</span><span>Estado:</span><span class="estados"></span>
+  <span>· <a href="?limpio=1">ocultar notas</a></span>
+</div>
+<div class="app-shell">
+<aside class="app-shell-aside" id="shell-aside"></aside>
+<main class="app-shell-main">
+<div class="contenedor-pagina contenedor-pagina--ancho">
+  <nav class="migas"><a href="#">Terminales</a> / <strong>Configuración</strong></nav>
+  <div class="encabezado-pagina"><div><h1>Configuración de terminales</h1>
+    <p class="subtitulo-pagina">Tercera sección de Configuración, junto a «Texto de consentimiento» y «Variables» (no crea grupo nuevo en el menú). La ve quien tenga <span class="chip-permiso">terminal_usuario_lectura</span>, <span class="chip-permiso">terminal_usuario_edicion</span> o <span class="chip-permiso">terminal_config_edicion</span>; enciende, renueva y apaga sólo quien tenga <span class="chip-permiso">terminal_config_edicion</span> (Gerente o Encargado de TI, Gerente General). Los demás la ven en sólo lectura, con el historial.</p></div></div>
+  <nav class="pestanas-config" aria-label="Secciones de configuración">
+    <a href="09-configuracion-consentimiento.html">Texto de consentimiento</a>
+    <a href="10-configuracion-variables.html">Variables</a>
+    <a href="13-configuracion-activacion-por-huella.html" aria-current="page">Activación por huella</a>
+  </nav>
+  <p class="nota-diseno"><strong>Contrato:</strong> <code>GET /api/terminales/configuracion/activacion-por-huella</code> (estado efectivo: <code>estado</code> = encendido|apagado|vencido|inconsistente, <code>motivo</code>, <code>mensaje</code> fijo, <code>hasta</code>, <code>encendido_por_nombre</code>/<code>encendido_en</code>, <code>requisitos</code>, <code>alarma {activa, nivel, codigo, mensaje}</code>), <code>…/historial?limite=50</code> y <code>POST …/encender {nota, hasta}</code>, <code>…/renovar {nota, hasta, hasta_base}</code>, <code>…/apagar {nota?}</code>. Botones según <code>puede_editar_config_terminales</code> de <code>/api/sesion</code>. Quien sólo tiene <code>terminal_usuario_lectura</code> recibe el estado sin nombre ni nota y no puede pedir el historial. Errores por <code>codigo</code> estable con el <code>detail</code> fijo del servidor, como texto plano. Todo nombre y nota del servidor se pinta como texto plano. El estado <strong>nunca se inventa</strong>: si la lectura falla es una pantalla de error con «Reintentar», no «apagado».</p>
+
+  <!-- ============ PÁGINA ============ -->
+  <section data-solo="carga" role="status"><p class="boton-con-icono"><span class="icono-girando" data-ic="loader"></span>Cargando el estado…</p><div style="display:grid;gap:.6rem;margin-top:.5rem"><div class="esqueleto"></div><div class="esqueleto"></div></div></section>
+  <section data-solo="error"><div class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se pudo cargar el estado de la activación por huella</strong><p>El servicio no respondió como se esperaba; intenta de nuevo o avisa a Sistemas.</p><button type="button" style="margin-top:.6rem">Reintentar</button></div><p class="rango" style="margin:.4rem 0 0">Es el 503 de la lectura (§1 del contrato). No se muestra «apagado» por omisión: un estado inventado sería peor que ninguno.</p></section>
+
+  <div data-solo="apagado sin_consent sin_terminal activo vencido a_sinrespaldo a_fuera a_sinregistro r_incons lectura_apagado lectura_activo lectura_alarma hist_vacio hist_error ok_encendido ok_renovado ok_apagado lectura_red_activo lectura_red_alarma refresco ok_sin_cambio">
+
+    <section data-solo="lectura_apagado lectura_activo lectura_alarma"><div class="banner-aviso banner-aviso--info" role="note"><span data-ic="lock"></span><div><strong>Puedes consultar este ajuste y su historial, no modificarlo.</strong> Encenderlo, renovarlo o apagarlo requiere <span class="chip-permiso">terminal_config_edicion</span> (Gerente o Encargado de TI, Gerente General).</div></div></section>
+    <section data-solo="lectura_red_activo lectura_red_alarma"><div class="banner-aviso banner-aviso--info" role="note"><span data-ic="lock"></span><div><strong>Ves el estado del ajuste, no quién lo encendió ni el historial.</strong> El nombre de quien lo encendió, la nota y el historial de cambios requieren <span class="chip-permiso">terminal_usuario_edicion</span> o <span class="chip-permiso">terminal_config_edicion</span>. Cambiarlo requiere <span class="chip-permiso">terminal_config_edicion</span>.</div></div></section>
+    <section data-solo="ok_encendido" role="status"><div class="banner-aviso banner-aviso--info"><span data-ic="checkc"></span><div><strong>Activación por huella encendida hasta el 24 oct 2026.</strong> La primera marca verificada por huella de un usuario recién dado de alta lo activará. Apágala cuando termine el alta supervisada.</div></div></section>
+    <section data-solo="ok_renovado" role="status"><div class="banner-aviso banner-aviso--info"><span data-ic="checkc"></span><div><strong>Vencimiento renovado: ahora hasta el 31 oct 2026.</strong> Tu nota quedó en el historial.</div></div></section>
+    <section data-solo="refresco" role="status"><div class="banner-aviso" role="status"><span data-ic="alert"></span><div><strong>No se renovó: el estado cambió mientras tenías la ventana abierta.</strong> Otra persona ya renovó el vencimiento. Cargamos el estado actual (<strong>activo hasta el 28 oct 2026</strong>); revisa si todavía quieres renovar. <em>(409 <code>estado_desactualizado</code>: el servidor devuelve el estado actual y la pantalla se refresca sola; tu nota no se guarda.)</em></div></div></section>
+    <section data-solo="ok_apagado" role="status"><div class="banner-aviso banner-aviso--info"><span data-ic="checkc"></span><div><strong>Activación por huella apagada.</strong> Las altas nuevas vuelven a necesitar la confirmación de una persona con «Confirmar huella».</div></div></section>
+    <section data-solo="ok_sin_cambio" role="status"><div class="banner-aviso banner-aviso--info"><span data-ic="checkc"></span><div><strong>Ya estaba apagado: no hubo cambios.</strong> Alguien lo apagó mientras tenías la ventana abierta. Cargamos el estado actual.</div></div></section>
+
+    <!-- ALARMAS: arriba de todo, antes del estado. Nivel «atender» = rojo; «revisar» = ámbar. Siempre icono + palabra. -->
+    <section data-solo="a_sinrespaldo lectura_alarma lectura_red_alarma"><div class="tarjeta-error" role="alert"><strong><span data-ic="alert"></span>Atender · Cambio hecho fuera de esta pantalla</strong>
+      <p>Se detectó un cambio hecho fuera de esta pantalla; el interruptor quedó apagado. Avisa a Sistemas.</p>
+      <p class="rango" style="margin:.3rem 0 0">Alguien escribió el ajuste directo en la base de datos. Por seguridad no se activará ninguna alta por huella. Si corresponde, vuelve a encenderlo desde aquí con su nota y su fecha. <code>sin_respaldo_de_la_funcion</code></p></div></section>
+    <section data-solo="a_fuera"><div class="tarjeta-error" role="alert"><strong><span data-ic="alert"></span>Atender · Está encendido, pero su último cambio no pasó por esta pantalla</strong>
+      <p>El último cambio no lo hizo la función que registra quién, cuándo y por qué. No se puede saber si alguien lo autorizó. <strong>Recomendado: apágalo</strong> y, si hace falta, vuelve a encenderlo desde aquí.</p>
+      <p class="rango" style="margin:.3rem 0 0"><code>cambio_fuera_de_la_funcion</code></p></div></section>
+    <section data-solo="a_sinregistro"><div class="tarjeta-error" role="alert"><strong><span data-ic="alert"></span>Atender · Está encendido, pero no hay registro de quién lo encendió</strong>
+      <p>No existe ninguna fila de historial para este encendido. <strong>Recomendado: apágalo</strong> y, si hace falta, enciéndelo de nuevo desde aquí para dejar el motivo asentado.</p>
+      <p class="rango" style="margin:.3rem 0 0"><code>sin_registro</code></p></div></section>
+    <section data-solo="r_incons"><div class="banner-aviso" role="alert"><span data-ic="alert"></span><div><strong>Revisar · El ajuste está en un estado inconsistente</strong><br>El ajuste está en un estado inconsistente; el interruptor quedó apagado. Avisa a Sistemas.
+      <div class="rango" style="margin-top:.3rem"><code>vigencias_inconsistentes</code>. Los códigos <code>valor_invalido</code>, <code>hasta_ilegible</code> y <code>hasta_excede_tope</code> muestran «El ajuste tiene un valor no válido; el interruptor quedó apagado. Avisa a Sistemas.»; <code>error</code>: «No se pudo leer el ajuste; el interruptor quedó apagado. Avisa a Sistemas.» No es una manipulación demostrada, pero alguien debe revisarlo.</div></div></div></section>
+
+    <div class="tarjeta-resumen" style="margin-top:1rem">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap">
+        <div>
+          <h3 style="margin:0 0 .4rem"><span data-ic="fingerprint" data-s="18"></span> Activación de altas por huella</h3>
+          <p style="margin:0 0 .6rem">
+            <span data-solo="apagado sin_consent sin_terminal lectura_apagado ok_apagado hist_vacio hist_error ok_sin_cambio"><span class="insignia insignia--neutra estado-alta"><span data-ic="x" data-s="12"></span>Apagado</span></span>
+            <span data-solo="activo lectura_activo ok_encendido ok_renovado lectura_red_activo refresco"><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Encendido hasta el <span data-solo="ok_renovado" style="display:contents">31</span><span data-solo="refresco" style="display:contents">28</span><span data-solo="activo lectura_activo ok_encendido lectura_red_activo" style="display:contents">24</span> oct 2026</span></span>
+            <span data-solo="vencido"><span class="insignia insignia--aviso estado-alta"><span data-ic="clock" data-s="12"></span>Vencido · venció el 05 oct 2026</span></span>
+            <span data-solo="a_sinrespaldo lectura_alarma lectura_red_alarma"><span class="insignia insignia--peligro estado-alta"><span data-ic="alert" data-s="12"></span>Apagado por seguridad</span></span>
+            <span data-solo="r_incons"><span class="insignia insignia--aviso estado-alta"><span data-ic="alert" data-s="12"></span>Apagado · ajuste inconsistente</span></span>
+            <span data-solo="a_fuera a_sinregistro"><span class="insignia insignia--peligro estado-alta"><span data-ic="alert" data-s="12"></span>Encendido hasta el 24 oct 2026 · sin registro válido</span></span>
+          </p>
+        </div>
+        <div class="botonera">
+          <span data-solo="apagado ok_apagado hist_vacio hist_error a_sinrespaldo r_incons ok_sin_cambio"><button type="button" class="boton-con-icono boton-primario" data-ic="fingerprint" data-s="14" data-abre="m_encender">Encender…</button></span>
+          <span data-solo="vencido"><button type="button" class="boton-con-icono boton-primario" data-ic="fingerprint" data-s="14" data-abre="m_encender">Encender de nuevo…</button></span>
+          <span data-solo="sin_consent sin_terminal"><button type="button" class="boton-con-icono boton-primario" data-ic="fingerprint" data-s="14" disabled aria-disabled="true" aria-describedby="req">Encender…</button></span>
+          <span data-solo="activo ok_encendido ok_renovado refresco"><button type="button" class="boton-con-icono" data-ic="history" data-s="14" data-abre="m_renovar">Renovar…</button> <button type="button" class="boton-con-icono" data-ic="x" data-s="14" data-abre="m_apagar">Apagar…</button></span>
+          <span data-solo="a_fuera a_sinregistro"><button type="button" class="boton-peligro boton-con-icono" data-ic="x" data-s="14" data-abre="m_apagar">Apagar…</button> <button type="button" class="boton-con-icono" data-ic="history" data-s="14" data-abre="m_renovar">Renovar con registro…</button></span>
+          <span data-solo="lectura_apagado lectura_activo lectura_alarma lectura_red_activo lectura_red_alarma">—</span>
+        </div>
+      </div>
+
+      <p id="req" class="ayuda-campo" style="margin:.2rem 0 .4rem" data-solo="sin_consent"><span data-ic="lock" data-s="14"></span> No se puede encender todavía: falta publicar el texto de consentimiento biométrico definitivo (hoy sólo existe el provisional). <a href="09-configuracion-consentimiento.html">Ir a Texto de consentimiento →</a></p>
+      <p id="req2" class="ayuda-campo" style="margin:.2rem 0 .4rem" data-solo="sin_terminal"><span data-ic="lock" data-s="14"></span> No se puede encender todavía: no hay ninguna terminal activa. <a href="01-terminales-lista.html">Ver Terminales →</a></p>
+
+      <dl style="margin:.5rem 0 0;display:grid;grid-template-columns:max-content 1fr;gap:.25rem 1rem;font-size:.9rem">
+        <span data-solo="lectura_red_activo" style="display:contents">
+          <dt class="rango">Activo hasta</dt><dd style="margin:0">24 oct 2026 <span class="rango">(se apaga solo al vencer)</span></dd>
+        </span>
+        <span data-solo="activo lectura_activo ok_encendido a_fuera" style="display:contents">
+          <dt class="rango">Encendido por</dt><dd style="margin:0">Carlos Ruiz · 10 oct 2026, 09:30</dd>
+          <dt class="rango">Activo hasta</dt><dd style="margin:0">24 oct 2026 <span class="rango">(se apaga solo al vencer)</span></dd>
+        </span>
+        <span data-solo="ok_renovado" style="display:contents">
+          <dt class="rango">Encendido por</dt><dd style="margin:0">Carlos Ruiz · 10 oct 2026, 09:30</dd>
+          <dt class="rango">Activo hasta</dt><dd style="margin:0">31 oct 2026 <span class="rango">(renovado hoy)</span></dd>
+        </span>
+        <span data-solo="refresco" style="display:contents">
+          <dt class="rango">Encendido por</dt><dd style="margin:0">Carlos Ruiz · 10 oct 2026, 09:30</dd>
+          <dt class="rango">Activo hasta</dt><dd style="margin:0">28 oct 2026 <span class="rango">(renovado por otra persona hoy)</span></dd>
+        </span>
+        <span data-solo="a_sinregistro" style="display:contents">
+          <dt class="rango">Encendido por</dt><dd style="margin:0">Sin registro</dd>
+          <dt class="rango">Activo hasta</dt><dd style="margin:0">24 oct 2026</dd>
+        </span>
+        <span data-solo="vencido" style="display:contents">
+          <dt class="rango">Encendido por</dt><dd style="margin:0">Carlos Ruiz · 28 sep 2026, 10:00</dd>
+          <dt class="rango">Venció</dt><dd style="margin:0">05 oct 2026 · <strong>ya no activa altas</strong>. El vencimiento ya pasó; el interruptor está apagado.</dd>
+        </span>
+        <span data-solo="apagado sin_consent sin_terminal lectura_apagado ok_apagado hist_vacio hist_error ok_sin_cambio" style="display:contents">
+          <dt class="rango">Estado</dt><dd style="margin:0">Apagado. Las altas nuevas se activan con «Confirmar huella» (una persona atestigua la huella).</dd>
+        </span>
+        <span data-solo="a_sinrespaldo lectura_alarma r_incons lectura_red_alarma" style="display:contents">
+          <dt class="rango">Estado</dt><dd style="margin:0">Apagado por falla cerrada. No hay un vencimiento vigente.</dd>
+        </span>
+      </dl>
+      <p class="rango" style="margin:.6rem 0 0">«Activo hasta» se muestra sólo como fecha: la hora exacta del vencimiento está por confirmar con backend. El motivo (nota) de cada cambio está en el historial de abajo.</p>
+    </div>
+
+    <div class="banner-aviso" role="note" style="margin-top:1rem"><span data-ic="alert"></span><div>
+      <strong>Qué implica encenderla.</strong> Mientras esté activa, la <strong>primera marca verificada por huella</strong> de un usuario recién dado de alta lo activa por sí sola: queda «Activo» con la evidencia «Huella verificada en el aparato», sin que una persona confirme la huella. Es una verificación indirecta (no hay conteo de huellas). <strong>Se recomienda apagarla al terminar el alta supervisada</strong>; por eso siempre lleva vencimiento (máximo 30 días) y se apaga sola al vencer.
+      <ul style="margin:.5rem 0 0;padding-left:1.1rem;font-size:.86rem;line-height:1.5">
+        <li>Está <strong>apagada de fábrica</strong>. Para encenderla hace falta una nota con el motivo (10 a 500 caracteres), un vencimiento y el <a href="09-configuracion-consentimiento.html">texto de consentimiento definitivo</a> publicado (el provisional no alcanza).</li>
+        <li>No cambia a las altas ya activas ni a las que se confirman a mano con «Confirmar huella»; esa vía sigue disponible siempre.</li></ul></div></div>
+
+    <div class="tarjeta-resumen" style="margin-top:1.25rem" data-solo="lectura_red_activo lectura_red_alarma"><h3>Historial de cambios</h3><div class="estado-vacio" style="padding:1rem 0"><span data-ic="lock" data-s="28"></span><p>El historial no está disponible con tu permiso. Para verlo hace falta <span class="chip-permiso">terminal_usuario_edicion</span> o <span class="chip-permiso">terminal_config_edicion</span>.</p></div><p class="rango" style="margin:0">(El servidor responde 403 al historial; la pantalla no lo pide ni lo anuncia como error.)</p></div>
+
+    <!-- HISTORIAL -->
+    <div class="tarjeta-resumen" style="margin-top:1.25rem" data-solo="apagado sin_consent sin_terminal activo vencido a_sinrespaldo a_fuera a_sinregistro r_incons lectura_apagado lectura_activo lectura_alarma hist_vacio hist_error ok_encendido ok_renovado ok_apagado refresco ok_sin_cambio">
+      <h3>Historial de cambios</h3>
+      <p class="ayuda-campo" style="margin:0 0 .6rem">Cada encendido, renovación y apagado queda con quién, cuándo y la nota. No se puede editar ni borrar. Un cambio marcado «Fuera de la función» se hizo sin pasar por esta pantalla.</p>
+      <section data-solo="hist_vacio"><div class="estado-vacio" style="padding:1.5rem 0"><p>Todavía no hay cambios registrados. El ajuste está en su valor de fábrica (apagado).</p></div></section>
+      <section data-solo="hist_error"><div class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se pudo cargar el historial</strong><p>Ocurrió un problema al consultar los cambios. El estado de arriba sigue siendo válido.</p><button type="button" style="margin-top:.6rem">Reintentar</button></div></section>
+      <div class="tabla-desplazable" data-solo="apagado sin_consent sin_terminal activo vencido a_sinrespaldo a_fuera a_sinregistro r_incons lectura_apagado lectura_activo lectura_alarma ok_encendido ok_renovado ok_apagado lectura_red_activo lectura_red_alarma refresco ok_sin_cambio"><table>
+        <thead><tr><th>Cuándo</th><th>Cambio</th><th>Nota</th><th>Quién</th><th>Origen</th></tr></thead>
+        <tbody>
+          <tr data-solo="ok_apagado"><td class="num">10 oct 2026, 11:40</td><td>Interruptor: Encendido → Apagado</td><td>—</td><td>Carlos Ruiz</td><td><span class="insignia insignia--neutra">Desde la pantalla</span></td></tr>
+          <tr data-solo="refresco"><td class="num">10 oct 2026, 11:15</td><td>Vencimiento: 24 oct 2026 → 28 oct 2026</td><td>Se extiende hasta el cierre del inventario.</td><td>Laura Gómez</td><td><span class="insignia insignia--neutra">Desde la pantalla</span></td></tr>
+          <tr data-solo="ok_renovado"><td class="num">10 oct 2026, 11:30</td><td>Vencimiento: 24 oct 2026 → 31 oct 2026</td><td>Se amplía una semana: falta dar de alta al turno de reparto.</td><td>Carlos Ruiz</td><td><span class="insignia insignia--neutra">Desde la pantalla</span></td></tr>
+          <tr data-solo="ok_encendido activo lectura_activo ok_renovado a_fuera a_sinregistro lectura_red_activo refresco"><td class="num">10 oct 2026, 09:30</td><td>Interruptor: Apagado → Encendido<br>Vencimiento: — → 24 oct 2026</td><td>Alta supervisada de las 12 personas de almacén, con RH presente.</td><td>Carlos Ruiz</td><td><span class="insignia insignia--neutra">Desde la pantalla</span></td></tr>
+          <tr data-solo="a_sinrespaldo lectura_alarma a_fuera lectura_red_alarma"><td class="num">07 oct 2026, 22:14</td><td>Interruptor: Apagado → Encendido</td><td>—</td><td>Sin autor</td><td><span class="insignia insignia--peligro estado-alta"><span data-ic="alert" data-s="12"></span>Fuera de la función</span></td></tr>
+          <tr data-solo="vencido apagado sin_consent sin_terminal lectura_apagado ok_apagado r_incons ok_sin_cambio"><td class="num">28 sep 2026, 10:00</td><td>Interruptor: Apagado → Encendido<br>Vencimiento: — → 05 oct 2026</td><td>Alta supervisada del turno de reparto.</td><td>Carlos Ruiz</td><td><span class="insignia insignia--neutra">Desde la pantalla</span></td></tr>
+        </tbody></table></div>
+      <p class="rango" style="margin:.5rem 0 0">Muestra los últimos 50 cambios (el servidor acepta hasta 100). Los valores de la bitácora son texto crudo (<code>"0"</code>/<code>"1"</code>, fechas): la pantalla los traduce sólo para las claves conocidas y, ante una clave nueva, muestra «Otro ajuste» sin interpretar el valor.</p>
+    </div>
+  </div>
+
+  <!-- ============ TARJETA 14 DEL TABLERO DE ANOMALÍAS ============ -->
+  <div data-solo="tablero">
+    <nav class="migas"><a href="#">Terminales</a> / <strong>Anomalías</strong></nav>
+    <p class="nota-diseno"><strong>Categoría 14 <code>interruptor_huella</code></strong> (§5 del contrato): <strong>global</strong> (no depende de la terminal; se repite en el tablero de cada una) y con <code>nota</code> fija. Un solo ejemplo <code>{codigo, mensaje}</code> cuando hay alarma. Se pinta con la misma tarjeta de las demás; se ven los cuatro estados posibles.</p>
+    <div class="rejilla-anomalias">
+      <div class="tarjeta-resumen anomalia"><header><h3>14 · Interruptor de la activación por huella</h3><span class="insignia insignia--peligro">Atender</span></header><span class="cifra num">1</span>
+        <ul><li>Se detectó un cambio hecho fuera de esta pantalla; el interruptor quedó apagado. Avisa a Sistemas.</li><li><a href="13-configuracion-activacion-por-huella.html?estado=a_sinrespaldo">Ir a Configuración → Activación por huella →</a></li></ul>
+        <p class="ayuda-campo" style="margin:.5rem 0 0"><span data-ic="circle" data-s="14"></span> Es un ajuste global del sistema, no de esta terminal.</p></div>
+      <div class="tarjeta-resumen anomalia"><header><h3>14 · Interruptor de la activación por huella</h3><span class="insignia insignia--aviso">Revisar</span></header><span class="cifra num">1</span>
+        <ul><li>El ajuste está en un estado inconsistente; el interruptor quedó apagado. Avisa a Sistemas.</li><li><a href="13-configuracion-activacion-por-huella.html?estado=r_incons">Ir a Configuración → Activación por huella →</a></li></ul>
+        <p class="ayuda-campo" style="margin:.5rem 0 0"><span data-ic="circle" data-s="14"></span> Es un ajuste global del sistema, no de esta terminal.</p></div>
+      <div class="tarjeta-resumen anomalia"><header><h3>14 · Interruptor de la activación por huella</h3><span class="insignia insignia--exito">Sin hallazgos</span></header><span class="cifra num">0</span>
+        <ul><li>Nada que mostrar en este periodo.</li></ul>
+        <p class="ayuda-campo" style="margin:.5rem 0 0"><span data-ic="circle" data-s="14"></span> Es un ajuste global del sistema, no de esta terminal.</p></div>
+      <div class="tarjeta-resumen anomalia"><header><h3>14 · Interruptor de la activación por huella</h3><span class="insignia insignia--peligro">Error</span></header>
+        <p role="alert" class="error-terminal">No se pudo calcular esta revisión. Las demás siguen disponibles.</p></div>
+    </div>
+    <ul class="leyenda-estados" style="margin-top:1rem"><li>Con el interruptor <strong>encendido y sano</strong>, <strong>apagado</strong> o <strong>vencido</strong> la tarjeta dice «Sin hallazgos»: son estados normales, no alarmas.</li><li>En el tablero la lista pasa de 13 a 14 revisiones (el banner «Sin hallazgos en el periodo» cuenta 14).</li></ul>
+  </div>
+
+  <!-- ============ MODALES ============ -->
+  <div class="modal-fondo" data-solo="m_encender m_corta m_fecha m_enviando e_consent e_terminal e_nota e_hasta e_permiso e_ya e_incons e_503 m_renovar e_repetida e_conc e_no m_apagar m_apagando"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="tm" aria-describedby="cm">
+
+    <!-- ENCENDER / RENOVAR -->
+    <div data-solo="m_encender m_corta m_fecha m_enviando e_consent e_terminal e_nota e_hasta e_permiso e_ya e_incons e_503 m_renovar e_repetida e_conc e_no" style="display:contents">
+      <h2 id="tm"><span data-solo="m_renovar e_repetida e_conc e_no" style="display:contents">Renovar la activación por huella</span><span data-solo="m_encender m_corta m_fecha m_enviando e_consent e_terminal e_nota e_hasta e_permiso e_ya e_incons e_503" style="display:contents">Encender la activación por huella</span></h2>
+      <p class="modal__contexto" id="cm"><span data-solo="m_renovar e_repetida e_conc e_no">Hoy vence el 24 oct 2026. Escribe una <strong>nota nueva</strong> (el motivo de la extensión) y el nuevo vencimiento: reemplazan al anterior y quedan en el historial.</span><span data-solo="m_encender m_corta m_fecha m_enviando e_consent e_terminal e_nota e_hasta e_permiso e_ya e_incons e_503">Mientras esté encendida, la primera marca verificada por huella de un usuario recién dado de alta lo activa sin confirmación humana.</span></p>
+      <div class="modal__advertencia" role="note"><span data-ic="alert"></span><div><strong>Se activarán altas por inferencia.</strong> Es una verificación indirecta, sin conteo de huellas. Apágala al terminar el alta supervisada; se apaga sola al vencer.</div></div>
+
+      <div data-solo="m_corta" class="campo-error"><label for="nt">Motivo (obligatorio, mínimo 10 caracteres)</label>
+        <textarea id="nt" rows="3" maxlength="500" required aria-required="true" aria-invalid="true" aria-describedby="nt-e nt-c" data-nota>Alta</textarea>
+        <p class="mensaje-campo" id="nt-e"><span data-ic="alertc" data-s="14"></span>La nota debe tener entre 10 y 500 caracteres.</p><div class="modal__contador num" id="nt-c" data-contador>4 / 500 · mínimo 10</div></div>
+      <div data-solo="e_nota" class="campo-error"><label for="nt2">Motivo (obligatorio, mínimo 10 caracteres)</label>
+        <textarea id="nt2" rows="3" maxlength="500" required aria-required="true" aria-invalid="true" aria-describedby="nt2-e nt2-c" data-nota>Alta supervisada</textarea>
+        <p class="mensaje-campo" id="nt2-e"><span data-ic="alertc" data-s="14"></span>La nota debe tener entre 10 y 500 caracteres.</p><div class="modal__contador num" id="nt2-c" data-contador>16 / 500 · mínimo 10</div></div>
+      <div data-solo="m_encender m_fecha m_enviando e_consent e_terminal e_hasta e_permiso e_ya e_incons e_503 m_renovar e_repetida e_conc e_no"><label for="nt3">Motivo (obligatorio, mínimo 10 caracteres)</label>
+        <textarea id="nt3" rows="3" maxlength="500" required aria-required="true" aria-describedby="nt3-c nt3-a" placeholder="Ej.: alta supervisada del turno de reparto, con RH presente." data-nota></textarea>
+        <div class="modal__contador num" id="nt3-c" data-contador>0 / 500 · mínimo 10</div>
+        <p class="ayuda-campo" id="nt3-a" style="margin:.3rem 0 0"><span data-solo="m_renovar e_repetida e_conc e_no" style="display:contents">Al renovar la nota empieza vacía a propósito: explica por qué se extiende, no por qué se encendió. </span>Queda en el historial con tu nombre. No escribas datos personales de nadie.</p></div>
+
+      <!-- Vencimiento: el contrato exige un instante con zona (ISO 8601), por eso fecha + hora. -->
+      <div data-solo="m_fecha e_hasta" class="campo-error"><label for="hf">Vence el (máximo 30 días desde ahora)</label>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap"><input id="hf" type="date" value="2026-12-31" min="2026-10-10" max="2026-11-09" aria-invalid="true" aria-describedby="hf-e" data-hasta style="flex:1 1 9rem"><input type="time" value="11:00" aria-label="Hora de vencimiento (hora de México)" data-hora style="flex:0 0 7rem"></div>
+        <p class="mensaje-campo" id="hf-e"><span data-ic="alertc" data-s="14"></span><span data-solo="m_fecha">El vencimiento debe ser una fecha futura de a lo más 30 días.</span><span data-solo="e_hasta">El vencimiento debe ser una fecha futura de a lo más 30 días.</span></p></div>
+      <div data-solo="m_encender m_corta e_consent e_terminal e_nota e_permiso e_ya e_incons e_503 m_enviando m_renovar e_repetida e_conc e_no"><label for="hf2">Vence el (máximo 30 días desde ahora)</label>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap"><input id="hf2" type="date" value="2026-10-24" min="2026-10-10" max="2026-11-09" aria-describedby="hf2-a" data-hasta style="flex:1 1 9rem"><input type="time" value="11:00" aria-label="Hora de vencimiento (hora de México)" data-hora style="flex:0 0 7rem"></div>
+        <p class="ayuda-campo" id="hf2-a" style="margin:.3rem 0 0" data-ayuda-fecha>Se apaga solo al llegar esa fecha y hora (hora de México). Ahora son las 10 oct 2026, 11:20; el tope es el 09 nov 2026, 11:20.</p></div>
+      <div class="botonera" style="margin-top:.4rem" aria-label="Atajos de plazo"><span class="rango" style="align-self:center">Atajos:</span>
+        <button type="button" class="boton-con-icono" data-atajo="7">7 días</button><button type="button" class="boton-con-icono" data-atajo="14">14 días</button><button type="button" class="boton-con-icono" data-atajo="30">30 días</button></div>
+
+      <div data-solo="e_consent" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se encendió</strong><p>Falta publicar el texto de consentimiento biométrico definitivo; mientras solo exista el provisional no se puede encender. <a href="09-configuracion-consentimiento.html">Ir a Texto de consentimiento →</a></p></div>
+      <div data-solo="e_terminal" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se encendió</strong><p>No hay ninguna terminal activa; no se puede encender. <a href="01-terminales-lista.html">Ver Terminales →</a></p></div>
+      <div data-solo="e_nota" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se encendió</strong><p>La nota debe tener entre 10 y 500 caracteres.</p></div>
+      <div data-solo="e_hasta" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se encendió</strong><p>El vencimiento debe ser una fecha futura de a lo más 30 días.</p></div>
+      <div data-solo="e_permiso" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se encendió</strong><p>No tienes permiso para cambiar el interruptor de la activación por huella.</p></div>
+      <div data-solo="e_ya" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se encendió</strong><p>Ya está encendido; usa Renovar para cambiar el vencimiento.</p></div>
+      <div data-solo="e_incons" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se encendió</strong><p>El ajuste está en un estado inconsistente; avisa a Sistemas.</p></div>
+      <div data-solo="e_503" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se encendió</strong><p>El servicio no respondió como se esperaba; intenta de nuevo o avisa a Sistemas.</p></div>
+      <div data-solo="e_repetida" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se renovó</strong><p>La nota es igual a la anterior. Escribe el motivo de esta renovación con tus palabras. <em>(422 <code>nota_repetida</code>; texto propuesto: el servidor rechaza una nota idéntica a la del cambio anterior)</em></p></div>
+      <div data-solo="e_conc" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se aplicó</strong><p>El cambio no se pudo aplicar por una operación concurrente; vuelve a intentarlo. <em>(<code>reintentar</code>)</em></p></div>
+      <div data-solo="e_no" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se renovó</strong><p>Ya no está encendido (venció o alguien lo apagó). Cierra esta ventana: puedes encenderlo de nuevo. <em>(409 <code>no_esta_encendido</code>; texto propuesto)</em></p></div>
+
+      <div class="modal__botonera">
+        <span data-solo="m_encender m_corta m_fecha e_consent e_terminal e_nota e_hasta e_permiso e_ya e_incons e_503 m_renovar e_repetida e_conc" style="display:contents"><button type="button" class="boton-con-icono">Volver</button>
+          <button type="button" class="boton-con-icono boton-primario" data-ic="fingerprint"><span data-solo="m_renovar e_repetida" style="display:contents">Renovar la activación</span><span data-solo="e_conc" style="display:contents">Reintentar</span><span data-solo="m_encender m_corta m_fecha e_consent e_terminal e_nota e_hasta e_permiso e_ya e_incons e_503" style="display:contents">Encender la activación</span></button></span>
+        <span data-solo="e_no" style="display:contents"><button type="button" class="boton-con-icono">Cerrar</button><button type="button" class="boton-con-icono boton-primario">Actualizar estado</button></span>
+        <span data-solo="m_enviando" style="display:contents"><button type="button" class="boton-con-icono" disabled>Volver</button><button type="button" class="boton-con-icono boton-primario" disabled aria-busy="true"><span class="icono-girando" data-ic="loader"></span>Encendiendo…</button></span>
+      </div>
+    </div>
+
+    <!-- APAGAR -->
+    <div data-solo="m_apagar m_apagando" style="display:contents">
+      <h2 id="ta">Apagar la activación por huella</h2>
+      <p class="modal__contexto">Las altas nuevas volverán a necesitar que una persona pulse «Confirmar huella». No cambia a las altas que ya están activas.</p>
+      <div class="modal__advertencia" role="note"><span data-ic="alert"></span><div><strong>Las altas que están en «Esperando huella» dejan de activarse solas.</strong> Si alguna no se confirma antes de caducar, se dará de baja y se borrará del aparato. Confirma o enrola esas altas antes de apagar. Podrás volver a encenderla con una nota y un vencimiento nuevos.</div></div>
+      <div><label for="na">Nota (opcional, hasta 500 caracteres)</label>
+        <textarea id="na" rows="2" maxlength="500" aria-describedby="na-c na-a" placeholder="Ej.: terminó el alta supervisada." data-nota></textarea>
+        <div class="modal__contador num" id="na-c" data-contador>0 / 500</div>
+        <p class="ayuda-campo" id="na-a" style="margin:.3rem 0 0">Apagar siempre se puede y no necesita nota; si la escribes, queda en el historial junto a tu nombre y la hora.</p></div>
+      <div class="modal__botonera">
+        <span data-solo="m_apagar" style="display:contents"><button type="button" class="boton-con-icono">Volver</button><button type="button" class="boton-peligro boton-con-icono" data-ic="x">Apagar la activación</button></span>
+        <span data-solo="m_apagando" style="display:contents"><button type="button" class="boton-con-icono" disabled>Volver</button><button type="button" class="boton-peligro boton-con-icono" disabled aria-busy="true"><span class="icono-girando" data-ic="loader"></span>Apagando…</button></span>
+      </div>
+    </div>
+  </div></div>
+
+  <section class="escenario" style="margin-top:2rem" data-solo="apagado sin_consent sin_terminal activo vencido a_sinrespaldo a_fuera a_sinregistro r_incons lectura_apagado lectura_activo lectura_alarma m_encender m_renovar m_apagar tablero lectura_red_activo lectura_red_alarma"><h2>Reglas del diseño</h2><ul style="font-size:.85rem;color:var(--navy-medio);line-height:1.6;padding-left:1.1rem">
+  <li><strong>Ubicación:</strong> tercera pestaña de Configuración. Es una decisión de seguridad del mismo gate (<code>terminal_config_edicion</code>), no un parámetro numérico: por eso no va en la tabla de Variables.</li>
+  <li><strong>Alarma:</strong> arriba de todo, antes del estado, con icono + palabra del nivel. <strong>Atender</strong> (rojo): sin respaldo de la función, cambio fuera de la función y sin registro. <strong>Revisar</strong> (ámbar): falla cerrada con el dato corrupto. En las alarmas con el interruptor encendido sin registro válido, <strong>Apagar</strong> es la acción principal. También sale la tarjeta global 14 en el tablero de anomalías.</li>
+  <li><strong>Encender:</strong> nota obligatoria 10–500 con contador (error de campo sin llamar al servidor), vencimiento futuro de máximo 30 días con atajos 7/14/30 que sólo rellenan el campo, y la advertencia de que se activan altas por inferencia. Si el estado informa que falta el consentimiento definitivo o una terminal activa, el botón se deshabilita <em>con la explicación a la vista</em> (el dato es informativo: la base decide, y si <code>requisitos</code> llega <code>null</code> el botón queda habilitado).</li>
+  <li><strong>Renovar:</strong> pide <strong>nota nueva</strong> (empieza vacía, no se pre-llena) y manda <code>hasta_base</code>; si el estado cambió, se recarga el vigente y se conserva lo escrito (mismo patrón que Variables).</li>
+  <li><strong>Apagar:</strong> nota opcional, con confirmación que avisa qué pasa con las altas en «Esperando huella».</li>
+  <li><strong>Sólo lectura:</strong> estado, vencimiento, alarma e historial visibles; sin botones, con el permiso necesario explicado.</li>
+  <li><strong>Tres niveles de visibilidad (security):</strong> con <code>terminal_config_edicion</code> ves y cambias todo; con <code>terminal_usuario_edicion</code> ves estado, quién lo encendió, notas e historial, sin botones; con <code>terminal_usuario_lectura</code> sólo ves el estado (apagado/encendido/vencido, fecha, alarma), <em>sin nombre, sin nota y sin historial</em> (el servidor responde 403 al historial y la pantalla ni lo pide). Las alarmas las ven los tres.</li>
+  <li><strong>Renovar:</strong> el servidor rechaza una nota idéntica a la anterior (<code>nota_repetida</code>). Si el estado cambió mientras el modal estaba abierto (<code>estado_desactualizado</code>), el modal se cierra, la pantalla se refresca con el estado devuelto y un aviso lo dice; lo escrito no se guarda. Si al apagar ya estaba apagado (<code>sin_cambio</code>), aviso «Ya estaba apagado».</li>
+  <li><strong>Concurrencia:</strong> «El cambio no se pudo aplicar por una operación concurrente; vuelve a intentarlo.» (<code>reintentar</code>) con botón Reintentar; conserva lo escrito.</li>
+  <li><strong>Sin conteos:</strong> no se muestra cuántas altas activó esta vía (pendiente de backend); «Activo hasta» se muestra sólo como fecha.</li></ul></section>
+</div></main></div>
+<script src="_mockup.js"></script>
+<script>
+/* Interacción del mockup: abrir modales desde los botones, contador de la nota, atajos 7/14/30 y validación del vencimiento. */
+(function () {
+  const AHORA = new Date(2026, 9, 10, 11, 20);
+  const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const dos = (n) => String(n).padStart(2, '0');
+  const iso = (d) => d.getFullYear() + '-' + dos(d.getMonth() + 1) + '-' + dos(d.getDate());
+  const humana = (d) => dos(d.getDate()) + ' ' + meses[d.getMonth()] + ' ' + d.getFullYear() + ', ' + dos(d.getHours()) + ':' + dos(d.getMinutes());
+  const ir = (e) => { const b = document.querySelector('.mock-barra button[data-e="' + e + '"]'); if (b) b.click(); };
+
+  document.querySelectorAll('[data-abre]').forEach((b) => b.addEventListener('click', () => ir(b.dataset.abre)));
+  document.querySelectorAll('.modal__botonera button').forEach((b) => {
+    if (/^(Volver|Cerrar)$/.test(b.textContent.trim())) b.addEventListener('click', () => ir('apagado'));
+  });
+
+  document.querySelectorAll('textarea[data-nota]').forEach((t) => {
+    const c = t.parentElement.querySelector('[data-contador]');
+    const opcional = /opcional/i.test((t.parentElement.querySelector('label') || {}).textContent || '');
+    t.addEventListener('input', () => { c.textContent = t.value.length + ' / 500' + (opcional ? '' : ' · mínimo 10'); });
+  });
+
+  function validar(contenedor) {
+    const f = contenedor.querySelector('input[data-hasta]');
+    const h = contenedor.querySelector('input[data-hora]');
+    const ayuda = contenedor.querySelector('[data-ayuda-fecha]');
+    if (!f || !f.value || !ayuda) return;
+    const v = new Date(f.value + 'T' + (h && h.value ? h.value : '00:00') + ':00');
+    const dias = (v - AHORA) / 86400000;
+    const ok = dias > 0 && dias <= 30;
+    ayuda.textContent = ok ? 'Se apaga solo el ' + humana(v) + ' (hora de México).'
+      : dias <= 0 ? 'El vencimiento debe ser posterior a ahora (10 oct 2026, 11:20).' : 'El vencimiento no puede pasar de 30 días: el tope es el 09 nov 2026, 11:20.';
+    ayuda.style.color = ok ? '' : 'var(--rojo, #b3261e)';
+  }
+
+  document.querySelectorAll('[data-atajo]').forEach((b) => b.addEventListener('click', () => {
+    const modal = b.closest('.modal');
+    const f = [...modal.querySelectorAll('input[data-hasta]')].find((i) => i.offsetParent !== null) || modal.querySelector('input[data-hasta]');
+    const h = f.parentElement.querySelector('input[data-hora]');
+    const d = new Date(AHORA); d.setDate(d.getDate() + (+b.dataset.atajo)); d.setMinutes(0);
+    f.value = iso(d); if (h) h.value = dos(d.getHours()) + ':00';
+    validar(f.parentElement.parentElement);
+  }));
+
+  document.querySelectorAll('input[data-hasta], input[data-hora]').forEach((i) => i.addEventListener('input', () => validar(i.parentElement.parentElement)));
+})();
+</script>
+</body></html>
