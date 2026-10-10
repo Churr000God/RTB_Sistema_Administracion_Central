@@ -1399,11 +1399,27 @@ WHERE n.nspname = 'tiempo' AND p.proname = 'fn_marca_terminal_registrar'
            AND NOT has_function_privilege('terminal_checador', p.oid, 'EXECUTE'));
 
 -- 59) Logs sin identidad: ninguna función de tiempo ni de personas emite un RAISE WARNING/NOTICE/LOG/INFO que interpole employee_no o persona_id
--- (regla de security: nunca identidad en los logs del servidor). Consulta estática sobre pg_proc.prosrc; cualquier función futura que lo agregue falla aquí.
--- Esperado: 0 filas DESPUÉS de aplicar 96_ (y 95_ para fn_marca_terminal_registrar). Antes devuelve fn_terminal_rechazo_registrar (84_) y
--- fn_terminal_baja_por_persona_inactiva (83_/91_).
-SELECT n.nspname || '.' || p.proname AS funcion, 'RAISE de log con employee_no/persona_id' AS problema
-FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-WHERE n.nspname IN ('tiempo', 'personas')
-  AND p.prosrc ~* 'RAISE\s+(WARNING|NOTICE|LOG|INFO)[^;]*(employee_no|persona_id|persona %)'
+-- (regla de security: nunca identidad en los logs del servidor). Consulta estática sobre pg_proc.prosrc, en dos pasadas sobre el texto SIN comentarios:
+-- (1) con los ';' de los literales entre comillas neutralizados (un ';' dentro del mensaje cortaría el [^;]* y dejaría fuera los argumentos), busca las
+-- palabras employee_no, persona_id o "persona %"; (2) con el CONTENIDO de todos los literales vaciado, busca las variables que cargan identidad (v_emp,
+-- v_persona, p_persona, p_persona_id, rec.persona_id, rec.employee_no, NEW.employee_no, NEW.persona_id). Los literales se separan por PARIDAD de comillas
+-- (string_to_array por ' : los elementos pares están dentro de un literal, y '' queda alineado); un reemplazo con regexp por pares se desalinea y puede
+-- borrar el ';' que termina el RAISE. Cualquier función futura que loguee identidad falla aquí.
+-- Esperado: 0 filas DESPUÉS de aplicar 95_ y 96_. Antes devuelve las funciones de 83_/84_/91_ que aún loguean identidad.
+WITH s AS (
+  SELECT n.nspname, p.proname, string_to_array(regexp_replace(p.prosrc, '--[^\n]*', '', 'g'), '''') AS partes
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname IN ('tiempo', 'personas')
+), t AS (
+  SELECT nspname, proname,
+         (SELECT string_agg(CASE WHEN u.o % 2 = 0 THEN replace(u.e, ';', ',') ELSE u.e END, '''' ORDER BY u.o)
+          FROM unnest(partes) WITH ORDINALITY AS u(e, o)) AS s1,
+         (SELECT string_agg(CASE WHEN u.o % 2 = 0 THEN '' ELSE u.e END, '''' ORDER BY u.o)
+          FROM unnest(partes) WITH ORDINALITY AS u(e, o)) AS s2
+  FROM s
+)
+SELECT nspname || '.' || proname AS funcion, 'RAISE de log con employee_no/persona_id' AS problema
+FROM t
+WHERE s1 ~* 'RAISE\s+(WARNING|NOTICE|LOG|INFO)[^;]*(employee_no|persona_id|persona %)'
+   OR s2 ~* 'RAISE\s+(WARNING|NOTICE|LOG|INFO)[^;]*(\mv_emp\M|\mv_persona\M|\mp_persona\M|\mp_persona_id\M|\mrec\.(persona_id|employee_no)\M|NEW\.employee_no|NEW\.persona_id)'
 ORDER BY 1;
