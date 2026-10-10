@@ -223,3 +223,29 @@ describe("CambiarInterruptorHuellaModal", () => {
     expect(props.onCerrar).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("CambiarInterruptorHuellaModal · éxito sin fecha (security F4)", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  it("si el estado devuelto no trae hasta_fecha, el aviso usa «—» y nunca imprime «null»", async () => {
+    vi.mocked(apiFetch).mockReturnValue(respuesta(200, { resultado: "actualizada", estado: estadoApi({ hasta: null, hasta_fecha: null }) }));
+    const props = montar("encender");
+    await userEvent.type(screen.getByLabelText(/motivo/i), NOTA);
+    await userEvent.click(boton(/encender la activación/i));
+    const aviso = props.onActualizado.mock.calls[0][1] as { texto: string };
+    expect(aviso.texto).toContain("hasta el —.");
+    expect(aviso.texto).not.toMatch(/null/);
+  });
+
+  it("lo mismo al renovar", async () => {
+    vi.mocked(apiFetch).mockReturnValue(respuesta(200, { resultado: "actualizada", estado: estadoApi({ hasta: null, hasta_fecha: null }) }));
+    const props = montar("renovar");
+    await userEvent.type(screen.getByLabelText(/motivo/i), NOTA);
+    await userEvent.click(boton(/renovar la activación/i));
+    const aviso = props.onActualizado.mock.calls[0][1] as { texto: string };
+    expect(aviso.texto).toContain("hasta el —.");
+    expect(aviso.texto).not.toMatch(/null/);
+  });
+});

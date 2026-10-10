@@ -16,6 +16,7 @@ import {
   RUTA_INTERRUPTOR,
   UMBRAL_ACTIVACIONES_POR_DIA,
   esEstadoInterruptor,
+  textoDeCodigoDeEstado,
   type EstadoInterruptorHuella,
 } from "../lib/interruptorHuella";
 import { useSesion } from "../lib/useSesion";
@@ -181,7 +182,7 @@ export function ActivacionHuellaPage() {
             <div className="tarjeta-error" role="alert" style={{ marginTop: "1rem" }}>
               <strong>
                 <AlertTriangle size={16} aria-hidden="true" />
-                Atender · {alarma.mensaje ?? "Revisa este ajuste."}
+                Atender · {textoDeCodigoDeEstado(alarma.codigo, alarma.mensaje) ?? "Revisa este ajuste."}
               </strong>
               {encendido && (
                 <p>
@@ -196,7 +197,7 @@ export function ActivacionHuellaPage() {
               <AlertTriangle size={16} aria-hidden="true" />
               <div>
                 <strong>Revisar · </strong>
-                {alarma.mensaje ?? "Revisa este ajuste."}
+                {textoDeCodigoDeEstado(alarma.codigo, alarma.mensaje) ?? "Revisa este ajuste."}
               </div>
             </div>
           )}
@@ -303,7 +304,7 @@ export function ActivacionHuellaPage() {
                 <>
                   <dt className="rango">Venció</dt>
                   <dd style={{ margin: 0 }}>
-                    {vencimiento(datos)} · <strong>ya no activa altas</strong>. {datos.mensaje ?? ""}
+                    {vencimiento(datos)} · <strong>ya no activa altas</strong>. {textoDeCodigoDeEstado(datos.motivo, datos.mensaje) ?? ""}
                   </dd>
                 </>
               )}

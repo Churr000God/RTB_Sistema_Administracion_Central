@@ -110,7 +110,16 @@ describe("describirHallazgo · categorías 11 a 13 (sin conteo de huellas)", () 
 
 describe("describirHallazgo · interruptor_huella", () => {
   it("usa el mensaje fijo del servidor, sin nombres ni valores", () => {
-    expect(describirHallazgo("interruptor_huella", { codigo: "sin_registro", mensaje: "Avisa a Sistemas." })).toBe("Avisa a Sistemas.");
+    expect(describirHallazgo("interruptor_huella", { codigo: "codigo_nuevo", mensaje: "Avisa a Sistemas." })).toBe("Avisa a Sistemas.");
     expect(describirHallazgo("interruptor_huella", {})).toBe("Revisa el interruptor de la activación por huella");
+  });
+});
+
+describe("describirHallazgo · interruptor_huella usa el texto local por código", () => {
+  it("un código conocido ignora el mensaje del servidor; uno desconocido lo usa de respaldo", () => {
+    expect(describirHallazgo("interruptor_huella", { codigo: "sin_respaldo_de_la_funcion", mensaje: "otro" })).toBe(
+      "Se detectó un cambio hecho fuera de esta pantalla; el interruptor quedó apagado. Avisa a Sistemas.",
+    );
+    expect(describirHallazgo("interruptor_huella", { codigo: "codigo_nuevo", mensaje: "Respaldo." })).toBe("Respaldo.");
   });
 });

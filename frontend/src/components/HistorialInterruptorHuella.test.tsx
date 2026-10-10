@@ -83,3 +83,35 @@ describe("HistorialInterruptorHuella", () => {
     expect(apiFetch).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("HistorialInterruptorHuella · renovaciones y cambios fuera de la función", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  it("UPDATE_VIGENCIA se rotula como cambio de vigencia y no como «Encendido → Encendido»", async () => {
+    vi.mocked(apiFetch).mockReturnValue(
+      respuesta(200, {
+        items: [
+          { id: 5, creado_en: "2026-10-11T15:00:00Z", clave: "terminal_inferir_huella_activa", operacion: "UPDATE_VIGENCIA", valor_anterior: "1", valor_nuevo: "1", nota: "Se extiende una semana.", autor_nombre: "Carlos Ruiz", via_funcion: true },
+        ],
+      }),
+    );
+    render(<HistorialInterruptorHuella puedeVer version={0} />);
+    expect(await screen.findByText("Cambio de vigencia (sin cambio de valor)")).toBeInTheDocument();
+    expect(screen.queryByText(/encendido → encendido/i)).not.toBeInTheDocument();
+  });
+
+  it("un renovar hecho fuera de la función conserva la marca roja", async () => {
+    vi.mocked(apiFetch).mockReturnValue(
+      respuesta(200, {
+        items: [
+          { id: 6, creado_en: "2026-10-11T15:00:00Z", clave: "terminal_inferir_huella_activa", operacion: "UPDATE_VIGENCIA", valor_anterior: "1", valor_nuevo: "1", nota: null, autor_nombre: null, via_funcion: false },
+        ],
+      }),
+    );
+    render(<HistorialInterruptorHuella puedeVer version={0} />);
+    const fila = (await screen.findByText("Cambio de vigencia (sin cambio de valor)")).closest("tr")!;
+    expect(within(fila).getByText("Fuera de la función")).toBeInTheDocument();
+  });
+});

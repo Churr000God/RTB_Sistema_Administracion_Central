@@ -1,4 +1,5 @@
 import { formatearFechaCorta, formatearHoraMexico } from "./calendario";
+import { textoDeCodigoDeEstado } from "./interruptorHuella";
 import { ETIQUETA_ESTADO_ALTA, ETIQUETA_EVIDENCIA_SIN_CONTEO, formatearDesfase, type EstadoAlta } from "./terminales";
 
 export type EstadoTarjeta = "sin_hallazgos" | "con_hallazgos" | "no_disponible" | "error";
@@ -99,7 +100,7 @@ export function describirHallazgo(clave: string, e: Record<string, unknown>): st
       return `${texto(e.persona_nombre)} · ${evidencia} · activada ${fechaHora(e.activada_en)}, sin marcas posteriores en 7 días`;
     }
     case "interruptor_huella":
-      return texto(e.mensaje, "Revisa el interruptor de la activación por huella");
+      return textoDeCodigoDeEstado(typeof e.codigo === "string" ? e.codigo : null, typeof e.mensaje === "string" ? e.mensaje : null) ?? "Revisa el interruptor de la activación por huella";
     case "asignador_confirmador":
       return `${texto(e.persona_nombre)} · la huella la confirmó ${texto(e.confirmada_por)}, que también asignó el alta · ${fechaHora(e.confirmada_en)}`;
     default:

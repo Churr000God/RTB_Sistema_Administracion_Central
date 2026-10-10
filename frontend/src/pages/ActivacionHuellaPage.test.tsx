@@ -158,7 +158,7 @@ describe("ActivacionHuellaPage", () => {
   });
 
   it("los textos del servidor se pintan como texto plano", async () => {
-    mockApi({ sesion: CONFIG, estado: estadoApi({ encendido_por_nombre: "<img src=x onerror=alert(1)>", alarma: { ...ALARMA_FUERA_DE_LA_FUNCION, mensaje: "<b>aviso</b>" } }) });
+    mockApi({ sesion: CONFIG, estado: estadoApi({ encendido_por_nombre: "<img src=x onerror=alert(1)>", alarma: { ...ALARMA_FUERA_DE_LA_FUNCION, codigo: "codigo_nuevo", mensaje: "<b>aviso</b>" } }) });
     const { container } = render(<ActivacionHuellaPage />);
     expect(await screen.findByText(/<img src=x onerror=alert\(1\)>/)).toBeInTheDocument();
     expect(screen.getByText(/<b>aviso<\/b>/)).toBeInTheDocument();
@@ -315,5 +315,33 @@ describe("ActivacionHuellaPage", () => {
       await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /apagar la activación/i }));
       expect(await screen.findByText(/ya estaba apagado: no hubo cambios/i)).toBeInTheDocument();
     });
+  });
+});
+
+describe("ActivacionHuellaPage · textos locales por código (security F3)", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  it("la alarma conocida se pinta con el texto local aunque el servidor mande otro", async () => {
+    mockApi({ sesion: CONFIG, estado: estadoApi({ alarma: { ...ALARMA_FUERA_DE_LA_FUNCION, mensaje: "Texto del servidor distinto <b>x</b>" } }) });
+    const { container } = render(<ActivacionHuellaPage />);
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent(ALARMA_FUERA_DE_LA_FUNCION.mensaje);
+    expect(alerta).not.toHaveTextContent(/distinto/);
+    expect(container.querySelector("b")).toBeNull();
+  });
+
+  it("un código de alarma que la pantalla no conoce usa el mensaje del servidor como respaldo", async () => {
+    mockApi({ sesion: CONFIG, estado: estadoApi({ alarma: { activa: true, nivel: "revisar", codigo: "codigo_nuevo", mensaje: "Mensaje de respaldo del servidor." } }) });
+    render(<ActivacionHuellaPage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Mensaje de respaldo del servidor.");
+  });
+
+  it("vencido: el texto del motivo es el local", async () => {
+    mockApi({ sesion: CONFIG, estado: estadoApi({ activo: false, estado: "vencido", vencido: true, motivo: "vencido", mensaje: "otro texto", hasta: "2026-10-06T05:59:59Z", hasta_fecha: "2026-10-05" }) });
+    render(<ActivacionHuellaPage />);
+    expect(await screen.findByText(/el vencimiento ya pasó; el interruptor está apagado/i)).toBeInTheDocument();
+    expect(screen.queryByText(/otro texto/)).not.toBeInTheDocument();
   });
 });

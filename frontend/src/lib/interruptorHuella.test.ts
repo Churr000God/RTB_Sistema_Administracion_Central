@@ -10,6 +10,7 @@ import {
   fechaEnRango,
   notaValida,
   sanearNota,
+  textoDeCodigoDeEstado,
   textoDeError,
 } from "./interruptorHuella";
 import { ESTADO_APAGADO, ESTADO_ENCENDIDO } from "../testing/interruptorHuella";
@@ -118,5 +119,40 @@ describe("textoDeError / estadoDelError", () => {
     expect(estadoDelError(err(409, { codigo: "estado_desactualizado", estado: { activo: true } }))).toBeNull();
     expect(estadoDelError(err(409, { codigo: "x" }))).toBeNull();
     expect(estadoDelError(new Error("x"))).toBeNull();
+  });
+});
+
+describe("describirCambio · renovar (UPDATE_VIGENCIA)", () => {
+  it("se rotula como cambio de vigencia, no como «Encendido → Encendido»", () => {
+    expect(describirCambio({ operacion: "UPDATE_VIGENCIA", clave: "terminal_inferir_huella_activa", valor_anterior: "1", valor_nuevo: "1" })).toBe(
+      "Cambio de vigencia (sin cambio de valor)",
+    );
+    expect(describirCambio({ operacion: "UPDATE", clave: "terminal_inferir_huella_activa", valor_anterior: "0", valor_nuevo: "1" })).toBe(
+      "Interruptor: Apagado → Encendido",
+    );
+  });
+});
+
+describe("textoDeCodigoDeEstado", () => {
+  it.each([
+    ["vencido", "El vencimiento ya pasó; el interruptor está apagado."],
+    ["sin_respaldo_de_la_funcion", "Se detectó un cambio hecho fuera de esta pantalla; el interruptor quedó apagado. Avisa a Sistemas."],
+    ["cambio_fuera_de_la_funcion", "El interruptor está encendido pero su último cambio no quedó registrado como debe. Avisa a Sistemas."],
+    ["sin_registro", "El interruptor está encendido pero su último cambio no quedó registrado como debe. Avisa a Sistemas."],
+    ["vigencias_inconsistentes", "El ajuste está en un estado inconsistente; el interruptor quedó apagado. Avisa a Sistemas."],
+    ["valor_invalido", "El ajuste tiene un valor no válido; el interruptor quedó apagado. Avisa a Sistemas."],
+    ["hasta_ilegible", "El ajuste tiene un valor no válido; el interruptor quedó apagado. Avisa a Sistemas."],
+    ["hasta_excede_tope", "El ajuste tiene un valor no válido; el interruptor quedó apagado. Avisa a Sistemas."],
+    ["error", "No se pudo leer el ajuste; el interruptor quedó apagado. Avisa a Sistemas."],
+    ["estado_ilegible", "No se pudo leer el ajuste; el interruptor quedó apagado. Avisa a Sistemas."],
+  ])("%s -> texto local, aunque el servidor mande otro", (codigo, esperado) => {
+    expect(textoDeCodigoDeEstado(codigo, "texto del servidor <b>otro</b>")).toBe(esperado);
+  });
+
+  it("un código desconocido usa el mensaje del servidor como respaldo; sin nada, null", () => {
+    expect(textoDeCodigoDeEstado("codigo_nuevo", "Mensaje de respaldo.")).toBe("Mensaje de respaldo.");
+    expect(textoDeCodigoDeEstado(null, "Mensaje de respaldo.")).toBe("Mensaje de respaldo.");
+    expect(textoDeCodigoDeEstado("codigo_nuevo", null)).toBeNull();
+    expect(textoDeCodigoDeEstado(undefined)).toBeNull();
   });
 });

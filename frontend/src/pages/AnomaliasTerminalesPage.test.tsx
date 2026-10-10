@@ -496,7 +496,7 @@ describe("AnomaliasTerminalesPage · categoría 14 (interruptor_huella)", () => 
         tablero([
           tarjeta("interruptor_huella", 14, "Interruptor de la activación por huella", {
             estado: "con_hallazgos", nivel: "revisar", total: 1,
-            ejemplos: [{ codigo: "estado_ilegible", mensaje: "<b>No se pudo leer el ajuste</b>" }],
+            ejemplos: [{ codigo: "codigo_nuevo", mensaje: "<b>No se pudo leer el ajuste</b>" }],
           }),
         ]),
     });

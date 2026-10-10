@@ -74,8 +74,8 @@ export function CambiarInterruptorHuellaModal({ modo, estado, onActualizado, onR
       onActualizado(datos.estado, {
         tipo: "exito",
         texto: renovar
-          ? `Vencimiento renovado: ahora hasta el ${formatearFechaCorta(datos.estado.hasta_fecha)}. Tu nota quedó en el historial.`
-          : `Activación por huella encendida hasta el ${formatearFechaCorta(datos.estado.hasta_fecha)}. Apágala cuando termine el alta supervisada.`,
+          ? `Vencimiento renovado: ahora hasta el ${formatearFechaCorta(datos.estado.hasta_fecha) ?? "—"}. Tu nota quedó en el historial.`
+          : `Activación por huella encendida hasta el ${formatearFechaCorta(datos.estado.hasta_fecha) ?? "—"}. Apágala cuando termine el alta supervisada.`,
       });
     } catch (error) {
       const codigo = codigoDe(error);

@@ -119,7 +119,12 @@ function fechaDeInstante(valor: string | null): string {
 }
 
 // Clave -> nombre legible. Una clave desconocida se muestra como «Otro ajuste», sin interpretar el valor.
-export function describirCambio(item: Pick<ItemHistorialInterruptor, "clave" | "valor_anterior" | "valor_nuevo">): string {
+export function describirCambio(
+  item: Pick<ItemHistorialInterruptor, "clave" | "valor_anterior" | "valor_nuevo"> & { operacion?: string },
+): string {
+  // Renovar sólo mueve el vencimiento: la bitácora lo registra como UPDATE_VIGENCIA con el mismo valor antes y
+  // después, y «Encendido → Encendido» confundiría.
+  if (item.operacion === "UPDATE_VIGENCIA") return "Cambio de vigencia (sin cambio de valor)";
   const activa = (v: string | null) => (v === "1" ? "Encendido" : v === "0" ? "Apagado" : "—");
   if (item.clave === "terminal_inferir_huella_activa") {
     return `Interruptor: ${activa(item.valor_anterior)} → ${activa(item.valor_nuevo)}`;
@@ -130,8 +135,8 @@ export function describirCambio(item: Pick<ItemHistorialInterruptor, "clave" | "
   return "Otro ajuste";
 }
 
-// Texto fijo por código estable (contrato §6.1). Si el backend manda el detail, se prefiere (es fijo);
-// los códigos sin detail o desconocidos caen al genérico: nunca se interpola nada del servidor.
+// Texto fijo por código estable (contrato §6.1). Siempre se usa el texto local: el detail del servidor no se
+// pinta nunca. Un código desconocido cae al texto genérico, sin interpolar nada del servidor.
 const TEXTO_POR_CODIGO: Record<string, string> = {
   reintentar: "El cambio no se pudo aplicar por una operación concurrente; vuelve a intentarlo.",
   nota_requerida: "La nota debe tener entre 10 y 500 caracteres.",
@@ -165,4 +170,28 @@ export function estadoDelError(error: unknown): EstadoInterruptorHuella | null {
   if (!(error instanceof ErrorApi)) return null;
   const estado = error.cuerpo?.estado;
   return esEstadoInterruptor(estado) ? estado : null;
+}
+
+// Textos fijos de la alarma y del motivo del estado, por código (contrato §6.2). El mensaje que manda el
+// servidor sólo sirve de respaldo para un código que esta pantalla todavía no conoce.
+const TEXTO_FUERA_DE_FUNCION = "El interruptor está encendido pero su último cambio no quedó registrado como debe. Avisa a Sistemas.";
+const TEXTO_VALOR_NO_VALIDO = "El ajuste tiene un valor no válido; el interruptor quedó apagado. Avisa a Sistemas.";
+const TEXTO_NO_SE_PUDO_LEER = "No se pudo leer el ajuste; el interruptor quedó apagado. Avisa a Sistemas.";
+
+const TEXTO_POR_CODIGO_DE_ESTADO: Record<string, string> = {
+  vencido: "El vencimiento ya pasó; el interruptor está apagado.",
+  sin_respaldo_de_la_funcion: "Se detectó un cambio hecho fuera de esta pantalla; el interruptor quedó apagado. Avisa a Sistemas.",
+  cambio_fuera_de_la_funcion: TEXTO_FUERA_DE_FUNCION,
+  sin_registro: TEXTO_FUERA_DE_FUNCION,
+  vigencias_inconsistentes: "El ajuste está en un estado inconsistente; el interruptor quedó apagado. Avisa a Sistemas.",
+  valor_invalido: TEXTO_VALOR_NO_VALIDO,
+  hasta_ilegible: TEXTO_VALOR_NO_VALIDO,
+  hasta_excede_tope: TEXTO_VALOR_NO_VALIDO,
+  error: TEXTO_NO_SE_PUDO_LEER,
+  estado_ilegible: TEXTO_NO_SE_PUDO_LEER,
+};
+
+export function textoDeCodigoDeEstado(codigo: string | null | undefined, respaldo?: string | null): string | null {
+  if (codigo && TEXTO_POR_CODIGO_DE_ESTADO[codigo]) return TEXTO_POR_CODIGO_DE_ESTADO[codigo];
+  return respaldo ?? null;
 }
