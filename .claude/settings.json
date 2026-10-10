@@ -1,5 +1,24 @@
 {
   "enabledPlugins": {
     "frontend-design@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "mcp__claude-in-chrome__tabs_context_mcp",
+      "mcp__claude-in-chrome__get_page_text",
+      "mcp__claude-in-chrome__find",
+      "mcp__claude-in-chrome__read_network_requests",
+      "mcp__claude-in-chrome__read_console_messages",
+      "mcp__claude_ai_Notion__notion-fetch",
+      "mcp__claude_ai_Notion__notion-query-data-sources",
+      "mcp__claude_ai_Gamma__get_generation_status",
+      "mcp__claude_ai_Lucid__fetch",
+      "mcp__claude_ai_Lucid__search",
+      "Bash(tailscale status)",
+      "Bash(tailscale status *)",
+      "Bash(tailscale ping -c *)",
+      "Bash(ping -c *)",
+      "Bash(npm test)"
+    ]
   }
 }
