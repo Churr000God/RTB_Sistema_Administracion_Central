@@ -1,6 +1,6 @@
 """Tablero de anomalías de una terminal (CONTRATO_API_TERMINALES_PAQUETE_2.md §9, SCJ-DEC-12 §6).
 
-Catorce categorías (11-13, 94_: huellas inferidas/confirmadas; 14: el interruptor de la activación por huella, GLOBAL), cada una calculada AISLADA (si una falla, su tarjeta lleva `estado: "error"` y las demás siguen).
+Quince categorías (11-13, 94_: huellas inferidas/confirmadas; 14: el interruptor de la activación por huella, GLOBAL; 15: terminal sin contacto, por terminal), cada una calculada AISLADA (si una falla, su tarjeta lleva `estado: "error"` y las demás siguen).
 Tres son agregaciones sobre tiempo.marca y las resuelve `fn_terminal_anomalias` (90_, service_role, filtra por la
 terminal dentro); el resto son consultas simples. Reglas de visibilidad:
   - Lo que el caller puede leer por RLS (altas, bitácora, personas) se lee con su cliente; los NOMBRES siempre con el
@@ -25,6 +25,7 @@ from app.altas_terminal import (
 )
 from app.catalogo_terminal import CLAVE_CADUCIDAD, valor_vigente
 from app.consentimiento_terminal import leer_vigente
+from app.contacto_terminal import estado_contacto
 from app.fecha_local import a_datetime
 from app.interruptor_huella import CODIGOS_ATENDER, alarma_de, normalizar_estado
 
@@ -48,6 +49,11 @@ class Contexto:
     desde: datetime
     hasta: datetime
     ahora: datetime
+    # categoría 15: lo que la insignia de Terminales usa para decidir el contacto (la MISMA función `estado_contacto`)
+    activa: bool = True
+    ultimo_contacto_en: datetime | None = None
+    contacto_ilegible: bool = False
+    umbral_sin_contacto_seg: int = 300
 
 
 @dataclass(frozen=True)
@@ -403,6 +409,30 @@ def _interruptor_huella(ctx, limite, desplazamiento):
     return 1, [{"codigo": alarma["codigo"], "mensaje": alarma["mensaje"]}]
 
 
+UMBRAL_ATENDER_SIN_LATIDO_SEG = 15 * 60
+NOTA_SIN_CONTACTO = "Es un aviso pasivo: no envía correos ni mensajes. Revisa este tablero a diario o usa un monitor externo."
+MENSAJES_SIN_CONTACTO = {
+    "nunca_comunicada": "La terminal aún no se ha comunicado.",
+    "sin_latido_revisar": "El puente lleva unos minutos sin enviar latido.",
+    "sin_latido_atender": "El puente lleva más de 15 minutos sin enviar latido. Revisa el servicio del puente y la red.",
+}
+
+
+def _terminal_sin_contacto(ctx, limite, desplazamiento):
+    """Categoría 15, POR terminal (CONTRATO §9): usa la MISMA función de estado de contacto que la insignia de Terminales (no reimplementa el umbral).
+    `nunca` -> revisar («aún no se ha comunicado»); `sin_contacto` -> revisar entre el umbral (5 min) y 15 min, atender desde 15 min; inactiva o en línea -> sin hallazgos.
+    Un último contacto ilegible NO se disfraza de «nunca»: lanza y la tarjeta sale `error`. El ejemplo no lleva serie, IP, employee_no ni credencial."""
+    if ctx.contacto_ilegible:
+        raise ValueError("ultimo_contacto_en ilegible")
+    nivel, segundos = estado_contacto(ctx.activa, ctx.ultimo_contacto_en, ctx.ahora, ctx.umbral_sin_contacto_seg)
+    if nivel == "nunca":
+        return 1, [{"codigo": "nunca_comunicada", "mensaje": MENSAJES_SIN_CONTACTO["nunca_comunicada"], "minutos_sin_latido": None}]
+    if nivel == "sin_contacto":
+        codigo = "sin_latido_atender" if segundos >= UMBRAL_ATENDER_SIN_LATIDO_SEG else "sin_latido_revisar"
+        return 1, [{"codigo": codigo, "mensaje": MENSAJES_SIN_CONTACTO[codigo], "minutos_sin_latido": segundos // 60}]
+    return 0, []
+
+
 NOTA_INTERRUPTOR_HUELLA = "Es un ajuste global del sistema, no de esta terminal."
 
 NOTA_INFERIDAS_EXCESO = (
@@ -427,6 +457,11 @@ CATEGORIAS: tuple[Categoria, ...] = (
     Categoria(
         "interruptor_huella", 14, "Interruptor de la activación por huella", "revisar", False, _interruptor_huella, NOTA_INTERRUPTOR_HUELLA,
         nivel_de=lambda items: "atender" if items and items[0].get("codigo") in CODIGOS_ATENDER else "revisar",
+    ),
+    # 15, POR terminal: el puente no envía latido. Aviso PASIVO; no exige marca_lectura (solo el gate del tablero).
+    Categoria(
+        "terminal_sin_contacto", 15, "Terminal sin contacto", "revisar", False, _terminal_sin_contacto, NOTA_SIN_CONTACTO,
+        nivel_de=lambda items: "atender" if items and items[0].get("codigo") == "sin_latido_atender" else "revisar",
     ),
 )
 POR_CLAVE = {c.clave: c for c in CATEGORIAS}

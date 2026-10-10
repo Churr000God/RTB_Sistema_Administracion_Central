@@ -15,8 +15,10 @@ from _mocks_supabase import rpc_con_firma_real, Resultado, TablaConCadenas, db_p
 from app import permisos
 from app.anomalias_terminal import CATEGORIAS
 from app.batches import terminales as jobs
+from app.config import Settings, get_settings
 from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
 from app.main import app
+from app.routers.anomalias_terminales import CACHE
 
 AUTH = {"Authorization": "Bearer fake-token"}
 CALLER = CallerIdentity(auth_user_id="auth-ficticio", correo="x@example.com")
@@ -25,7 +27,7 @@ ANA = "aaaaaaaa-0000-0000-0000-000000000001"
 LUIS = "bbbbbbbb-0000-0000-0000-000000000002"
 CRUDO = "texto-crudo-id-interno-4407"
 AHORA = datetime.now(timezone.utc)
-TERMINAL = {"id": 1, "terminal_id": "SERIE-1", "reloj_desfase_seg": 3}
+TERMINAL = {"id": 1, "terminal_id": "SERIE-1", "reloj_desfase_seg": 3, "activa": True, "ultimo_contacto_en": (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat()}
 NOMBRES = [
     {"id": ANA, "primer_nombre": "Ana", "apellido_paterno": "Torres"},
     {"id": LUIS, "primer_nombre": "Luis", "apellido_paterno": "Ramírez"},
@@ -53,6 +55,7 @@ def _rpc_por_nombre(db, mapa):
 @pytest.fixture
 def entorno(monkeypatch):
     entorno.codigos = []
+    entorno.ajustes = {}
     entorno.otorgados = {"terminal_usuario_lectura", "marca_lectura"}
     monkeypatch.setattr(permisos, "resolver_persona_id", lambda db, caller: PROPIA)
 
@@ -63,6 +66,7 @@ def entorno(monkeypatch):
     monkeypatch.setattr(permisos, "tiene_alguno", tiene_alguno)
 
     def configurar(caller=None, servicio=None, rpc_caller=None, rpc_servicio=None):
+        CACHE.limpiar()                                   # la caché corta del tablero (45 s) no debe arrastrar resultados entre configuraciones de una misma prueba
         base_caller = {
             "terminal": tabla([TERMINAL]), "persona": tabla(NOMBRES), "terminal_usuario": tabla([]),
             "bitacora_movimiento_terminal_usuario": tabla([]), "usuario": tabla([]),
@@ -83,6 +87,7 @@ def entorno(monkeypatch):
         app.dependency_overrides[get_caller_client] = lambda: db
         app.dependency_overrides[get_caller_identity] = lambda: CALLER
         app.dependency_overrides[get_service_client] = lambda: sv
+        app.dependency_overrides[get_settings] = lambda: Settings(supabase_url="http://supabase.invalido", supabase_anon_key="a", supabase_service_role_key="s", **(entorno.ajustes or {}))
         entorno.db, entorno.sv, entorno.rpc_c, entorno.rpc_s = db, sv, rc, rs
         return db, sv
 
@@ -119,11 +124,12 @@ def test_el_tablero_trae_las_14_categorias_con_nivel_y_numero_del_contrato(entor
     r = _get()
     assert r.status_code == 200
     cuerpo = r.json()
-    assert [c["numero"] for c in cuerpo["categorias"]] == list(range(1, 15))
+    assert [c["numero"] for c in cuerpo["categorias"]] == list(range(1, 16))
     assert {c["clave"] for c in cuerpo["categorias"]} == {
         "marcas_posteriores_a_baja", "picos_de_tasa", "reloj_degradado", "huecos_de_secuencia", "rechazos_definitivos",
         "credenciales", "inconsistencias_de_baja", "altas_atascadas", "altas_recientes", "reconsentimientos_pendientes",
         "huellas_inferidas_exceso", "inferida_sin_marcas", "asignador_confirmador", "interruptor_huella",
+        "terminal_sin_contacto",
     }
     assert all(c["estado"] == "sin_hallazgos" and c["nivel"] is None and c["total"] == 0 for c in cuerpo["categorias"])
     assert cuerpo["terminal_id"] == 1 and cuerpo["generado_en"] and cuerpo["desde"] and cuerpo["hasta"]
@@ -132,7 +138,7 @@ def test_el_tablero_trae_las_14_categorias_con_nivel_y_numero_del_contrato(entor
 def test_niveles_los_manda_el_backend():
     por_numero = {c.numero: c.nivel for c in CATEGORIAS}
     assert por_numero == {1: "atender", 7: "atender", 2: "revisar", 3: "revisar", 4: "revisar", 5: "revisar",
-                          6: "revisar", 8: "revisar", 10: "revisar", 9: "informativo", 11: "revisar", 12: "revisar", 13: "revisar", 14: "revisar"}
+                          6: "revisar", 8: "revisar", 10: "revisar", 9: "informativo", 11: "revisar", 12: "revisar", 13: "revisar", 14: "revisar", 15: "revisar"}
 
 
 def test_sin_permiso_403_terminal_404_y_fronteras(entorno):
@@ -767,7 +773,7 @@ def test_ninguna_categoria_devuelve_claves_de_identidad_ni_secretos(entorno):
     r = _get()
     assert r.status_code == 200
     assert not (set(_claves(r.json())) & PROHIBIDAS)
-    assert all(t["estado"] == "con_hallazgos" for t in r.json()["categorias"] if t["clave"] != "interruptor_huella")      # la 14 es global y tiene su propia fuente (apagado = sin hallazgos)
+    assert all(t["estado"] == "con_hallazgos" for t in r.json()["categorias"] if t["clave"] not in ("interruptor_huella", "terminal_sin_contacto"))      # la 14 es global y tiene su propia fuente (apagado = sin hallazgos)
     for clave in (c.clave for c in CATEGORIAS):
         d = _get(f"{RUTA}/{clave}")
         assert d.status_code == 200, (clave, d.text)
@@ -785,7 +791,7 @@ def test_huellas_inferidas_exceso_pasa_las_cifras_y_lleva_la_nota_de_que_es_espe
     assert t["estado"] == "con_hallazgos" and t["nivel"] == "revisar" and t["total"] == 1
     assert t["ejemplos"] == [{"dia": "2026-10-09", "inferidas": 9, "manuales": 1, "activaciones": 10, "limite_inferidas": 5}]
     assert "ESPERADO el primer día" in t["nota"]
-    otras = [x for x in _tarjetas(_get()).values() if x["clave"] not in ("huellas_inferidas_exceso", "interruptor_huella")]
+    otras = [x for x in _tarjetas(_get()).values() if x["clave"] not in ("huellas_inferidas_exceso", "interruptor_huella", "terminal_sin_contacto")]
     assert all(x["nota"] is None for x in otras)
 
 
@@ -811,7 +817,7 @@ def test_las_categorias_de_huella_aisladas_si_la_migracion_94_falta_dan_no_dispo
     t = _tarjetas(_get())
     for clave in ("huellas_inferidas_exceso", "inferida_sin_marcas", "asignador_confirmador"):
         assert t[clave]["estado"] == "error" and CRUDO not in str(t[clave])
-    assert len(t) == 14
+    assert len(t) == 15
 
 
 def test_sin_hallazgos_las_tres_categorias_de_huella_salen_vacias(entorno):
@@ -907,3 +913,90 @@ def test_el_detalle_ver_todos_de_la_categoria_14(entorno):
     entorno.configurar(rpc_servicio={"fn_terminal_inferir_huella_estado": ENCENDIDO_SANO | {"ultimo_cambio_via_funcion": False}})
     d = _get(f"{RUTA}/interruptor_huella").json()
     assert d["total"] == 1 and d["items"][0]["codigo"] == "cambio_fuera_de_la_funcion"
+
+
+# --- categoría 15: terminal sin contacto (POR terminal; CONTRATO §9, condiciones de security) ----------------------------------------------------------------------
+
+
+def _hace(**kw):
+    return (datetime.now(timezone.utc) - timedelta(**kw)).isoformat()
+
+
+def _t15(entorno, **fila):
+    entorno.configurar(caller={"terminal": tabla([{**TERMINAL, **fila}])})
+    return _tarjetas(_get())["terminal_sin_contacto"]
+
+
+def test_en_linea_o_inactiva_no_hay_hallazgo(entorno):
+    for fila in ({"ultimo_contacto_en": _hace(seconds=30)}, {"ultimo_contacto_en": _hace(seconds=299)}, {"activa": False, "ultimo_contacto_en": _hace(hours=5)},
+                 {"activa": False, "ultimo_contacto_en": None}):
+        t = _t15(entorno, **fila)
+        assert t["estado"] == "sin_hallazgos" and t["total"] == 0 and t["nivel"] is None and t["ejemplos"] == []
+
+
+@pytest.mark.parametrize("hace,nivel,codigo,minutos", [
+    ({"seconds": 301}, "revisar", "sin_latido_revisar", 5), ({"minutes": 10}, "revisar", "sin_latido_revisar", 10), ({"minutes": 14, "seconds": 59}, "revisar", "sin_latido_revisar", 14),
+    ({"minutes": 15}, "atender", "sin_latido_atender", 15), ({"minutes": 15, "seconds": 1}, "atender", "sin_latido_atender", 15), ({"hours": 5}, "atender", "sin_latido_atender", 300),
+])
+def test_los_niveles_dependen_de_cuanto_lleva_sin_latido(entorno, hace, nivel, codigo, minutos):
+    t = _t15(entorno, ultimo_contacto_en=_hace(**hace))
+    assert (t["estado"], t["nivel"], t["total"], t["hay_mas"]) == ("con_hallazgos", nivel, 1, False)
+    assert len(t["ejemplos"]) == 1 and set(t["ejemplos"][0]) == {"codigo", "mensaje", "minutos_sin_latido"}
+    assert t["ejemplos"][0]["codigo"] == codigo and t["ejemplos"][0]["minutos_sin_latido"] == minutos and t["ejemplos"][0]["mensaje"]
+
+
+def test_nunca_hubo_contacto_es_revisar_y_no_atender(entorno):
+    t = _t15(entorno, ultimo_contacto_en=None)
+    assert (t["estado"], t["nivel"]) == ("con_hallazgos", "revisar")
+    assert t["ejemplos"] == [{"codigo": "nunca_comunicada", "mensaje": "La terminal aún no se ha comunicado.", "minutos_sin_latido": None}]
+
+
+def test_el_ejemplo_no_lleva_serie_ip_employee_no_ni_credencial(entorno):
+    t = _t15(entorno, ultimo_contacto_en=_hace(hours=2), ultima_ip="10.9.8.7", hash="f" * 64, employee_no=1234)
+    texto = str(t)
+    assert "SERIE-1" not in texto and "10.9.8.7" not in texto and "f" * 64 not in texto and "1234" not in texto
+
+
+def test_un_ultimo_contacto_ilegible_deja_la_tarjeta_en_error_y_no_en_nunca(entorno):
+    t = _t15(entorno, ultimo_contacto_en="no-es-una-fecha")
+    assert t["estado"] == "error" and t["nivel"] is None and t["total"] is None and t["ejemplos"] == []
+    assert all(x["estado"] == "sin_hallazgos" for x in _tarjetas(_get()).values() if x["clave"] not in ("terminal_sin_contacto", "interruptor_huella"))     # aislada
+
+
+def test_usa_la_misma_funcion_de_estado_de_contacto_que_la_insignia(entorno):
+    from app import anomalias_terminal, contacto_terminal
+    from app.routers import terminales
+
+    assert anomalias_terminal.estado_contacto is contacto_terminal.estado_contacto is terminales.estado_contacto
+
+
+def test_el_umbral_es_el_de_la_configuracion_el_mismo_de_la_insignia(entorno):
+    entorno.ajustes = {"terminal_umbral_sin_contacto_seg": 900}
+    assert _t15(entorno, ultimo_contacto_en=_hace(minutes=10))["estado"] == "sin_hallazgos"          # 10 min < umbral de 15: en línea para la insignia y para la tarjeta
+    entorno.ajustes = {"terminal_umbral_sin_contacto_seg": 60}
+    assert _t15(entorno, ultimo_contacto_en=_hace(minutes=2))["nivel"] == "revisar"
+
+
+def test_no_exige_marca_lectura_pero_si_el_gate_del_tablero(entorno):
+    entorno.otorgados = {"terminal_usuario_lectura"}
+    assert _t15(entorno, ultimo_contacto_en=_hace(hours=1))["estado"] == "con_hallazgos"
+    entorno.otorgados = set()
+    entorno.configurar()
+    assert _get().status_code == 403
+
+
+def test_es_por_terminal_cada_tablero_ve_la_suya(entorno):
+    assert _t15(entorno, id=1, ultimo_contacto_en=_hace(hours=1))["estado"] == "con_hallazgos"
+    entorno.configurar(caller={"terminal": tabla([{**TERMINAL, "id": 2, "ultimo_contacto_en": _hace(seconds=5)}])})
+    assert _tarjetas(_get(RUTA.replace("/1/", "/2/") if "/1/" in RUTA else RUTA))["terminal_sin_contacto"]["estado"] == "sin_hallazgos"
+
+
+def test_es_un_aviso_pasivo_y_la_nota_lo_dice(entorno):
+    t = _t15(entorno, ultimo_contacto_en=_hace(hours=1))
+    assert "pasivo" in t["nota"] and "no envía correos" in t["nota"] and "a diario" in t["nota"] and "monitor externo" in t["nota"]
+
+
+def test_el_detalle_ver_todos_de_la_categoria_15(entorno):
+    entorno.configurar(caller={"terminal": tabla([{**TERMINAL, "ultimo_contacto_en": _hace(minutes=20)}])})
+    d = _get(f"{RUTA}/terminal_sin_contacto").json()
+    assert d["total"] == 1 and d["items"][0]["codigo"] == "sin_latido_atender"

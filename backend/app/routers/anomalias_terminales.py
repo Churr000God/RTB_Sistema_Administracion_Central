@@ -14,6 +14,8 @@ from app import permisos
 from app.altas_terminal import ContextoCaller
 from app.anomalias_terminal import CATEGORIAS, POR_CLAVE, Contexto, tarjeta
 from app.catalogo_terminal import valor_vigente
+from app.config import Settings, get_settings
+from app.contacto_terminal import ultimo_contacto
 from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
 from app.errores import MENSAJE_VARIABLE_NO_EXISTE
 from app.permisos import requiere_permiso
@@ -85,7 +87,7 @@ def _terminal(db: Client, terminal_id: int) -> dict:
     filas = (
         db.postgrest.schema("tiempo")
         .table("terminal")
-        .select("id, terminal_id, reloj_desfase_seg")
+        .select("id, terminal_id, reloj_desfase_seg, activa, ultimo_contacto_en")
         .eq("id", terminal_id)
         .execute()
         .data
@@ -95,10 +97,12 @@ def _terminal(db: Client, terminal_id: int) -> dict:
     return filas[0]
 
 
-def _contexto(db, db_servicio, terminal, desde, hasta, ahora) -> Contexto:
+def _contexto(db, db_servicio, terminal, desde, hasta, ahora, umbral_sin_contacto_seg: int = 300) -> Contexto:
+    ultimo, ilegible = ultimo_contacto(terminal)
     return Contexto(
         db=db, db_servicio=db_servicio, terminal_id=terminal["id"], serie=terminal["terminal_id"],
         reloj_desfase_seg=terminal.get("reloj_desfase_seg"), desde=desde, hasta=hasta, ahora=ahora,
+        activa=terminal.get("activa", True), ultimo_contacto_en=ultimo, contacto_ilegible=ilegible, umbral_sin_contacto_seg=umbral_sin_contacto_seg,
     )
 
 
@@ -113,6 +117,7 @@ def tablero(
     caller: CallerIdentity = Depends(get_caller_identity),
     _permiso: None = Depends(_PERMISO_VER),
     db_servicio: Client = Depends(get_service_client),
+    settings: Settings = Depends(get_settings),
     desde: date | None = Query(None, description="Día de México (YYYY-MM-DD); por omisión hoy − la ventana configurada."),
     hasta: date | None = Query(None, description="Día de México (YYYY-MM-DD); por omisión ahora."),
 ) -> dict:
@@ -125,7 +130,7 @@ def tablero(
     if en_cache is not None:
         return en_cache
     ini, fin, ahora = _ventana(db_servicio, desde, hasta)
-    ctx = _contexto(db, db_servicio, terminal, ini, fin, ahora)
+    ctx = _contexto(db, db_servicio, terminal, ini, fin, ahora, settings.terminal_umbral_sin_contacto_seg)
     respuesta = {
         "terminal_id": terminal_id,
         "desde": ini,
@@ -145,6 +150,7 @@ def detalle(
     caller: CallerIdentity = Depends(get_caller_identity),
     _permiso: None = Depends(_PERMISO_VER),
     db_servicio: Client = Depends(get_service_client),
+    settings: Settings = Depends(get_settings),
     desde: date | None = Query(None),
     hasta: date | None = Query(None),
     limite: int = Query(50, ge=1, le=200),
@@ -158,5 +164,5 @@ def detalle(
         raise HTTPException(status.HTTP_403_FORBIDDEN, MENSAJE_SIN_PERMISO)
     terminal = _terminal(db, terminal_id)
     ini, fin, ahora = _ventana(db_servicio, desde, hasta)
-    total, items = categoria.calcular(_contexto(db, db_servicio, terminal, ini, fin, ahora), limite, desplazamiento)
+    total, items = categoria.calcular(_contexto(db, db_servicio, terminal, ini, fin, ahora, settings.terminal_umbral_sin_contacto_seg), limite, desplazamiento)
     return {"clave": clave, "total": total, "items": items}

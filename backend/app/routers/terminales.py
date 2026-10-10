@@ -35,7 +35,7 @@ from app.config import Settings, get_settings
 from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
 from app.errores import MENSAJE_AUTO_ASIGNACION, MENSAJE_LOTE_INVALIDO, MENSAJE_LOTE_NO_ELEGIBLE, manejar_error_terminal_web
 from app.respuestas_error import ErrorConCampos
-from app.fecha_local import a_datetime
+from app.contacto_terminal import estado_contacto, segundos_sin_contacto as _segundos, ultimo_contacto  # noqa: F401  (estado_contacto se re-exporta: lo usan las pruebas y el tablero)
 from app import permisos
 from app.permisos import requiere_permiso
 from app.schemas.terminales import (
@@ -73,32 +73,8 @@ COLUMNAS_TERMINAL = (
 )
 
 
-def estado_contacto(
-    activa: bool, ultimo_contacto_en: datetime | None, ahora: datetime, umbral_seg: int
-) -> tuple[str, int | None]:
-    """(nivel, segundos_sin_contacto). Prioridad: inactiva > nunca > sin_contacto > en_linea. Se calcula
-    AL LEER (no hay estado persistido que olvidar actualizar). Un contacto 'en el futuro' (reloj
-    desfasado) cuenta como 0 s, no como negativo."""
-    if not activa:
-        return "inactiva", _segundos(ultimo_contacto_en, ahora)
-    if ultimo_contacto_en is None:
-        return "nunca", None
-    segundos = _segundos(ultimo_contacto_en, ahora)
-    return ("sin_contacto" if segundos >= umbral_seg else "en_linea"), segundos
-
-
-def _segundos(ultimo: datetime | None, ahora: datetime) -> int | None:
-    if ultimo is None:
-        return None
-    return max(0, int((ahora - ultimo).total_seconds()))
-
-
 def _armar_terminal(fila: dict, ahora: datetime, umbral_seg: int) -> dict:
-    try:
-        ultimo = a_datetime(fila["ultimo_contacto_en"]) if fila.get("ultimo_contacto_en") else None
-    except (ValueError, TypeError, AttributeError):
-        logger.error("terminal %s: ultimo_contacto_en no parseable; se trata como 'nunca'", fila.get("id"))
-        ultimo = None
+    ultimo, _ilegible = ultimo_contacto(fila)
     nivel, segundos = estado_contacto(fila["activa"], ultimo, ahora, umbral_seg)
     return {
         "id": fila["id"],
