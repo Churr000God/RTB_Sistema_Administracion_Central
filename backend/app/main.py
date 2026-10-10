@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import traceback
 
 from fastapi import FastAPI, Request
 from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
@@ -92,6 +93,30 @@ def ruta_para_log(request: Request) -> str:
     return getattr(ruta, "path", None) or "(ruta sin resolver)"
 
 
+# Paquetes cuyas excepciones pueden llevar en su MENSAJE datos de la petición o de la fila (valores, URLs con parámetros, cuerpos): del error se registra el tipo y la traza, nunca el texto.
+PAQUETES_CON_MENSAJE_SENSIBLE = frozenset({"postgrest", "supabase", "gotrue", "supabase_auth", "storage3", "realtime", "supafunc", "httpx", "httpcore"})
+
+
+def traza_sin_mensaje(exc: BaseException) -> str:
+    """Solo los marcos de la traza (archivo, línea, función y código fuente); NUNCA el texto del mensaje de la excepción ni el de sus causas."""
+    marcos = "".join(traceback.format_tb(exc.__traceback__))
+    return f"{type(exc).__module__}.{type(exc).__qualname__}\n{marcos}"
+
+
+def registrar_excepcion_no_capturada(request: Request, exc: Exception) -> None:
+    """UNA sola política de log para toda excepción que llega al manejador global (security A2):
+    - APIError (PostgREST): SOLO SQLSTATE, método y plantilla de la ruta (message, details y hint pueden traer valores de la fila: employee_no, evento_id, una nota…); sin traza;
+    - excepciones de postgrest/httpx/supabase y afines: tipo y traza SIN el texto del mensaje;
+    - cualquier otra: la traza completa de siempre (código propio, no de un cliente que reenvía datos)."""
+    ruta = ruta_para_log(request)
+    if isinstance(exc, APIError):
+        logger.error("Error de la base no capturado en %s %s (sqlstate %s)", request.method, ruta, exc.code)
+    elif type(exc).__module__.split(".")[0] in PAQUETES_CON_MENSAJE_SENSIBLE:
+        logger.error("Excepción de un cliente externo no capturada en %s %s: %s", request.method, ruta, traza_sin_mensaje(exc))
+    else:
+        logger.exception("Excepción no capturada en %s %s", request.method, ruta)
+
+
 @app.exception_handler(Exception)
 async def manejador_excepciones_no_capturadas(request: Request, exc: Exception) -> JSONResponse:
     """Starlette trata un handler de Exception/500 como caso especial: lo conecta a
@@ -101,7 +126,7 @@ async def manejador_excepciones_no_capturadas(request: Request, exc: Exception) 
     Por eso hay que agregarlos a mano acá, replicando lo que CORSMiddleware haría (bug real
     encontrado 2026-09-11 en /api/dias/{id}/previsualizar-tramos, ver bitácora: sin esto, el
     navegador reporta cualquier 500 no anticipado como bloqueo de CORS en vez del error real)."""
-    logger.exception("Excepción no capturada en %s %s", request.method, ruta_para_log(request))
+    registrar_excepcion_no_capturada(request, exc)
     respuesta = JSONResponse(status_code=500, content={"detail": "Error interno del servidor."})
     if es_ruta_terminal(request.url.path):
         # ServerErrorMiddleware queda por fuera de CabecerasTerminal: se agrega acá (SCJ-DEC-12 §7)

@@ -84,15 +84,102 @@ def test_la_ruta_no_registra_valores_del_lote_ni_del_estado(entorno, caplog):
     assert "424242" not in texto and "huella" not in texto.lower() and "inferir" not in texto.lower()
 
 
-@pytest.mark.xfail(strict=True, reason="HALLAZGO: un APIError desconocido de la base cae al manejador global (main.py), que lo registra con logger.exception y lleva el texto/DETAIL de la base (puede traer valores de la fila). "
-                                       "Corregirlo toca la ruta o el manejador: pendiente de decisión de orchestrator/security.")
-def test_los_errores_de_la_ruta_tampoco_registran_valores(entorno, caplog):
+@pytest.mark.parametrize("codigo", ["XX000", "23505", "23514", "P0001", "SCJ99", None])
+def test_los_errores_de_la_ruta_tampoco_registran_valores(entorno, caplog, codigo):
+    """Hallazgo corregido: un APIError desconocido registraba su message/DETAIL (valores de la fila) vía logger.exception. Ahora solo el SQLSTATE; la respuesta sigue siendo el 500 genérico."""
     from postgrest.exceptions import APIError
 
-    e = entorno(error=APIError({"code": "XX000", "message": f"boom {SECRETO}", "details": f"({SECRETO})"}))
+    e = entorno(error=APIError({"code": codigo, "message": f"boom {SECRETO}", "details": f"Key (employee_no)=(424242) {SECRETO}", "hint": SECRETO}))
     with caplog.at_level(logging.DEBUG):
-        e.post(_cuerpo(1, eventos=[_con_huella(employee_no=424242)]))
-    assert SECRETO not in caplog.text and "424242" not in caplog.text
+        r = e.post(_cuerpo(1, eventos=[_con_huella(employee_no=424242)]))
+    assert r.status_code == 500 and r.json() == {"detail": "Error interno del servidor."}
+    assert SECRETO not in caplog.text and "424242" not in caplog.text and "Traceback" not in caplog.text
+    assert not any(rec.exc_info for rec in caplog.records if rec.name.startswith("app"))
+
+
+@pytest.mark.parametrize("excepcion", ["httpx", "httpcore", "supabase", "postgrest"])
+def test_las_excepciones_de_clientes_externos_se_registran_con_tipo_y_traza_sin_el_texto(entorno, caplog, excepcion):
+    """Un httpx.ConnectError, etc. que escape de cualquier ruta: tipo y traza, jamás el mensaje (puede llevar la URL con parámetros o el cuerpo)."""
+    import importlib
+
+    if excepcion == "httpx":
+        clase = importlib.import_module("httpx").ReadError
+    elif excepcion == "httpcore":
+        clase = importlib.import_module("httpcore").ReadError
+    elif excepcion == "postgrest":
+        clase = importlib.import_module("postgrest.exceptions").APIError
+    else:
+        pytest.skip("sin excepción pública estable de supabase en esta versión")
+    from app.main import registrar_excepcion_no_capturada
+    from types import SimpleNamespace
+
+    peticion = SimpleNamespace(method="POST", scope={"route": SimpleNamespace(path="/api/terminal/marcas")}, url=SimpleNamespace(path="/api/terminal/marcas?x=1"), headers={})
+    try:
+        raise clase({"code": "X", "message": SECRETO}) if excepcion == "postgrest" else clase(f"fallo con {SECRETO}")
+    except Exception as error:  # noqa: BLE001
+        with caplog.at_level(logging.DEBUG):
+            registrar_excepcion_no_capturada(peticion, error)
+    assert SECRETO not in caplog.text and "/api/terminal/marcas" in caplog.text and "?x=1" not in caplog.text
+
+
+def test_una_excepcion_propia_conserva_la_traza_completa_de_siempre(caplog):
+    from types import SimpleNamespace
+
+    from app.main import registrar_excepcion_no_capturada
+
+    peticion = SimpleNamespace(method="GET", scope={}, url=SimpleNamespace(path="/x"), headers={})
+    try:
+        raise ValueError("error de programación")
+    except ValueError as error:
+        with caplog.at_level(logging.DEBUG):
+            registrar_excepcion_no_capturada(peticion, error)
+    assert "Traceback" in caplog.text and "error de programación" in caplog.text
+
+
+def test_la_traza_sin_mensaje_no_incluye_el_texto_de_la_excepcion_ni_el_de_su_causa():
+    from app.main import traza_sin_mensaje
+
+    try:
+        try:
+            raise ConnectionError(f"causa con {SECRETO}")
+        except ConnectionError as causa:
+            raise RuntimeError(f"principal con {SECRETO}") from causa
+    except RuntimeError as error:
+        texto = traza_sin_mensaje(error)
+    assert SECRETO not in texto and "RuntimeError" in texto and "test_la_traza_sin_mensaje" in texto
+
+
+@pytest.mark.parametrize("codigo", ["PGRST202", "PGRST204", "PGRST205", "42P01"])
+def test_una_migracion_sin_aplicar_sigue_siendo_503_con_mensaje_fijo_y_sin_texto_de_la_base(entorno, caplog, codigo):
+    from postgrest.exceptions import APIError
+
+    e = entorno(error=APIError({"code": codigo, "message": f"boom {SECRETO}"}))
+    with caplog.at_level(logging.DEBUG):
+        r = e.post(_cuerpo(1, eventos=[_con_huella()]))
+    assert r.status_code == 503 and r.json() == {"detail": "Servicio no disponible. Avisa a Sistemas."} and SECRETO not in caplog.text + r.text
+
+
+@pytest.mark.parametrize("codigo,http", [("42501", 503), ("22023", 422), ("22P02", 422)])
+def test_los_codigos_que_el_puente_ya_consume_no_cambian(entorno, codigo, http):
+    from postgrest.exceptions import APIError
+
+    r = entorno(error=APIError({"code": codigo, "message": SECRETO})).post(_cuerpo(1, eventos=[_con_huella()]))
+    assert r.status_code == http and SECRETO not in r.text
+
+
+def test_el_manejador_global_no_registra_el_texto_de_un_apierror_de_ninguna_ruta(caplog):
+    """Cualquier router que deje escapar un APIError: el log lleva solo el SQLSTATE."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from postgrest.exceptions import APIError
+
+    from app.main import manejador_excepciones_no_capturadas
+
+    peticion = SimpleNamespace(method="POST", scope={}, url=SimpleNamespace(path="/api/x"), headers={})
+    with caplog.at_level(logging.DEBUG):
+        r = asyncio.run(manejador_excepciones_no_capturadas(peticion, APIError({"code": "23505", "message": SECRETO, "details": SECRETO + "-d", "hint": SECRETO + "-h"})))
+    assert r.status_code == 500 and SECRETO not in caplog.text and "23505" in caplog.text
 
 
 # --- contrato sobre 98_: la barrera vive en el RPC ---------------------------------------------------------------------------------------------------------------
