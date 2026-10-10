@@ -9,6 +9,8 @@ import {
   cuentaRegresiva,
   descripcionUltimoContacto,
   formatearDesfase,
+  etiquetaEvidencia,
+  muestraEvidencia,
 } from "./terminales";
 
 const AHORA = new Date("2026-10-08T12:00:00Z");
@@ -152,5 +154,39 @@ describe("esConflictoDeConsentimiento (prioriza el código estable del backend)"
 
   it("sin detail ni código no es conflicto", () => {
     expect(esConflictoDeConsentimiento(new ErrorApi(409, null, null))).toBe(false);
+  });
+});
+
+describe("etiquetaEvidencia", () => {
+  it("conteo: «N huella(s)» sólo con un conteo real", () => {
+    expect(etiquetaEvidencia("conteo", 1)).toBe("1 huella");
+    expect(etiquetaEvidencia("conteo", 2)).toBe("2 huellas");
+  });
+
+  it("regresión: huellas_capturadas = 0 jamás se pinta como «0 huellas» ni «sin huellas»", () => {
+    expect(etiquetaEvidencia("conteo", 0)).toBeNull();
+    expect(etiquetaEvidencia(null, 0)).toBeNull();
+    expect(etiquetaEvidencia(null, 2)).toBeNull();
+    expect(etiquetaEvidencia(undefined, 2)).toBeNull();
+  });
+
+  it("inferida y manual se nombran sin importar el número", () => {
+    expect(etiquetaEvidencia("inferida", 0)).toBe("Huella verificada en el aparato");
+    expect(etiquetaEvidencia("manual", 0)).toBe("Huella confirmada por una persona (sin conteo)");
+    expect(etiquetaEvidencia("manual", 3)).toBe("Huella confirmada por una persona (sin conteo)");
+  });
+
+  it("un valor desconocido del servidor no pinta nada", () => {
+    expect(etiquetaEvidencia("otra" as never, 2)).toBeNull();
+  });
+});
+
+describe("muestraEvidencia", () => {
+  it("sólo en Activo y Pendiente de baja", () => {
+    expect(muestraEvidencia("activo")).toBe(true);
+    expect(muestraEvidencia("pendiente_baja")).toBe(true);
+    expect(muestraEvidencia("pendiente_alta")).toBe(false);
+    expect(muestraEvidencia("esperando_huella")).toBe(false);
+    expect(muestraEvidencia("baja")).toBe(false);
   });
 });

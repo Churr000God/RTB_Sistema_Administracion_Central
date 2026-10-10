@@ -25,6 +25,7 @@ function altaDe(estado: string, extra: Record<string, unknown> = {}, terminal: R
       persona_nombre: "Ana Torres",
       estado,
       huellas_capturadas: 2,
+      huella_evidencia: "conteo",
       creado_en: "2026-10-01T15:00:00Z",
       actualizado_en: "2026-10-01T15:00:00Z",
       usuario_creado_en: null,
@@ -168,5 +169,62 @@ describe("SeccionTerminalPersona", () => {
     await userEvent.click(screen.getByRole("button", { name: /^asignar$/i }));
     await userEvent.click(await screen.findByRole("button", { name: /^cerrar$/i }));
     expect(await screen.findByText("Pendiente de alta")).toBeInTheDocument();
+  });
+});
+
+describe("SeccionTerminalPersona · evidencia de huella y Confirmar huella", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  it.each([
+    ["inferida", 0, /Huella verificada en el aparato/],
+    ["manual", 0, /Huella confirmada por una persona \(sin conteo\)/],
+  ])("activa con evidencia %s: etiqueta sin número", async (evidencia, huellas, etiqueta) => {
+    mockApi({ altas: () => new Response(JSON.stringify([altaDe("activo", { huella_evidencia: evidencia, huellas_capturadas: huellas })])) });
+    renderSeccion();
+    expect(await screen.findByText(etiqueta)).toBeInTheDocument();
+    expect(screen.queryByText(/0 huellas/)).not.toBeInTheDocument();
+  });
+
+  it("regresión: activa con huellas_capturadas = 0 y sin evidencia no pinta «0 huellas» ni nada", async () => {
+    mockApi({ altas: () => new Response(JSON.stringify([altaDe("activo", { huella_evidencia: null, huellas_capturadas: 0 })])) });
+    renderSeccion();
+    expect(await screen.findByText("Activo")).toBeInTheDocument();
+    expect(screen.queryByText(/huella/i, { selector: "p" })).not.toBeInTheDocument();
+  });
+
+  it("esperando huella con edición: ofrece Confirmar huella, abre el modal y al terminar recarga", async () => {
+    let altas = [altaDe("esperando_huella", { huellas_capturadas: 0, huella_evidencia: null, caduca_en: "2099-01-01T00:00:00Z" })];
+    mockApi({ altas: () => new Response(JSON.stringify(altas)) });
+    const base = vi.mocked(apiFetch).getMockImplementation()!;
+    vi.mocked(apiFetch).mockImplementation((path: string, init?: RequestInit) => {
+      if (path === "/api/terminales/1/usuarios/10/huella-confirmada" && init?.method === "POST") {
+        altas = [altaDe("activo", { huella_evidencia: "manual", huellas_capturadas: 0 })];
+        return Promise.resolve(new Response("{}", { status: 201 }));
+      }
+      return base(path, init);
+    });
+    renderSeccion();
+    await userEvent.click(await screen.findByRole("button", { name: /confirmar huella/i }));
+    await userEvent.type(screen.getByLabelText(/nota/i), "TI enroló el índice derecho en el aparato");
+    await userEvent.click(screen.getByRole("button", { name: /confirmar que vi la huella/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /^cerrar$/i }));
+    expect(await screen.findByText(/Huella confirmada por una persona \(sin conteo\)/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /confirmar huella/i })).not.toBeInTheDocument();
+  });
+
+  it("sin permiso de edición no ofrece Confirmar huella", async () => {
+    mockApi({ sesion: { puede_editar_terminales: false }, altas: () => new Response(JSON.stringify([altaDe("esperando_huella", { huellas_capturadas: 0, huella_evidencia: null })])) });
+    renderSeccion();
+    expect(await screen.findByText("Esperando huella")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /confirmar huella/i })).not.toBeInTheDocument();
+  });
+
+  it("sólo en Esperando huella: la activa no ofrece Confirmar huella", async () => {
+    mockApi({ altas: () => new Response(JSON.stringify([altaDe("activo")])) });
+    renderSeccion();
+    await screen.findByText("Activo");
+    expect(screen.queryByRole("button", { name: /confirmar huella/i })).not.toBeInTheDocument();
   });
 });

@@ -40,6 +40,7 @@ function alta(id: number, extra: Record<string, unknown> = {}) {
     persona_nombre: `Persona ${id}`,
     estado: "activo",
     huellas_capturadas: 2,
+    huella_evidencia: "conteo",
     creado_en: "2026-10-01T15:00:00Z",
     actualizado_en: "2026-10-01T15:00:00Z",
     usuario_creado_en: "2026-10-01T15:05:00Z",
@@ -136,7 +137,7 @@ describe("UsuariosTerminalPage", () => {
     const fila = (await screen.findByText("Persona 1")).closest("tr")!;
     expect(within(fila).getByText("1001")).toBeInTheDocument();
     expect(within(fila).getByText("Activo")).toBeInTheDocument();
-    expect(within(fila).getByText("2")).toBeInTheDocument();
+    expect(within(fila).getByText("2 huellas")).toBeInTheDocument();
     expect(within(fila).getByText(/01 oct 2026/i)).toBeInTheDocument();
   });
 
@@ -547,5 +548,72 @@ describe("UsuariosTerminalPage", () => {
       await userEvent.click(within(dialogo).getByRole("button", { name: /cancelar/i }));
       expect(screen.getByText("1 seleccionada")).toBeInTheDocument();
     });
+  });
+});
+
+describe("UsuariosTerminalPage · evidencia de huella y Confirmar huella", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  it.each([
+    ["inferida", /Huella verificada en el aparato/],
+    ["manual", /Huella confirmada por una persona \(sin conteo\)/],
+  ])("columna Huellas con evidencia %s: etiqueta, sin número", async (evidencia, etiqueta) => {
+    mockApi({ altas: () => respuestaAltas([alta(1, { huella_evidencia: evidencia, huellas_capturadas: 0 })]) });
+    renderPagina();
+    const fila = (await screen.findByText("Persona 1")).closest("tr")!;
+    expect(within(fila).getByText(etiqueta)).toBeInTheDocument();
+    expect(within(fila).queryByText(/0 huellas/)).not.toBeInTheDocument();
+  });
+
+  it("regresión: activa con huellas_capturadas = 0 y sin evidencia muestra «—», nunca «0»", async () => {
+    mockApi({ altas: () => respuestaAltas([alta(1, { huella_evidencia: null, huellas_capturadas: 0 })]) });
+    renderPagina();
+    const fila = (await screen.findByText("Persona 1")).closest("tr")!;
+    const celdas = within(fila).getAllByRole("cell");
+    expect(celdas.some((c) => c.textContent === "0")).toBe(false);
+    expect(within(fila).queryByText(/huella/i, { selector: "td" })).not.toBeInTheDocument();
+    expect(celdas.filter((c) => c.textContent === "—").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("esperando huella con edición: botón Confirmar huella que abre el modal; recarga al terminar", async () => {
+    let llamadas = 0;
+    mockApi({
+      altas: () => {
+        llamadas += 1;
+        return respuestaAltas([
+          llamadas === 1
+            ? alta(2, { estado: "esperando_huella", huellas_capturadas: 0, huella_evidencia: null, accion_disponible: "cancelar_alta" })
+            : alta(2, { estado: "activo", huellas_capturadas: 0, huella_evidencia: "manual" }),
+        ]);
+      },
+      extra: (path, init) => (path === "/api/terminales/1/usuarios/2/huella-confirmada" && init?.method === "POST" ? new Response("{}", { status: 201 }) : undefined),
+    });
+    renderPagina();
+    await userEvent.click(await screen.findByRole("button", { name: /confirmar huella/i }));
+    await userEvent.type(screen.getByLabelText(/nota/i), "TI enroló el índice derecho en el aparato");
+    await userEvent.click(screen.getByRole("button", { name: /confirmar que vi la huella/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /^cerrar$/i }));
+    const fila = (await screen.findByText("Persona 2")).closest("tr")!;
+    expect(await within(fila).findByText(/Huella confirmada por una persona \(sin conteo\)/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /confirmar huella/i })).not.toBeInTheDocument();
+  });
+
+  it("sin edición no hay Confirmar huella; fuera de Esperando huella tampoco", async () => {
+    mockApi({
+      sesion: { puede_editar_terminales: false },
+      altas: () => respuestaAltas([alta(2, { estado: "esperando_huella", huellas_capturadas: 0, huella_evidencia: null })]),
+    });
+    renderPagina();
+    await screen.findByText("Persona 2");
+    expect(screen.queryByRole("button", { name: /confirmar huella/i })).not.toBeInTheDocument();
+  });
+
+  it("alta activa con edición: no ofrece Confirmar huella", async () => {
+    mockApi();
+    renderPagina();
+    await screen.findByText("Persona 1");
+    expect(screen.queryByRole("button", { name: /confirmar huella/i })).not.toBeInTheDocument();
   });
 });

@@ -23,6 +23,8 @@ export type Terminal = {
 
 export type ConsentimientoResumen = { id: number; version: number; provisional: boolean };
 
+export type HuellaEvidencia = "conteo" | "inferida" | "manual";
+
 export type RazonNoElegible = "es_propia" | "ya_al_corriente" | "en_baja";
 
 export type Alta = {
@@ -32,7 +34,9 @@ export type Alta = {
   persona_id: string;
   persona_nombre: string | null;
   estado: EstadoAlta;
+  // 0 = «enrolada, conteo desconocido», NUNCA «sin huellas»: el número sólo vale si huella_evidencia es 'conteo'.
   huellas_capturadas: number;
+  huella_evidencia: HuellaEvidencia | null;
   creado_en: string;
   actualizado_en: string;
   usuario_creado_en: string | null;
@@ -146,6 +150,8 @@ export type TipoMovimiento =
   | "asignado"
   | "usuario_creado"
   | "huella_capturada"
+  | "huella_inferida"
+  | "huella_confirmada_manual"
   | "error"
   | "baja_solicitada"
   | "baja_confirmada"
@@ -155,6 +161,8 @@ export const ETIQUETA_MOVIMIENTO: Record<TipoMovimiento, string> = {
   asignado: "Asignada",
   usuario_creado: "Usuario creado en el aparato",
   huella_capturada: "Huella capturada",
+  huella_inferida: "Huella verificada en el aparato",
+  huella_confirmada_manual: "Huella confirmada por una persona",
   error: "Error del puente",
   baja_solicitada: "Baja solicitada",
   baja_confirmada: "Baja confirmada",
@@ -169,6 +177,8 @@ export type MovimientoAlta = {
   registrado_por_nombre: string | null;
   detalle: string | null;
   huellas_capturadas: number | null;
+  // Evidencia de ESTA fila (deriva del tipo del movimiento), no la vigente del alta.
+  huella_evidencia: HuellaEvidencia | null;
   consentimiento: { id: number; version: number; cambio_material?: boolean } | null;
 };
 
@@ -271,3 +281,24 @@ export type ResultadoReconsentimiento = {
 };
 
 export const MAX_LOTE_RECONSENTIMIENTO = 200;
+
+export const ETIQUETA_EVIDENCIA_SIN_CONTEO: Record<Exclude<HuellaEvidencia, "conteo">, string> = {
+  inferida: "Huella verificada en el aparato",
+  manual: "Huella confirmada por una persona (sin conteo)",
+};
+
+// Etiqueta de la evidencia de huella. Regla única de las tres pantallas: sólo se pinta un número
+// cuando la evidencia es 'conteo'; huellas_capturadas = 0 jamás se lee como «sin huellas» ni «0 huellas».
+// Null (o un valor desconocido) no pinta nada.
+export function etiquetaEvidencia(evidencia: HuellaEvidencia | null | undefined, huellas: number | null | undefined): string | null {
+  if (evidencia === "inferida" || evidencia === "manual") return ETIQUETA_EVIDENCIA_SIN_CONTEO[evidencia];
+  if (evidencia === "conteo" && typeof huellas === "number" && huellas > 0) {
+    return `${huellas} ${huellas === 1 ? "huella" : "huellas"}`;
+  }
+  return null;
+}
+
+// Sólo estas altas tienen una huella que mostrar (la de las demás no existe todavía o ya se borró).
+export function muestraEvidencia(estado: EstadoAlta): boolean {
+  return estado === "activo" || estado === "pendiente_baja";
+}

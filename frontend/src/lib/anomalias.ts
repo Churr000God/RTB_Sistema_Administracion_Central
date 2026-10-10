@@ -1,5 +1,5 @@
 import { formatearFechaCorta, formatearHoraMexico } from "./calendario";
-import { ETIQUETA_ESTADO_ALTA, formatearDesfase, type EstadoAlta } from "./terminales";
+import { ETIQUETA_ESTADO_ALTA, ETIQUETA_EVIDENCIA_SIN_CONTEO, formatearDesfase, type EstadoAlta } from "./terminales";
 
 export type EstadoTarjeta = "sin_hallazgos" | "con_hallazgos" | "no_disponible" | "error";
 export type NivelAnomalia = "atender" | "revisar" | "informativo";
@@ -14,6 +14,8 @@ export type TarjetaAnomalia = {
   ejemplos: Record<string, unknown>[];
   hay_mas: boolean;
   motivo: "sin_permiso" | "falta_migracion" | null;
+  // Texto fijo de contexto del backend (categoría 11); se pinta como texto plano.
+  nota?: string | null;
 };
 
 export type RespuestaAnomalias = {
@@ -90,6 +92,14 @@ export function describirHallazgo(clave: string, e: Record<string, unknown>): st
       return `${texto(e.persona_nombre)} (asignó ${texto(e.asignada_por)}) · ${fechaHora(e.creado_en)}`;
     case "reconsentimientos_pendientes":
       return `${texto(e.persona_nombre)} · confirmó v${texto(e.version_confirmada, "?")} · vigente v${texto(e.version_vigente, "?")} · pendiente hace ${texto(e.dias_pendiente, "?")} días`;
+    case "huellas_inferidas_exceso":
+      return `${fechaDia(e.dia)}: ${texto(e.activaciones)} activaciones, ${texto(e.inferidas)} inferidas y ${texto(e.manuales)} manuales (límite de inferidas por día: ${texto(e.limite_inferidas)})`;
+    case "inferida_sin_marcas": {
+      const evidencia = e.evidencia === "inferida" || e.evidencia === "manual" ? ETIQUETA_EVIDENCIA_SIN_CONTEO[e.evidencia] : "Huella activada";
+      return `${texto(e.persona_nombre)} · ${evidencia} · activada ${fechaHora(e.activada_en)}, sin marcas posteriores en 7 días`;
+    }
+    case "asignador_confirmador":
+      return `${texto(e.persona_nombre)} · la huella la confirmó ${texto(e.confirmada_por)}, que también asignó el alta · ${fechaHora(e.confirmada_en)}`;
     default:
       return "Hallazgo sin descripción";
   }

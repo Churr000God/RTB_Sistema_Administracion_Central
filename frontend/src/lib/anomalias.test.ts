@@ -86,3 +86,24 @@ describe("describirHallazgo: higiene (testing)", () => {
     expect(describirHallazgo("altas_recientes", { persona_nombre: "", asignada_por: undefined, creado_en: 5 })).toBe("— (asignó —) · —");
   });
 });
+
+describe("describirHallazgo · categorías 11 a 13 (sin conteo de huellas)", () => {
+  it("11 huellas_inferidas_exceso: día, activaciones, desglose y límite", () => {
+    const texto = describirHallazgo("huellas_inferidas_exceso", { dia: "2026-10-09", inferidas: 7, manuales: 2, activaciones: 9, limite_inferidas: 5 });
+    expect(texto).toContain("9 activaciones, 7 inferidas y 2 manuales");
+    expect(texto).toContain("límite de inferidas por día: 5");
+  });
+
+  it("12 inferida_sin_marcas: nombre, etiqueta de la evidencia y fecha", () => {
+    const inferida = describirHallazgo("inferida_sin_marcas", { persona_nombre: "Raúl Mena", evidencia: "inferida", activada_en: "2026-09-24T15:00:00Z" });
+    expect(inferida).toContain("Raúl Mena · Huella verificada en el aparato · activada");
+    const manual = describirHallazgo("inferida_sin_marcas", { persona_nombre: "Elena Ríos", evidencia: "manual", activada_en: "2026-09-27T15:00:00Z" });
+    expect(manual).toContain("Huella confirmada por una persona (sin conteo)");
+    expect(describirHallazgo("inferida_sin_marcas", { persona_nombre: "X", evidencia: "rara", activada_en: null })).toContain("Huella activada");
+  });
+
+  it("13 asignador_confirmador: nombres como texto plano, sin interpretar HTML", () => {
+    const texto = describirHallazgo("asignador_confirmador", { persona_nombre: "Luis Ramírez", confirmada_por: "<b>Carlos Ruiz</b>", confirmada_en: "2026-10-09T16:12:00Z" });
+    expect(texto).toContain("Luis Ramírez · la huella la confirmó <b>Carlos Ruiz</b>, que también asignó el alta");
+  });
+});

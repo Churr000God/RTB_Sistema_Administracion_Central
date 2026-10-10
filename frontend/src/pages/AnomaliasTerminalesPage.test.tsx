@@ -395,3 +395,50 @@ describe("AnomaliasTerminalesPage", () => {
     });
   });
 });
+
+describe("AnomaliasTerminalesPage · categorías 11 a 13", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+    window.history.replaceState(null, "", "/tiempo/terminales/anomalias");
+  });
+
+  const NOTA = "Es ESPERADO el primer día de puesta en marcha: varias altas se activan a la vez.";
+  const NUEVAS = [
+    tarjeta("huellas_inferidas_exceso", 11, "Huellas inferidas en exceso", { estado: "con_hallazgos", nivel: "revisar", total: 1, nota: NOTA, ejemplos: [{ dia: "2026-10-09", inferidas: 7, manuales: 2, activaciones: 9, limite_inferidas: 5 }] }),
+    tarjeta("inferida_sin_marcas", 12, "Inferida sin marcas", { estado: "con_hallazgos", nivel: "revisar", total: 1, ejemplos: [{ persona_nombre: "Raúl Mena", evidencia: "inferida", activada_en: "2026-09-24T15:00:00Z" }] }),
+    tarjeta("asignador_confirmador", 13, "Asignador y confirmador", { estado: "con_hallazgos", nivel: "revisar", total: 1, ejemplos: [{ persona_nombre: "Luis Ramírez", confirmada_por: "Carlos Ruiz", confirmada_en: "2026-10-09T16:12:00Z" }] }),
+  ];
+
+  it("pinta las tres tarjetas con su nivel Revisar, el contenido de cada ejemplo y la nota fija de la 11", async () => {
+    mockApi({
+      anomalias: () =>
+        new Response(JSON.stringify({ terminal_id: 1, desde: "2026-10-01T00:00:00Z", hasta: "2026-10-08T00:00:00Z", generado_en: "2026-10-08T00:00:00Z", categorias: NUEVAS })),
+    });
+    render(<AnomaliasTerminalesPage />);
+    const once = (await screen.findByRole("heading", { name: /11 · huellas inferidas en exceso/i })).closest(".anomalia") as HTMLElement;
+    expect(within(once).getByText("Revisar")).toBeInTheDocument();
+    expect(within(once).getByText(/9 activaciones, 7 inferidas y 2 manuales/)).toBeInTheDocument();
+    expect(within(once).getByText(/es esperado el primer día de puesta en marcha/i)).toBeInTheDocument();
+    const doce = tarjetaDe("12 · inferida sin marcas");
+    expect(within(doce).getByText(/Raúl Mena · Huella verificada en el aparato/)).toBeInTheDocument();
+    expect(within(doce).queryByText(/esperado el primer día/i)).not.toBeInTheDocument();
+    const trece = tarjetaDe("13 · asignador y confirmador");
+    expect(within(trece).getByText("Revisar")).toBeInTheDocument();
+    expect(within(trece).getByText(/Luis Ramírez · la huella la confirmó Carlos Ruiz/)).toBeInTheDocument();
+  });
+
+  it("la nota sólo se muestra con hallazgos y como texto plano", async () => {
+    mockApi({
+      anomalias: () =>
+        new Response(JSON.stringify({ terminal_id: 1, desde: "2026-10-01T00:00:00Z", hasta: "2026-10-08T00:00:00Z", generado_en: "2026-10-08T00:00:00Z", categorias: [
+          tarjeta("huellas_inferidas_exceso", 11, "Huellas inferidas en exceso", { nota: NOTA }),
+          tarjeta("inferida_sin_marcas", 12, "Inferida sin marcas", { estado: "con_hallazgos", nivel: "revisar", total: 1, nota: "<b>x</b>", ejemplos: [{ persona_nombre: "A", evidencia: "manual", activada_en: null }] }),
+        ] })),
+    });
+    const { container } = render(<AnomaliasTerminalesPage />);
+    await screen.findByRole("heading", { name: /11 ·/ });
+    expect(screen.queryByText(/es esperado el primer día/i)).not.toBeInTheDocument();
+    expect(screen.getByText("<b>x</b>")).toBeInTheDocument();
+    expect(container.querySelector("b")).toBeNull();
+  });
+});

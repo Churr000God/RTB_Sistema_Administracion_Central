@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Loader2 } from "lucide-react";
 
 import { AppShell } from "../layouts/AppShell";
 import { Badge } from "../components/Badge";
@@ -190,6 +190,11 @@ export function AnomaliasTerminalesPage() {
                         <li key={indice}>{describirHallazgo(tarjeta.clave, ejemplo)}</li>
                       ))}
                     </ul>
+                  )}
+                  {tarjeta.estado === "con_hallazgos" && tarjeta.nota && (
+                    <p className="ayuda-campo" style={{ margin: "0.5rem 0 0" }}>
+                      <Info size={14} aria-hidden="true" /> {tarjeta.nota}
+                    </p>
                   )}
                   {tarjeta.estado === "sin_hallazgos" && (
                     <ul>

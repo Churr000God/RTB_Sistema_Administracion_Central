@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 const PERMITIDOS = [
   "../components/AsignarPersonaTerminalModal.tsx",
   "../components/BajaAltaModal.tsx",
+  "../components/ConfirmarHuellaModal.tsx",
   "../components/PublicarConsentimientoPanel.tsx",
   "../components/ReconsentimientoModal.tsx",
   "../pages/VariablesTerminalesPage.tsx",

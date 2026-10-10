@@ -7,7 +7,9 @@ import { AsignarPersonaTerminalModal } from "../components/AsignarPersonaTermina
 import { Badge } from "../components/Badge";
 import { BajaAltaModal } from "../components/BajaAltaModal";
 import { Button } from "../components/Button";
+import { ConfirmarHuellaModal } from "../components/ConfirmarHuellaModal";
 import { CuentaRegresivaAlta } from "../components/CuentaRegresivaAlta";
+import { EvidenciaHuella } from "../components/EvidenciaHuella";
 import { EstadoAltaBadge } from "../components/EstadoAltaBadge";
 import { HistorialAltaModal } from "../components/HistorialAltaModal";
 import { ReconsentimientoModal } from "../components/ReconsentimientoModal";
@@ -24,6 +26,8 @@ import {
   type Alta,
   type EstadoAlta,
   type EstadoContacto,
+  etiquetaEvidencia,
+  muestraEvidencia,
   type RespuestaAltas,
   type Terminal,
 } from "../lib/terminales";
@@ -37,8 +41,13 @@ type Estado = "cargando" | "listo" | "error" | "sin_acceso" | "no_existe";
 type ModalAbierto =
   | { tipo: "asignar" }
   | { tipo: "baja"; alta: Alta; accion: "cancelar_alta" | "dar_de_baja" }
+  | { tipo: "huella"; alta: Alta }
   | { tipo: "historial"; alta: Alta }
   | { tipo: "reconsentimiento"; ids: number[] };
+
+function tieneEvidenciaVisible(alta: Alta): boolean {
+  return muestraEvidencia(alta.estado) && etiquetaEvidencia(alta.huella_evidencia, alta.huellas_capturadas) !== null;
+}
 
 const AYUDA_ESTADO: Partial<Record<EstadoAlta, string>> = {
   pendiente_alta: "El puente aún no la crea en el aparato",
@@ -457,9 +466,8 @@ export function UsuariosTerminalPage() {
                               )}
                             </td>
                             <td className="num">
-                              {alta.estado === "pendiente_alta" || alta.estado === "baja"
-                                ? "—"
-                                : alta.huellas_capturadas}
+                              <EvidenciaHuella alta={alta} />
+                              {!tieneEvidenciaVisible(alta) && "—"}
                             </td>
                             <td className="num">{formatearFecha(alta.creado_en)}</td>
                             <td>
@@ -473,6 +481,11 @@ export function UsuariosTerminalPage() {
                               )}
                             </td>
                             <td>
+                              {puedeEditar && alta.estado === "esperando_huella" && (
+                                <Button icono={CheckCircle2} posicionIcono="izquierda" tamanoIcono={14} onClick={() => setModal({ tipo: "huella", alta })}>
+                                  Confirmar huella
+                                </Button>
+                              )}{" "}
                               {puedeEditar && alta.accion_disponible === "cancelar_alta" && (
                                 <Button icono={X} posicionIcono="izquierda" tamanoIcono={14} onClick={() => setModal({ tipo: "baja", alta, accion: "cancelar_alta" })}>
                                   Cancelar alta
@@ -527,6 +540,9 @@ export function UsuariosTerminalPage() {
             personaDelCaller={sesion?.persona_id}
             onCerrar={cerrarModal}
           />
+        )}
+        {modal?.tipo === "huella" && terminal && (
+          <ConfirmarHuellaModal terminalId={terminal.id} terminalNombre={terminal.nombre} alta={modal.alta} onCerrar={cerrarModal} />
         )}
         {modal?.tipo === "baja" && terminal && (
           <BajaAltaModal terminalId={terminal.id} alta={modal.alta} accion={modal.accion} onCerrar={cerrarModal} />

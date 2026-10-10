@@ -1,14 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, AlertTriangle, Fingerprint, Loader2, UserPlus } from "lucide-react";
+import { AlertCircle, AlertTriangle, CheckCircle2, Fingerprint, Loader2, UserPlus } from "lucide-react";
 
 import { AsignarPersonaTerminalModal } from "./AsignarPersonaTerminalModal";
 import { Button } from "./Button";
 import { Card } from "./Card";
+import { ConfirmarHuellaModal } from "./ConfirmarHuellaModal";
 import { CuentaRegresivaAlta } from "./CuentaRegresivaAlta";
+import { EvidenciaHuella } from "./EvidenciaHuella";
 import { EstadoAltaBadge } from "./EstadoAltaBadge";
 import { apiJson } from "../lib/errorApi";
 import { useSesion } from "../lib/useSesion";
-import { type AltaDePersona, type PersonaAsignable, type Terminal } from "../lib/terminales";
+import {
+  etiquetaEvidencia,
+  muestraEvidencia,
+  type AltaDePersona,
+  type PersonaAsignable,
+  type Terminal,
+} from "../lib/terminales";
 
 type Props = { persona: PersonaAsignable };
 
@@ -26,6 +34,7 @@ export function SeccionTerminalPersona({ persona }: Props) {
   const [abriendo, setAbriendo] = useState(false);
   const [errorAsignar, setErrorAsignar] = useState(false);
   const [terminalesElegibles, setTerminalesElegibles] = useState<{ id: number; nombre: string }[] | null>(null);
+  const [confirmando, setConfirmando] = useState<AltaDePersona | null>(null);
 
   const cargar = useCallback(() => {
     setEstado("cargando");
@@ -127,14 +136,25 @@ export function SeccionTerminalPersona({ persona }: Props) {
                 </span>
               )}{" "}
               · {terminal.nombre} · nº {alta.employee_no}
-              {(alta.estado === "activo" || alta.estado === "pendiente_baja") &&
-                ` · ${alta.huellas_capturadas} ${alta.huellas_capturadas === 1 ? "huella" : "huellas"}`}
+              {muestraEvidencia(alta.estado) && etiquetaEvidencia(alta.huella_evidencia, alta.huellas_capturadas) && (
+                <>
+                  {" · "}
+                  <EvidenciaHuella alta={alta} />
+                </>
+              )}
             </p>
             {alta.estado === "esperando_huella" && (
               <>
                 <p className="ayuda-campo" style={{ margin: 0 }}>
-                  Esperando que TI enrole la huella en la terminal.
+                  Esperando que TI enrole la huella en la terminal. Se activa sola con su primera marca por huella.
                 </p>
+                {puedeEditar && (
+                  <p style={{ margin: "0.4rem 0 0" }}>
+                    <Button icono={CheckCircle2} posicionIcono="izquierda" tamanoIcono={14} onClick={() => setConfirmando({ alta, terminal })}>
+                      Confirmar huella
+                    </Button>
+                  </p>
+                )}
                 {alta.caduca_en && <CuentaRegresivaAlta caducaEn={alta.caduca_en} />}
               </>
             )}
@@ -155,6 +175,18 @@ export function SeccionTerminalPersona({ persona }: Props) {
             </p>
           </div>
         ))}
+
+      {confirmando && (
+        <ConfirmarHuellaModal
+          terminalId={confirmando.terminal.id}
+          terminalNombre={confirmando.terminal.nombre}
+          alta={confirmando.alta}
+          onCerrar={(refrescar) => {
+            setConfirmando(null);
+            if (refrescar) cargar();
+          }}
+        />
+      )}
 
       {terminalesElegibles && (
         <AsignarPersonaTerminalModal
