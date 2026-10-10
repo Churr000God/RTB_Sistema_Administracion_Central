@@ -18,7 +18,9 @@ from app.detalle_terminal import DetalleProhibido, sanear_detalle
 from app.errores import MENSAJE_TRANSICION_INVALIDA, manejar_error_terminal
 from app.schemas.terminal import (
     CLAVES_ENTERAS,
+    CLAVE_MODO_VERIFICACION,
     CLAVES_EVENTO,
+    MODO_VERIFICACION_HUELLA,
     CODIGOS_DEFINITIVOS,
     CODIGOS_TRANSITORIOS,
     ACCION_POR_ESTADO,
@@ -103,6 +105,9 @@ def _evento_limpio(evento, version_software: str) -> dict:
                     limpio[clave] = valor
             elif type(valor) is str and _cadena_segura(valor):
                 limpio[clave] = valor
+        # Opcional: SOLO la cadena exacta «huella»; cualquier otra cosa (otro valor, tipo, mayúsculas, espacios, largo) se descarta y el RPC lo toma como NULL.
+        if type(evento.get(CLAVE_MODO_VERIFICACION)) is str and evento[CLAVE_MODO_VERIFICACION] == MODO_VERIFICACION_HUELLA:
+            limpio[CLAVE_MODO_VERIFICACION] = MODO_VERIFICACION_HUELLA
     limpio["version_software"] = version_software
     return limpio
 

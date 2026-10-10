@@ -34,6 +34,10 @@ LIMITE_LOTE_MARCAS = 200
 CLAVES_EVENTO = ("evento_id", "employee_no", "secuencia_local", "momento_dispositivo", "desfase_local", "estado_reloj")
 ENTERO_MAXIMO = 2**62
 CLAVES_ENTERAS = ("employee_no", "secuencia_local")
+# 95_: campo OPCIONAL del evento. Su ÚNICO valor significativo es la cadena exacta «huella» (el puente la manda sólo para una marca minor 38 por huella); cualquier otro
+# valor, tipo o largo se descarta (queda NULL) antes del RPC: nunca se pasa texto libre.
+CLAVE_MODO_VERIFICACION = "modo_verificacion"
+MODO_VERIFICACION_HUELLA = "huella"
 
 EstadoResultado = Literal["confirmado", "duplicado", "rechazo_definitivo", "rechazo_transitorio"]
 CODIGOS_DEFINITIVOS = ("forma_invalida", "no_enrolado", "secuencia_duplicada", "secuencia_fuera_de_rango", "conflicto_evento")

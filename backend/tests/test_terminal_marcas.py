@@ -457,3 +457,33 @@ def test_un_content_length_declarado_enorme_se_rechaza_sin_leer_ni_un_byte():
     asyncio.run(LimiteCuerpoTerminal(app_falso)(scope, receive, send))
     assert leido == [] and enviado[0]["status"] == 413
     assert dict(enviado[0]["headers"])[b"strict-transport-security"]
+
+
+# --- 95_: modo_verificacion (campo OPCIONAL; único valor significativo: la cadena exacta «huella») ----------------------------------------------------
+
+
+def test_modo_verificacion_huella_pasa_al_rpc_y_ausente_no_agrega_la_clave(entorno):
+    e = entorno(_ok(2))
+    e.post(_cuerpo(2, eventos=[_evento(0, modo_verificacion="huella"), _evento(1)]))
+    eventos = e.llamadas_marcas()[0][1]["p_eventos"]
+    assert eventos[0]["modo_verificacion"] == "huella" and "modo_verificacion" not in eventos[1]
+
+
+@pytest.mark.parametrize("valor", [
+    "Huella", "HUELLA", " huella", "huella ", "huella\x00", "huella\n", "fp", "fingerprint", "huellas", "", "x" * 65, "h" * 1000, None, True, False, 1, 1.5, ["huella"],
+    {"a": "huella"}, "hue​lla", "huella​",
+], ids=lambda v: repr(v)[:20])
+def test_cualquier_otro_valor_tipo_o_largo_de_modo_verificacion_se_descarta_antes_del_rpc(entorno, valor):
+    e = entorno(_ok(1))
+    e.post(_cuerpo(1, eventos=[_evento(0, modo_verificacion=valor)]))
+    evento = e.llamadas_marcas()[0][1]["p_eventos"][0]
+    assert "modo_verificacion" not in evento and set(evento) == set(CLAVES_EVENTO) | {"version_software"}
+    assert "fingerprint" not in str(e.llamadas_marcas()[0][1]) and "HUELLA" not in str(e.llamadas_marcas()[0][1])
+
+
+def test_el_evento_con_modo_verificacion_no_es_forma_invalida_ni_cambia_el_resto_del_contrato(entorno):
+    e = entorno(_ok(1))
+    r = e.post(_cuerpo(1, eventos=[_evento(0, modo_verificacion="huella", persona_id="x", origen="captura_manual")]))
+    assert r.status_code == 200
+    evento = e.llamadas_marcas()[0][1]["p_eventos"][0]
+    assert set(evento) == set(CLAVES_EVENTO) | {"version_software", "modo_verificacion"} and "persona_id" not in evento and "origen" not in evento
