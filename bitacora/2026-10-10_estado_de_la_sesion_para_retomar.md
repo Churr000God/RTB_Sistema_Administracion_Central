@@ -86,10 +86,18 @@ T-PI-1 a T-PI-5 completos y T-PI-6 corte A (detección e informe, sin borrado), 
 
 **Diseño final v4 del interruptor:** `db/ensayos/DISENO_interruptor_inferir_huella.md` (208 líneas, solo texto, aprobado por `security` en D1 a D4 y P1 a P5). Resumen de lo consolidado: `97_` completo en un archivo y una transacción (siembra de dos claves, `terminal_inferir_huella_activa` y `terminal_inferir_huella_hasta` con valor centinela vencido, `CHECK`, bitácora append-only sin `FK`, trigger de auditoría estrecho sobre las dos claves, función dedicada con nota de al menos 10 caracteres, vencimiento máximo de 30 días, rechazo si no hay consentimiento vigente o terminal activa, y lector del estado efectivo como única definición); `98_` (`fn_marca_terminal_registrar` lee ese lector una vez por lote). Falta: confirmación del usuario de «activo hasta», autorización para escribir el SQL y autorizaciones separadas para ensayar y aplicar. Texto propuesto para `CLAUDE.md` se entrega al aplicar.
 
+**Diseño v3 del puente (`backend`, aprobado en diseño, código de los pasos 2 a 4 EN ESPERA de un «go» explícito tras compactar):** paso 1 (simulador fiel con serial global contiguo, mezcla de eventos `major` 2, 3 y 5, páginas de hasta 10, alta con cuerpo completo validado, `por_huella` por `minor 38`, denegado 49) hecho y verde sin commitear (`backend` lo commitea y guarda el diseño en `puente/DISENO_v3_tras_verificacion.md`); paso 2: alta con constantes (`beginTime` fijo 2020-01-01T00:00:00-06:00, `endTime` 2037-12-31T23:59:59-06:00, `timeType` `local`, `doorRight` `"1"`, plan puerta 1 plantilla `"1"`), relectura comparando instantes, código fijo `terminal_rechazo_cuerpo_alta`; paso 3: ingesta pidiendo todos los eventos, filtro local, `salto_serial` cuantificado, `cursor_fuera_del_buffer` preciso, comprobación `totalMatches` igual a último menos primero más 1, contadores por (`major`, `minor`) con tope de 20 claves, tope de unas 50 páginas por ciclo y turno por página, esquema v16; paso 4: pruebas de integridad; T-PI-7: medir desfase de la hora (como máximo cada 60 segundos), umbral 120 segundos configurable, marcas con `deriva` o `sin_sincronizar` nunca descartadas. El interruptor del servidor sigue el diseño v4 de `db`.
+
 ## 9. Tareas en curso al momento de escribir esto
 
-- `backend`: paso 1 del diseño v2 (simulador fiel y retiro de `currentVerifyMode`).
-- `db`: diseño del parámetro `terminal_inferir_huella_activa`.
-- `security`: revisión del diseño v2 del puente.
-- `Checador`: lectura de solo lectura de los tipos JSON de los campos de puerta (entrega no confirmada).
-- Pendiente del usuario: confirmar umbral y periodicidad de la revisión de la hora.
+**Al compactar (10 de octubre de 2026):** todas las tareas de análisis y diseño terminaron. No hay trabajo de código en vuelo salvo que `backend` commitea el paso 1 del puente y guarda su diseño v3. Nada nuevo se aplicó en la base después de `96_`.
+
+**Cómo retomar:**
+
+1. Leer este documento y los tres de apoyo: `2026-10-10_verificacion_terminal_hikvision_con_ti.md`, `db/ensayos/DISENO_interruptor_inferir_huella.md` y `puente/DISENO_v3_tras_verificacion.md` (en `checador-fisico`).
+2. Verificar con `git log origin/main..main` en los dos repositorios y listar sesiones con `ListAgents` (referencias locales indicadas en la sección 7).
+3. Dar el «go» a `backend` para los pasos 2 a 4 del diseño v3 del puente (un commit por paso, revisados por `security` antes de empujar); pedir a `security` que revise el simulador del paso 1.
+4. Decisiones del usuario aún abiertas: periodicidad y umbral de la revisión de la hora (propuesta: 120 segundos y semanal el primer mes), «activo hasta» del interruptor (recomendado sí, con tope de 30 días), y si se hace la prueba opcional de derecho de puerta vacío.
+5. Antes de escribir el SQL del interruptor (`97_` y `98_`): confirmación del usuario de «activo hasta» y autorización expresa; ensayar y aplicar son autorizaciones separadas.
+6. Acciones físicas del usuario: reserva DHCP y aislamiento de red de la terminal; primera alta real supervisada con TI y RH (caducidad en 168 horas).
+7. La sesión remota `Checador` es la única con acceso a la terminal; su entrega de mensajes no se confirma y a veces hay que pegarle el texto.
