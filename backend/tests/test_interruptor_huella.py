@@ -656,7 +656,7 @@ def test_una_migracion_sin_aplicar_al_cambiar_es_503_del_handler_global(entorno)
     assert r.status_code == 503 and r.json() == {"detail": "Servicio no disponible. Avisa a Sistemas."}
 
 
-@pytest.mark.parametrize("devuelto", [None, [], {"resultado": "rara", "estado": ENCENDIDO}, {"resultado": "actualizada"}, {"resultado": "actualizada", "estado": "texto"}])
+@pytest.mark.parametrize("devuelto", [None, [], {"resultado": "rara", "estado": ENCENDIDO}, {"estado": ENCENDIDO}])
 def test_una_respuesta_inesperada_de_la_funcion_es_503(entorno, devuelto):
     entorno.estado = _estado()
     entorno.configurar()
@@ -665,11 +665,25 @@ def test_una_respuesta_inesperada_de_la_funcion_es_503(entorno, devuelto):
     assert r.status_code == 503 and r.json() == {"detail": router_ih.MENSAJE_RESPUESTA_INESPERADA}
 
 
-def test_un_estado_ilegible_en_la_respuesta_de_la_funcion_es_503_no_apagado(entorno):
+@pytest.mark.parametrize("estado_devuelto", [{"activo": True}, "texto", None, [], 7])
+def test_n1_si_el_cambio_se_aplico_pero_el_estado_no_se_puede_armar_es_200_con_estado_null(entorno, estado_devuelto, caplog):
+    """El cambio ya se aplicó: un error aquí haría creer que no pasó nada. Se responde el resultado y `estado: null` (la pantalla recarga con el GET); ni apagado inventado ni 503."""
     entorno.estado = _estado()
     entorno.configurar()
-    _rpc_cambiar(entorno, {"resultado": "actualizada", "estado": {"activo": True}})
-    assert _post("/encender", {"nota": NOTA, "hasta_fecha": FECHA_OK}).status_code == 503
+    _rpc_cambiar(entorno, {"resultado": "actualizada", "estado": estado_devuelto})
+    with caplog.at_level(logging.WARNING):
+        r = _post("/encender", {"nota": NOTA, "hasta_fecha": FECHA_OK})
+    assert r.status_code == 200 and r.json() == {"resultado": "actualizada", "estado": None}
+    assert NOTA not in r.text + caplog.text
+
+
+def test_n1_si_falla_una_lectura_accesoria_despues_del_cambio_tambien_es_200(entorno, monkeypatch):
+    entorno.estado = _estado()
+    entorno.configurar()
+    _rpc_cambiar(entorno)
+    monkeypatch.setattr(router_ih, "armar_estado", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")) if a else None)
+    r = _post("/encender", {"nota": NOTA, "hasta_fecha": FECHA_OK})
+    assert r.status_code == 200 and r.json()["resultado"] == "actualizada" and r.json()["estado"] is None
 
 
 # --- privacidad de logs y respuestas --------------------------------------------------------------------------------------------------------------------------
@@ -816,3 +830,25 @@ def test_los_valores_de_clave_y_operacion_son_los_del_check_de_la_base():
         assert f"'{valor}'" in sql
     import re
     assert re.search(r"via_funcion\s+boolean NOT NULL", sql)
+
+
+# --- N4: sin permiso manda el 403, no el 422 de validación ------------------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("ruta,cuerpo", [
+    ("/encender", {"nota": "x", "hasta_fecha": "no-es-fecha", "extra": 1}), ("/renovar", {"nota": "x"}), ("/apagar", {"nota": "y" * 900}), ("/encender", {}),
+])
+def test_n4_un_llamador_sin_permiso_con_cuerpo_invalido_recibe_403_y_no_422(entorno, ruta, cuerpo):
+    entorno.codigos = {"terminal_usuario_lectura"}
+    entorno.configurar()
+    _rpc_cambiar(entorno)
+    r = _post(ruta, cuerpo)
+    assert r.status_code == 403 and "codigo" not in r.json() and not _llamadas_cambiar(entorno)
+    assert r.headers["cache-control"] == "no-store"
+
+
+def test_n4_tampoco_se_filtra_el_cuerpo_a_quien_no_tiene_permiso(entorno):
+    entorno.codigos = set()
+    entorno.configurar()
+    r = _post("/encender", {"nota": NOTA_SECRETA, "hasta_fecha": "no-es-fecha"})
+    assert r.status_code == 403 and NOTA_SECRETA not in r.text

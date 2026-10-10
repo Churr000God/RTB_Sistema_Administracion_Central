@@ -104,7 +104,7 @@ requisitos.
   pantalla no lo muestra junto a nombres de personas y **la regla de alarma (§5) NO depende de él** (security 2d). Abierto a los tres permisos de lectura.
 - `requisitos` (para deshabilitar «Encender» con explicación; **informativo**, la base decide): `consentimiento_publicado` = existe versión vigente con `provisional = false`;
   `terminal_activa` = hay al menos una `tiempo.terminal` activa. Lecturas con `service_role`; si fallan, el campo es `null`. No se expone el texto ni la versión.
-- `alarma`: ver §5.
+- `alarma`: ver §5. (El GET del estado lee SIEMPRE fresco; la tarjeta 14 del tablero de anomalías, en cambio, pasa por la caché de 45 s del tablero — ver §5.)
 - Falla de lectura de la función (`APIError` o forma inesperada): **503** «El servicio no respondió como se esperaba; intenta de nuevo o avisa a Sistemas.» + `ERROR` en el log.
   **Nunca** se rellena con «apagado» una respuesta ilegible. (Distinto del RPC de marcas, que sí cae a apagado.)
 
@@ -157,7 +157,7 @@ Cuerpo: `{"nota": "…"}` (opcional, ≤ 500; la base no la exige al apagar, que
 {"resultado": "actualizada", "estado": { …misma forma que GET §1… }}
 ```
 `resultado` ∈ `actualizada` | `sin_cambio`. `estado` se arma con el `estado` que **devuelve la propia función** (misma transacción) + nombre (cliente del caller, C1/C2), conteo y requisitos como en §1.
-Forma inesperada (sin `resultado` válido o sin `estado` dict) → **503** `MENSAJE_RESPUESTA_INESPERADA` + `ERROR` en el log.
+**`estado` puede ser `null` (N1):** el cambio ya se aplicó cuando se arma la respuesta; si el estado no se puede armar (la función no lo devolvió bien o falló una lectura accesoria) se responde **200** `{"resultado": …, "estado": null}` y la pantalla **recarga con el GET** (no se disfraza de error algo que sí pasó, ni se inventa un estado). Un `resultado` ausente o fuera de `actualizada`|`sin_cambio` sí es **503** `MENSAJE_RESPUESTA_INESPERADA` + `ERROR` en el log (no se puede afirmar qué pasó).
 
 ### 3.5 Concurrencia y reintento (C4)
 SQLSTATE `55P03` (lock no disponible), `40P01` (deadlock) y `40001` (fallo de serialización) → **503** `codigo: "reintentar"`, «El cambio no se pudo aplicar por una operación concurrente; vuelve a
@@ -249,6 +249,7 @@ Archivo `backend/tests/test_interruptor_huella.py` (+ ampliación de `test_anoma
 12. **Historial:** solo las columnas permitidas (sin `rol_jwt`, `usuario_sesion`, `txid`, `registrado_por`); `limite` acotado; cliente del caller; `autor_nombre` `null` si no se resuelve.
 13. **Privacidad de logs/respuestas:** ninguna respuesta ni línea de log (`caplog` en todos los niveles) contiene la nota del llamador, salvo el historial; los `ERROR` llevan solo SQLSTATE/HINT.
 14. **Ruta de marcas (C8):** sin caché del estado (dos peticiones seguidas con estados distintos usan el estado nuevo); ilegible/error → apagado; no se loguea el motivo con valores.
+13 bis. **Gate antes que validación (N4):** un llamador sin permiso con un cuerpo inválido recibe **403**, nunca 422 ni un código de validación (la dependencia de permiso se resuelve antes); y la precondición del arranque (§8.16) nunca pasa un valor distinto de nulo a la función de escritura (N2).
 14 bis. **`Cache-Control: no-store` (F1):** los GET (estado, historial) y los tres POST, en éxito y en error (403/409/422/503), llevan `Cache-Control: no-store`.
 15. **Contrato RPC↔DDL:** un test que lee `db/ddl/97_*.sql` y comprueba la firma `fn_terminal_inferir_huella_cambiar(boolean, text, timestamptz)`, los `HINT` de §6.1 y las claves del JSON de `fn_terminal_inferir_huella_estado()` (`activo, vencido, motivo, valor, hasta, encendido_por, encendido_en, ultimo_cambio_via_funcion, sin_registro`).
 16. **Precondición de esquema:** agregar las dos funciones a `app/precondiciones.py` (si falta alguna, el arranque falla como con 94_).

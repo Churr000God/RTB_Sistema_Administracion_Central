@@ -182,6 +182,17 @@ def test_la_comprobacion_de_la_funcion_de_cambio_no_puede_escribir():
     assert [c.args[1] for c in llamadas_cambiar] == [{"p_activa": None, "p_nota": None, "p_hasta": None}]
 
 
+def test_n2_la_comprobacion_nunca_pasa_un_parametro_distinto_de_nulo_a_la_funcion_de_escritura():
+    """Si alguien cambiara FUNCIONES_REQUERIDAS para llamar la función de cambio con un valor real (p_activa=True, una nota…), la comprobación del arranque ESCRIBIRÍA en la base."""
+    from app.precondiciones import FUNCIONES_REQUERIDAS
+
+    escrituras = [f for f in FUNCIONES_REQUERIDAS if f[1] == "fn_terminal_inferir_huella_cambiar"]
+    assert len(escrituras) == 1
+    assert set(escrituras[0][2]) == {"p_activa", "p_nota", "p_hasta"} and all(valor is None for valor in escrituras[0][2].values())
+    lecturas = [f for f in FUNCIONES_REQUERIDAS if f[1] != "fn_terminal_inferir_huella_cambiar"]
+    assert lecturas and all(f[2] == {} for f in lecturas)           # las demás son de solo lectura y sin parámetros
+
+
 def test_un_fallo_raro_al_comprobar_la_funcion_es_no_verificable():
     with pytest.raises(PrecondicionNoVerificable):
         faltantes(_cliente_con_rpc({"fn_terminal_inferir_huella_estado": APIError({"code": "XX999", "message": "x"})}))

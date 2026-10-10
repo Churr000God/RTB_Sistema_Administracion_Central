@@ -83,4 +83,4 @@ class ApagarIn(BaseModel):
 
 class CambioOut(BaseModel):
     resultado: Literal["actualizada", "sin_cambio"]
-    estado: EstadoInterruptorOut
+    estado: EstadoInterruptorOut | None = None  # null si el cambio se aplicó pero el estado no se pudo armar: la pantalla recarga con el GET

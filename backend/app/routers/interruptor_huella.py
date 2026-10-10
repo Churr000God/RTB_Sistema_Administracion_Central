@@ -231,14 +231,21 @@ def _cambiar(db: Client, activa: bool, nota: str | None, hasta_iso: str | None) 
             raise traduccion from None
         logger.error("fn_terminal_inferir_huella_cambiar falló (sqlstate %s)", error.code)
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, MENSAJE_ERROR_INTERNO) from None
-    if not isinstance(datos, dict) or datos.get("resultado") not in ("actualizada", "sin_cambio") or not isinstance(datos.get("estado"), dict):
+    if not isinstance(datos, dict) or datos.get("resultado") not in ("actualizada", "sin_cambio"):
         logger.error("fn_terminal_inferir_huella_cambiar devolvió una forma inesperada")
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, MENSAJE_RESPUESTA_INESPERADA)
     return datos
 
 
 def _respuesta(db: Client, db_servicio: Client, caller: CallerIdentity, datos: dict) -> dict:
-    return {"resultado": datos["resultado"], "estado": armar_estado(db, db_servicio, caller, datos["estado"])}
+    """N1: el cambio YA se aplicó cuando se llega aquí. Si el estado no se puede armar (la función no lo devolvió bien, o falló una lectura accesoria) NO se responde un error que haría creer
+    que no pasó nada: se devuelve 200 con el resultado y `estado: null`, y la pantalla recarga el estado con el GET."""
+    try:
+        estado = armar_estado(db, db_servicio, caller, datos.get("estado"))
+    except Exception as error:  # noqa: BLE001 - incluye el 503 de armar_estado
+        logger.warning("el cambio del interruptor se aplicó pero no se pudo armar el estado (%s)", type(error).__name__)
+        estado = None
+    return {"resultado": datos["resultado"], "estado": estado}
 
 
 @router.post("/encender", response_model=CambioOut)
