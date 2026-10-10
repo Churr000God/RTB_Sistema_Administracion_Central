@@ -43,6 +43,7 @@ from app.batches._orquestacion import finalizar_corrida, upsert_corrida_en_progr
 from app.catalogo_motivos_revision import MOTIVO_PARIDAD_IMPAR
 from app.config import get_settings
 from app.deps import get_service_client
+from app.registro_seguro import descripcion_segura
 
 TIPO_BATCH = "cierre_dia"
 DOMINGO = 6  # date.weekday(): lunes=0 ... domingo=6
@@ -333,7 +334,7 @@ def ejecutar_cierre_dia(fecha: date, db: Client | None = None) -> dict:
                 _armar_dia_impar(db, persona_id, fecha_iso, marcas)
                 contadores["bloqueado"] += 1
         except Exception as error:  # noqa: BLE001 -- por diseño: aislar la falla de una persona
-            errores.append(f"{persona_id}: {error}")
+            errores.append(f"{persona_id}: {descripcion_segura(error)}")
 
     resumen = (
         f"{contadores['cerrado']} cerrado(s), {contadores['bloqueado']} bloqueado(s), "

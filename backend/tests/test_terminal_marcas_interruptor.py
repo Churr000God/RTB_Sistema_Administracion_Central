@@ -122,20 +122,6 @@ def test_las_excepciones_de_clientes_externos_se_registran_con_tipo_y_traza_sin_
     assert SECRETO not in caplog.text and "/api/terminal/marcas" in caplog.text and "?x=1" not in caplog.text
 
 
-def test_una_excepcion_propia_conserva_la_traza_completa_de_siempre(caplog):
-    from types import SimpleNamespace
-
-    from app.main import registrar_excepcion_no_capturada
-
-    peticion = SimpleNamespace(method="GET", scope={}, url=SimpleNamespace(path="/x"), headers={})
-    try:
-        raise ValueError("error de programación")
-    except ValueError as error:
-        with caplog.at_level(logging.DEBUG):
-            registrar_excepcion_no_capturada(peticion, error)
-    assert "Traceback" in caplog.text and "error de programación" in caplog.text
-
-
 def test_la_traza_sin_mensaje_no_incluye_el_texto_de_la_excepcion_ni_el_de_su_causa():
     from app.main import traza_sin_mensaje
 

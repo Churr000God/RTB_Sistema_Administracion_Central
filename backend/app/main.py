@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import traceback
 
 from fastapi import FastAPI, Request
 from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
@@ -14,6 +13,7 @@ from postgrest.exceptions import APIError
 
 from app.config import parse_frontend_urls
 from app.errores import CODIGOS_MIGRACION_FALTANTE, MENSAJE_DATOS_INVALIDOS
+from app.registro_seguro import PAQUETES_CON_MENSAJE_SENSIBLE, tiene_mensaje_registrable, traza_sin_mensaje  # noqa: F401
 from app.interruptor_huella import PREFIJO as PREFIJO_INTERRUPTOR_HUELLA, SinCacheInterruptor, codigo_de_validacion
 from app.respuestas_error import ErrorConCampos, manejar_error_con_campos
 from app.scheduler import lifespan
@@ -93,28 +93,18 @@ def ruta_para_log(request: Request) -> str:
     return getattr(ruta, "path", None) or "(ruta sin resolver)"
 
 
-# Paquetes cuyas excepciones pueden llevar en su MENSAJE datos de la petición o de la fila (valores, URLs con parámetros, cuerpos): del error se registra el tipo y la traza, nunca el texto.
-PAQUETES_CON_MENSAJE_SENSIBLE = frozenset({"postgrest", "supabase", "gotrue", "supabase_auth", "storage3", "realtime", "supafunc", "httpx", "httpcore"})
-
-
-def traza_sin_mensaje(exc: BaseException) -> str:
-    """Solo los marcos de la traza (archivo, línea, función y código fuente); NUNCA el texto del mensaje de la excepción ni el de sus causas."""
-    marcos = "".join(traceback.format_tb(exc.__traceback__))
-    return f"{type(exc).__module__}.{type(exc).__qualname__}\n{marcos}"
-
-
 def registrar_excepcion_no_capturada(request: Request, exc: Exception) -> None:
-    """UNA sola política de log para toda excepción que llega al manejador global (security A2):
-    - APIError (PostgREST): SOLO SQLSTATE, método y plantilla de la ruta (message, details y hint pueden traer valores de la fila: employee_no, evento_id, una nota…); sin traza;
-    - excepciones de postgrest/httpx/supabase y afines: tipo y traza SIN el texto del mensaje;
-    - cualquier otra: la traza completa de siempre (código propio, no de un cliente que reenvía datos)."""
+    """UNA sola política de log para toda excepción que llega al manejador global (security A2/L1), ver `registro_seguro`:
+    - APIError (PostgREST): SOLO SQLSTATE, método y plantilla de la ruta; sin traza;
+    - cualquier otra excepción: tipo y marcos de la traza, NUNCA el texto del mensaje (una ResponseValidationError, por ejemplo, lleva el `input` completo en él);
+    - el mensaje completo solo para una excepción PROPIA que lo declare (`mensaje_registrable = True`)."""
     ruta = ruta_para_log(request)
     if isinstance(exc, APIError):
         logger.error("Error de la base no capturado en %s %s (sqlstate %s)", request.method, ruta, exc.code)
-    elif type(exc).__module__.split(".")[0] in PAQUETES_CON_MENSAJE_SENSIBLE:
-        logger.error("Excepción de un cliente externo no capturada en %s %s: %s", request.method, ruta, traza_sin_mensaje(exc))
+    elif tiene_mensaje_registrable(exc):
+        logger.error("Excepción propia no capturada en %s %s", request.method, ruta, exc_info=exc)
     else:
-        logger.exception("Excepción no capturada en %s %s", request.method, ruta)
+        logger.error("Excepción no capturada en %s %s: %s", request.method, ruta, traza_sin_mensaje(exc))
 
 
 @app.exception_handler(Exception)

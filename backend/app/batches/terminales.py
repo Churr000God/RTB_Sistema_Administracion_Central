@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from app.catalogo_terminal import CLAVE_CADUCIDAD, CLAVE_RETENCION_RECHAZOS, valor_vigente_estricto
 from app.deps import get_service_client
 from app.config import get_settings
+from app.registro_seguro import traza_sin_mensaje
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +46,8 @@ def ejecutar_baja_por_caducidad(db: Client | None = None) -> int | None:
             logger.error("baja por caducidad: no se pudo leer la variable; se omite la corrida")
             return None
         n = _llamar(db, "fn_terminal_baja_por_caducidad", {"p_horas": horas})
-    except Exception:
-        logger.exception("job de terminales: la baja por caducidad no pudo arrancar")
+    except Exception as error:
+        logger.error("job de terminales: la baja por caducidad no pudo arrancar: %s", traza_sin_mensaje(error))
         return None
     if n:
         logger.warning(
@@ -70,8 +71,8 @@ def ejecutar_purga_rechazos(db: Client | None = None) -> int | None:
             logger.error("purga de rechazos: no se pudo leer la variable; se omite la corrida")
             return None
         n = _llamar(db, "fn_marca_rechazada_purgar", {"p_dias": dias})
-    except Exception:
-        logger.exception("job de terminales: la purga de rechazos no pudo arrancar")
+    except Exception as error:
+        logger.error("job de terminales: la purga de rechazos no pudo arrancar: %s", traza_sin_mensaje(error))
         return None
     if n:
         logger.warning(

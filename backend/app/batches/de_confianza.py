@@ -17,6 +17,7 @@ from supabase import Client
 from app.batches._orquestacion import finalizar_corrida, upsert_corrida_en_progreso
 from app.config import get_settings
 from app.deps import get_service_client
+from app.registro_seguro import descripcion_segura
 
 UNIQUE_VIOLATION = "23505"
 TIPO_BATCH = "de_confianza"
@@ -84,7 +85,7 @@ def ejecutar_batch_de_confianza(fecha: date, db: Client | None = None) -> dict:
             else:
                 ya_existian += 1
         except Exception as error:  # noqa: BLE001 -- por diseño: aislar la falla de una persona
-            errores.append(f"{persona_id}: {error}")
+            errores.append(f"{persona_id}: {descripcion_segura(error)}")
 
     if errores:
         # RLS de corrida_batch sólo exige fn_caller_activo(), sin permiso específico (a
