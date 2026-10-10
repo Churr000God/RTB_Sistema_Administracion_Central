@@ -189,6 +189,7 @@ de personas**) cuando hay alarma; `sin_hallazgos` si no; **`error` si la lectura
 - **No exige `marca_lectura`** (no cruza marcas), pero sí el **gate del tablero** (lectura de Terminales).
 - Es global: se repite igual en el tablero de cada terminal pero, **en los agregados del tablero, cuenta como UNA alarma global**, no N por terminal.
 - Lleva `nota` fija: «Es un ajuste global del sistema, no de esta terminal.» Lectura con `service_role`, aislada como las demás tarjetas (si falla, las otras siguen).
+- **Implementación:** categoría 14 de `anomalias_terminal.py` (`nivel_de` decide `atender`/`revisar` según el `codigo` de la alarma; el `detalle` «ver todos» funciona igual). Si la función de estado no existe (97_ sin aplicar) la tarjeta sale `no_disponible`/`falta_migracion`. El tablero tiene su caché corta de 45 s por usuario: la tarjeta puede ir hasta 45 s atrás; la pantalla del interruptor (§1) lee siempre fresco.
 
 ## 6. Mapeo de errores (módulo `errores.py`, nuevo `traducir_error_interruptor_huella`)
 

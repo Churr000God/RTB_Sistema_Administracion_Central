@@ -78,7 +78,7 @@ def entorno(monkeypatch):
         rc = _rpc_por_nombre(db, {"fn_terminal_reconsentimiento_pendiente_ids": [], **(rpc_caller or {})})
         rs = _rpc_por_nombre(
             sv,
-            {"fn_terminal_anomalias": {"total": 0, "items": []}, "fn_terminal_config_valor": None, **(rpc_servicio or {})},
+            {"fn_terminal_anomalias": {"total": 0, "items": []}, "fn_terminal_config_valor": None, "fn_terminal_inferir_huella_estado": ESTADO_INTERRUPTOR_APAGADO, **(rpc_servicio or {})},
         )
         app.dependency_overrides[get_caller_client] = lambda: db
         app.dependency_overrides[get_caller_identity] = lambda: CALLER
@@ -88,6 +88,10 @@ def entorno(monkeypatch):
 
     entorno.configurar = configurar
     return entorno
+
+
+ESTADO_INTERRUPTOR_APAGADO = {"activo": False, "vencido": False, "motivo": "apagado", "valor": "0", "hasta": "1970-01-01T00:00:00Z", "encendido_por": None, "encendido_en": None,
+                              "ultimo_cambio_via_funcion": None, "sin_registro": False}
 
 
 def _c():
@@ -110,16 +114,16 @@ def _llamadas_anomalias(entorno):
 # --- estructura general ---------------------------------------------------------------------------------------------------
 
 
-def test_el_tablero_trae_las_13_categorias_con_nivel_y_numero_del_contrato(entorno):
+def test_el_tablero_trae_las_14_categorias_con_nivel_y_numero_del_contrato(entorno):
     entorno.configurar()
     r = _get()
     assert r.status_code == 200
     cuerpo = r.json()
-    assert [c["numero"] for c in cuerpo["categorias"]] == list(range(1, 14))
+    assert [c["numero"] for c in cuerpo["categorias"]] == list(range(1, 15))
     assert {c["clave"] for c in cuerpo["categorias"]} == {
         "marcas_posteriores_a_baja", "picos_de_tasa", "reloj_degradado", "huecos_de_secuencia", "rechazos_definitivos",
         "credenciales", "inconsistencias_de_baja", "altas_atascadas", "altas_recientes", "reconsentimientos_pendientes",
-        "huellas_inferidas_exceso", "inferida_sin_marcas", "asignador_confirmador",
+        "huellas_inferidas_exceso", "inferida_sin_marcas", "asignador_confirmador", "interruptor_huella",
     }
     assert all(c["estado"] == "sin_hallazgos" and c["nivel"] is None and c["total"] == 0 for c in cuerpo["categorias"])
     assert cuerpo["terminal_id"] == 1 and cuerpo["generado_en"] and cuerpo["desde"] and cuerpo["hasta"]
@@ -128,7 +132,7 @@ def test_el_tablero_trae_las_13_categorias_con_nivel_y_numero_del_contrato(entor
 def test_niveles_los_manda_el_backend():
     por_numero = {c.numero: c.nivel for c in CATEGORIAS}
     assert por_numero == {1: "atender", 7: "atender", 2: "revisar", 3: "revisar", 4: "revisar", 5: "revisar",
-                          6: "revisar", 8: "revisar", 10: "revisar", 9: "informativo", 11: "revisar", 12: "revisar", 13: "revisar"}
+                          6: "revisar", 8: "revisar", 10: "revisar", 9: "informativo", 11: "revisar", 12: "revisar", 13: "revisar", 14: "revisar"}
 
 
 def test_sin_permiso_403_terminal_404_y_fronteras(entorno):
@@ -763,7 +767,7 @@ def test_ninguna_categoria_devuelve_claves_de_identidad_ni_secretos(entorno):
     r = _get()
     assert r.status_code == 200
     assert not (set(_claves(r.json())) & PROHIBIDAS)
-    assert all(t["estado"] == "con_hallazgos" for t in r.json()["categorias"] if t["clave"] not in ())
+    assert all(t["estado"] == "con_hallazgos" for t in r.json()["categorias"] if t["clave"] != "interruptor_huella")      # la 14 es global y tiene su propia fuente (apagado = sin hallazgos)
     for clave in (c.clave for c in CATEGORIAS):
         d = _get(f"{RUTA}/{clave}")
         assert d.status_code == 200, (clave, d.text)
@@ -781,7 +785,7 @@ def test_huellas_inferidas_exceso_pasa_las_cifras_y_lleva_la_nota_de_que_es_espe
     assert t["estado"] == "con_hallazgos" and t["nivel"] == "revisar" and t["total"] == 1
     assert t["ejemplos"] == [{"dia": "2026-10-09", "inferidas": 9, "manuales": 1, "activaciones": 10, "limite_inferidas": 5}]
     assert "ESPERADO el primer día" in t["nota"]
-    otras = [x for x in _tarjetas(_get()).values() if x["clave"] != "huellas_inferidas_exceso"]
+    otras = [x for x in _tarjetas(_get()).values() if x["clave"] not in ("huellas_inferidas_exceso", "interruptor_huella")]
     assert all(x["nota"] is None for x in otras)
 
 
@@ -807,7 +811,7 @@ def test_las_categorias_de_huella_aisladas_si_la_migracion_94_falta_dan_no_dispo
     t = _tarjetas(_get())
     for clave in ("huellas_inferidas_exceso", "inferida_sin_marcas", "asignador_confirmador"):
         assert t[clave]["estado"] == "error" and CRUDO not in str(t[clave])
-    assert len(t) == 13
+    assert len(t) == 14
 
 
 def test_sin_hallazgos_las_tres_categorias_de_huella_salen_vacias(entorno):
@@ -828,3 +832,78 @@ def test_security_r1_inferida_sin_marcas_exige_marca_lectura_y_no_llama_al_rpc_s
     entorno.otorgados = {"terminal_usuario_lectura", "marca_lectura"}
     entorno.configurar(rpc_servicio={"fn_terminal_anomalias": {"total": 1, "items": items}})
     assert _tarjetas(_get())["inferida_sin_marcas"]["estado"] == "con_hallazgos"
+
+
+# --- categoría 14: interruptor de la activación por huella (GLOBAL; CONTRATO_API_INTERRUPTOR_INFERIR_HUELLA.md §5) -----------------------------------------------
+
+ENCENDIDO_SANO = {"activo": True, "vencido": False, "motivo": None, "valor": "1", "hasta": "2026-11-03T05:59:59Z", "encendido_por": "uuid-del-autor-9911", "encendido_en": "2026-10-12T16:03:11Z",
+                  "ultimo_cambio_via_funcion": True, "sin_registro": False}
+
+
+def _t14(entorno, estado):
+    entorno.configurar(rpc_servicio={"fn_terminal_inferir_huella_estado": estado})
+    return _tarjetas(_get())["interruptor_huella"]
+
+
+def test_la_tarjeta_14_sin_alarma_es_sin_hallazgos(entorno):
+    for estado in (ESTADO_INTERRUPTOR_APAGADO, ENCENDIDO_SANO, ESTADO_INTERRUPTOR_APAGADO | {"motivo": "vencido", "vencido": True}):
+        t = _t14(entorno, estado)
+        assert t["estado"] == "sin_hallazgos" and t["total"] == 0 and t["nivel"] is None and t["ejemplos"] == []
+
+
+@pytest.mark.parametrize("estado,nivel,codigo", [
+    (ESTADO_INTERRUPTOR_APAGADO | {"motivo": "sin_respaldo_de_la_funcion", "valor": "1"}, "atender", "sin_respaldo_de_la_funcion"),
+    (ENCENDIDO_SANO | {"ultimo_cambio_via_funcion": False}, "atender", "cambio_fuera_de_la_funcion"),
+    (ENCENDIDO_SANO | {"sin_registro": True, "ultimo_cambio_via_funcion": None}, "atender", "sin_registro"),
+    (ESTADO_INTERRUPTOR_APAGADO | {"motivo": "vigencias_inconsistentes"}, "revisar", "vigencias_inconsistentes"),
+    (ESTADO_INTERRUPTOR_APAGADO | {"motivo": "error"}, "revisar", "error"),
+])
+def test_la_tarjeta_14_con_alarma_lleva_nivel_codigo_y_mensaje_sin_nombres_ni_fechas(entorno, estado, nivel, codigo):
+    t = _t14(entorno, estado)
+    assert (t["estado"], t["nivel"], t["total"], t["hay_mas"]) == ("con_hallazgos", nivel, 1, False)
+    assert len(t["ejemplos"]) == 1 and set(t["ejemplos"][0]) == {"codigo", "mensaje"} and t["ejemplos"][0]["codigo"] == codigo and "Sistemas" in t["ejemplos"][0]["mensaje"]
+    assert t["nota"] == "Es un ajuste global del sistema, no de esta terminal."
+    assert "uuid-del-autor-9911" not in str(t) and "2026-" not in str(t)
+
+
+@pytest.mark.parametrize("ilegible", [None, [], "texto", {"activo": True}, {"activo": "si"}, ENCENDIDO_SANO | {"sin_registro": "no"}])
+def test_un_estado_ilegible_deja_la_tarjeta_14_en_error_nunca_sin_hallazgos(entorno, ilegible):
+    t = _t14(entorno, ilegible)
+    assert t["estado"] == "error" and t["total"] is None and t["ejemplos"] == [] and t["nivel"] is None
+
+
+def test_si_falla_la_lectura_del_interruptor_solo_esa_tarjeta_sale_en_error_y_las_demas_siguen(entorno):
+    entorno.configurar(rpc_servicio={"fn_terminal_inferir_huella_estado": APIError({"code": "XX000", "message": CRUDO})})
+    t = _tarjetas(_get())
+    assert t["interruptor_huella"]["estado"] == "error" and CRUDO not in str(t["interruptor_huella"])
+    assert all(t[c]["estado"] == "sin_hallazgos" for c in t if c != "interruptor_huella")
+
+
+def test_una_migracion_97_sin_aplicar_deja_la_tarjeta_14_no_disponible(entorno):
+    entorno.configurar(rpc_servicio={"fn_terminal_inferir_huella_estado": APIError({"code": "PGRST202", "message": CRUDO})})
+    t = _tarjetas(_get())["interruptor_huella"]
+    assert t["estado"] == "no_disponible" and t["motivo"] == "falta_migracion"
+
+
+def test_la_tarjeta_14_no_exige_marca_lectura_pero_si_el_gate_del_tablero(entorno):
+    entorno.otorgados = {"terminal_usuario_lectura"}                          # sin marca_lectura
+    t = _t14(entorno, ESTADO_INTERRUPTOR_APAGADO | {"motivo": "error"})
+    assert t["estado"] == "con_hallazgos"
+    entorno.otorgados = set()
+    entorno.configurar()
+    assert _get().status_code == 403
+
+
+def test_la_tarjeta_14_es_una_sola_por_tablero_y_global_en_todas_las_terminales(entorno):
+    entorno.configurar(rpc_servicio={"fn_terminal_inferir_huella_estado": ESTADO_INTERRUPTOR_APAGADO | {"motivo": "sin_respaldo_de_la_funcion", "valor": "1"}})
+    categorias = _get().json()["categorias"]
+    assert [c["clave"] for c in categorias].count("interruptor_huella") == 1
+    assert sum(c["total"] or 0 for c in categorias if c["clave"] == "interruptor_huella") == 1       # UNA alarma global, no N por terminal
+    rpcs = [c for c in entorno.rpc_s.call_args_list if c.args[0] == "fn_terminal_inferir_huella_estado"]
+    assert len(rpcs) == 1 and rpcs[0].args[1] == {}                                                    # sin terminal_id: no depende de la terminal
+
+
+def test_el_detalle_ver_todos_de_la_categoria_14(entorno):
+    entorno.configurar(rpc_servicio={"fn_terminal_inferir_huella_estado": ENCENDIDO_SANO | {"ultimo_cambio_via_funcion": False}})
+    d = _get(f"{RUTA}/interruptor_huella").json()
+    assert d["total"] == 1 and d["items"][0]["codigo"] == "cambio_fuera_de_la_funcion"

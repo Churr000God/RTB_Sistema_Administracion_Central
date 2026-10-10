@@ -1,6 +1,6 @@
 """Tablero de anomalías de una terminal (CONTRATO_API_TERMINALES_PAQUETE_2.md §9, SCJ-DEC-12 §6).
 
-Trece categorías (las tres últimas, 94_: huellas inferidas/confirmadas), cada una calculada AISLADA (si una falla, su tarjeta lleva `estado: "error"` y las demás siguen).
+Catorce categorías (11-13, 94_: huellas inferidas/confirmadas; 14: el interruptor de la activación por huella, GLOBAL), cada una calculada AISLADA (si una falla, su tarjeta lleva `estado: "error"` y las demás siguen).
 Tres son agregaciones sobre tiempo.marca y las resuelve `fn_terminal_anomalias` (90_, service_role, filtra por la
 terminal dentro); el resto son consultas simples. Reglas de visibilidad:
   - Lo que el caller puede leer por RLS (altas, bitácora, personas) se lee con su cliente; los NOMBRES siempre con el
@@ -26,6 +26,7 @@ from app.altas_terminal import (
 from app.catalogo_terminal import CLAVE_CADUCIDAD, valor_vigente
 from app.consentimiento_terminal import leer_vigente
 from app.fecha_local import a_datetime
+from app.interruptor_huella import CODIGOS_ATENDER, alarma_de, normalizar_estado
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ class Categoria:
     requiere_marca_lectura: bool
     calcular: Callable[[Contexto, int, int], tuple[int, list[dict]]]
     nota: str | None = None  # texto fijo de contexto para la UI (no viene de la base)
+    nivel_de: Callable[[list[dict]], str] | None = None  # nivel según el hallazgo (la categoría 14 es «atender» o «revisar» según la alarma); None = el fijo de `nivel`
 
 
 # --- helpers ------------------------------------------------------------------------------------------------------------
@@ -389,6 +391,20 @@ def _asignador_confirmador(ctx, limite, desplazamiento):
     ]
 
 
+def _interruptor_huella(ctx, limite, desplazamiento):
+    """Categoría 14, GLOBAL (no depende de la terminal): la alarma del interruptor de la activación por huella (CONTRATO_API_INTERRUPTOR_INFERIR_HUELLA.md §5). Lectura con service_role. Un estado
+    ilegible NO es «sin hallazgos»: lanza y la tarjeta sale `error`. El ejemplo no lleva nombres, notas ni fechas."""
+    crudo = ctx.db_servicio.postgrest.schema("tiempo").rpc("fn_terminal_inferir_huella_estado", {}).execute().data
+    if normalizar_estado(crudo) is None:
+        raise ValueError("forma inesperada de fn_terminal_inferir_huella_estado")
+    alarma = alarma_de(crudo)
+    if not alarma["activa"]:
+        return 0, []
+    return 1, [{"codigo": alarma["codigo"], "mensaje": alarma["mensaje"]}]
+
+
+NOTA_INTERRUPTOR_HUELLA = "Es un ajuste global del sistema, no de esta terminal."
+
 NOTA_INFERIDAS_EXCESO = (
     "Es ESPERADO el primer día de puesta en marcha: varias altas se activan a la vez por la primera marca de huella. Revísalo si se repite en días siguientes."
 )
@@ -407,6 +423,11 @@ CATEGORIAS: tuple[Categoria, ...] = (
     Categoria("huellas_inferidas_exceso", 11, "Huellas inferidas en exceso", "revisar", False, _huellas_inferidas_exceso, NOTA_INFERIDAS_EXCESO),
     Categoria("inferida_sin_marcas", 12, "Alta por huella inferida sin más marcas", "revisar", True, _inferida_sin_marcas),   # cruza tiempo.marca: exige marca_lectura como 1 y 2
     Categoria("asignador_confirmador", 13, "Huella confirmada por quien asignó", "revisar", False, _asignador_confirmador),
+    # 14, GLOBAL: no cruza marcas (no exige marca_lectura) pero sí el gate del tablero; es UNA sola tarjeta por tablero (una alarma global, no una por terminal).
+    Categoria(
+        "interruptor_huella", 14, "Interruptor de la activación por huella", "revisar", False, _interruptor_huella, NOTA_INTERRUPTOR_HUELLA,
+        nivel_de=lambda items: "atender" if items and items[0].get("codigo") in CODIGOS_ATENDER else "revisar",
+    ),
 )
 POR_CLAVE = {c.clave: c for c in CATEGORIAS}
 
@@ -433,7 +454,7 @@ def tarjeta(categoria: Categoria, ctx: Contexto, tiene_marca_lectura: bool) -> d
     return {
         **base,
         "estado": "con_hallazgos",
-        "nivel": categoria.nivel,
+        "nivel": categoria.nivel_de(items) if categoria.nivel_de else categoria.nivel,
         "total": total,
         "ejemplos": items[:EJEMPLOS],
         "hay_mas": total > len(items[:EJEMPLOS]),

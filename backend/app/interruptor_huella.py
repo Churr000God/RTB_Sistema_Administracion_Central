@@ -31,6 +31,7 @@ MENSAJES_MOTIVO: dict[str, str | None] = {
 }
 MENSAJE_SIN_RESPALDO_ENCENDIDO = "El interruptor está encendido pero su último cambio no quedó registrado como debe. Avisa a Sistemas."
 MENSAJE_ESTADO_ILEGIBLE = "No se pudo leer el ajuste; el interruptor quedó apagado. Avisa a Sistemas."
+CODIGOS_ATENDER = frozenset({"sin_respaldo_de_la_funcion", "cambio_fuera_de_la_funcion", "sin_registro"})   # el resto de las alarmas es nivel «revisar»
 MOTIVOS_FALLA_CERRADA = frozenset({"vigencias_inconsistentes", "valor_invalido", "hasta_ilegible", "hasta_excede_tope", "error"})
 
 
