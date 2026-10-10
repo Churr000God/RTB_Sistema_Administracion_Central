@@ -44,6 +44,7 @@ from app.schemas.terminales import (
     AltasListaOut,
     AsignarCreate,
     BajaCreate,
+    HuellaConfirmadaCreate,
     MovimientoAltaOut,
     PendientesOut,
     PersonaAsignableOut,
@@ -159,7 +160,7 @@ def obtener_terminal(
 
 MENSAJE_ALTA_NO_ENCONTRADA = "El alta no existe."
 COLUMNAS_ALTA = (
-    "id, terminal_id, employee_no, persona_id, estado, huellas_capturadas, error_detalle, "
+    "id, terminal_id, employee_no, persona_id, estado, huellas_capturadas, huella_evidencia, error_detalle, "
     "creado_en, actualizado_en, usuario_creado_en, consentimiento_id"
 )
 ESTADOS_ALTA = ("pendiente_alta", "esperando_huella", "activo", "pendiente_baja", "baja")
@@ -368,6 +369,50 @@ def solicitar_baja(
     return armar_altas(db, db_servicio, [_leer_alta(db, terminal_id, tu_id)], caller)[0]
 
 
+# 94_: qué movimiento deja qué evidencia de huella (la columna terminal_usuario.huella_evidencia la fija el trigger con la misma correspondencia).
+EVIDENCIA_POR_MOVIMIENTO = {"huella_capturada": "conteo", "huella_inferida": "inferida", "huella_confirmada_manual": "manual"}
+
+# Nota obligatoria de la confirmación manual (D5): el trigger exige 10 caracteres ya saneados; el backend lo valida antes y topa el largo.
+NOTA_CONFIRMACION_MIN = 10
+NOTA_CONFIRMACION_MAX = 500
+MENSAJE_NOTA_CONFIRMACION = f"La nota de la confirmación debe tener entre {NOTA_CONFIRMACION_MIN} y {NOTA_CONFIRMACION_MAX} caracteres."
+
+
+@router.post("/{terminal_id}/usuarios/{tu_id}/huella-confirmada", status_code=201, response_model=AltaOut)
+def confirmar_huella(
+    terminal_id: IdTerminal,
+    tu_id: IdAlta,
+    datos: HuellaConfirmadaCreate,
+    db: Client = Depends(get_caller_client),
+    caller: CallerIdentity = Depends(get_caller_identity),
+    _permiso: None = Depends(_PERMISO_EDICION),
+    db_servicio: Client = Depends(get_service_client),
+) -> dict:
+    """Una persona con permiso declara que la huella quedó enrolada en el menú de la terminal: el alta pasa de esperando_huella a activo con evidencia «manual». Se
+    escribe en la bitácora con el cliente del CALLER: la policy bitacora_terminal_usuario_insert_web (persona activa, terminal_usuario_edicion, origen web, autor =
+    auth.uid()) y el trigger son la autorización real (SCJ11 estado, SCJ12 auto-confirmación / nota). No hay conteo ni plantilla: sólo la declaración de una persona. Una
+    confirmación equivocada no se deshace: se pide la baja y se asigna de nuevo."""
+    nota = sanear_motivo(datos.nota, truncar=False)
+    if nota is None or not NOTA_CONFIRMACION_MIN <= len(nota) <= NOTA_CONFIRMACION_MAX:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_NOTA_CONFIRMACION)
+    alta = _leer_alta(db, terminal_id, tu_id)
+    try:
+        db.postgrest.schema("tiempo").table("bitacora_movimiento_terminal_usuario").insert(
+            {
+                "terminal_usuario_id": alta["id"],
+                "terminal_id": alta["terminal_id"],
+                "persona_id": alta["persona_id"],
+                "tipo_movimiento": "huella_confirmada_manual",
+                "detalle": nota,
+                "origen": "web",
+                "registrado_por": caller.auth_user_id,
+            }
+        ).execute()
+    except APIError as error:
+        manejar_error_terminal_web(error)
+    return armar_altas(db, db_servicio, [_leer_alta(db, terminal_id, tu_id)], caller)[0]
+
+
 MENSAJE_REINTENTAR = "No se registró nada porque el estado de las altas cambió; vuelve a intentarlo."
 MENSAJE_DECLARACION_DOCUMENTOS = "Confirma que los documentos firmados existen antes de registrar el reconsentimiento."
 TOPE_LOTE_RECONSENTIMIENTO = 200
@@ -559,6 +604,7 @@ def historial_de_un_alta(
             "registrado_por_nombre": nombre_por_autor.get(f.get("registrado_por")),
             "detalle": f.get("detalle"),
             "huellas_capturadas": f.get("huellas_capturadas"),
+            "huella_evidencia": EVIDENCIA_POR_MOVIMIENTO.get(f["tipo_movimiento"]),
             "consentimiento": (
                 {
                     "id": consentimientos[f["consentimiento_id"]]["id"],

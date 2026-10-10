@@ -208,6 +208,7 @@ def armar_altas(
                 "persona_nombre": nombres.get(fila["persona_id"]),
                 "estado": fila["estado"],
                 "huellas_capturadas": fila["huellas_capturadas"],
+                "huella_evidencia": fila.get("huella_evidencia"),
                 "creado_en": fila["creado_en"],
                 "actualizado_en": fila["actualizado_en"],
                 "usuario_creado_en": creada,

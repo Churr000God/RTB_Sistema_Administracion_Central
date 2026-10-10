@@ -1,6 +1,6 @@
 """Tablero de anomalías de una terminal (CONTRATO_API_TERMINALES_PAQUETE_2.md §9, SCJ-DEC-12 §6).
 
-Diez categorías, cada una calculada AISLADA (si una falla, su tarjeta lleva `estado: "error"` y las demás siguen).
+Trece categorías (las tres últimas, 94_: huellas inferidas/confirmadas), cada una calculada AISLADA (si una falla, su tarjeta lleva `estado: "error"` y las demás siguen).
 Tres son agregaciones sobre tiempo.marca y las resuelve `fn_terminal_anomalias` (90_, service_role, filtra por la
 terminal dentro); el resto son consultas simples. Reglas de visibilidad:
   - Lo que el caller puede leer por RLS (altas, bitácora, personas) se lee con su cliente; los NOMBRES siempre con el
@@ -57,6 +57,7 @@ class Categoria:
     nivel: str  # atender | revisar | informativo
     requiere_marca_lectura: bool
     calcular: Callable[[Contexto, int, int], tuple[int, list[dict]]]
+    nota: str | None = None  # texto fijo de contexto para la UI (no viene de la base)
 
 
 # --- helpers ------------------------------------------------------------------------------------------------------------
@@ -341,6 +342,57 @@ def _reconsentimientos_pendientes(ctx, limite, desplazamiento):
     ]
 
 
+def _huellas_inferidas_exceso(ctx, limite, desplazamiento):
+    total, items = _rpc_agregacion(ctx, "huellas_inferidas_exceso", limite, desplazamiento)
+    return total, [
+        {
+            "dia": i.get("dia"),
+            "inferidas": i.get("inferidas"),
+            "manuales": i.get("manuales"),
+            "activaciones": i.get("activaciones"),
+            "limite_inferidas": i.get("limite_inferidas"),
+        }
+        for i in items
+    ]
+
+
+def _inferida_sin_marcas(ctx, limite, desplazamiento):
+    total, items = _rpc_agregacion(ctx, "inferida_sin_marcas", limite, desplazamiento)
+    nombres = resolver_nombres_persona(ctx.db, [i["persona_id"] for i in items if i.get("persona_id")])
+    return total, [
+        {"persona_nombre": nombres.get(i.get("persona_id")), "evidencia": i.get("evidencia"), "activada_en": i.get("activada_en")} for i in items
+    ]
+
+
+def _asignador_confirmador(ctx, limite, desplazamiento):
+    total, items = _rpc_agregacion(ctx, "asignador_confirmador", limite, desplazamiento)
+    nombres = resolver_nombres_persona(ctx.db, [i["persona_id"] for i in items if i.get("persona_id")])
+    autores = sorted({i["usuario_id"] for i in items if i.get("usuario_id")})
+    nombre_autor: dict[str, str] = {}
+    if autores:
+        nombre_autor = {
+            u["auth_user_id"]: u["nombre_usuario"]
+            for u in ctx.db.postgrest.schema("personas")
+            .table("usuario")
+            .select("auth_user_id, nombre_usuario")
+            .in_("auth_user_id", autores)
+            .execute()
+            .data
+        }
+    return total, [
+        {
+            "persona_nombre": nombres.get(i.get("persona_id")),
+            "confirmada_por": nombre_autor.get(i.get("usuario_id")),
+            "confirmada_en": i.get("confirmada_en"),
+        }
+        for i in items
+    ]
+
+
+NOTA_INFERIDAS_EXCESO = (
+    "Es ESPERADO el primer día de puesta en marcha: varias altas se activan a la vez por la primera marca de huella. Revísalo si se repite en días siguientes."
+)
+
 CATEGORIAS: tuple[Categoria, ...] = (
     Categoria("marcas_posteriores_a_baja", 1, "Marcas posteriores a la baja", "atender", True, _marcas_posteriores_a_baja),
     Categoria("picos_de_tasa", 2, "Picos de marcas", "revisar", True, _picos_de_tasa),
@@ -352,13 +404,16 @@ CATEGORIAS: tuple[Categoria, ...] = (
     Categoria("altas_atascadas", 8, "Altas atascadas", "revisar", False, _altas_atascadas),
     Categoria("altas_recientes", 9, "Altas recientes", "informativo", False, _altas_recientes),
     Categoria("reconsentimientos_pendientes", 10, "Reconsentimientos pendientes", "revisar", False, _reconsentimientos_pendientes),
+    Categoria("huellas_inferidas_exceso", 11, "Huellas inferidas en exceso", "revisar", False, _huellas_inferidas_exceso, NOTA_INFERIDAS_EXCESO),
+    Categoria("inferida_sin_marcas", 12, "Alta por huella inferida sin más marcas", "revisar", False, _inferida_sin_marcas),
+    Categoria("asignador_confirmador", 13, "Huella confirmada por quien asignó", "revisar", False, _asignador_confirmador),
 )
 POR_CLAVE = {c.clave: c for c in CATEGORIAS}
 
 
 def tarjeta(categoria: Categoria, ctx: Contexto, tiene_marca_lectura: bool) -> dict:
     """Una tarjeta del tablero, AISLADA: ninguna excepción sale de aquí."""
-    base = {"clave": categoria.clave, "numero": categoria.numero, "titulo": categoria.titulo}
+    base = {"clave": categoria.clave, "numero": categoria.numero, "titulo": categoria.titulo, "nota": categoria.nota}
     vacia = {"nivel": None, "total": None, "ejemplos": [], "hay_mas": False}
     if categoria.requiere_marca_lectura and not tiene_marca_lectura:
         return {**base, **vacia, "estado": "no_disponible", "motivo": "sin_permiso"}

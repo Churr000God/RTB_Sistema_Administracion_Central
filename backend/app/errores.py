@@ -207,6 +207,14 @@ MENSAJE_AUTO_ASIGNACION = (
 MENSAJE_AUTO_RECONSENTIMIENTO = (
     "No puedes registrar tu propio reconsentimiento; lo registra otra persona con permiso."
 )
+MENSAJE_AUTO_CONFIRMACION_HUELLA = (
+    "No puedes confirmar tu propia huella; la confirma otra persona con permiso."
+)
+MENSAJE_MISMA_PERSONA_QUE_ASIGNO = (
+    "Quien asignó el alta no puede confirmar su huella; la confirma otra persona con permiso."
+)
+MENSAJE_NOTA_CONFIRMACION_REQUERIDA = "La nota de la confirmación debe tener entre 10 y 500 caracteres."
+MENSAJE_MOVIMIENTO_NO_CORRESPONDE = "Ese movimiento no se puede registrar desde aquí."
 MENSAJE_VERSION_BASE_DESACTUALIZADA = (
     "Otra persona publicó una versión nueva del texto; vuelve a leerlo antes de publicar."
 )
@@ -222,6 +230,20 @@ _SCJ12_POR_HINT = {
         status.HTTP_422_UNPROCESSABLE_ENTITY,
         MENSAJE_AUTO_RECONSENTIMIENTO,
     ),
+    # 94_: confirmación manual de la huella.
+    "auto_confirmacion_huella_prohibida": (
+        status.HTTP_422_UNPROCESSABLE_ENTITY,
+        MENSAJE_AUTO_CONFIRMACION_HUELLA,
+    ),
+    "misma_persona_que_asigno": (
+        status.HTTP_422_UNPROCESSABLE_ENTITY,
+        MENSAJE_MISMA_PERSONA_QUE_ASIGNO,
+    ),
+    "nota_requerida": (
+        status.HTTP_422_UNPROCESSABLE_ENTITY,
+        MENSAJE_NOTA_CONFIRMACION_REQUERIDA,
+    ),
+    "marca_no_corresponde": (status.HTTP_409_CONFLICT, MENSAJE_MOVIMIENTO_NO_CORRESPONDE),
 }
 _SCJ16_POR_HINT = {
     "consentimiento_desactualizado": (

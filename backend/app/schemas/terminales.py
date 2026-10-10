@@ -27,6 +27,8 @@ class TerminalOut(BaseModel):
 
 
 EstadoAlta = Literal["pendiente_alta", "esperando_huella", "activo", "pendiente_baja", "baja"]
+# 94_: cómo se supo que la huella está enrolada: el conteo del aparato, la primera marca por huella o la confirmación de una persona. None = sin evidencia.
+HuellaEvidencia = Literal["conteo", "inferida", "manual"]
 AccionDisponible = Literal["cancelar_alta", "dar_de_baja"]
 
 
@@ -39,7 +41,10 @@ class AltaOut(BaseModel):
     persona_id: str
     persona_nombre: str | None = None
     estado: EstadoAlta
+    # OJO: es un CONTEO que la terminal real NO da. 0 con estado activo significa «enrolada, conteo desconocido» (se activó por inferencia o confirmación manual): NUNCA
+    # leerlo como «sin huellas». Lo que dice cómo se supo es `huella_evidencia`.
     huellas_capturadas: int
+    huella_evidencia: HuellaEvidencia | None = None
     creado_en: datetime
     actualizado_en: datetime
     usuario_creado_en: datetime | None = None
@@ -75,9 +80,19 @@ class BajaCreate(BaseModel):
     motivo: str | None = Field(default=None, max_length=2000)
 
 
+class HuellaConfirmadaCreate(BaseModel):
+    """Cuerpo CERRADO de la confirmación manual de la huella. La nota (de al menos 10 caracteres útiles) es obligatoria; el largo útil se valida en el endpoint DESPUÉS de
+    sanear, igual que el motivo de la baja."""
+
+    model_config = ConfigDict(extra="forbid")
+    nota: str = Field(max_length=2000)
+
+
 class MovimientoAltaOut(BaseModel):
     id: int
     tipo_movimiento: str
+    # huella_capturada -> conteo, huella_inferida -> inferida, huella_confirmada_manual -> manual; None en los demás movimientos.
+    huella_evidencia: HuellaEvidencia | None = None
     creado_en: datetime
     origen: Literal["web", "terminal"]
     registrado_por_nombre: str | None = None  # None si origen='terminal' (la UI muestra «Terminal»)
@@ -273,6 +288,7 @@ class TarjetaAnomaliaOut(BaseModel):
     clave: str
     numero: int
     titulo: str
+    nota: str | None = None  # texto fijo de contexto (p. ej. «esperado el primer día»); no viene de la base
     estado: Literal["sin_hallazgos", "con_hallazgos", "no_disponible", "error"]
     nivel: Literal["atender", "revisar", "informativo"] | None = None
     total: int | None = None

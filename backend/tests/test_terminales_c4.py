@@ -214,7 +214,7 @@ def test_la_alta_trae_el_resumen_de_consentimiento_pero_ni_texto_ni_biometria(en
     entorno.configurar(_tablas_lista([_alta(77)]))
     a = _get("/api/terminales/1/usuarios").json()["altas"][0]
     assert set(a) == {
-        "id", "terminal_id", "employee_no", "persona_id", "persona_nombre", "estado", "huellas_capturadas",
+        "id", "terminal_id", "employee_no", "persona_id", "persona_nombre", "estado", "huellas_capturadas", "huella_evidencia",
         "creado_en", "actualizado_en", "usuario_creado_en", "caduca_en", "error_codigo", "error_detalle",
         "consentimiento", "consentimiento_vigente_id", "reconsentimiento_pendiente", "es_propia",
         "reconsentimiento_elegible", "reconsentimiento_razon", "accion_disponible",
@@ -432,7 +432,7 @@ def test_historial_con_nombres_y_terminal_sin_autor(entorno):
     assert por_id[3]["huellas_capturadas"] == 1
     assert por_id[1]["registrado_por_nombre"] == "carlos.ruiz"
     assert set(por_id[1]) == {
-        "id", "tipo_movimiento", "creado_en", "origen", "registrado_por_nombre", "detalle", "huellas_capturadas",
+        "id", "tipo_movimiento", "creado_en", "origen", "registrado_por_nombre", "detalle", "huellas_capturadas", "huella_evidencia",
         "consentimiento",
     }
     assert por_id[1]["consentimiento"] is None  # el mock no trae consentimiento_id
@@ -877,6 +877,14 @@ def _ddl_80_a_88():
     return "\n".join(p.read_text(encoding="utf-8") for p in sorted(ddl.glob("8[0-8]_*.sql")))
 
 
+def _ddl_94():
+    """94_ (huella_evidencia). Si el archivo todavía no está en el repositorio, las verificaciones que lo necesitan se omiten con aviso, no pasan en silencio."""
+    from pathlib import Path
+
+    p = next(iter(sorted((Path(__file__).resolve().parents[2] / "db" / "ddl").glob("94_*.sql"))), None)
+    return p.read_text(encoding="utf-8") if p else None
+
+
 def _cuerpo_tabla(sql, nombre):
     m = re.search(rf"CREATE TABLE tiempo\.{nombre}\s*\((.*?)\n\);", sql, re.S)
     assert m, nombre
@@ -888,14 +896,20 @@ def test_columnas_de_altas_y_bitacora_existen_en_el_ddl():
 
     sql = _ddl_80_a_88()
     tu = _cuerpo_tabla(sql, "terminal_usuario")
-    agregadas = set(re.findall(r"ALTER TABLE tiempo\.terminal_usuario\s+ADD COLUMN\s+([a-z_]+)", sql))
-    for col in (c.strip() for c in COLUMNAS_ALTA.split(",")):
+    sql94 = _ddl_94()
+    agregadas = set(re.findall(r"ALTER TABLE tiempo\.terminal_usuario\s+ADD COLUMN\s+([a-z_]+)", sql + (sql94 or "")))
+    columnas = [c.strip() for c in COLUMNAS_ALTA.split(",")]
+    if sql94 is None:
+        columnas.remove("huella_evidencia")                      # la migración 94_ aún no está en el repo: se avisa abajo
+    for col in columnas:
         assert re.search(rf"^\s+{col}\s", tu, re.M) or col in agregadas, f"terminal_usuario.{col}"
     bit = _cuerpo_tabla(sql, "bitacora_movimiento_terminal_usuario")
     agregadas_bit = set(re.findall(r"ALTER TABLE tiempo\.bitacora_movimiento_terminal_usuario\s+ADD COLUMN\s+([a-z_]+)", sql))
     for col in ("id", "tipo_movimiento", "creado_en", "origen", "registrado_por", "detalle", "huellas_capturadas",
                 "terminal_usuario_id", "consentimiento_id"):
         assert re.search(rf"^\s+{col}\s", bit, re.M) or col in agregadas_bit, f"bitacora.{col}"
+    if sql94 is None:
+        pytest.skip("db/ddl/94_*.sql aún no está en el repositorio: huella_evidencia sin verificar contra el DDL")
 
 
 def test_tipos_y_origenes_de_movimiento_que_usa_el_backend_existen_en_el_ddl():
@@ -937,3 +951,128 @@ def test_asignables_persona_repetida_entre_paginas_aparece_una_sola_vez(entorno)
     entorno.configurar(tablas)
     ids = [x["persona_id"] for x in _get("/api/terminales/1/personas-asignables").json()]
     assert ids == ["dup", "otra"]
+
+
+# --- 94_: POST huella-confirmada (vía C) y huella_evidencia -------------------------------------------------------------------------------------------
+
+
+RUTA_HUELLA = "/api/terminales/1/usuarios/77/huella-confirmada"
+NOTA_OK = "La huella quedó enrolada, probé el lector con la persona"
+
+
+def _post_huella(cuerpo, ruta=RUTA_HUELLA):
+    return _cliente().post(ruta, json=cuerpo, headers=AUTH)
+
+
+def test_confirmar_huella_inserta_huella_confirmada_manual_con_el_cliente_del_caller_y_devuelve_el_alta_con_evidencia_manual(entorno):
+    tablas = _tablas_baja([_alta(77, "esperando_huella")], [_alta(77, "activo", huellas_capturadas=0, huella_evidencia="manual")])
+    entorno.configurar(tablas)
+    r = _post_huella({"nota": "  La huella quedó\x07 enrolada en el menú  "})
+    assert r.status_code == 201, r.text
+    cuerpo = r.json()
+    assert cuerpo["estado"] == "activo" and cuerpo["huella_evidencia"] == "manual" and cuerpo["huellas_capturadas"] == 0     # 0 = conteo desconocido, no «sin huellas»
+    carga = tablas["bitacora_movimiento_terminal_usuario"].insert.call_args.args[0]
+    assert carga == {
+        "terminal_usuario_id": 77, "terminal_id": 1, "persona_id": PERSONA, "tipo_movimiento": "huella_confirmada_manual",
+        "detalle": "La huella quedó enrolada en el menú", "origen": "web", "registrado_por": CALLER.auth_user_id,
+    }
+
+
+@pytest.mark.parametrize("nota", ["", "   ", "corto", "123456789", "​" * 20, "  a b c d e  ", "x" * 501])
+def test_confirmar_huella_con_nota_corta_vacia_o_larga_da_422_fijo_sin_escribir(entorno, nota):
+    tablas = _tablas_baja([_alta(77, "esperando_huella")])
+    entorno.configurar(tablas)
+    r = _post_huella({"nota": nota})
+    assert r.status_code == 422 and r.json()["detail"] == "La nota de la confirmación debe tener entre 10 y 500 caracteres."
+    tablas["bitacora_movimiento_terminal_usuario"].insert.assert_not_called()
+
+
+def test_confirmar_huella_con_nota_de_exactamente_10_y_500_caracteres_pasa(entorno):
+    for nota in ("1234567890", "n" * 500):
+        entorno.configurar(_tablas_baja([_alta(77, "esperando_huella")], [_alta(77, "activo", huella_evidencia="manual")]))
+        assert _post_huella({"nota": nota}).status_code == 201
+
+
+@pytest.mark.parametrize("cuerpo", [{}, {"nota": None}, {"nota": 5}, {"nota": "x" * 2001}, {"nota": NOTA_OK, "estado": "activo"}, {"nota": NOTA_OK, "huellas": 3},
+                                    {"nota": NOTA_OK, "huella_evidencia": "conteo"}, {"motivo": NOTA_OK}])
+def test_confirmar_huella_con_cuerpo_invalido_da_422_sin_escribir(entorno, cuerpo):
+    tablas = _tablas_baja([_alta(77, "esperando_huella")])
+    entorno.configurar(tablas)
+    assert _post_huella(cuerpo).status_code == 422
+    tablas["bitacora_movimiento_terminal_usuario"].insert.assert_not_called()
+
+
+def test_confirmar_huella_de_un_alta_de_otra_terminal_es_404_y_no_inserta(entorno):
+    tablas = _tablas_baja([])
+    entorno.configurar(tablas)
+    r = _post_huella({"nota": NOTA_OK}, ruta="/api/terminales/2/usuarios/77/huella-confirmada")
+    assert r.status_code == 404 and r.json()["detail"] == "El alta no existe."
+    tablas["bitacora_movimiento_terminal_usuario"].insert.assert_not_called()
+
+
+@pytest.mark.parametrize("codigo,hint,estado,mensaje", [
+    ("SCJ11", "transicion_invalida", 409, "El movimiento no es válido para el estado actual del alta."),
+    ("SCJ12", "auto_confirmacion_huella_prohibida", 422, "No puedes confirmar tu propia huella; la confirma otra persona con permiso."),
+    ("SCJ12", "misma_persona_que_asigno", 422, "Quien asignó el alta no puede confirmar su huella; la confirma otra persona con permiso."),
+    ("SCJ12", "nota_requerida", 422, "La nota de la confirmación debe tener entre 10 y 500 caracteres."),
+    ("SCJ12", "marca_no_corresponde", 409, "Ese movimiento no se puede registrar desde aquí."),
+    ("42501", "sin_permiso", 403, None),
+])
+def test_confirmar_huella_traduce_los_errores_de_la_base_a_mensajes_fijos_sin_su_texto(entorno, codigo, hint, estado, mensaje):
+    entorno.configurar(_tablas_baja([_alta(77, "esperando_huella")], error=APIError({"code": codigo, "hint": hint, "message": CRUDO, "details": CRUDO})))
+    r = _post_huella({"nota": NOTA_OK})
+    assert r.status_code == estado and CRUDO not in r.text and "7002" not in r.text
+    if mensaje:
+        assert r.json()["detail"] == mensaje
+
+
+def test_confirmar_huella_con_un_error_desconocido_da_500_sin_texto_y_un_hint_scj12_nuevo_tampoco_se_filtra(entorno):
+    for error in (APIError({"code": "XX999", "message": CRUDO}), APIError({"code": "SCJ12", "hint": "hint_que_no_existe", "message": CRUDO})):
+        entorno.configurar(_tablas_baja([_alta(77, "esperando_huella")], error=error))
+        r = _post_huella({"nota": NOTA_OK})
+        assert r.status_code == 500 and CRUDO not in r.text
+
+
+def test_confirmar_huella_exige_terminal_usuario_edicion_y_sin_permiso_no_consulta_ni_escribe(entorno):
+    tablas = _tablas_baja([_alta(77, "esperando_huella")])
+    entorno.configurar(tablas)
+    entorno.permitido = False
+    assert _post_huella({"nota": NOTA_OK}).status_code == 403
+    assert entorno.codigos == [("terminal_usuario_edicion",)]
+    tablas["bitacora_movimiento_terminal_usuario"].insert.assert_not_called()
+
+
+def test_el_alta_expone_huella_evidencia_y_cero_huellas_no_significa_sin_huellas(entorno):
+    for evidencia in ("conteo", "inferida", "manual", None):
+        entorno.configurar(_tablas_lista([_alta(77, "activo", huellas_capturadas=0 if evidencia != "conteo" else 2, huella_evidencia=evidencia)], todas=["activo"], total=1))
+        a = _cliente().get("/api/terminales/1/usuarios", headers=AUTH).json()["altas"][0]
+        assert a["huella_evidencia"] == evidencia and a["estado"] == "activo"
+    entorno.configurar(_tablas_lista([_alta(77, "activo", huella_evidencia="otra_cosa")], todas=["activo"], total=1))
+    assert _cliente().get("/api/terminales/1/usuarios", headers=AUTH).status_code >= 500           # fuera del vocabulario cerrado: nunca se re-serializa
+
+
+def test_el_historial_marca_la_evidencia_de_cada_movimiento_de_huella(entorno):
+    movs = [
+        {"id": 4, "tipo_movimiento": "huella_confirmada_manual", "creado_en": "2026-10-08T10:06:00+00:00", "origen": "web", "registrado_por": "auth-ti",
+         "detalle": "nota", "huellas_capturadas": None},
+        {"id": 3, "tipo_movimiento": "huella_inferida", "creado_en": "2026-10-08T10:05:00+00:00", "origen": "terminal", "registrado_por": None,
+         "detalle": None, "huellas_capturadas": None},
+        {"id": 2, "tipo_movimiento": "huella_capturada", "creado_en": "2026-10-08T10:04:00+00:00", "origen": "terminal", "registrado_por": None,
+         "detalle": None, "huellas_capturadas": 2},
+        {"id": 1, "tipo_movimiento": "asignado", "creado_en": "2026-10-08T09:00:00+00:00", "origen": "web", "registrado_por": "auth-ti",
+         "detalle": None, "huellas_capturadas": None},
+    ]
+    entorno.configurar({
+        "terminal_usuario": tabla([_alta(77, "activo")]), "bitacora_movimiento_terminal_usuario": tabla(movs),
+        "usuario": tabla([{"auth_user_id": "auth-ti", "nombre_usuario": "ti.uno"}]),
+    })
+    r = _cliente().get("/api/terminales/1/usuarios/77/movimientos", headers=AUTH)
+    assert r.status_code == 200, r.text
+    por_id = {m["id"]: m for m in r.json()}
+    assert [por_id[i]["huella_evidencia"] for i in (4, 3, 2, 1)] == ["manual", "inferida", "conteo", None]
+
+
+def test_columnas_de_altas_incluyen_huella_evidencia():
+    from app.routers.terminales import COLUMNAS_ALTA
+
+    assert "huella_evidencia" in [c.strip() for c in COLUMNAS_ALTA.split(",")]

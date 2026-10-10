@@ -110,15 +110,16 @@ def _llamadas_anomalias(entorno):
 # --- estructura general ---------------------------------------------------------------------------------------------------
 
 
-def test_el_tablero_trae_las_10_categorias_con_nivel_y_numero_del_contrato(entorno):
+def test_el_tablero_trae_las_13_categorias_con_nivel_y_numero_del_contrato(entorno):
     entorno.configurar()
     r = _get()
     assert r.status_code == 200
     cuerpo = r.json()
-    assert [c["numero"] for c in cuerpo["categorias"]] == list(range(1, 11))
+    assert [c["numero"] for c in cuerpo["categorias"]] == list(range(1, 14))
     assert {c["clave"] for c in cuerpo["categorias"]} == {
         "marcas_posteriores_a_baja", "picos_de_tasa", "reloj_degradado", "huecos_de_secuencia", "rechazos_definitivos",
         "credenciales", "inconsistencias_de_baja", "altas_atascadas", "altas_recientes", "reconsentimientos_pendientes",
+        "huellas_inferidas_exceso", "inferida_sin_marcas", "asignador_confirmador",
     }
     assert all(c["estado"] == "sin_hallazgos" and c["nivel"] is None and c["total"] == 0 for c in cuerpo["categorias"])
     assert cuerpo["terminal_id"] == 1 and cuerpo["generado_en"] and cuerpo["desde"] and cuerpo["hasta"]
@@ -127,7 +128,7 @@ def test_el_tablero_trae_las_10_categorias_con_nivel_y_numero_del_contrato(entor
 def test_niveles_los_manda_el_backend():
     por_numero = {c.numero: c.nivel for c in CATEGORIAS}
     assert por_numero == {1: "atender", 7: "atender", 2: "revisar", 3: "revisar", 4: "revisar", 5: "revisar",
-                          6: "revisar", 8: "revisar", 10: "revisar", 9: "informativo"}
+                          6: "revisar", 8: "revisar", 10: "revisar", 9: "informativo", 11: "revisar", 12: "revisar", 13: "revisar"}
 
 
 def test_sin_permiso_403_terminal_404_y_fronteras(entorno):
@@ -209,14 +210,15 @@ def test_sin_marca_lectura_las_categorias_de_marcas_de_personas_no_se_calculan(e
         assert t[clave]["estado"] == "no_disponible" and t[clave]["motivo"] == "sin_permiso" and t[clave]["ejemplos"] == []
     # el resto sí; huecos usa el mismo RPC (sin personas) y se calcula
     assert t["huecos_de_secuencia"]["estado"] == "con_hallazgos"
-    assert {c[1]["p_categoria"] for c in _llamadas_anomalias(entorno)} == {"huecos_de_secuencia"}
+    # (94_) las tres categorías de huella usan el mismo RPC y tampoco muestran marcas de personas: se calculan sin marca_lectura
+    assert {c[1]["p_categoria"] for c in _llamadas_anomalias(entorno)} == {"huecos_de_secuencia", "huellas_inferidas_exceso", "inferida_sin_marcas", "asignador_confirmador"}
 
 
 def test_con_marca_lectura_se_calculan_las_de_personas(entorno):
     entorno.configurar()
     _get()
     assert {c[1]["p_categoria"] for c in _llamadas_anomalias(entorno)} == {
-        "marcas_posteriores_a_baja", "picos_de_tasa", "huecos_de_secuencia"}
+        "marcas_posteriores_a_baja", "picos_de_tasa", "huecos_de_secuencia", "huellas_inferidas_exceso", "inferida_sin_marcas", "asignador_confirmador"}
 
 
 # --- agregaciones por RPC (1, 2, 4) ----------------------------------------------------------------------------------------------
@@ -767,3 +769,48 @@ def test_ninguna_categoria_devuelve_claves_de_identidad_ni_secretos(entorno):
         assert d.status_code == 200, (clave, d.text)
         assert not (set(_claves(d.json())) & PROHIBIDAS), clave
     assert "f" * 64 not in r.text and "10.0.0.5" not in r.text and ANA not in r.text
+
+
+# --- 94_: tres categorías de huella inferida / confirmada ------------------------------------------------------------------------------------------------
+
+
+def test_huellas_inferidas_exceso_pasa_las_cifras_y_lleva_la_nota_de_que_es_esperado_el_primer_dia(entorno):
+    items = [{"dia": "2026-10-09", "inferidas": 9, "manuales": 1, "activaciones": 10, "limite_inferidas": 5}]
+    entorno.configurar(rpc_servicio={"fn_terminal_anomalias": {"total": 1, "items": items}})
+    t = _tarjetas(_get())["huellas_inferidas_exceso"]
+    assert t["estado"] == "con_hallazgos" and t["nivel"] == "revisar" and t["total"] == 1
+    assert t["ejemplos"] == [{"dia": "2026-10-09", "inferidas": 9, "manuales": 1, "activaciones": 10, "limite_inferidas": 5}]
+    assert "ESPERADO el primer día" in t["nota"]
+    otras = [x for x in _tarjetas(_get()).values() if x["clave"] != "huellas_inferidas_exceso"]
+    assert all(x["nota"] is None for x in otras)
+
+
+def test_inferida_sin_marcas_resuelve_el_nombre_y_no_expone_ids(entorno):
+    items = [{"terminal_usuario_id": 77, "persona_id": ANA, "evidencia": "inferida", "activada_en": "2026-09-30T10:00:00+00:00"}]
+    entorno.configurar(rpc_servicio={"fn_terminal_anomalias": {"total": 1, "items": items}})
+    t = _tarjetas(_get())["inferida_sin_marcas"]
+    assert t["ejemplos"] == [{"persona_nombre": "Ana Torres", "evidencia": "inferida", "activada_en": "2026-09-30T10:00:00+00:00"}]
+    assert ANA not in str(t) and "terminal_usuario_id" not in str(t) and "77" not in str(t["ejemplos"])
+
+
+def test_asignador_confirmador_resuelve_nombre_de_la_persona_y_del_autor_sin_ids(entorno):
+    items = [{"terminal_usuario_id": 77, "persona_id": ANA, "confirmada_en": "2026-10-08T10:00:00+00:00", "usuario_id": "auth-ti"}]
+    entorno.configurar(caller={"usuario": tabla([{"auth_user_id": "auth-ti", "nombre_usuario": "ti.uno"}])},
+                       rpc_servicio={"fn_terminal_anomalias": {"total": 1, "items": items}})
+    t = _tarjetas(_get())["asignador_confirmador"]
+    assert t["nivel"] == "revisar" and t["ejemplos"] == [{"persona_nombre": "Ana Torres", "confirmada_por": "ti.uno", "confirmada_en": "2026-10-08T10:00:00+00:00"}]
+    assert ANA not in str(t) and "auth-ti" not in str(t) and "usuario_id" not in str(t)
+
+
+def test_las_categorias_de_huella_aisladas_si_la_migracion_94_falta_dan_no_disponible_sin_tumbar_el_tablero(entorno):
+    entorno.configurar(rpc_servicio={"fn_terminal_anomalias": APIError({"code": "22023", "hint": "categoria_invalida", "message": CRUDO})})
+    t = _tarjetas(_get())
+    for clave in ("huellas_inferidas_exceso", "inferida_sin_marcas", "asignador_confirmador"):
+        assert t[clave]["estado"] == "error" and CRUDO not in str(t[clave])
+    assert len(t) == 13
+
+
+def test_sin_hallazgos_las_tres_categorias_de_huella_salen_vacias(entorno):
+    entorno.configurar()
+    t = _tarjetas(_get())
+    assert all(t[c]["estado"] == "sin_hallazgos" and t[c]["total"] == 0 for c in ("huellas_inferidas_exceso", "inferida_sin_marcas", "asignador_confirmador"))
