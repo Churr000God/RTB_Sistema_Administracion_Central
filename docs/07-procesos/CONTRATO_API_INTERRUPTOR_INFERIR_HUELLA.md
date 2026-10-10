@@ -226,10 +226,12 @@ Mismo patrón que `traducir_error_terminal_web` (devuelve `HTTPException|None`; 
 | `valor_invalido`, `hasta_ilegible`, `hasta_excede_tope` | «El ajuste tiene un valor no válido; el interruptor quedó apagado. Avisa a Sistemas.» |
 | `error`, `estado_ilegible` | «No se pudo leer el ajuste; el interruptor quedó apagado. Avisa a Sistemas.» |
 
-## 7. Relación con `/api/terminal/marcas` (lado del Pi, fuera de este contrato) — C8
-La ruta de marcas del Pi lee **el mismo** estado efectivo (`fn_terminal_inferir_huella_estado()`, `service_role`) y envía `modo_verificacion = 'huella'` al RPC **solo si `activo`**; ante cualquier
-error o forma ilegible → apagado (falla cerrado). **Prohibido cualquier caché del estado en esa ruta** (se lee por petición; la base lo revalida otra vez por lote en 98_). La ruta **no loguea el
-`motivo` con valores** (a lo más el SQLSTATE o el nombre del motivo fijo). Es un corte aparte del backend; este contrato solo fija que ambos usan la misma lectura.
+## 7. Relación con `/api/terminal/marcas` (lado del Pi) — C8, decisión de orchestrator
+**La barrera vive en el RPC, no en la ruta.** `fn_marca_terminal_registrar` (98_) lee `fn_terminal_inferir_huella_estado()` UNA vez por lote, dentro de la transacción, con la única definición del estado, y
+falla cerrado (cualquier error o forma ilegible = apagado; solo SQLSTATE en el warning); la activación exige `AND v_inferir` además del modo `huella` y el alta en `esperando_huella`. **NO se añade una lectura
+del estado en la ruta**: sería una segunda lectura con una ventana de desfase respecto de la base (entre la lectura de la ruta y la del RPC el estado puede cambiar) y no aportaría seguridad que la base no
+tenga ya. La ruta solo relaya `modo_verificacion = 'huella'` (lista blanca exacta: cualquier otra cadena, tipo o largo se descarta) y **delega siempre la decisión a la base**: no cachea el estado, no lo lee, no
+recuerda respuestas anteriores y no registra valores del lote ni del estado. (La opción de leer el estado también en la ruta como defensa en profundidad queda reservada: solo si `security` la pide.)
 
 ## 8. Pruebas esperadas (TDD con mocks, sin base real)
 
@@ -248,7 +250,7 @@ Archivo `backend/tests/test_interruptor_huella.py` (+ ampliación de `test_anoma
 11. **Alarma (C7):** tabla de verdad de `alarma_de` (pura; sin I/O) con las filas de §5 + sano + `motivo` desconocido + **`error` y forma ilegible ⇒ `revisar`/`estado_ilegible`**; en el GET, en la respuesta de los POST y en la tarjeta 14 (`con_hallazgos`/`sin_hallazgos`/`error` — la forma ilegible da `error`, nunca `sin_hallazgos`; no exige `marca_lectura` pero sí el gate del tablero; el ejemplo no lleva nombres ni nota; en los agregados cuenta UNA alarma global con 2+ terminales; aislada: si falla, las otras tarjetas siguen).
 12. **Historial:** solo las columnas permitidas (sin `rol_jwt`, `usuario_sesion`, `txid`, `registrado_por`); `limite` acotado; cliente del caller; `autor_nombre` `null` si no se resuelve.
 13. **Privacidad de logs/respuestas:** ninguna respuesta ni línea de log (`caplog` en todos los niveles) contiene la nota del llamador, salvo el historial; los `ERROR` llevan solo SQLSTATE/HINT.
-14. **Ruta de marcas (C8):** sin caché del estado (dos peticiones seguidas con estados distintos usan el estado nuevo); ilegible/error → apagado; no se loguea el motivo con valores.
+14. **Ruta de marcas (C8, opción B — `tests/test_terminal_marcas_interruptor.py`):** la ruta no llama `fn_terminal_inferir_huella_estado` ni lee `parametro`; relaya `modo_verificacion='huella'` en cada petición sin memoria (tres lotes = tres llamadas con huella); solo pasa la cadena exacta; no registra valores; y pruebas de contrato sobre `98_` (una sola lectura del estado por lote antes del bucle, sin el lector tolerante, falla cerrado con solo SQLSTATE, la activación exige `AND v_inferir`).
 13 bis. **Gate antes que validación (N4):** un llamador sin permiso con un cuerpo inválido recibe **403**, nunca 422 ni un código de validación (la dependencia de permiso se resuelve antes); y la precondición del arranque (§8.16) nunca pasa un valor distinto de nulo a la función de escritura (N2).
 14 bis. **`Cache-Control: no-store` (F1):** los GET (estado, historial) y los tres POST, en éxito y en error (403/409/422/503), llevan `Cache-Control: no-store`.
 15. **Contrato RPC↔DDL:** un test que lee `db/ddl/97_*.sql` y comprueba la firma `fn_terminal_inferir_huella_cambiar(boolean, text, timestamptz)`, los `HINT` de §6.1 y las claves del JSON de `fn_terminal_inferir_huella_estado()` (`activo, vencido, motivo, valor, hasta, encendido_por, encendido_en, ultimo_cambio_via_funcion, sin_registro`).
