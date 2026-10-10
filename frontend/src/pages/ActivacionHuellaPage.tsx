@@ -127,6 +127,8 @@ export function ActivacionHuellaPage() {
         : null;
   const encendido = datos?.estado === "encendido";
   const conAlarmaAtender = alarma?.activa === true && alarma.nivel === "atender";
+  // Mientras se recarga el estado, la botonera se deshabilita: nadie debe actuar sobre un estado viejo.
+  const recargando = estado === "cargando";
 
   return (
     <ConfiguracionTerminalesLayout activa="huella">
@@ -219,14 +221,14 @@ export function ActivacionHuellaPage() {
                 </p>
               </div>
               {puedeCambiar && (
-                <div className="botonera">
+                <div className="botonera" aria-busy={recargando || undefined}>
                   {!encendido && (
                     <Button
                       variante="primario"
                       icono={Fingerprint}
                       posicionIcono="izquierda"
                       tamanoIcono={14}
-                      disabled={requisitoFalta !== null}
+                      disabled={requisitoFalta !== null || recargando}
                       aria-describedby={requisitoFalta ? "interruptor-requisito" : undefined}
                       onClick={() => setModal("encender")}
                     >
@@ -236,20 +238,20 @@ export function ActivacionHuellaPage() {
                   {encendido && (
                     <>
                       {conAlarmaAtender ? (
-                        <Button className="boton-peligro" icono={X} posicionIcono="izquierda" tamanoIcono={14} onClick={() => setModal("apagar")}>
+                        <Button className="boton-peligro" icono={X} posicionIcono="izquierda" tamanoIcono={14} disabled={recargando} onClick={() => setModal("apagar")}>
                           Apagar…
                         </Button>
                       ) : (
-                        <Button icono={History} posicionIcono="izquierda" tamanoIcono={14} onClick={() => setModal("renovar")}>
+                        <Button icono={History} posicionIcono="izquierda" tamanoIcono={14} disabled={recargando} onClick={() => setModal("renovar")}>
                           Renovar…
                         </Button>
                       )}
                       {conAlarmaAtender ? (
-                        <Button icono={History} posicionIcono="izquierda" tamanoIcono={14} onClick={() => setModal("renovar")}>
+                        <Button icono={History} posicionIcono="izquierda" tamanoIcono={14} disabled={recargando} onClick={() => setModal("renovar")}>
                           Renovar con registro…
                         </Button>
                       ) : (
-                        <Button icono={X} posicionIcono="izquierda" tamanoIcono={14} onClick={() => setModal("apagar")}>
+                        <Button icono={X} posicionIcono="izquierda" tamanoIcono={14} disabled={recargando} onClick={() => setModal("apagar")}>
                           Apagar…
                         </Button>
                       )}
@@ -259,6 +261,11 @@ export function ActivacionHuellaPage() {
               )}
             </div>
 
+            {recargando && (
+              <p className="ayuda-campo" role="status" style={{ margin: "0.2rem 0 0.4rem" }}>
+                <Loader2 size={14} className="icono-girando" aria-hidden="true" /> Actualizando el estado…
+              </p>
+            )}
             {puedeCambiar && !encendido && requisitoFalta === "consentimiento" && (
               <p className="ayuda-campo" id="interruptor-requisito" style={{ margin: "0.2rem 0 0.4rem" }}>
                 <Lock size={14} aria-hidden="true" /> No se puede encender todavía: falta publicar el texto de

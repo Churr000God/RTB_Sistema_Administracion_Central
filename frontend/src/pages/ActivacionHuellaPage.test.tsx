@@ -553,3 +553,63 @@ describe("ActivacionHuellaPage · 200 con estado null", () => {
     expect(await screen.findByText("Apagado")).toBeInTheDocument();
   });
 });
+
+describe("ActivacionHuellaPage · botonera deshabilitada mientras se recarga (security)", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  // Deja el segundo GET del estado colgado para observar la pantalla «recargando» con los datos previos.
+  function conRecargaColgada(inicial: Record<string, unknown>) {
+    let pedidos = 0;
+    vi.mocked(apiFetch).mockImplementation((path: string, init?: RequestInit) => {
+      if (path === "/api/sesion") return Promise.resolve(respuestaSesion(CONFIG));
+      if (path === RUTA) {
+        pedidos += 1;
+        return pedidos === 1 ? Promise.resolve(new Response(JSON.stringify(inicial))) : new Promise<Response>(() => {});
+      }
+      if (path.startsWith(`${RUTA}/historial`)) return Promise.resolve(new Response(JSON.stringify({ items: [] })));
+      if (init?.method === "POST") return Promise.resolve(new Response(JSON.stringify({ resultado: "actualizada", estado: null })));
+      return Promise.reject(new Error(`ruta no mockeada: ${path}`));
+    });
+  }
+
+  it("encendido: tras un POST con estado null, Renovar y Apagar quedan deshabilitados hasta que llega el GET", async () => {
+    conRecargaColgada(ESTADO_ENCENDIDO);
+    render(<ActivacionHuellaPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /^apagar…$/i }));
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /apagar la activación/i }));
+    expect(await screen.findByText(/actualizando el estado/i)).toBeInTheDocument();
+    expect(screen.getByText(/encendido hasta el 24 oct 2026/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /renovar…/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^apagar…$/i })).toBeDisabled();
+  });
+
+  it("apagado: Encender queda deshabilitado mientras se recarga", async () => {
+    conRecargaColgada(ESTADO_APAGADO);
+    render(<ActivacionHuellaPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /encender…/i }));
+    await userEvent.type(screen.getByLabelText(/motivo/i), "Alta supervisada del turno de reparto.");
+    await userEvent.click(screen.getByRole("button", { name: /encender la activación/i }));
+    expect(await screen.findByText(/actualizando el estado/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /encender…/i })).toBeDisabled();
+  });
+
+  it("con alarma atender encendido: tampoco se puede actuar sobre el estado viejo", async () => {
+    conRecargaColgada(estadoApi({ alarma: ALARMA_FUERA_DE_LA_FUNCION }));
+    render(<ActivacionHuellaPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /^apagar…$/i }));
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /apagar la activación/i }));
+    await screen.findByText(/actualizando el estado/i);
+    expect(screen.getByRole("button", { name: /^apagar…$/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /renovar con registro/i })).toBeDisabled();
+  });
+
+  it("en reposo la botonera está habilitada y no hay «Actualizando el estado…»", async () => {
+    mockApi({ sesion: CONFIG });
+    render(<ActivacionHuellaPage />);
+    expect(await screen.findByRole("button", { name: /renovar…/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^apagar…$/i })).toBeEnabled();
+    expect(screen.queryByText(/actualizando el estado/i)).not.toBeInTheDocument();
+  });
+});
