@@ -142,7 +142,10 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ---------- ayudantes de 97_ ----------
-CREATE FUNCTION pg_temp.n_aud() RETURNS bigint AS $$ SELECT count(*) FROM tiempo.bitacora_config_terminal $$ LANGUAGE sql;
+-- n_aud: filas que cambian VALOR/CLAVE o alta/baja de fila (INSERT, UPDATE, DELETE); n_vig: filas de cambio de VIGENCIA (UPDATE_VIGENCIA, M1); n_tot: todas.
+CREATE FUNCTION pg_temp.n_aud() RETURNS bigint AS $$ SELECT count(*) FROM tiempo.bitacora_config_terminal WHERE operacion <> 'UPDATE_VIGENCIA' $$ LANGUAGE sql;
+CREATE FUNCTION pg_temp.n_vig() RETURNS bigint AS $$ SELECT count(*) FROM tiempo.bitacora_config_terminal WHERE operacion = 'UPDATE_VIGENCIA' $$ LANGUAGE sql;
+CREATE FUNCTION pg_temp.n_tot() RETURNS bigint AS $$ SELECT count(*) FROM tiempo.bitacora_config_terminal $$ LANGUAGE sql;
 CREATE FUNCTION pg_temp.est97() RETURNS jsonb AS $$ SELECT tiempo.fn_terminal_inferir_huella_estado() $$ LANGUAGE sql;
 CREATE FUNCTION pg_temp.cambiar(p_activa text, p_nota text, p_hasta text) RETURNS text AS $$
   SELECT format('tiempo.fn_terminal_inferir_huella_cambiar(%s, %L, %s)', p_activa, p_nota, p_hasta);
@@ -243,13 +246,17 @@ UPDATE tiempo.terminal SET activa = true WHERE terminal_id = 'ENSAYO-97';
 SELECT pg_temp.rpc('40 el administrador ENCIENDE con nota válida y vencimiento a 2 días', 'authenticated',
   pg_temp.cambiar('true', 'Primera alta real supervisada, ensayo 97', $$now() + interval '2 days'$$),
   $c$ $1->>'resultado' = 'actualizada' AND ($1->'estado'->>'activo')::boolean AND NOT ($1->'estado'->>'vencido')::boolean $c$);
-SELECT pg_temp.verifica('40b ... quedaron 2 filas de bitácora (activa 0->1 y hasta centinela->nuevo), con la nota, el autor, el rol del JWT, via_funcion verdadero y el MISMO txid',
+SELECT pg_temp.verifica('40b ... quedaron 2 filas de CAMBIO DE VALOR (activa 0->1 y hasta centinela->nuevo), con la nota, el autor, el rol del JWT, via_funcion verdadero y el MISMO txid',
   $$SELECT count(*) = 2 AND count(DISTINCT txid) = 1 AND bool_and(via_funcion) AND bool_and(rol_jwt = 'authenticated')
       AND bool_and(nota = 'Primera alta real supervisada, ensayo 97') AND bool_and(registrado_por = (SELECT v::uuid FROM _ens WHERE k='auth_uid'))
       AND bool_and(operacion IN ('INSERT', 'UPDATE'))
       AND bool_or(clave = 'terminal_inferir_huella_activa' AND valor_anterior = '0' AND valor_nuevo = '1')
       AND bool_or(clave = 'terminal_inferir_huella_hasta' AND valor_anterior = '1970-01-01T00:00:00Z' AND valor_nuevo ~ '^20[0-9]{2}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z$')
-    FROM tiempo.bitacora_config_terminal$$);
+    FROM tiempo.bitacora_config_terminal WHERE operacion <> 'UPDATE_VIGENCIA'$$);
+SELECT pg_temp.verifica('40b2 ... y 2 filas UPDATE_VIGENCIA (el cierre de las dos vigencias sembradas, M1) con via_funcion verdadero, la misma nota y vigente_hasta nueva = hoy-1',
+  $$SELECT count(*) = 2 AND bool_and(via_funcion) AND bool_and(nota = 'Primera alta real supervisada, ensayo 97') AND bool_and(vigente_hasta_anterior IS NULL AND vigente_hasta_nuevo = pg_temp.hoy_utc() - 1)
+      AND bool_and(registrado_por = (SELECT v::uuid FROM _ens WHERE k='auth_uid')) AND count(DISTINCT txid) = 1
+    FROM tiempo.bitacora_config_terminal WHERE operacion = 'UPDATE_VIGENCIA'$$);
 SELECT pg_temp.verifica('40c ... las dos claves tienen UNA vigencia abierta con vigente_desde = hoy UTC y registrado_por = el administrador',
   $$SELECT count(*) = 2 AND bool_and(vigente_desde = pg_temp.hoy_utc()) AND bool_and(registrado_por = (SELECT v::uuid FROM _ens WHERE k='auth_uid'))
     FROM tiempo.parametro WHERE clave LIKE 'terminal\_inferir\_huella\_%' AND vigente_hasta IS NULL$$);
@@ -323,8 +330,8 @@ SELECT pg_temp.verifica('81b ... dejó UNA fila: operación UPDATE, 0->1, nota N
       AND operacion = 'UPDATE' AND clave = 'terminal_inferir_huella_activa' AND valor_anterior = '0' AND valor_nuevo = '1' AND nota IS NULL AND NOT via_funcion
       AND rol_jwt = 'service_role' AND usuario_sesion = session_user::text$$);
 SELECT pg_temp.verifica('81c ... y la consulta de la anomalía «cambio sin nota» la devuelve', $$SELECT count(*) = 1 FROM tiempo.bitacora_config_terminal WHERE clave = 'terminal_inferir_huella_activa' AND valor_nuevo = '1' AND (nota IS NULL OR char_length(nota) < 10)$$);
-SELECT pg_temp.rpc('81d valor ''1'' con el vencimiento centinela vencido -> APAGADO efectivo, mostrado como vencido', 'service_role', 'pg_temp.est97()',
-  $c$ NOT ($1->>'activo')::boolean AND ($1->>'vencido')::boolean AND $1->>'motivo' = 'vencido' $c$, '-');
+SELECT pg_temp.rpc('81d valor ''1'' con el vencimiento centinela vencido -> APAGADO efectivo, mostrado como vencido, y el último cambio de esa vigencia NO vino de la función dedicada (B1)', 'service_role', 'pg_temp.est97()',
+  $c$ NOT ($1->>'activo')::boolean AND ($1->>'vencido')::boolean AND $1->>'motivo' = 'vencido' AND NOT ($1->>'ultimo_cambio_via_funcion')::boolean AND NOT ($1->>'sin_registro')::boolean $c$, '-');
 -- Un 'hasta' directo a más de 30 días (formato válido) NO crea un interruptor de vida larga: el lector aplica el tope también al LEER.
 UPDATE tiempo.parametro SET valor = to_char((now() + interval '40 days') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') WHERE clave = 'terminal_inferir_huella_hasta' AND vigente_hasta IS NULL;
 SELECT pg_temp.rpc('82 hasta directo a 40 días -> APAGADO (hasta_excede_tope), no activo', 'service_role', 'pg_temp.est97()',
@@ -349,17 +356,64 @@ SELECT pg_temp.verifica('84b ... dejó fila (operación DELETE, valor anterior, 
   $$SELECT count(*) = 1 FROM tiempo.bitacora_config_terminal WHERE operacion = 'DELETE' AND clave = 'terminal_inferir_huella_activa' AND valor_nuevo IS NULL AND valor_anterior IS NOT NULL AND nota IS NULL AND rol_jwt = 'service_role'$$);
 SELECT pg_temp.rpc('84c ... y el lector lo lee como APAGADO (sin vigencia del interruptor)', 'service_role', 'pg_temp.est97()',
   $c$ NOT ($1->>'activo')::boolean AND $1->>'motivo' = 'vigencias_inconsistentes' $c$, '-');
--- El UPDATE que solo cierra vigente_hasta (sin cambiar el valor) NO deja fila.
+-- M1: el UPDATE que solo cambia la vigencia (vigente_hasta) TAMBIÉN deja fila (operación UPDATE_VIGENCIA), aunque no cambie el valor.
 SELECT pg_temp.verifica('85 snapshot de la bitácora antes de cerrar una vigencia de la otra clave', $$SELECT pg_temp.n_aud() >= 14$$);
-CREATE TEMP TABLE _aud_antes AS SELECT count(*) AS n FROM tiempo.bitacora_config_terminal;
+CREATE TEMP TABLE _aud_antes AS SELECT count(*) AS n, (SELECT count(*) FROM tiempo.bitacora_config_terminal WHERE operacion = 'UPDATE_VIGENCIA') AS nv FROM tiempo.bitacora_config_terminal;
 UPDATE tiempo.parametro SET vigente_hasta = pg_temp.hoy_utc() + 9 WHERE clave = 'terminal_inferir_huella_hasta' AND vigente_hasta IS NULL;
-SELECT pg_temp.verifica('85b el UPDATE que solo cierra la vigencia no dejó fila', $$SELECT pg_temp.n_aud() = (SELECT n FROM _aud_antes)$$);
+SELECT pg_temp.verifica('85b el UPDATE que solo cierra la vigencia dejó UNA fila UPDATE_VIGENCIA (valor igual, vigente_hasta nueva = hoy+9, nota NULL, via_funcion falso) y ninguna de cambio de valor',
+  $$SELECT pg_temp.n_tot() = (SELECT n FROM _aud_antes) + 1 AND pg_temp.n_vig() = (SELECT nv FROM _aud_antes) + 1 AND operacion = 'UPDATE_VIGENCIA' AND valor_anterior = valor_nuevo
+      AND vigente_hasta_nuevo = pg_temp.hoy_utc() + 9 AND nota IS NULL AND NOT via_funcion
+    FROM tiempo.bitacora_config_terminal WHERE id = (SELECT max(id) FROM tiempo.bitacora_config_terminal)$$);
 -- Una variable de nota fijada en OTRA transacción (otro txid) no se acepta.
 SELECT set_config('scj.nota_interruptor', 'Nota falsificada de ensayo para el trigger', true), set_config('scj.txid_interruptor', '1', true);
 INSERT INTO tiempo.parametro (clave, valor, vigente_desde, vigente_hasta, registrado_por) VALUES ('terminal_inferir_huella_hasta', '2030-01-01T00:00:00Z', pg_temp.hoy_utc() + 10, NULL, NULL);
 SELECT pg_temp.verifica('86 una nota con txid ajeno NO se acepta: la fila queda con nota NULL y via_funcion falso',
   $$SELECT nota IS NULL AND NOT via_funcion FROM tiempo.bitacora_config_terminal WHERE id = (SELECT max(id) FROM tiempo.bitacora_config_terminal)$$);
 SELECT set_config('scj.nota_interruptor', '', true), set_config('scj.txid_interruptor', '', true);
+
+-- ---------- H2. M1 de security: la manipulación de VIGENCIAS también deja rastro ----------
+-- Estado de partida limpio: el interruptor en '0' (fila abierta) y una fila HISTÓRICA cerrada con '1' (hoy-10 a hoy-3).
+DELETE FROM tiempo.parametro WHERE clave IN ('terminal_inferir_huella_activa', 'terminal_inferir_huella_hasta');
+INSERT INTO tiempo.parametro (clave, valor, vigente_desde, vigente_hasta, registrado_por) VALUES
+  ('terminal_inferir_huella_activa', '0', DATE '2026-01-01', NULL, NULL),
+  ('terminal_inferir_huella_activa', '1', pg_temp.hoy_utc() - 10, pg_temp.hoy_utc() - 3, NULL),
+  ('terminal_inferir_huella_hasta',  '1970-01-01T00:00:00Z', DATE '2026-01-01', NULL, NULL);
+SELECT pg_temp.rpc('87 partida: solo rige el 0 (la fila histórica con 1 está cerrada) -> apagado', 'service_role', 'pg_temp.est97()',
+  $c$ NOT ($1->>'activo')::boolean AND $1->>'motivo' = 'apagado' $c$, '-');
+CREATE TEMP TABLE _aud_m1 AS SELECT count(*) AS n FROM tiempo.bitacora_config_terminal;
+SELECT pg_temp.caso('87b service_role REABRE la fila histórica con 1 (vigente_hasta = NULL)', 'service_role',
+  $$UPDATE tiempo.parametro SET vigente_hasta = NULL WHERE clave = 'terminal_inferir_huella_activa' AND valor = '1' AND vigente_hasta IS NOT NULL$$, 'ok', '-');
+SELECT pg_temp.verifica('87c ... dejó UNA fila UPDATE_VIGENCIA: valor 1 -> 1, vigente_hasta anterior hoy-3 y nueva NULL, fila_id de la histórica, nota NULL, via_funcion falso, rol service_role',
+  $$SELECT (SELECT count(*) FROM tiempo.bitacora_config_terminal) = (SELECT n FROM _aud_m1) + 1
+      AND operacion = 'UPDATE_VIGENCIA' AND valor_anterior = '1' AND valor_nuevo = '1' AND vigente_hasta_anterior = pg_temp.hoy_utc() - 3 AND vigente_hasta_nuevo IS NULL
+      AND vigente_desde_anterior = pg_temp.hoy_utc() - 10 AND vigente_desde_nuevo = pg_temp.hoy_utc() - 10
+      AND fila_id = (SELECT id FROM tiempo.parametro WHERE clave = 'terminal_inferir_huella_activa' AND valor = '1') AND nota IS NULL AND NOT via_funcion AND rol_jwt = 'service_role'
+    FROM tiempo.bitacora_config_terminal WHERE id = (SELECT max(id) FROM tiempo.bitacora_config_terminal)$$);
+SELECT pg_temp.rpc('87d con las dos filas vigentes (la abierta con 0 y la reabierta con 1) el estado efectivo es APAGADO (vigencias_inconsistentes)', 'service_role', 'pg_temp.est97()',
+  $c$ NOT ($1->>'activo')::boolean AND $1->>'motivo' = 'vigencias_inconsistentes' $c$, '-');
+SELECT pg_temp.caso('87e service_role CIERRA la fila vigente con 0 (vigente_hasta = hoy-1)', 'service_role',
+  $$UPDATE tiempo.parametro SET vigente_hasta = (now() AT TIME ZONE 'UTC')::date - 1 WHERE clave = 'terminal_inferir_huella_activa' AND valor = '0' AND vigente_hasta IS NULL$$, 'ok', '-');
+UPDATE tiempo.parametro SET valor = to_char((now() + interval '2 days') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') WHERE clave = 'terminal_inferir_huella_hasta' AND vigente_hasta IS NULL;
+SELECT pg_temp.rpc('87f ... el estado efectivo YA es activo (la manipulación de vigencias lo logra), pero el último cambio de esa vigencia NO vino de la función dedicada', 'service_role', 'pg_temp.est97()',
+  $c$ ($1->>'activo')::boolean AND NOT ($1->>'ultimo_cambio_via_funcion')::boolean AND NOT ($1->>'sin_registro')::boolean $c$, '-');
+SELECT pg_temp.verifica('87g ... y quedan registrados los DOS movimientos de vigencia (reabrir y cerrar) con via_funcion falso, más la anomalía «sin nota» que los delata',
+  $$SELECT (SELECT count(*) FROM tiempo.bitacora_config_terminal WHERE operacion = 'UPDATE_VIGENCIA' AND NOT via_funcion AND rol_jwt = 'service_role' AND clave = 'terminal_inferir_huella_activa') = 2
+      AND (SELECT count(*) FROM tiempo.bitacora_config_terminal WHERE clave = 'terminal_inferir_huella_activa' AND valor_nuevo = '1' AND (nota IS NULL OR char_length(nota) < 10) AND NOT via_funcion) >= 1$$);
+-- B1: sin registro de quién lo encendió. Con el trigger deshabilitado dentro de la transacción (lo que el verificador detecta), una fila con 1 no tiene bitácora.
+ALTER TABLE tiempo.parametro DISABLE TRIGGER trg_parametro_inferir_huella_audita;
+DELETE FROM tiempo.parametro WHERE clave IN ('terminal_inferir_huella_activa', 'terminal_inferir_huella_hasta');
+INSERT INTO tiempo.parametro (clave, valor, vigente_desde, vigente_hasta, registrado_por) VALUES
+  ('terminal_inferir_huella_activa', '1', DATE '2026-01-01', NULL, NULL),
+  ('terminal_inferir_huella_hasta',  to_char((now() + interval '2 days') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), DATE '2026-01-01', NULL, NULL);
+ALTER TABLE tiempo.parametro ENABLE TRIGGER trg_parametro_inferir_huella_audita;
+SELECT pg_temp.rpc('88 B1: valor 1 vigente SIN fila de bitácora de esa vigencia -> activo pero «sin_registro» verdadero y sin atribuir el encendido a otra vigencia', 'service_role', 'pg_temp.est97()',
+  $c$ ($1->>'activo')::boolean AND ($1->>'sin_registro')::boolean AND $1->>'encendido_por' IS NULL AND $1->>'encendido_en' IS NULL $c$, '-');
+SELECT pg_temp.verifica('88b ... el trigger quedó habilitado (tgenabled = O) para el resto del ensayo', $$SELECT tgenabled = 'O' FROM pg_trigger WHERE tgrelid = 'tiempo.parametro'::regclass AND tgname = 'trg_parametro_inferir_huella_audita'$$);
+-- Estado limpio para lo que sigue.
+DELETE FROM tiempo.parametro WHERE clave IN ('terminal_inferir_huella_activa', 'terminal_inferir_huella_hasta');
+INSERT INTO tiempo.parametro (clave, valor, vigente_desde, vigente_hasta, registrado_por) VALUES
+  ('terminal_inferir_huella_activa', '0', DATE '2026-01-01', NULL, NULL),
+  ('terminal_inferir_huella_hasta',  '1970-01-01T00:00:00Z', DATE '2026-01-01', NULL, NULL);
 
 -- ---------- I. la bitácora ----------
 SELECT pg_temp.caso('90 UPDATE sobre la bitácora (incluso el dueño) -> error', current_user::text, $$UPDATE tiempo.bitacora_config_terminal SET nota = 'x'$$, 'error', '-');

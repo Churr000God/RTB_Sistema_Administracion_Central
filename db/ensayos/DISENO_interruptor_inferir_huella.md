@@ -206,3 +206,15 @@ Cada aplicación sigue el procedimiento ya usado en `93_` a `96_`: archivo idén
 2. Autorización del usuario para escribir `97_` y `98_` y sus ensayos.
 3. Autorización posterior y separada para **correr cada ensayo** y para **aplicar** cada archivo contra la base real.
 4. Trabajo de backend/frontend/documentación en paralelo (sección 5), fuera del alcance de `db`.
+
+---
+
+## 12. Addenda posteriores a la v4 (revisión de `security` del SQL escrito, 10 de octubre de 2026)
+
+Estos cambios ya están en `97_` (no cambian la decisión de diseño):
+
+- **TRUNCATE de `tiempo.parametro` bloqueado** (decisión de `orchestrator`): trigger `BEFORE TRUNCATE` por statement con mensaje fijo y `HINT` `parametro_truncate_bloqueado`. `service_role` conserva `TRUNCATE` y un `TRUNCATE` no pasa por los triggers por fila; vaciaría las filas del interruptor sin rastro.
+- **M1 — la manipulación de vigencias también se audita:** el trigger registra todo `UPDATE` que cambie clave, valor **o vigencia** (`vigente_desde`, `vigente_hasta`); la operación nueva `UPDATE_VIGENCIA` cubre el caso en que solo cambian las fechas (cerrar una vigencia, o **reabrir una fila histórica** con `'1'`). La bitácora guarda `fila_id` y la vigencia anterior y nueva. El cierre de vigencia que hace la función dedicada también deja fila (con `via_funcion` verdadero), así que las cuentas de filas cambian: un primer encendido del día deja 4 filas (2 de valor y 2 de cierre de vigencia).
+- **M2 — verificador:** la sección 60 de `verificar_ddl.sql` lista los triggers y las reglas de `tiempo.parametro` y de la bitácora de configuración y compara con la lista esperada; cualquier trigger `BEFORE` que cancele filas, regla `INSTEAD` o policy ajena hace saltar el verificador.
+- **B1 — quién y cuándo:** el lector de estado toma el autor y la hora de la **última fila de bitácora de la vigencia actual** (`fila_id` de la fila vigente), no del último `'1'` de la tabla; si el valor vigente es `'1'` y esa vigencia no tiene fila, devuelve `sin_registro` verdadero; informa además si el último cambio vino de la función dedicada (`ultimo_cambio_via_funcion`).
+- **B2:** `v_hoy := CURRENT_DATE` en `fn_terminal_config_actualizar` es preexistente (de `89_`) y se mantiene para las otras cinco claves `terminal_*`; solo el interruptor usa fecha UTC explícita, en sus propias funciones.

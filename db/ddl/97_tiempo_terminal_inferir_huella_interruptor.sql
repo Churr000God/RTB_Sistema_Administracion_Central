@@ -52,6 +52,9 @@
 --   fn_terminal_inferir_huella_estado    SECURITY DEFINER, STABLE, search_path = tiempo, pg_temp, EXECUTE solo service_role.
 --   fn_terminal_config_actualizar        SECURITY DEFINER, search_path = tiempo, personas, pg_temp, EXECUTE solo authenticated (repetidos).
 --
+-- M1 (security, 2.ª revisión): el trigger audita TODO UPDATE de estas claves que cambie la clave, el valor o la VIGENCIA (UPDATE_VIGENCIA); incluye el cierre de vigencia que hace la
+-- función dedicada (con via_funcion verdadero). Sin esto, service_role podía reabrir una fila histórica '1' y cerrar la vigente '0' dejando el interruptor en 1 sin bitácora.
+--
 -- Riesgos residuales aceptados (D3/D4): quien tenga la llave de service_role puede escribir en tiempo.parametro (60_ solo revocó a anon/authenticated): el trigger lo
 -- registra (nota nula, rol_jwt service_role) y el tablero lo marca, y el lector exige un 'hasta' dentro de 30 días al leer, pero la escritura no se impide. Quien sea
 -- dueño o superusuario puede DISABLE TRIGGER o fijar variables de transacción; verificar_ddl.sql comprueba existencia y tgenabled = 'O'.
@@ -100,8 +103,13 @@ CREATE TABLE tiempo.bitacora_config_terminal (
   id               bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   clave            text NOT NULL,
   operacion        text NOT NULL,
+  fila_id          bigint,
   valor_anterior   text,
   valor_nuevo      text,
+  vigente_desde_anterior  date,
+  vigente_hasta_anterior  date,
+  vigente_desde_nuevo     date,
+  vigente_hasta_nuevo     date,
   nota             text,
   registrado_por   uuid,
   rol_jwt          text,
@@ -110,7 +118,7 @@ CREATE TABLE tiempo.bitacora_config_terminal (
   txid             bigint NOT NULL,
   creado_en        timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT ck_bitacora_config_terminal_clave CHECK (clave IN ('terminal_inferir_huella_activa', 'terminal_inferir_huella_hasta')),
-  CONSTRAINT ck_bitacora_config_terminal_operacion CHECK (operacion IN ('INSERT', 'UPDATE', 'DELETE')),
+  CONSTRAINT ck_bitacora_config_terminal_operacion CHECK (operacion IN ('INSERT', 'UPDATE', 'UPDATE_VIGENCIA', 'DELETE')),
   CONSTRAINT ck_bitacora_config_terminal_nota_len CHECK (nota IS NULL OR char_length(nota) <= 500)
 );
 
@@ -118,6 +126,9 @@ COMMENT ON TABLE tiempo.bitacora_config_terminal IS
   'Rastro inmutable de los cambios al interruptor de la activación por huella (terminal_inferir_huella_*): valor anterior y nuevo, nota, autor, rol del JWT, '
   'usuario de sesión, hora y txid. La escribe SOLO el trigger de tiempo.parametro (como dueño); un cambio directo con service_role también deja fila (sin nota, '
   'via_funcion = false). registrado_por no lleva clave foránea a propósito (una bitácora inmutable con FK impediría borrar cuentas). Diseño: DISENO_interruptor_inferir_huella.md.';
+COMMENT ON COLUMN tiempo.bitacora_config_terminal.operacion IS
+  'INSERT | UPDATE (cambia el valor o la clave) | UPDATE_VIGENCIA (cambia solo vigente_desde/vigente_hasta: cerrar una vigencia, o REABRIR una fila histórica) | DELETE. '
+  'fila_id = tiempo.parametro.id de la fila afectada; las columnas vigente_* guardan la vigencia anterior y la nueva.';
 COMMENT ON COLUMN tiempo.bitacora_config_terminal.via_funcion IS
   'true solo si el cambio ocurrió dentro de fn_terminal_inferir_huella_cambiar (la variable de transacción con txid_current() coincide). Calculado por el trigger, no recibido.';
 
@@ -198,6 +209,12 @@ DECLARE
   v_nota    text;
   v_via     boolean := false;
   v_jwt     text;
+  v_op      text;
+  v_fila    bigint;
+  v_da      date;
+  v_ha      date;
+  v_dn      date;
+  v_hn      date;
 BEGIN
   -- Qué clave nos interesa (el cambio de clave de una fila hacia o desde el interruptor también cuenta).
   IF TG_OP <> 'DELETE' AND NEW.clave IN (c_activa, c_hasta) THEN
@@ -209,20 +226,36 @@ BEGIN
   END IF;
 
   IF TG_OP = 'INSERT' THEN
+    v_op  := 'INSERT';
+    v_fila := NEW.id;
     v_nue := NEW.valor;
+    v_dn  := NEW.vigente_desde;
+    v_hn  := NEW.vigente_hasta;
     v_ant := (SELECT p.valor FROM tiempo.parametro p
               WHERE p.clave = NEW.clave AND p.id <> NEW.id
               ORDER BY p.vigente_desde DESC, p.id DESC LIMIT 1);
   ELSIF TG_OP = 'UPDATE' THEN
-    -- El UPDATE que solo cierra la vigencia (vigente_hasta) no cambia el valor: no genera ruido.
-    IF OLD.clave IS NOT DISTINCT FROM NEW.clave AND OLD.valor IS NOT DISTINCT FROM NEW.valor THEN
+    -- M1 de security: se audita TODO UPDATE que cambie la clave, el valor O LA VIGENCIA (vigente_desde / vigente_hasta). Reabrir una fila histórica con '1' y cerrar la
+    -- vigente '0' dejaría el interruptor en 1 sin tocar el valor: por eso la vigencia también deja fila (operación UPDATE_VIGENCIA).
+    IF OLD.clave IS NOT DISTINCT FROM NEW.clave AND OLD.valor IS NOT DISTINCT FROM NEW.valor
+       AND OLD.vigente_desde IS NOT DISTINCT FROM NEW.vigente_desde AND OLD.vigente_hasta IS NOT DISTINCT FROM NEW.vigente_hasta THEN
       RETURN NULL;
     END IF;
+    v_op  := CASE WHEN OLD.clave IS DISTINCT FROM NEW.clave OR OLD.valor IS DISTINCT FROM NEW.valor THEN 'UPDATE' ELSE 'UPDATE_VIGENCIA' END;
+    v_fila := NEW.id;
     v_ant := OLD.valor;
     v_nue := NEW.valor;
+    v_da  := OLD.vigente_desde;
+    v_ha  := OLD.vigente_hasta;
+    v_dn  := NEW.vigente_desde;
+    v_hn  := NEW.vigente_hasta;
   ELSE
+    v_op  := 'DELETE';
+    v_fila := OLD.id;
     v_ant := OLD.valor;
     v_nue := NULL;
+    v_da  := OLD.vigente_desde;
+    v_ha  := OLD.vigente_hasta;
   END IF;
 
   -- La nota solo vale si la fijó la función dedicada EN ESTA transacción (la segunda variable debe coincidir con txid_current()).
@@ -238,9 +271,10 @@ BEGIN
   END;
 
   INSERT INTO tiempo.bitacora_config_terminal
-    (clave, operacion, valor_anterior, valor_nuevo, nota, registrado_por, rol_jwt, usuario_sesion, via_funcion, txid)
+    (clave, operacion, fila_id, valor_anterior, valor_nuevo, vigente_desde_anterior, vigente_hasta_anterior, vigente_desde_nuevo, vigente_hasta_nuevo,
+     nota, registrado_por, rol_jwt, usuario_sesion, via_funcion, txid)
   VALUES
-    (v_clave, TG_OP, v_ant, v_nue, v_nota,
+    (v_clave, v_op, v_fila, v_ant, v_nue, v_da, v_ha, v_dn, v_hn, v_nota,
      COALESCE(auth.uid(), CASE WHEN TG_OP <> 'DELETE' THEN NEW.registrado_por END),
      v_jwt, session_user::text, v_via, txid_current());
   RETURN NULL;
@@ -388,6 +422,9 @@ DECLARE
   v_motivo     text;
   v_por        uuid;
   v_en         timestamptz;
+  v_fila_id    bigint;
+  v_via_fn     boolean;
+  v_sin_reg    boolean := false;
 BEGIN
   SELECT count(*) INTO v_n_activa FROM tiempo.parametro p
   WHERE p.clave = c_activa AND p.vigente_desde <= v_hoy AND (p.vigente_hasta IS NULL OR p.vigente_hasta >= v_hoy);
@@ -397,7 +434,7 @@ BEGIN
   IF v_n_activa <> 1 OR v_n_hasta <> 1 THEN
     v_motivo := 'vigencias_inconsistentes';
   ELSE
-    SELECT p.valor INTO v_valor FROM tiempo.parametro p
+    SELECT p.valor, p.id INTO v_valor, v_fila_id FROM tiempo.parametro p
     WHERE p.clave = c_activa AND p.vigente_desde <= v_hoy AND (p.vigente_hasta IS NULL OR p.vigente_hasta >= v_hoy);
     SELECT p.valor INTO v_hasta_txt FROM tiempo.parametro p
     WHERE p.clave = c_hasta AND p.vigente_desde <= v_hoy AND (p.vigente_hasta IS NULL OR p.vigente_hasta >= v_hoy);
@@ -425,11 +462,17 @@ BEGIN
     END IF;
   END IF;
 
-  -- Quién y cuándo lo encendió por última vez (de la bitácora de configuración); informativo, no decide el estado.
-  SELECT b.registrado_por, b.creado_en INTO v_por, v_en
-  FROM tiempo.bitacora_config_terminal b
-  WHERE b.clave = c_activa AND b.valor_nuevo = '1'
-  ORDER BY b.id DESC LIMIT 1;
+  -- B1: quién y cuándo, de la ÚLTIMA fila de bitácora de la VIGENCIA ACTUAL (fila_id de la fila vigente). Si el valor vigente es '1' y esa fila no tiene registro, o su último
+  -- cambio no vino de la función dedicada, se informa («sin_registro» / via_funcion falso) en lugar de atribuir el encendido a otra vigencia. Informativo: no decide el estado.
+  IF v_fila_id IS NOT NULL THEN
+    SELECT b.registrado_por, b.creado_en, b.via_funcion INTO v_por, v_en, v_via_fn
+    FROM tiempo.bitacora_config_terminal b
+    WHERE b.clave = c_activa AND b.fila_id = v_fila_id
+    ORDER BY b.id DESC LIMIT 1;
+    IF NOT FOUND AND v_valor = '1' THEN
+      v_sin_reg := true;
+    END IF;
+  END IF;
 
   RETURN jsonb_build_object(
     'activo', v_activo,
@@ -438,13 +481,15 @@ BEGIN
     'valor', v_valor,
     'hasta', v_hasta_txt,
     'encendido_por', v_por,
-    'encendido_en', v_en
+    'encendido_en', v_en,
+    'ultimo_cambio_via_funcion', v_via_fn,
+    'sin_registro', v_sin_reg
   );
 EXCEPTION WHEN OTHERS THEN
   -- Falla CERRADO: cualquier error de lectura es «apagado». Solo el SQLSTATE en el log, nunca texto del error ni identidad.
   RAISE WARNING 'fn_terminal_inferir_huella_estado: lectura fallida sqlstate=%', SQLSTATE;
   RETURN jsonb_build_object('activo', false, 'vencido', false, 'motivo', 'error', 'valor', NULL, 'hasta', NULL,
-                            'encendido_por', NULL, 'encendido_en', NULL);
+                            'encendido_por', NULL, 'encendido_en', NULL, 'ultimo_cambio_via_funcion', NULL, 'sin_registro', false);
 END;
 $$;
 
@@ -452,7 +497,7 @@ REVOKE EXECUTE ON FUNCTION tiempo.fn_terminal_inferir_huella_estado() FROM PUBLI
 GRANT EXECUTE ON FUNCTION tiempo.fn_terminal_inferir_huella_estado() TO service_role;
 
 COMMENT ON FUNCTION tiempo.fn_terminal_inferir_huella_estado() IS
-  '97_. Estado EFECTIVO del interruptor de la activación por huella: {activo, vencido, motivo, valor, hasta, encendido_por, encendido_en}. UNA sola definición para el RPC de '
+  '97_. Estado EFECTIVO del interruptor de la activación por huella: {activo, vencido, motivo, valor, hasta, encendido_por, encendido_en, ultimo_cambio_via_funcion, sin_registro} (quién y cuándo salen de la última fila de bitácora de la vigencia actual). UNA sola definición para el RPC de '
   'marcas (98_), el backend y el tablero. activo = exactamente una vigencia por clave, valor = ''1'' (lectura cruda, sin acotar), hasta futuro y a lo más a 30 días '
   '(también al leer); cualquier otra cosa o error = apagado (falla cerrado; solo SQLSTATE en el warning). Solo lectura. SECURITY DEFINER, STABLE, '
   'search_path = tiempo, pg_temp, EXECUTE solo service_role.';
@@ -563,6 +608,8 @@ DECLARE
   v_cat          record;
   v_valor        integer;
   v_texto        text;
+  -- 97_ (B2): CURRENT_DATE (fecha de la zona de la sesión) es PREEXISTENTE de 89_ y SE MANTIENE: las otras cinco claves terminal_* siguen con esa regla.
+  -- El interruptor de la activación por huella usa fecha UTC explícita en sus propias funciones (fn_terminal_inferir_huella_*), no aquí.
   v_hoy          date := CURRENT_DATE;
   v_activa_id    bigint;
   v_activa_desde date;

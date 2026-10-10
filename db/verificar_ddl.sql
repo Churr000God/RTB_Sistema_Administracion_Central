@@ -1502,6 +1502,26 @@ WHERE NOT EXISTS (SELECT 1 FROM pg_trigger t JOIN pg_proc p ON p.oid = t.tgfoid
                   WHERE t.tgrelid = 'tiempo.parametro'::regclass AND t.tgname = 'trg_parametro_truncate_bloqueado' AND NOT t.tgisinternal
                     AND t.tgenabled = 'O' AND t.tgtype = 34 AND p.proname = 'fn_parametro_truncate_bloqueado')
 UNION ALL
+-- M2 de security: lista COMPLETA de triggers y reglas de las dos tablas que sostienen el interruptor; cualquier trigger BEFORE que cancele filas o regla INSTEAD ajeno salta aquí.
+SELECT 'trigger inesperado en tiempo.parametro', t.tgname
+FROM pg_trigger t WHERE t.tgrelid = 'tiempo.parametro'::regclass AND NOT t.tgisinternal
+  AND t.tgname NOT IN ('trg_parametro_inferir_huella_audita', 'trg_parametro_truncate_bloqueado')
+UNION ALL
+SELECT 'regla (RULE) en tiempo.parametro', r.rulename
+FROM pg_rewrite r WHERE r.ev_class = 'tiempo.parametro'::regclass AND r.rulename <> '_RETURN'
+UNION ALL
+SELECT 'policy en tiempo.parametro (debe seguir deny-all sin policies)', p.policyname
+FROM pg_policies p WHERE p.schemaname = 'tiempo' AND p.tablename = 'parametro'
+UNION ALL
+SELECT 'tiempo.parametro sin RLS', NULL FROM pg_class WHERE oid = 'tiempo.parametro'::regclass AND NOT relrowsecurity
+UNION ALL
+SELECT 'trigger inesperado en la bitácora de configuración', t.tgname
+FROM pg_trigger t WHERE t.tgrelid = to_regclass('tiempo.bitacora_config_terminal') AND NOT t.tgisinternal
+  AND t.tgname NOT IN ('trg_bitacora_config_terminal_inmutable', 'trg_bitacora_config_terminal_truncate')
+UNION ALL
+SELECT 'regla (RULE) en la bitácora de configuración', r.rulename
+FROM pg_rewrite r WHERE r.ev_class = to_regclass('tiempo.bitacora_config_terminal') AND r.rulename <> '_RETURN'
+UNION ALL
 SELECT 'función ausente', f.proname
 FROM f WHERE NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'tiempo' AND p.proname = f.proname)
 UNION ALL

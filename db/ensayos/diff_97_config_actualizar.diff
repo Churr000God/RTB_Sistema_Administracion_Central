@@ -5,7 +5,14 @@
 +CREATE OR REPLACE FUNCTION tiempo.fn_terminal_config_actualizar(p_clave text, p_valor text)
  RETURNS jsonb
  LANGUAGE plpgsql
-@@ -21,17 +21,25 @@
+@@ -10,4 +10,6 @@
+   v_valor        integer;
+   v_texto        text;
++  -- 97_ (B2): CURRENT_DATE (fecha de la zona de la sesión) es PREEXISTENTE de 89_ y SE MANTIENE: las otras cinco claves terminal_* siguen con esa regla.
++  -- El interruptor de la activación por huella usa fecha UTC explícita en sus propias funciones (fn_terminal_inferir_huella_*), no aquí.
+   v_hoy          date := CURRENT_DATE;
+   v_activa_id    bigint;
+@@ -21,17 +23,25 @@
    END IF;
  
 +  -- 97_: las dos claves del interruptor de la activación por huella NO se editan por aquí (ni siquiera con permiso): solo con
@@ -34,7 +41,7 @@
 +    RAISE EXCEPTION 'El valor está fuera del rango permitido'
        USING ERRCODE = '22023', HINT = 'valor_invalido';
    END IF;
-@@ -67,5 +75,5 @@
+@@ -67,5 +77,5 @@
  
    IF v_activa_id IS NULL THEN
 -    RAISE EXCEPTION 'No existe un parámetro activo con clave %', p_clave
