@@ -442,3 +442,67 @@ describe("AnomaliasTerminalesPage · categorías 11 a 13", () => {
     expect(container.querySelector("b")).toBeNull();
   });
 });
+
+describe("AnomaliasTerminalesPage · categoría 14 (interruptor_huella)", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+    window.history.replaceState(null, "", "/tiempo/terminales/anomalias");
+  });
+
+  const NOTA = "Es un ajuste global del sistema, no de esta terminal.";
+  const tablero = (categorias: unknown[]) =>
+    new Response(JSON.stringify({ terminal_id: 1, desde: "2026-10-01T00:00:00Z", hasta: "2026-10-08T00:00:00Z", generado_en: "2026-10-08T00:00:00Z", categorias }));
+
+  it("alarma atender: mensaje fijo, nivel Atender, nota global y enlace a la pantalla del interruptor", async () => {
+    mockApi({
+      anomalias: () =>
+        tablero([
+          tarjeta("interruptor_huella", 14, "Interruptor de la activación por huella", {
+            estado: "con_hallazgos",
+            nivel: "atender",
+            total: 1,
+            nota: NOTA,
+            ejemplos: [{ codigo: "sin_respaldo_de_la_funcion", mensaje: "Se detectó un cambio hecho fuera de esta pantalla; el interruptor quedó apagado. Avisa a Sistemas." }],
+          }),
+        ]),
+    });
+    render(<AnomaliasTerminalesPage />);
+    const tarjeta14 = (await screen.findByRole("heading", { name: /14 · interruptor de la activación por huella/i })).closest(".anomalia") as HTMLElement;
+    expect(within(tarjeta14).getByText("Atender")).toBeInTheDocument();
+    expect(within(tarjeta14).getByText(/cambio hecho fuera de esta pantalla/i)).toBeInTheDocument();
+    expect(within(tarjeta14).getByText(NOTA)).toBeInTheDocument();
+    expect(within(tarjeta14).getByRole("link", { name: /activación por huella/i })).toHaveAttribute("href", "/tiempo/terminales/configuracion/activacion-por-huella");
+  });
+
+  it("sin hallazgos sigue mostrando la nota de que es global; error se aísla", async () => {
+    mockApi({
+      anomalias: () =>
+        tablero([
+          tarjeta("interruptor_huella", 14, "Interruptor de la activación por huella", { nota: NOTA }),
+          tarjeta("picos_de_tasa", 2, "Picos de marcas", { estado: "error" }),
+        ]),
+    });
+    render(<AnomaliasTerminalesPage />);
+    const tarjeta14 = (await screen.findByRole("heading", { name: /14 · interruptor/i })).closest(".anomalia") as HTMLElement;
+    expect(within(tarjeta14).getByText("Sin hallazgos")).toBeInTheDocument();
+    expect(within(tarjeta14).getByText(NOTA)).toBeInTheDocument();
+    expect(within(tarjeta14).queryByRole("link")).not.toBeInTheDocument();
+    expect(tarjetaDe("2 · picos de marcas")).toHaveTextContent(/no se pudo calcular esta revisión/i);
+  });
+
+  it("alarma revisar y el mensaje se pintan como texto plano", async () => {
+    mockApi({
+      anomalias: () =>
+        tablero([
+          tarjeta("interruptor_huella", 14, "Interruptor de la activación por huella", {
+            estado: "con_hallazgos", nivel: "revisar", total: 1,
+            ejemplos: [{ codigo: "estado_ilegible", mensaje: "<b>No se pudo leer el ajuste</b>" }],
+          }),
+        ]),
+    });
+    const { container } = render(<AnomaliasTerminalesPage />);
+    expect(await screen.findByText("<b>No se pudo leer el ajuste</b>")).toBeInTheDocument();
+    expect(screen.getByText("Revisar")).toBeInTheDocument();
+    expect(container.querySelector("b")).toBeNull();
+  });
+});

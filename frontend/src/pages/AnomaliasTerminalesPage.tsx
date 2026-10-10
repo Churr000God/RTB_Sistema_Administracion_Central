@@ -191,7 +191,7 @@ export function AnomaliasTerminalesPage() {
                       ))}
                     </ul>
                   )}
-                  {tarjeta.estado === "con_hallazgos" && tarjeta.nota && (
+                  {tarjeta.nota && (tarjeta.estado === "con_hallazgos" || (tarjeta.clave === "interruptor_huella" && tarjeta.estado === "sin_hallazgos")) && (
                     <p className="ayuda-campo" style={{ margin: "0.5rem 0 0" }}>
                       <Info size={14} aria-hidden="true" /> {tarjeta.nota}
                     </p>
@@ -217,6 +217,9 @@ export function AnomaliasTerminalesPage() {
                   )}
                   {tarjeta.estado === "con_hallazgos" && tarjeta.hay_mas && (
                     <Button onClick={() => setDetalle(tarjeta)}>{`Ver todos (${tarjeta.total})`}</Button>
+                  )}
+                  {tarjeta.clave === "interruptor_huella" && tarjeta.estado === "con_hallazgos" && (
+                    <a href="/tiempo/terminales/configuracion/activacion-por-huella">Ir a Configuración → Activación por huella →</a>
                   )}
                   {tarjeta.clave === "reconsentimientos_pendientes" && tarjeta.estado === "con_hallazgos" && (
                     <a href={`/tiempo/terminales/${terminalId}/usuarios`}>Ver y registrar →</a>

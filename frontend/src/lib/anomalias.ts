@@ -98,6 +98,8 @@ export function describirHallazgo(clave: string, e: Record<string, unknown>): st
       const evidencia = e.evidencia === "inferida" || e.evidencia === "manual" ? ETIQUETA_EVIDENCIA_SIN_CONTEO[e.evidencia] : "Huella activada";
       return `${texto(e.persona_nombre)} · ${evidencia} · activada ${fechaHora(e.activada_en)}, sin marcas posteriores en 7 días`;
     }
+    case "interruptor_huella":
+      return texto(e.mensaje, "Revisa el interruptor de la activación por huella");
     case "asignador_confirmador":
       return `${texto(e.persona_nombre)} · la huella la confirmó ${texto(e.confirmada_por)}, que también asignó el alta · ${fechaHora(e.confirmada_en)}`;
     default:

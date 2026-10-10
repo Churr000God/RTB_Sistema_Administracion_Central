@@ -107,3 +107,10 @@ describe("describirHallazgo · categorías 11 a 13 (sin conteo de huellas)", () 
     expect(texto).toContain("Luis Ramírez · la huella la confirmó <b>Carlos Ruiz</b>, que también asignó el alta");
   });
 });
+
+describe("describirHallazgo · interruptor_huella", () => {
+  it("usa el mensaje fijo del servidor, sin nombres ni valores", () => {
+    expect(describirHallazgo("interruptor_huella", { codigo: "sin_registro", mensaje: "Avisa a Sistemas." })).toBe("Avisa a Sistemas.");
+    expect(describirHallazgo("interruptor_huella", {})).toBe("Revisa el interruptor de la activación por huella");
+  });
+});
