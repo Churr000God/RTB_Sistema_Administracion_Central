@@ -114,3 +114,35 @@ def test_los_dos_rpc_son_solo_para_service_role(sql):
         assert re.search(
             rf"GRANT EXECUTE ON FUNCTION tiempo\.{re.escape(firma)}\s+TO service_role", sql, re.I
         )
+
+
+# --- 99_: el RPC de latido con 7 argumentos --------------------------------------------------------------------------------------------------------
+
+
+def test_99_los_argumentos_con_ingesta_detenida_coinciden_con_la_firma_de_99(monkeypatch):
+    sql99 = next(iter(sorted(Path(__file__).resolve().parents[2].glob("db/ddl/99_*.sql")))).read_text(encoding="utf-8")
+    firma = _parametros_sql(sql99, "fn_terminal_latido")
+    assert firma == ["p_terminal_id", "p_hora_terminal", "p_alcanzable", "p_reloj_sincronizado", "p_version_pi", "p_marcas_pendientes", "p_ingesta_detenida"]
+    assert re.search(r"p_ingesta_detenida\s+boolean\s+DEFAULT NULL", sql99)                  # opcional: la llamada de 6 argumentos sigue válida
+    db = MagicMock()
+    capturadas = {}
+
+    def rpc(nombre, params=None):
+        capturadas[nombre] = params
+        c = MagicMock()
+        c.execute.return_value.data = ({"terminal_id": 7, "serie": "T-1", "credencial_id": 1, "ip_cambio": False} if nombre == "fn_terminal_autenticar"
+                                       else {"hora_servidor": "2026-10-06T15:00:00+00:00", "desfase_reloj_seg": 0, "ultima_secuencia_recibida": 0})
+        return c
+
+    db.postgrest.schema.return_value.rpc.side_effect = rpc
+    app.dependency_overrides[get_service_client] = lambda: db
+    app.dependency_overrides[get_settings] = lambda: Settings(supabase_url="http://x", supabase_anon_key="a", supabase_service_role_key="s")
+    r = TestClient(app, base_url="https://testserver", client=("198.51.100.7", 1)).post(
+        "/api/terminal/latido", json={"ingesta_detenida": True, "marcas_pendientes": 1}, headers={"Authorization": f"Bearer {LLAVE}"})
+    assert r.status_code == 200 and list(capturadas["fn_terminal_latido"]) == firma
+
+
+def test_99_el_rpc_de_latido_nuevo_sigue_siendo_solo_para_service_role():
+    sql99 = next(iter(sorted(Path(__file__).resolve().parents[2].glob("db/ddl/99_*.sql")))).read_text(encoding="utf-8")
+    assert re.search(r"REVOKE EXECUTE ON FUNCTION tiempo\.fn_terminal_latido\(bigint, timestamptz, boolean, boolean, text, integer, boolean\)\s+FROM PUBLIC, anon, authenticated", sql99)
+    assert re.search(r"GRANT EXECUTE ON FUNCTION tiempo\.fn_terminal_latido\(bigint, timestamptz, boolean, boolean, text, integer, boolean\)\s+TO service_role", sql99)

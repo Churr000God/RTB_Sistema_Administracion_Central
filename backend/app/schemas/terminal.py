@@ -4,7 +4,7 @@ campos de más."""
 
 from datetime import datetime
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StrictInt
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, StrictBool, StrictInt
 
 
 class LatidoIn(BaseModel):
@@ -18,6 +18,8 @@ class LatidoIn(BaseModel):
     reloj_sincronizado: bool | None = None
     version_pi: str | None = Field(default=None, max_length=16)
     marcas_pendientes: int | None = Field(default=None, ge=0, le=10_000_000)
+    # 99_: la ingesta del puente está DETENIDA esperando a una persona (booleano sin motivo). StrictBool: "yes", 1 o "true" NO pasan (422).
+    ingesta_detenida: StrictBool | None = None
 
 
 class LatidoOut(BaseModel):

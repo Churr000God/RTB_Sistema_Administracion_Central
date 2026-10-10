@@ -256,3 +256,35 @@ def test_error_de_red_hacia_supabase_en_el_latido_da_503_sin_texto(caplog):
     assert "secreto-red-55" not in r.text
     assert "secreto-red-55" not in caplog.text
     assert any(x.levelno == logging.ERROR for x in caplog.records)
+
+
+# --- 99_: ingesta_detenida --------------------------------------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("valor", [True, False])
+def test_ingesta_detenida_se_pasa_al_rpc_solo_por_nombre_y_como_booleano(valor):
+    db = _db()
+    r = _post(_cliente(db), {"ingesta_detenida": valor})
+    assert r.status_code == 200
+    p = _params_latido(db)
+    assert p["p_ingesta_detenida"] is valor
+    assert list(p) == ["p_terminal_id", "p_hora_terminal", "p_alcanzable", "p_reloj_sincronizado", "p_version_pi", "p_marcas_pendientes", "p_ingesta_detenida"]
+    llamada = [c for c in db.postgrest.schema.return_value.rpc.call_args_list if c.args[0] == "fn_terminal_latido"][0]
+    assert len(llamada.args) == 2 and not llamada.kwargs                       # (nombre, diccionario de parámetros con nombre): nada posicional
+
+
+def test_sin_ingesta_detenida_el_argumento_se_omite_y_no_se_manda_un_null_explicito():
+    db = _db()
+    assert _post(_cliente(db), {"terminal_alcanzable": True}).status_code == 200
+    assert "p_ingesta_detenida" not in _params_latido(db)
+    db2 = _db()
+    assert _post(_cliente(db2), {"ingesta_detenida": None}).status_code == 200
+    assert "p_ingesta_detenida" not in _params_latido(db2)                      # None explícito = no reportado: tampoco se manda
+
+
+@pytest.mark.parametrize("malo", ["yes", "true", "True", "false", "1", 1, 0, 2, [], {}, "", "sí"])
+def test_ingesta_detenida_no_booleana_da_422_sin_llamar_al_rpc(malo):
+    db = _db()
+    r = _post(_cliente(db), {"ingesta_detenida": malo})
+    assert r.status_code == 422
+    assert "fn_terminal_latido" not in [c.args[0] for c in db.postgrest.schema.return_value.rpc.call_args_list]

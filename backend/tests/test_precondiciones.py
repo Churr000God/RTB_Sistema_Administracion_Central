@@ -28,8 +28,10 @@ def test_si_la_base_tiene_la_columna_no_falta_nada():
     db = _cliente()
     assert faltantes(db) == []
     db.postgrest.schema.assert_called_with("tiempo")
-    db.postgrest.schema.return_value.table.assert_called_with("terminal_usuario")
-    db.postgrest.schema.return_value.table.return_value.select.assert_called_with("huella_evidencia")
+    db.postgrest.schema.return_value.table.assert_any_call("terminal_usuario")
+    db.postgrest.schema.return_value.table.return_value.select.assert_any_call("huella_evidencia")
+    db.postgrest.schema.return_value.table.assert_any_call("terminal")                        # 99_: tiempo.terminal.ingesta_detenida
+    db.postgrest.schema.return_value.table.return_value.select.assert_any_call("ingesta_detenida")
 
 
 @pytest.mark.parametrize("codigo", ["42703", "42P01", "PGRST204", "PGRST205"])
@@ -157,11 +159,12 @@ def _cliente_con_rpc(errores):
     return db
 
 
-def test_las_dos_funciones_del_interruptor_son_precondiciones_de_la_migracion_97():
+def test_las_funciones_del_interruptor_y_del_latido_son_precondiciones_de_sus_migraciones():
     from app.precondiciones import FUNCIONES_REQUERIDAS
 
-    assert {f[1] for f in FUNCIONES_REQUERIDAS} == {"fn_terminal_inferir_huella_estado", "fn_terminal_inferir_huella_cambiar"}
-    assert all(f[3] == "db/ddl/97_tiempo_terminal_inferir_huella_interruptor.sql" for f in FUNCIONES_REQUERIDAS)
+    assert {f[1] for f in FUNCIONES_REQUERIDAS} == {"fn_terminal_inferir_huella_estado", "fn_terminal_inferir_huella_cambiar", "fn_terminal_latido"}
+    assert all(f[3] == "db/ddl/97_tiempo_terminal_inferir_huella_interruptor.sql" for f in FUNCIONES_REQUERIDAS if f[1] != "fn_terminal_latido")
+    assert [f[3] for f in FUNCIONES_REQUERIDAS if f[1] == "fn_terminal_latido"] == ["db/ddl/99_tiempo_terminal_ingesta_detenida.sql"]
 
 
 def test_con_las_funciones_presentes_no_falta_nada():
@@ -189,8 +192,30 @@ def test_n2_la_comprobacion_nunca_pasa_un_parametro_distinto_de_nulo_a_la_funcio
     escrituras = [f for f in FUNCIONES_REQUERIDAS if f[1] == "fn_terminal_inferir_huella_cambiar"]
     assert len(escrituras) == 1
     assert set(escrituras[0][2]) == {"p_activa", "p_nota", "p_hasta"} and all(valor is None for valor in escrituras[0][2].values())
-    lecturas = [f for f in FUNCIONES_REQUERIDAS if f[1] != "fn_terminal_inferir_huella_cambiar"]
-    assert lecturas and all(f[2] == {} for f in lecturas)           # las demás son de solo lectura y sin parámetros
+    lecturas = [f for f in FUNCIONES_REQUERIDAS if f[1] == "fn_terminal_inferir_huella_estado"]
+    assert lecturas and all(f[2] == {} for f in lecturas)           # la de estado es de solo lectura y sin parámetros
+
+
+def test_99_la_comprobacion_del_latido_usa_una_terminal_que_nunca_existe_y_todo_lo_demas_nulo():
+    """fn_terminal_latido SÍ escribe, pero valida la terminal ANTES (SCJ12 si no existe o no está activa). La comprobación pasa la terminal 0 (los ids son identity desde 1) y nulos."""
+    from app.precondiciones import FUNCIONES_REQUERIDAS
+
+    latido = [f for f in FUNCIONES_REQUERIDAS if f[1] == "fn_terminal_latido"]
+    assert len(latido) == 1
+    parametros = latido[0][2]
+    assert list(parametros) == ["p_terminal_id", "p_hora_terminal", "p_alcanzable", "p_reloj_sincronizado", "p_version_pi", "p_marcas_pendientes", "p_ingesta_detenida"]
+    assert parametros["p_terminal_id"] == 0 and all(v is None for k, v in parametros.items() if k != "p_terminal_id")
+
+
+def test_99_la_firma_de_7_argumentos_ausente_es_un_faltante_y_scj12_significa_que_existe():
+    perdidas = faltantes(_cliente_con_rpc({"fn_terminal_latido": APIError({"code": "PGRST202", "message": "no function with parameters"})}))
+    assert perdidas == [("tiempo", "fn_terminal_latido", "función", "db/ddl/99_tiempo_terminal_ingesta_detenida.sql")]
+    assert faltantes(_cliente_con_rpc({"fn_terminal_latido": APIError({"code": "SCJ12", "message": "x", "hint": "terminal_no_valida"}),
+                                       "fn_terminal_inferir_huella_cambiar": APIError({"code": "42501", "message": "x"})})) == []
+
+
+def test_99_la_columna_ingesta_detenida_es_una_precondicion_con_su_migracion():
+    assert ("tiempo", "terminal", "ingesta_detenida", "db/ddl/99_tiempo_terminal_ingesta_detenida.sql") in ESQUEMA_REQUERIDO
 
 
 def test_un_fallo_raro_al_comprobar_la_funcion_es_no_verificable():

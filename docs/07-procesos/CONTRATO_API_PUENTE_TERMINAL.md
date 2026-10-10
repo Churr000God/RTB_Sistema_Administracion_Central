@@ -132,6 +132,16 @@ backend no la reenvía al Pi.
 
 ---
 
+## 1 bis. `POST /api/terminal/latido` — campos (corte 1; `99_` agrega uno)
+
+Cuerpo cerrado (`extra="forbid"`: un campo desconocido es 422), todos opcionales: `terminal_id` (debe coincidir con la credencial; el id real sale de la credencial), `hora_terminal` (ISO con zona), `terminal_alcanzable` (bool), `reloj_sincronizado` (bool, se recibe pero no se persiste), `version_pi` (≤ 16), `marcas_pendientes` (entero ≥ 0) e **`ingesta_detenida`** (99_).
+
+- **`ingesta_detenida`** — `StrictBool | null`: `true` = algún lazo de ingesta del puente quedó **detenido esperando a una persona** (p. ej. tras una anomalía de `serialNo`); `false` = sin problema; ausente/`null` = el puente no lo reporta en este latido. **Sin motivo** (un booleano, nada de texto). Un valor no booleano (`"yes"`, `"true"`, `1`, `0`, `[]`…) es **422** y no llama a la base. Describe el ÚLTIMO latido (`tiempo.terminal.ingesta_detenida`, lo escribe solo `fn_terminal_latido`).
+- Se pasa al RPC **solo por nombre** (`p_ingesta_detenida`) y **solo si el puente lo mandó**: la llamada de 6 argumentos sigue siendo válida (el argumento 7 tiene `DEFAULT NULL`). Compatible hacia atrás: un puente viejo no lo manda y todo sigue igual.
+- **Orden de despliegue:** base (`99_`, ya aplicado) → este backend → el puente con `PUENTE_LATIDO_INGESTA_DETENIDA=1` (antes de eso el puente no manda el campo, porque el esquema cerrado de un backend viejo lo rechazaría con 422 y todos los latidos fallarían).
+- Lo consume la tarjeta 15 del tablero de anomalías (`CONTRATO_API_TERMINALES_PAQUETE_2.md` §9): `ingesta_detenida = true` ⇒ `atender`, código `ingesta_detenida`, aunque el contacto sea fresco.
+- La precondición de esquema del arranque exige la columna y la firma de 7 argumentos (la comprobación llama la función con la terminal 0, que nunca existe, y SCJ12 significa «existe»).
+
 ## 2. `GET /api/terminal/cola` — trabajo pendiente del Pi
 
 Respuesta `200`:

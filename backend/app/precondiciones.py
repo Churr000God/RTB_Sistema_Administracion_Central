@@ -18,14 +18,19 @@ logger = logging.getLogger(__name__)
 # (esquema, tabla, columna, migración que la crea)
 ESQUEMA_REQUERIDO: tuple[tuple[str, str, str, str], ...] = (
     ("tiempo", "terminal_usuario", "huella_evidencia", "db/ddl/94_tiempo_terminal_huella_evidencia.sql"),
+    ("tiempo", "terminal", "ingesta_detenida", "db/ddl/99_tiempo_terminal_ingesta_detenida.sql"),
 )
 # (esquema, función, parámetros de la llamada de comprobación, migración). Se llama con service_role y parámetros nulos: la de estado es de solo lectura y la de cambio NO tiene EXECUTE para
 # service_role (la base responde 42501 sin ejecutar nada), de modo que la comprobación no puede escribir; una función inexistente responde PGRST202.
 FUNCIONES_REQUERIDAS: tuple[tuple[str, str, dict, str], ...] = (
     ("tiempo", "fn_terminal_inferir_huella_estado", {}, "db/ddl/97_tiempo_terminal_inferir_huella_interruptor.sql"),
+    # 99_: la firma de 7 argumentos. La comprobación pasa la terminal 0 (nunca existe: los ids son identity desde 1) y todo lo demás nulo: la función valida la terminal ANTES de cualquier
+    # escritura y responde SCJ12 (la función existe con esa firma); sin el 7.º argumento PostgREST responde PGRST202.
+    ("tiempo", "fn_terminal_latido", {"p_terminal_id": 0, "p_hora_terminal": None, "p_alcanzable": None, "p_reloj_sincronizado": None, "p_version_pi": None, "p_marcas_pendientes": None,
+                                      "p_ingesta_detenida": None}, "db/ddl/99_tiempo_terminal_ingesta_detenida.sql"),
     ("tiempo", "fn_terminal_inferir_huella_cambiar", {"p_activa": None, "p_nota": None, "p_hasta": None}, "db/ddl/97_tiempo_terminal_inferir_huella_interruptor.sql"),
 )
-CODIGOS_FUNCION_EXISTE = {"42501", "22023"}  # sin EXECUTE para service_role / parámetros nulos rechazados: la función existe
+CODIGOS_FUNCION_EXISTE = {"42501", "22023", "SCJ12"}  # sin EXECUTE para service_role / parámetros nulos rechazados: la función existe
 # PostgREST/Postgres: columna o tabla inexistente (42703 undefined_column, 42P01 undefined_table, PGRST204 columna no encontrada en la caché, PGRST205 tabla no encontrada).
 CODIGOS_FALTANTE = {"42703", "42P01", "PGRST204", "PGRST205"}
 VARIABLE_OMITIR = "SCJ_PRECONDICIONES"   # "off" la apaga (pruebas y emergencias); por omisión está encendida

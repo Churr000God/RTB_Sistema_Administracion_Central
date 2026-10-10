@@ -55,25 +55,19 @@ def latido(
     if datos.terminal_id is not None and datos.terminal_id != terminal.serie:
         raise HTTPException(status.HTTP_403_FORBIDDEN, MENSAJE_TERMINAL_INCOHERENTE)
 
+    parametros = {
+        "p_terminal_id": terminal.id,
+        "p_hora_terminal": datos.hora_terminal.isoformat() if datos.hora_terminal else None,
+        "p_alcanzable": datos.terminal_alcanzable,
+        "p_reloj_sincronizado": datos.reloj_sincronizado,
+        "p_version_pi": datos.version_pi,
+        "p_marcas_pendientes": datos.marcas_pendientes,
+    }
+    if datos.ingesta_detenida is not None:
+        # 99_: SOLO por nombre y SOLO si el puente lo mandó (la llamada de 6 argumentos sigue válida); nunca un null explícito innecesario.
+        parametros["p_ingesta_detenida"] = datos.ingesta_detenida
     try:
-        resultado = (
-            db.postgrest.schema("tiempo")
-            .rpc(
-                "fn_terminal_latido",
-                {
-                    "p_terminal_id": terminal.id,
-                    "p_hora_terminal": (
-                        datos.hora_terminal.isoformat() if datos.hora_terminal else None
-                    ),
-                    "p_alcanzable": datos.terminal_alcanzable,
-                    "p_reloj_sincronizado": datos.reloj_sincronizado,
-                    "p_version_pi": datos.version_pi,
-                    "p_marcas_pendientes": datos.marcas_pendientes,
-                },
-            )
-            .execute()
-            .data
-        )
+        resultado = db.postgrest.schema("tiempo").rpc("fn_terminal_latido", parametros).execute().data
     except APIError as error:
         manejar_error_terminal(error)
     except Exception as error:  # red, timeout… hacia Supabase: mismo 503 que la autenticación
