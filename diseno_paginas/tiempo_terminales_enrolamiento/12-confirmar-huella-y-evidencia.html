@@ -29,7 +29,7 @@
     <tbody>
       <tr><td>Luis Ramírez</td><td class="num">1041</td>
         <td><span class="insignia insignia--info estado-alta"><span data-ic="fingerprint" data-s="12"></span>Esperando huella</span>
-          <div class="ayuda-campo">Esperando que TI enrole la huella en la terminal. Se activa sola con su primera marca por huella.</div>
+          <div class="ayuda-campo">Esperando que TI enrole la huella en la terminal. La confirma una persona con «Confirmar huella». Si no se confirma antes de que caduque, el alta se da de baja y se borra del aparato.</div>
           <div class="cuenta-regresiva"><span data-ic="clock" data-s="12"></span>Caduca en 19 h 40 min</div></td>
         <td class="num">—</td><td class="num">07 oct 2026, 08:20</td>
         <td><span data-solo="fila"><button type="button" class="boton-con-icono" data-ic="checkc" data-s="14">Confirmar huella</button> </span><button type="button" class="boton-con-icono" data-ic="x" data-s="14" data-solo="fila">Cancelar alta</button><span data-solo="lectura">—</span></td></tr>
@@ -50,11 +50,11 @@
       <strong>Estás atestiguando que viste la huella de esta persona en el menú del aparato.</strong> La terminal no informa cuántas huellas hay, así que el sistema no puede comprobarlo: tu confirmación (con tu nombre y tu nota) queda como la evidencia. <strong>No se puede deshacer.</strong> La bitácora es inmutable; si te equivocas, el camino es dar de baja el alta y crear una nueva.</div></div>
 
     <div class="campo-error" data-solo="m_corta m_sinnota"><label for="n1">Nota (obligatoria, mínimo 10 caracteres)</label>
-      <textarea id="n1" rows="3" maxlength="500" required aria-required="true" aria-invalid="true" aria-describedby="n1-e n1-c" placeholder="Ej.: TI enroló el índice derecho en el menú del aparato, presente RH.">TI ok</textarea>
+      <textarea id="n1" rows="3" maxlength="500" required aria-required="true" aria-invalid="true" aria-describedby="n1-e n1-c" placeholder="Vi la huella registrada en el menú del aparato.">TI ok</textarea>
       <p class="mensaje-campo" id="n1-e"><span data-ic="alertc" data-s="14"></span><span data-solo="m_corta">Escribe una nota de al menos 10 caracteres.</span><span data-solo="m_sinnota">La nota de la confirmación debe tener entre 10 y 500 caracteres. <em>(422 · SCJ12 <code>nota_requerida</code>; llega con el servidor si el cliente no la validó)</em></span></p>
       <div class="modal__contador num" id="n1-c">5 / 500 · mínimo 10</div><p class="ayuda-campo" style="margin:.3rem 0 0">No escribas datos personales, solo cómo verificaste la huella (por ejemplo: «la vi en el menú del aparato»).</p></div>
     <div data-solo="m_ini"><label for="n0">Nota (obligatoria, mínimo 10 caracteres)</label>
-      <textarea id="n0" rows="3" maxlength="500" required aria-required="true" aria-describedby="n0-c" placeholder="Ej.: TI enroló el índice derecho en el menú del aparato, presente RH."></textarea>
+      <textarea id="n0" rows="3" maxlength="500" required aria-required="true" aria-describedby="n0-c" placeholder="Vi la huella registrada en el menú del aparato."></textarea>
       <div class="modal__contador num" id="n0-c">0 / 500 · mínimo 10</div><p class="ayuda-campo" style="margin:.3rem 0 0">No escribas datos personales, solo cómo verificaste la huella (por ejemplo: «la vi en el menú del aparato»).</p></div>
     <div data-solo="m_ok_nota m_cargando m_propia m_estado"><label for="n2">Nota (obligatoria, mínimo 10 caracteres)</label>
       <textarea id="n2" rows="3" maxlength="500" required aria-required="true" aria-describedby="n2-c" >TI enroló el índice derecho en el menú del aparato, presente RH.</textarea>
@@ -102,7 +102,7 @@
     <p style="margin:.5rem 0"><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activa</span> · Entrada principal · nº 1030 · 2 huellas</p>
     <p style="margin:.5rem 0"><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activa</span> · Entrada principal · nº 1033 <span class="ayuda-campo">(evidencia <code>null</code>: no se agrega nada)</span></p>
     <p style="margin:.5rem 0"><span class="insignia insignia--info estado-alta"><span data-ic="fingerprint" data-s="12"></span>Esperando huella</span> · Entrada principal · nº 1044 <button type="button" class="boton-con-icono" data-ic="checkc" data-s="14" style="margin-left:.5rem">Confirmar huella</button></p>
-    <p class="ayuda-campo" style="margin:0">Esperando que TI enrole la huella en la terminal. Se activa sola con su primera marca por huella.</p>
+    <p class="ayuda-campo" style="margin:0">Esperando que TI enrole la huella en la terminal. La confirma una persona con «Confirmar huella». Si no se confirma antes de que caduque, el alta se da de baja y se borra del aparato.</p>
   </div>
 
   <h3>c) HistorialAltaModal — cabecera del panel (HistorialAltaModal.tsx:82)</h3>

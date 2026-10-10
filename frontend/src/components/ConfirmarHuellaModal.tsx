@@ -113,7 +113,7 @@ export function ConfirmarHuellaModal({ terminalId, terminalNombre, alta, onCerra
           disabled={enviando}
           aria-invalid={campoInvalido || undefined}
           aria-describedby={campoInvalido ? "huella-nota-error huella-nota-ayuda huella-nota-contador" : "huella-nota-ayuda huella-nota-contador"}
-          placeholder="Ej.: TI enroló el índice derecho en el menú del aparato, presente RH."
+          placeholder="Vi la huella registrada en el menú del aparato."
           onChange={(evento) => {
             setNota(evento.target.value);
             if (campoInvalido) setCampoInvalido(false);

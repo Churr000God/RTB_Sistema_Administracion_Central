@@ -228,3 +228,19 @@ describe("SeccionTerminalPersona · evidencia de huella y Confirmar huella", () 
     expect(screen.queryByRole("button", { name: /confirmar huella/i })).not.toBeInTheDocument();
   });
 });
+
+describe("SeccionTerminalPersona · aviso de caducidad (security F1)", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  it("esperando huella: dice que la confirma una persona y que caduca y se borra, junto a la cuenta regresiva; no promete activación automática", async () => {
+    mockApi({ altas: () => new Response(JSON.stringify([altaDe("esperando_huella", { huellas_capturadas: 0, huella_evidencia: null, caduca_en: "2099-01-01T00:00:00Z" })])) });
+    renderSeccion();
+    const aviso = await screen.findByText(/la confirma una persona con «confirmar huella»/i);
+    expect(aviso).toHaveTextContent(/si no se confirma antes de que caduque, el alta se da de baja y se borra del aparato/i);
+    expect(screen.queryByText(/se activa sola/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/primera marca/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/caduca en/i)).toBeInTheDocument();
+  });
+});

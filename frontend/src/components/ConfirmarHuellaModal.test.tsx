@@ -129,3 +129,12 @@ describe("ConfirmarHuellaModal", () => {
     expect(onCerrar).toHaveBeenCalledWith(false);
   });
 });
+
+describe("ConfirmarHuellaModal · placeholder neutro (security F3)", () => {
+  it("el ejemplo de la nota no lleva cargos ni nombres de dedos", () => {
+    render(<ConfirmarHuellaModal terminalId={1} alta={ALTA} onCerrar={vi.fn()} />);
+    const campo = screen.getByLabelText(/nota/i);
+    expect(campo).toHaveAttribute("placeholder", "Vi la huella registrada en el menú del aparato.");
+    expect(campo.getAttribute("placeholder")).not.toMatch(/índice|pulgar|TI|RH/);
+  });
+});

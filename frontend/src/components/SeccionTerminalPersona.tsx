@@ -146,7 +146,7 @@ export function SeccionTerminalPersona({ persona }: Props) {
             {alta.estado === "esperando_huella" && (
               <>
                 <p className="ayuda-campo" style={{ margin: 0 }}>
-                  Esperando que TI enrole la huella en la terminal. Se activa sola con su primera marca por huella.
+                  Esperando que TI enrole la huella en la terminal. La confirma una persona con «Confirmar huella». Si no se confirma antes de que caduque, el alta se da de baja y se borra del aparato.
                 </p>
                 {puedeEditar && (
                   <p style={{ margin: "0.4rem 0 0" }}>
