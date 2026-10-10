@@ -1,0 +1,24 @@
+--- vigente (83_)
++++ nuevo (99_)
+@@ -5,5 +5,6 @@
+   p_reloj_sincronizado  boolean,
+   p_version_pi          text,
+-  p_marcas_pendientes   integer
++  p_marcas_pendientes   integer,
++  p_ingesta_detenida    boolean DEFAULT NULL
+ )
+ RETURNS jsonb
+@@ -22,5 +23,5 @@
+   FROM tiempo.terminal t WHERE t.id = p_terminal_id;
+   IF NOT FOUND OR NOT v_activa THEN
+-    RAISE EXCEPTION 'La terminal % no existe o no está activa', p_terminal_id
++    RAISE EXCEPTION 'La terminal no existe o no está activa'
+       USING ERRCODE = 'SCJ12', HINT = 'terminal_no_valida';
+   END IF;
+@@ -42,4 +43,6 @@
+       marcas_pendientes   = CASE WHEN p_marcas_pendientes IS NULL THEN NULL
+                                  ELSE GREATEST(p_marcas_pendientes, 0) END,
++      -- 99_: NULL = el puente no lo reportó en ESTE latido (el campo describe el último latido); true = algún lazo de ingesta quedó DETENIDO esperando a una persona.
++      ingesta_detenida    = p_ingesta_detenida,
+       ultimo_contacto_en  = v_ahora
+   WHERE t.id = p_terminal_id;

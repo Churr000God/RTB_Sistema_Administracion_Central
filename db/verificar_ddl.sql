@@ -1587,3 +1587,31 @@ WHERE n.nspname = 'tiempo' AND p.proname = 'fn_marca_terminal_registrar'
            AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
            AND NOT has_function_privilege('terminal_checador', p.oid, 'EXECUTE')
            AND NOT EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE'));
+
+-- 62) Campo opcional del latido (99_): tiempo.terminal.ingesta_detenida y fn_terminal_latido de 7 argumentos. Columna boolean NULL sin default, que nadie fuera del dueño y la función
+-- puede escribir (ni service_role ni authenticated tienen UPDATE de la columna; anon no la lee); UNA sola fn_terminal_latido (sin overload viejo que deje la llamada ambigua),
+-- DEFINER con search_path exacto, EXECUTE solo service_role, que escribe la columna y no interpola el id de la terminal en el mensaje de SCJ12. Esperado: 0 filas DESPUÉS de aplicar 99_.
+SELECT 'columna ingesta_detenida: falta, con otro tipo, NOT NULL o con default' AS problema, 'tiempo.terminal' AS detalle
+WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns c
+                  WHERE c.table_schema = 'tiempo' AND c.table_name = 'terminal' AND c.column_name = 'ingesta_detenida'
+                    AND c.data_type = 'boolean' AND c.is_nullable = 'YES' AND c.column_default IS NULL)
+UNION ALL
+SELECT 'columna ingesta_detenida: privilegio de más (UPDATE de service_role o authenticated, o SELECT de anon)', 'tiempo.terminal'
+WHERE EXISTS (SELECT 1 FROM pg_attribute a WHERE a.attrelid = 'tiempo.terminal'::regclass AND a.attname = 'ingesta_detenida' AND NOT a.attisdropped)
+  AND (has_column_privilege('service_role', 'tiempo.terminal', 'ingesta_detenida', 'UPDATE')
+       OR has_column_privilege('authenticated', 'tiempo.terminal', 'ingesta_detenida', 'UPDATE')
+       OR has_column_privilege('anon', 'tiempo.terminal', 'ingesta_detenida', 'SELECT'))
+UNION ALL
+SELECT 'fn_terminal_latido: no hay exactamente UNA función con 7 argumentos (queda un overload viejo o falta la nueva)', count(*)::text
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'tiempo' AND p.proname = 'fn_terminal_latido'
+HAVING count(*) <> 1 OR count(*) FILTER (WHERE p.pronargs = 7) <> 1
+UNION ALL
+SELECT 'fn_terminal_latido: propiedades o contenido de 99_ incorrectos', p.proname
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'tiempo' AND p.proname = 'fn_terminal_latido' AND p.pronargs = 7
+  AND NOT (p.prosecdef AND p.proconfig = ARRAY['search_path=tiempo, personas, pg_temp']
+           AND p.prosrc LIKE '%ingesta_detenida%' AND p.prosrc NOT LIKE '%no está activa'', p_terminal_id%'
+           AND has_function_privilege('service_role', p.oid, 'EXECUTE')
+           AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
+           AND NOT EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE'));
