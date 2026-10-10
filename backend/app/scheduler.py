@@ -26,6 +26,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
 
 from app.batches.cierre_dia import ejecutar_cierre_dia
+from app.precondiciones import verificar_al_arrancar as verificar_esquema_al_arrancar
 from app.batches.corte_quincenal import ejecutar_corte_quincenal
 from app.batches.de_confianza import ejecutar_batch_de_confianza
 from app.batches.terminales import (
@@ -65,6 +66,7 @@ def _leer_hora_corrida_cierre_dia() -> tuple[int, int]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    verificar_esquema_al_arrancar()   # RuntimeError si falta una migración requerida (p. ej. 94_): el backend se niega a arrancar antes de servir lecturas rotas
     scheduler = BackgroundScheduler()
     hora, minuto = _leer_hora_corrida_cierre_dia()
     scheduler.add_job(

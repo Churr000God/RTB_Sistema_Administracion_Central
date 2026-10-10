@@ -6,7 +6,7 @@ terminal dentro); el resto son consultas simples. Reglas de visibilidad:
   - Lo que el caller puede leer por RLS (altas, bitácora, personas) se lee con su cliente; los NOMBRES siempre con el
     cliente del caller (nunca se exponen persona_id, employee_no, hashes ni IP).
   - Lo que no puede (marcas, credenciales, rechazos) se lee con service_role SIEMPRE acotado a la terminal de la URL.
-  - Las categorías que muestran marcas de PERSONAS (1 y 2) exigen además `marca_lectura` (AND con el gate del tablero)."""
+  - Las categorías derivadas de marcas de PERSONAS (1, 2 y 12) exigen además `marca_lectura` (AND con el gate del tablero)."""
 
 import logging
 import math
@@ -405,7 +405,7 @@ CATEGORIAS: tuple[Categoria, ...] = (
     Categoria("altas_recientes", 9, "Altas recientes", "informativo", False, _altas_recientes),
     Categoria("reconsentimientos_pendientes", 10, "Reconsentimientos pendientes", "revisar", False, _reconsentimientos_pendientes),
     Categoria("huellas_inferidas_exceso", 11, "Huellas inferidas en exceso", "revisar", False, _huellas_inferidas_exceso, NOTA_INFERIDAS_EXCESO),
-    Categoria("inferida_sin_marcas", 12, "Alta por huella inferida sin más marcas", "revisar", False, _inferida_sin_marcas),
+    Categoria("inferida_sin_marcas", 12, "Alta por huella inferida sin más marcas", "revisar", True, _inferida_sin_marcas),   # cruza tiempo.marca: exige marca_lectura como 1 y 2
     Categoria("asignador_confirmador", 13, "Huella confirmada por quien asignó", "revisar", False, _asignador_confirmador),
 )
 POR_CLAVE = {c.clave: c for c in CATEGORIAS}

@@ -128,6 +128,21 @@ exportar_variables_build_frontend() {
   set +a
 }
 
+# Orden de despliegue obligado: DDL -> backend -> frontend. Algunas lecturas del backend piden columnas que crea una migración (hoy 94_: huella_evidencia); si la migración
+# falta, el despliegue ABORTA aquí (scripts/verificar_esquema.py: 0 = ok, 1 = falta una migración, 2 = no se pudo consultar la base: se avisa y se sigue).
+verificar_esquema_requerido() {
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
+  local codigo=0
+  (cd backend && uv run python "$RAIZ/scripts/verificar_esquema.py") || codigo=$?
+  if [[ "$codigo" -eq 1 ]]; then
+    echo "Despliegue abortado: aplica las migraciones que faltan (db/ddl) y vuelve a intentar." >&2
+    exit 1
+  fi
+}
+
 # Bootstrap del usuario base (SCJ-PRO-05, ver bitácora del corte de puesto_permiso): la
 # única pieza del bootstrap de un despliegue nuevo que no puede ser SQL puro, porque
 # necesita un auth.users real que sólo la Admin API de Supabase puede emitir. Se detecta
@@ -193,6 +208,7 @@ case "$ACCION" in
     if [[ "$ENTORNO" == "prod" ]]; then
       exportar_variables_build_frontend
     fi
+    verificar_esquema_requerido
     compose up -d --build
     bootstrap_usuario_base
     echo

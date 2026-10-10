@@ -91,7 +91,8 @@ class HuellaConfirmadaCreate(BaseModel):
 class MovimientoAltaOut(BaseModel):
     id: int
     tipo_movimiento: str
-    # huella_capturada -> conteo, huella_inferida -> inferida, huella_confirmada_manual -> manual; None en los demás movimientos.
+    # huella_capturada -> conteo, huella_inferida -> inferida, huella_confirmada_manual -> manual; None en los demás movimientos. OJO: es la evidencia de ESTA fila del historial
+    # (deriva del tipo del movimiento), NO la vigente del alta: cualquier resumen de la alta debe mostrar `AltaOut.huella_evidencia`, no la del último movimiento.
     huella_evidencia: HuellaEvidencia | None = None
     creado_en: datetime
     origen: Literal["web", "terminal"]

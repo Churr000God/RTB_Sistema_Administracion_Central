@@ -222,8 +222,8 @@ Una confirmación equivocada **no se deshace** (la bitácora es inmutable): se p
 
 **`huella_evidencia`** (nuevo en `AltaOut`, 94_): `"conteo"` (el aparato reportó el conteo) · `"inferida"` (la primera marca por huella la activó, 95_) · `"manual"` (una persona la
 confirmó) · `null` (sin evidencia). Sólo la fija el trigger y sólo sube. En el historial (§2.6), cada movimiento `huella_capturada` / `huella_inferida` / `huella_confirmada_manual`
-lleva el `huella_evidencia` correspondiente y los demás `null`. **El backend y la UI no deben leer `huellas_capturadas = 0` como «sin huellas».** DESPLIEGUE: el backend selecciona
-`terminal_usuario.huella_evidencia`, así que **requiere 94_ aplicado** antes de desplegar este corte (sin la columna, las lecturas de altas darían error).
+lleva el `huella_evidencia` correspondiente y los demás `null`; esa evidencia es la **de esa fila** (deriva del tipo del movimiento), **no la vigente del alta**: cualquier resumen de la alta debe pintar `AltaOut.huella_evidencia`, nunca la del último movimiento. **El backend y la UI no deben leer `huellas_capturadas = 0` como «sin huellas».** DESPLIEGUE: el backend selecciona
+`terminal_usuario.huella_evidencia`, así que **requiere 94_ aplicado** antes de desplegar este corte. Orden obligado **DDL → backend → frontend**, forzado así: el backend se NIEGA a arrancar (`app/precondiciones.py`, `RuntimeError` con la migración que falta) si la base responde que la columna no existe, y `scripts/desplegar.sh levantar` ejecuta la misma comprobación (`scripts/verificar_esquema.py`: 0 = ok, 1 = falta una migración y el despliegue ABORTA, 2 = no se pudo consultar la base: aviso y se sigue). No hay fallback silencioso a columnas sin `huella_evidencia`: enmascararía un despliegue en mal orden. `SCJ_PRECONDICIONES=off` apaga la comprobación del arranque (pruebas/emergencias).
 
 ### 2.6 `GET /api/terminales/{id}/usuarios/{tu_id}/movimientos` — historial
 
@@ -537,7 +537,7 @@ siguen (el tablero nunca es todo-o-nada).
 | 9 | `altas_recientes` | `asignado` en el periodo (con quién asignó) | `{persona_nombre, asignada_por, creado_en}` |
 | 10 | `reconsentimientos_pendientes` | `fn_terminal_reconsentimiento_pendiente_ids()` | `{persona_nombre, version_confirmada, version_vigente, dias_pendiente}` |
 | 11 | `huellas_inferidas_exceso` (94_) | días con más de **5** `huella_inferida`, o confirmaciones **manuales** (≥ 3) que son más de la mitad de las activaciones del día (la vía automática no funciona). RPC `fn_terminal_anomalias` | `{dia, inferidas, manuales, activaciones, limite_inferidas}` + **`nota`** fija: «Es ESPERADO el primer día de puesta en marcha: varias altas se activan a la vez…» |
-| 12 | `inferida_sin_marcas` (94_) | alta activada por inferencia/confirmación manual hace > 7 días **sin ninguna marca más** de esa persona en los 7 días siguientes (la marca que sirvió de evidencia no cuenta). RPC | `{persona_nombre, evidencia, activada_en}` |
+| 12 | `inferida_sin_marcas` (94_) | alta activada por inferencia/confirmación manual hace > 7 días **sin ninguna marca más** de esa persona en los 7 días siguientes (la marca que sirvió de evidencia no cuenta). RPC. **Cruza `tiempo.marca`: exige además `marca_lectura`** (sin él: `no_disponible`/`sin_permiso`, como 1 y 2) | `{persona_nombre, evidencia, activada_en}` |
 | 13 | `asignador_confirmador` (94_) | confirmaciones manuales hechas por **la misma persona que asignó** el alta (la variante barata de los cuatro ojos). RPC | `{persona_nombre, confirmada_por, confirmada_en}` |
 
 **Datos que el caller no puede leer** (marcas, credenciales, `marca_rechazada`, personas con estado, `parametro`): se leen con `service_role`

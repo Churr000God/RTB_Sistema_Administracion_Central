@@ -206,12 +206,12 @@ def test_sin_marca_lectura_las_categorias_de_marcas_de_personas_no_se_calculan(e
     entorno.otorgados = {"terminal_usuario_lectura"}
     entorno.configurar(rpc_servicio={"fn_terminal_anomalias": {"total": 1, "items": [{"persona_id": ANA}]}})
     t = _tarjetas(_get())
-    for clave in ("marcas_posteriores_a_baja", "picos_de_tasa"):
+    for clave in ("marcas_posteriores_a_baja", "picos_de_tasa", "inferida_sin_marcas"):     # (12 cruza marcas: security R1)
         assert t[clave]["estado"] == "no_disponible" and t[clave]["motivo"] == "sin_permiso" and t[clave]["ejemplos"] == []
     # el resto sí; huecos usa el mismo RPC (sin personas) y se calcula
     assert t["huecos_de_secuencia"]["estado"] == "con_hallazgos"
-    # (94_) las tres categorías de huella usan el mismo RPC y tampoco muestran marcas de personas: se calculan sin marca_lectura
-    assert {c[1]["p_categoria"] for c in _llamadas_anomalias(entorno)} == {"huecos_de_secuencia", "huellas_inferidas_exceso", "inferida_sin_marcas", "asignador_confirmador"}
+    # (94_) la 11 y la 13 no muestran marcas de personas: se calculan sin marca_lectura; la 12 SÍ cruza marcas y la exige
+    assert {c[1]["p_categoria"] for c in _llamadas_anomalias(entorno)} == {"huecos_de_secuencia", "huellas_inferidas_exceso", "asignador_confirmador"}
 
 
 def test_con_marca_lectura_se_calculan_las_de_personas(entorno):
@@ -814,3 +814,17 @@ def test_sin_hallazgos_las_tres_categorias_de_huella_salen_vacias(entorno):
     entorno.configurar()
     t = _tarjetas(_get())
     assert all(t[c]["estado"] == "sin_hallazgos" and t[c]["total"] == 0 for c in ("huellas_inferidas_exceso", "inferida_sin_marcas", "asignador_confirmador"))
+
+
+def test_security_r1_inferida_sin_marcas_exige_marca_lectura_y_no_llama_al_rpc_sin_ella(entorno):
+    items = [{"terminal_usuario_id": 77, "persona_id": ANA, "evidencia": "inferida", "activada_en": "2026-09-30T10:00:00+00:00"}]
+    entorno.otorgados = {"terminal_usuario_lectura"}
+    entorno.configurar(rpc_servicio={"fn_terminal_anomalias": {"total": 1, "items": items}})
+    t = _tarjetas(_get())["inferida_sin_marcas"]
+    assert t["estado"] == "no_disponible" and t["motivo"] == "sin_permiso" and t["ejemplos"] == [] and t["total"] is None and "Ana" not in str(t)
+    assert "inferida_sin_marcas" not in {c[1]["p_categoria"] for c in _llamadas_anomalias(entorno)}
+    d = _get(f"{RUTA}/inferida_sin_marcas")
+    assert d.status_code in (403, 404) or "Ana" not in d.text                        # el detalle tampoco la muestra a quien no puede leer marcas
+    entorno.otorgados = {"terminal_usuario_lectura", "marca_lectura"}
+    entorno.configurar(rpc_servicio={"fn_terminal_anomalias": {"total": 1, "items": items}})
+    assert _tarjetas(_get())["inferida_sin_marcas"]["estado"] == "con_hallazgos"
