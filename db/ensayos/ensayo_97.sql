@@ -381,6 +381,16 @@ SELECT pg_temp.verifica('90j has_table_privilege por rol: nadie con INSERT/UPDAT
 SELECT pg_temp.verifica('90k los tres mensajes de la bitácora son fijos: sin interpolar valores',
   $$SELECT (SELECT prosrc FROM pg_proc WHERE proname = 'fn_bitacora_config_terminal_inmutable') NOT LIKE '%TG_OP%' AND (SELECT prosrc FROM pg_proc WHERE proname = 'fn_bitacora_config_terminal_truncate') NOT LIKE '%OLD.%'$$);
 
+-- TRUNCATE de tiempo.parametro bloqueado (incluido service_role, que lo tiene concedido).
+SELECT pg_temp.caso('95 TRUNCATE de tiempo.parametro como el dueño -> error (trigger BEFORE TRUNCATE)', current_user::text, 'TRUNCATE tiempo.parametro', 'P0001', '-', 'parametro_truncate_bloqueado');
+SELECT pg_temp.caso('95b TRUNCATE de tiempo.parametro como service_role -> bloqueado (por el trigger si tiene el privilegio; en cualquier caso, error)', 'service_role', 'TRUNCATE tiempo.parametro', 'error', '-');
+SELECT pg_temp.verifica('95b2 ... y si service_role tiene TRUNCATE concedido (GRANT ALL de 38_), el bloqueo es del trigger y no del permiso', $$SELECT NOT has_table_privilege('service_role', 'tiempo.parametro', 'TRUNCATE') OR EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid = 'tiempo.parametro'::regclass AND tgname = 'trg_parametro_truncate_bloqueado' AND tgenabled = 'O')$$);
+SELECT pg_temp.caso('95c TRUNCATE ... CASCADE y RESTART IDENTITY también bloqueados', current_user::text, 'TRUNCATE tiempo.parametro RESTART IDENTITY CASCADE', 'P0001', '-', 'parametro_truncate_bloqueado');
+SELECT pg_temp.caso('95d authenticated tampoco puede (sin privilegio o por el trigger: cualquier error)', 'authenticated', 'TRUNCATE tiempo.parametro', 'error');
+SELECT pg_temp.caso('95d2 anon tampoco puede', 'anon', 'TRUNCATE tiempo.parametro', 'error', '-');
+SELECT pg_temp.verifica('95e ... y tiempo.parametro conserva sus filas (las 5 claves de 89_ siguen con su vigencia abierta)',
+  $$SELECT count(*) = 5 FROM tiempo.parametro WHERE clave IN ('terminal_caducidad_alta_horas', 'terminal_llave_max_meses', 'terminal_traslape_llave_max_dias', 'terminal_anomalias_ventana_dias', 'terminal_retencion_rechazos_dias') AND vigente_hasta IS NULL$$);
+
 \ir ../verificar_ddl.sql
 
 SELECT n, CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END AS resultado, caso, detalle FROM _res ORDER BY n;

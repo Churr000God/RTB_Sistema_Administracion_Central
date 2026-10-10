@@ -1433,6 +1433,7 @@ WITH k(clave) AS (VALUES ('terminal_inferir_huella_activa'), ('terminal_inferir_
 f(proname, definer, vol, search_path, roles) AS (VALUES
   ('fn_parametro_inferir_audita',            true,  'v', 'search_path=tiempo, pg_temp',                 ARRAY[]::text[]),
   ('fn_parametro_inferir_escribe',           true,  'v', 'search_path=tiempo, pg_temp',                 ARRAY[]::text[]),
+  ('fn_parametro_truncate_bloqueado',        false, 'v', 'search_path=tiempo, pg_temp',                 ARRAY[]::text[]),
   ('fn_texto_sin_invisibles',                false, 'i', 'search_path=pg_temp',                         ARRAY[]::text[]),
   ('fn_terminal_inferir_huella_cambiar',     true,  'v', 'search_path=tiempo, personas, pg_temp',       ARRAY['authenticated']),
   ('fn_terminal_inferir_huella_estado',      true,  's', 'search_path=tiempo, pg_temp',                 ARRAY['service_role']),
@@ -1495,6 +1496,11 @@ SELECT 'trigger de auditoría de tiempo.parametro ausente, deshabilitado o con t
 WHERE NOT EXISTS (SELECT 1 FROM pg_trigger t JOIN pg_proc p ON p.oid = t.tgfoid
                   WHERE t.tgrelid = 'tiempo.parametro'::regclass AND t.tgname = 'trg_parametro_inferir_huella_audita' AND NOT t.tgisinternal
                     AND t.tgenabled = 'O' AND t.tgtype = 29 AND p.proname = 'fn_parametro_inferir_audita')
+UNION ALL
+SELECT 'trigger BEFORE TRUNCATE de tiempo.parametro ausente, deshabilitado o con tipo distinto (BEFORE STATEMENT TRUNCATE = 34)', 'trg_parametro_truncate_bloqueado'
+WHERE NOT EXISTS (SELECT 1 FROM pg_trigger t JOIN pg_proc p ON p.oid = t.tgfoid
+                  WHERE t.tgrelid = 'tiempo.parametro'::regclass AND t.tgname = 'trg_parametro_truncate_bloqueado' AND NOT t.tgisinternal
+                    AND t.tgenabled = 'O' AND t.tgtype = 34 AND p.proname = 'fn_parametro_truncate_bloqueado')
 UNION ALL
 SELECT 'función ausente', f.proname
 FROM f WHERE NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'tiempo' AND p.proname = f.proname)

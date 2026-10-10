@@ -21,6 +21,8 @@
 --   4) Trigger de auditoría ESTRECHO sobre tiempo.parametro (AFTER INSERT/UPDATE/DELETE, por fila): solo para las dos claves del interruptor. Un UPDATE, INSERT o
 --      DELETE directo (service_role, psql, dueño) también deja fila: valor anterior/nuevo, rol del JWT, session_user, hora y txid. La nota viaja por una variable de
 --      transacción que SOLO fija la función dedicada y limpia al terminar; el trigger solo la acepta si una segunda variable coincide con txid_current() (refuerzo D3).
+--      Además un trigger BEFORE TRUNCATE (por statement) sobre tiempo.parametro que BLOQUEA el TRUNCATE con mensaje fijo + HINT: service_role conserva TRUNCATE y un
+--      TRUNCATE no pasa por los triggers por fila, así que vaciaría las filas del interruptor sin dejar rastro. Nadie debe vaciar tiempo.parametro (guarda la política).
 --   5) tiempo.fn_terminal_inferir_huella_cambiar(p_activa, p_nota, p_hasta): la ÚNICA ruta legítima para encender/apagar. Gate DENTRO (persona activa y
 --      terminal_config_edicion, no heredable). Encender exige nota >= 10 caracteres saneados, p_hasta futuro y a lo más a 30 días, consentimiento biométrico vigente y
 --      PUBLICADO (no provisional) y al menos una terminal activa. Apagar no exige nota y devuelve 'hasta' al centinela. Escribe AMBAS claves en la misma transacción.
@@ -43,6 +45,7 @@
 --   tiempo.bitacora_config_terminal      RLS on; 1 policy SELECT (authenticated, con permiso); REVOKE ALL a anon/authenticated/service_role y GRANT SELECT a
 --                                        authenticated y service_role; sin INSERT/UPDATE/DELETE/TRUNCATE para nadie; secuencia sin privilegios. Policies: 76 -> 77.
 --   fn_parametro_inferir_audita()        SECURITY DEFINER, search_path = tiempo, pg_temp, EXECUTE para nadie (función de trigger).
+--   fn_parametro_truncate_bloqueado()    SECURITY INVOKER, search_path = tiempo, pg_temp, EXECUTE para nadie (función de trigger BEFORE TRUNCATE).
 --   fn_parametro_inferir_escribe(...)    SECURITY DEFINER, search_path = tiempo, pg_temp, EXECUTE para nadie (solo la llama la función dedicada).
 --   fn_texto_sin_invisibles(text)        IMMUTABLE, search_path = pg_temp, EXECUTE para nadie (solo la llama la función dedicada, como dueño).
 --   fn_terminal_inferir_huella_cambiar   SECURITY DEFINER, search_path = tiempo, personas, pg_temp, EXECUTE solo authenticated.
@@ -55,6 +58,7 @@
 --
 -- REVERSA. Operativa e inmediata: fn_terminal_inferir_huella_cambiar(false, NULL) (deja su fila). Antes del primer uso real, de forma inversa a este archivo:
 --   DROP TRIGGER trg_parametro_inferir_huella_audita ON tiempo.parametro; DROP FUNCTION tiempo.fn_parametro_inferir_audita();
+--   DROP TRIGGER trg_parametro_truncate_bloqueado ON tiempo.parametro; DROP FUNCTION tiempo.fn_parametro_truncate_bloqueado();
 --   DROP FUNCTION tiempo.fn_terminal_inferir_huella_cambiar(boolean, text, timestamptz); DROP FUNCTION tiempo.fn_terminal_inferir_huella_estado();
 --   DROP FUNCTION tiempo.fn_parametro_inferir_escribe(text, text, date, uuid); DROP FUNCTION tiempo.fn_texto_sin_invisibles(text);
 --   ALTER TABLE tiempo.parametro DROP CONSTRAINT ck_parametro_inferir_huella_activa, DROP CONSTRAINT ck_parametro_inferir_huella_hasta;
@@ -255,6 +259,30 @@ COMMENT ON FUNCTION tiempo.fn_parametro_inferir_audita() IS
   'terminal_inferir_huella_activa y terminal_inferir_huella_hasta, venga de donde venga (función dedicada, service_role directo, psql). La nota solo se acepta si la fijó la '
   'función dedicada en esta misma transacción (variable scj.txid_interruptor = txid_current()). SECURITY DEFINER, search_path = tiempo, pg_temp, EXECUTE para nadie. '
   'Al reescribirla repetir SECURITY DEFINER y SET search_path.';
+
+-- TRUNCATE de tiempo.parametro: bloqueado. service_role tiene TRUNCATE (GRANT ALL de 38_) y un TRUNCATE no dispara los triggers por fila, de modo que podría vaciar
+-- las filas del interruptor sin dejar rastro en la bitácora. Ningún flujo legítimo vacía esta tabla (el reconstruir una base desde cero usa DROP SCHEMA, no TRUNCATE).
+CREATE FUNCTION tiempo.fn_parametro_truncate_bloqueado()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = tiempo, pg_temp
+AS $$
+BEGIN
+  RAISE EXCEPTION 'tiempo.parametro no admite TRUNCATE'
+    USING ERRCODE = 'P0001', HINT = 'parametro_truncate_bloqueado';
+END;
+$$;
+
+CREATE TRIGGER trg_parametro_truncate_bloqueado
+  BEFORE TRUNCATE ON tiempo.parametro
+  FOR EACH STATEMENT
+  EXECUTE FUNCTION tiempo.fn_parametro_truncate_bloqueado();
+
+REVOKE EXECUTE ON FUNCTION tiempo.fn_parametro_truncate_bloqueado() FROM PUBLIC, anon, authenticated, service_role;
+
+COMMENT ON FUNCTION tiempo.fn_parametro_truncate_bloqueado() IS
+  '97_. Aborta TRUNCATE sobre tiempo.parametro (incluido service_role y el dueño): un TRUNCATE no pasa por el trigger de auditoría por fila y vaciaría el interruptor de la '
+  'activación por huella sin rastro. Mensaje fijo + HINT estable. SECURITY INVOKER, search_path = tiempo, pg_temp, sin EXECUTE para la API.';
 
 -- ============================================================================
 -- 5) Ayudas internas (sin EXECUTE para la API)
