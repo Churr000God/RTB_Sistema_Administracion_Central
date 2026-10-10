@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paquete 2 · 12 Confirmar huella y evidencia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../frontend/src/styles/tokens.css">
+<link rel="stylesheet" href="_mockup.css">
+</head>
+<body data-activo="Terminales">
+<div class="mock-barra" data-estados="fila:Lista · botón (edición),lectura:Lista · sólo lectura,m_ini:Modal · inicial,m_corta:Modal · nota corta,m_ok_nota:Modal · nota válida,m_cargando:Modal · enviando,m_propia:Modal · error: alta propia,m_sinnota:Modal · error: nota necesaria,m_estado:Modal · error: el alta cambió,m_ok:Modal · éxito,etiquetas:Etiquetas de evidencia,historial:Historial · 2 tipos nuevos,anomalias:Anomalías · 3 tarjetas nuevas">
+  <strong>Borrador 12 · confirmar huella + evidencia (SCJ-DEC-12 sin conteo, opción B+C)</strong><span class="borrador">BORRADOR · sujeto a contrato</span><span>Estado:</span><span class="estados"></span>
+  <span>· <a href="?limpio=1">ocultar notas</a></span>
+</div>
+<div class="app-shell">
+<aside class="app-shell-aside" id="shell-aside"></aside>
+<main class="app-shell-main">
+<div class="contenedor-pagina contenedor-pagina--ancho">
+<p class="nota-diseno"><strong>Contexto:</strong> la terminal V1.3.0 no da conteo de huellas. La alta pasa a «Activo» por (a) una marca verificada por huella → evidencia <code>inferida</code>, o (b) confirmación humana en la web → evidencia <code>manual</code>. Se añade <code>huella_evidencia</code> (<code>'conteo'|'inferida'|'manual'|null</code>) junto a <code>huellas_capturadas</code>. <strong><code>huellas_capturadas = 0</code> nunca se lee «sin huellas»</strong>: sólo se pinta un número cuando <code>huella_evidencia === 'conteo'</code>. Este archivo cubre las 3 partes del pedido; las pantallas 02/04/05/06 anteriores quedan como están hasta aprobación. Los textos de error son los <code>detail</code> fijos del contrato (CONTRATO_API_TERMINALES_PAQUETE_2.md §2.5 bis).</p>
+
+<!-- ============ 1. LISTA + BOTÓN ============ -->
+<div data-solo="fila lectura">
+  <nav class="migas"><a href="#">Terminales</a> / <strong>Entrada principal</strong></nav>
+  <div class="encabezado-pagina"><div><h1>Usuarios de la terminal</h1><p class="subtitulo-pagina">Entrada principal · DS-K1T-0001 · <span class="contacto"><span class="punto punto--exito"></span>En línea</span></p></div></div>
+  <section data-solo="lectura"><div class="banner-aviso banner-aviso--info" role="note"><span data-ic="lock"></span><div><strong>Puedes consultar estas altas, no modificarlas.</strong> Confirmar una huella requiere el permiso <span class="chip-permiso">terminal_usuario_edicion</span>.</div></div></section>
+  <div class="tabla-desplazable"><table>
+    <thead><tr><th>Persona</th><th>Nº en la terminal</th><th>Estado</th><th>Huellas</th><th>Asignada</th><th>Acciones</th></tr></thead>
+    <tbody>
+      <tr><td>Luis Ramírez</td><td class="num">1041</td>
+        <td><span class="insignia insignia--info estado-alta"><span data-ic="fingerprint" data-s="12"></span>Esperando huella</span>
+          <div class="ayuda-campo">Esperando que TI enrole la huella en la terminal. Se activa sola con su primera marca por huella.</div>
+          <div class="cuenta-regresiva"><span data-ic="clock" data-s="12"></span>Caduca en 19 h 40 min</div></td>
+        <td class="num">—</td><td class="num">07 oct 2026, 08:20</td>
+        <td><span data-solo="fila"><button type="button" class="boton-con-icono" data-ic="checkc" data-s="14">Confirmar huella</button> </span><button type="button" class="boton-con-icono" data-ic="x" data-s="14" data-solo="fila">Cancelar alta</button><span data-solo="lectura">—</span></td></tr>
+      <tr><td>Ana Torres</td><td class="num">1042</td>
+        <td><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activo</span></td>
+        <td>Huella verificada en el aparato</td><td class="num">07 oct 2026, 09:10</td>
+        <td><span data-solo="fila"><button type="button" class="boton-con-icono" data-ic="trash" data-s="14">Dar de baja</button> </span><a href="#" class="enlace-porque" data-ic="history" data-s="14">Historial</a></td></tr>
+    </tbody></table></div>
+  <p class="pie-tabla">«Confirmar huella» sólo aparece en <strong>Esperando huella</strong> y sólo con <code>terminal_usuario_edicion</code> (no heredable). Sin el permiso se oculta, igual que «Cancelar alta», y el banner explica por qué. Misma acción en la sección «Terminal» de la ficha de persona (06): botón secundario junto al estado «Esperando huella».</p>
+</div>
+
+<!-- ============ 1b. MODAL ============ -->
+<div class="modal-fondo" data-solo="m_ini m_corta m_ok_nota m_cargando m_propia m_sinnota m_estado m_ok"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="tc" aria-describedby="cc">
+  <div data-solo="m_ini m_corta m_ok_nota m_cargando m_propia m_sinnota m_estado" style="display:contents">
+    <h2 id="tc">Confirmar huella</h2>
+    <p class="modal__contexto" id="cc">Luis Ramírez · nº 1041 · Entrada principal · <span class="insignia insignia--info">Esperando huella</span></p>
+    <div class="modal__advertencia" role="note"><span data-ic="alert"></span><div>
+      <strong>Estás atestiguando que viste la huella de esta persona en el menú del aparato.</strong> La terminal no informa cuántas huellas hay, así que el sistema no puede comprobarlo: tu confirmación (con tu nombre y tu nota) queda como la evidencia. <strong>No se puede deshacer.</strong> La bitácora es inmutable; si te equivocas, el camino es dar de baja el alta y crear una nueva.</div></div>
+
+    <div class="campo-error" data-solo="m_corta m_sinnota"><label for="n1">Nota (obligatoria, mínimo 10 caracteres)</label>
+      <textarea id="n1" rows="3" maxlength="500" required aria-required="true" aria-invalid="true" aria-describedby="n1-e n1-c" placeholder="Ej.: TI enroló el índice derecho en el menú del aparato, presente RH.">TI ok</textarea>
+      <p class="mensaje-campo" id="n1-e"><span data-ic="alertc" data-s="14"></span><span data-solo="m_corta">Escribe una nota de al menos 10 caracteres.</span><span data-solo="m_sinnota">La nota de la confirmación debe tener entre 10 y 500 caracteres. <em>(422 · SCJ12 <code>nota_requerida</code>; llega con el servidor si el cliente no la validó)</em></span></p>
+      <div class="modal__contador num" id="n1-c">5 / 500 · mínimo 10</div><p class="ayuda-campo" style="margin:.3rem 0 0">No escribas datos personales, solo cómo verificaste la huella (por ejemplo: «la vi en el menú del aparato»).</p></div>
+    <div data-solo="m_ini"><label for="n0">Nota (obligatoria, mínimo 10 caracteres)</label>
+      <textarea id="n0" rows="3" maxlength="500" required aria-required="true" aria-describedby="n0-c" placeholder="Ej.: TI enroló el índice derecho en el menú del aparato, presente RH."></textarea>
+      <div class="modal__contador num" id="n0-c">0 / 500 · mínimo 10</div><p class="ayuda-campo" style="margin:.3rem 0 0">No escribas datos personales, solo cómo verificaste la huella (por ejemplo: «la vi en el menú del aparato»).</p></div>
+    <div data-solo="m_ok_nota m_cargando m_propia m_estado"><label for="n2">Nota (obligatoria, mínimo 10 caracteres)</label>
+      <textarea id="n2" rows="3" maxlength="500" required aria-required="true" aria-describedby="n2-c" >TI enroló el índice derecho en el menú del aparato, presente RH.</textarea>
+      <div class="modal__contador num" id="n2-c">67 / 500 · mínimo 10</div><p class="ayuda-campo" style="margin:.3rem 0 0">No escribas datos personales, solo cómo verificaste la huella (por ejemplo: «la vi en el menú del aparato»).</p></div>
+
+    <div data-solo="m_propia" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se confirmó</strong><p>No puedes confirmar tu propia huella; la confirma otra persona con permiso. <em>(422 · SCJ12 <code>auto_confirmacion_huella_prohibida</code>)</em></p></div>
+    <div data-solo="m_estado" class="tarjeta-error" role="alert"><strong><span data-ic="alertc"></span>No se confirmó</strong><p>El movimiento no es válido para el estado actual del alta. <em>(409 · SCJ11 <code>transicion_invalida</code>)</em> Quizá se activó con una marca mientras tenías esta ventana abierta; actualiza la lista.</p></div>
+
+    <div class="modal__botonera">
+      <span data-solo="m_ini m_corta m_ok_nota m_propia m_sinnota" style="display:contents"><button type="button" class="boton-con-icono">Volver</button><button type="button" class="boton-con-icono boton-primario" data-ic="checkc">Confirmar que vi la huella</button></span>
+      <span data-solo="m_cargando" style="display:contents"><button type="button" class="boton-con-icono" disabled>Volver</button><button type="button" class="boton-con-icono boton-primario" disabled aria-busy="true"><span class="icono-girando" data-ic="loader"></span>Confirmando…</button></span>
+      <span data-solo="m_estado" style="display:contents"><button type="button" class="boton-con-icono">Volver</button><button type="button" class="boton-con-icono boton-primario">Actualizar lista</button></span>
+    </div>
+  </div>
+  <div data-solo="m_ok" style="display:contents" role="status">
+    <h2><span data-ic="checkc" data-s="22" style="color:var(--teal)"></span> Huella confirmada</h2>
+    <p class="modal__contexto">Luis Ramírez quedó <strong>Activo</strong> con la evidencia «Huella confirmada por una persona (sin conteo)». Tu nombre y tu nota quedaron en el historial del alta.</p>
+    <div class="modal__botonera"><button type="button" class="boton-con-icono boton-primario">Cerrar</button></div>
+  </div>
+</div></div>
+<p class="nota-diseno" data-solo="m_ini m_corta m_ok_nota m_cargando m_propia m_sinnota m_estado m_ok" style="margin-top:1rem"><strong>Reglas:</strong> <code>&lt;dialog&gt;</code> nativo como el modal de baja (03). Nota obligatoria 10–500 con contador; con menos de 10 se muestra el error de campo al enviar y <em>no</em> se llama al servidor (el botón no se deshabilita en seco). El botón dice la consecuencia («Confirmar que vi la huella»), no «Aceptar». Enviando: botones inertes, Esc y fondo no cierran. Errores por <code>hint</code>, nunca el texto crudo del servidor. «Alta propia»: la decide el backend (el cliente no sabe si el caller es administrador); el aviso no bloquea en cliente.</p>
+
+<!-- ============ 2. ETIQUETAS ============ -->
+<div data-solo="etiquetas">
+  <h2>Etiquetas de evidencia (reemplazan «N huellas»)</h2>
+  <p class="nota-diseno"><strong>Regla única</strong> (helper compartido, mismo texto en las 3 superficies): <code>conteo</code> → «N huella(s)» · <code>inferida</code> → «Huella verificada en el aparato» · <code>manual</code> → «Huella confirmada por una persona (sin conteo)» · <code>null</code> → nada (en tabla se pinta «—»). Sólo se muestra al estar <em>Activo</em> o <em>Pendiente de baja</em>. Nunca «sin huellas» ni «0 huellas» a partir de <code>huellas_capturadas = 0</code>. Las etiquetas llevan texto, y el icono es decorativo. <strong>Fuente:</strong> el campo <code>huella_evidencia</code> <em>vigente de la alta</em> (nunca el del último movimiento).</p>
+
+  <h3>a) UsuariosTerminalPage — columna «Huellas» (UsuariosTerminalPage.tsx:462)</h3>
+  <div class="tabla-desplazable"><table>
+    <thead><tr><th>Persona</th><th>Estado</th><th>Huellas</th></tr></thead>
+    <tbody>
+      <tr><td>Pedro Salas</td><td><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activo</span></td><td class="num">2 huellas <span class="ayuda-campo">(conteo)</span></td></tr>
+      <tr><td>Ana Torres</td><td><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activo</span></td><td><span class="insignia insignia--exito estado-alta"><span data-ic="fingerprint" data-s="12"></span>Huella verificada en el aparato</span></td></tr>
+      <tr><td>Luis Ramírez</td><td><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activo</span></td><td><span class="insignia insignia--aviso estado-alta"><span data-ic="eye" data-s="12"></span>Huella confirmada por una persona (sin conteo)</span><div class="ayuda-campo">Confirmó María López · 09 oct 2026, 10:12</div></td></tr>
+      <tr><td>Elena Ríos</td><td><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activo</span></td><td class="num">—</td></tr>
+      <tr><td>Sofía Vega</td><td><span class="insignia insignia--aviso estado-alta"><span data-ic="clock" data-s="12"></span>Pendiente de baja</span></td><td>Huella verificada en el aparato</td></tr>
+    </tbody></table></div>
+  <p class="pie-tabla">La confirmación manual usa tono <em>aviso</em> (no éxito): es evidencia más débil que una marca real, y debe distinguirse de un vistazo. Autor y fecha sólo en la fila; la nota completa, en el historial.</p>
+
+  <h3>b) SeccionTerminalPersona — ficha de persona (SeccionTerminalPersona.tsx:131)</h3>
+  <div class="tarjeta-resumen">
+    <h3 style="margin-top:0"><span data-ic="terminal" data-s="18"></span> Terminal de checado</h3>
+    <p style="margin:.5rem 0"><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activa</span> · Entrada principal · nº 1042 · Huella verificada en el aparato</p>
+    <p style="margin:.5rem 0"><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activa</span> · Entrada principal · nº 1041 · Huella confirmada por una persona (sin conteo)</p>
+    <p style="margin:.5rem 0"><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activa</span> · Entrada principal · nº 1030 · 2 huellas</p>
+    <p style="margin:.5rem 0"><span class="insignia insignia--exito estado-alta"><span data-ic="checkc" data-s="12"></span>Activa</span> · Entrada principal · nº 1033 <span class="ayuda-campo">(evidencia <code>null</code>: no se agrega nada)</span></p>
+    <p style="margin:.5rem 0"><span class="insignia insignia--info estado-alta"><span data-ic="fingerprint" data-s="12"></span>Esperando huella</span> · Entrada principal · nº 1044 <button type="button" class="boton-con-icono" data-ic="checkc" data-s="14" style="margin-left:.5rem">Confirmar huella</button></p>
+    <p class="ayuda-campo" style="margin:0">Esperando que TI enrole la huella en la terminal. Se activa sola con su primera marca por huella.</p>
+  </div>
+
+  <h3>c) HistorialAltaModal — cabecera del panel (HistorialAltaModal.tsx:82)</h3>
+  <p class="modal__contexto" style="margin:.25rem 0 0">Luis Ramírez · nº 1041 · Entrada principal · Huella confirmada por una persona (sin conteo)</p>
+  <p class="pie-tabla">Misma etiqueta en la línea de contexto que hoy muestra «N huellas». Los movimientos nuevos se ven en el estado «Historial».</p>
+</div>
+
+<!-- ============ 2b. HISTORIAL ============ -->
+<div data-solo="historial">
+  <aside class="panel-lateral" role="dialog" aria-labelledby="ph" aria-modal="false" style="max-width:34rem">
+    <div style="display:flex;justify-content:space-between;gap:1rem;align-items:flex-start"><div><h2 id="ph" style="font-size:1.15rem">Historial del alta</h2><p class="modal__contexto" style="margin:0">Luis Ramírez · nº 1041 · Entrada principal · Huella confirmada por una persona (sin conteo)</p></div><button type="button" class="enlace-porque" aria-label="Cerrar historial" data-ic="x">Cerrar</button></div>
+    <ol class="linea-tiempo" style="margin-top:1rem">
+      <li><strong>Huella confirmada por una persona</strong><small>09 oct 2026, 10:12 · María López (Responsable de RH)</small><small><strong>Nota:</strong> «TI enroló el índice derecho en el menú del aparato, presente RH.»</small><small>Sin conteo: el aparato no informa cuántas huellas hay.</small></li>
+      <li><strong>Usuario creado en el aparato</strong><small>08 oct 2026, 08:25 · Terminal</small></li>
+      <li><strong>Asignada</strong><small>08 oct 2026, 08:20 · Carlos Ruiz (Gerente de TI)</small><small>Consentimiento y aviso de privacidad recabados. <strong>Consentimiento v4</strong></small></li>
+    </ol>
+    <p class="ayuda-campo" style="margin:1rem 0 .4rem">Alta que se activó sola (otra persona, Ana Torres):</p>
+    <ol class="linea-tiempo">
+      <li><strong>Huella verificada en el aparato</strong><small>09 oct 2026, 08:03 · Terminal</small><small>Primera marca por huella de esta persona (marca nº 5121). Sin conteo.</small></li>
+      <li><strong>Usuario creado en el aparato</strong><small>08 oct 2026, 09:05 · Terminal</small></li>
+    </ol>
+  </aside>
+  <p class="pie-tabla">Dos tipos de movimiento nuevos. «Huella confirmada por una persona» muestra <strong>autor</strong> (nombre + puesto) y <strong>nota</strong> entrecomillada; «Huella verificada en el aparato» tiene autor «Terminal» y enlaza la marca que la disparó (sin plantilla ni dato biométrico). Los textos de nota se renderizan como texto plano, nunca HTML.</p>
+</div>
+
+<!-- ============ 3. ANOMALÍAS ============ -->
+<div data-solo="anomalias">
+  <nav class="migas"><a href="#">Terminales</a> / <strong>Anomalías</strong></nav>
+  <div class="encabezado-pagina"><div><h1>Anomalías de la terminal</h1><p class="subtitulo-pagina">Se muestran sólo las 3 tarjetas nuevas; las 10 anteriores no cambian y se numeran 1–10.</p></div></div>
+  <div class="rejilla-anomalias">
+    <div class="tarjeta-resumen anomalia"><header><h3>11 · Huellas inferidas en exceso</h3><span class="insignia insignia--aviso">Revisar</span></header><span class="cifra num">1</span>
+      <ul><li><strong>09 oct 2026</strong>: 9 activaciones, 7 inferidas y 2 manuales (límite de inferidas por día: 5).</li><li>Se marca un día si tiene más de 5 inferidas, o si hay 3 o más confirmaciones manuales que son más de la mitad de las activaciones del día.</li></ul>
+      <p class="ayuda-campo" style="margin:.5rem 0 0"><span data-ic="circle" data-s="14"></span> <strong>Es esperado el primer día de puesta en marcha:</strong> varias altas se activan a la vez. <em>(Texto fijo en el campo <code>nota</code> que manda el backend; se pinta tal cual.)</em></p></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>12 · Inferida sin marcas</h3><span class="insignia insignia--aviso">Revisar</span></header><span class="cifra num">2</span>
+      <ul><li>Alta activada por inferencia o confirmación manual hace más de 7 días, sin ninguna otra marca de la persona en los 7 días siguientes (la marca que sirvió de evidencia no cuenta).</li><li>Raúl Mena · Huella verificada en el aparato · activada 24 sep 2026</li><li>Elena Ríos · Huella confirmada por una persona (sin conteo) · activada 27 sep 2026</li></ul></div>
+    <div class="tarjeta-resumen anomalia"><header><h3>13 · Asignador y confirmador</h3><span class="insignia insignia--aviso">Revisar</span></header><span class="cifra num">1</span>
+      <ul><li>Luis Ramírez · la huella la confirmó Carlos Ruiz, que también asignó el alta · 09 oct 2026, 10:12</li><li class="ayuda-campo">Señal de separación de funciones: no bloquea nada, pide revisar si la confirmación fue legítima.</li></ul></div>
+  </div>
+  <ul class="leyenda-estados" style="margin-top:1rem"><li>Las 3 cuentan en el estado «Sin hallazgos» (de 10 a 13 revisiones).</li><li><strong>Campos según el contrato (§ anomalías):</strong> 11 <code>{dia, inferidas, manuales, activaciones, limite_inferidas}</code> + <code>nota</code>; 12 <code>{persona_nombre, evidencia, activada_en}</code>; 13 <code>{persona_nombre, confirmada_por, confirmada_en}</code>. Nivel «Revisar» en las tres, como manda el backend.</li><li><strong>Ojo:</strong> el contrato manda <em>nombres</em> (<code>persona_nombre</code>, <code>confirmada_por</code>); el mensaje de orquestación hablaba de «sólo ids». Se sigue el contrato escrito; si en realidad llegan ids, la 13 pasa a mostrar «Alta nº …».</li><li>Si la 13 debe ser «Atender» (señal de abuso, no sólo de revisión), hay que pedirlo a backend; el mockup la deja en «Revisar».</li></ul>
+</div>
+
+<section class="escenario" style="margin-top:2rem"><h2>Contrato usado (CONTRATO_API_TERMINALES_PAQUETE_2.md §2.5 bis)</h2><ul style="font-size:.85rem;color:var(--navy-medio);line-height:1.6;padding-left:1.1rem">
+<li><code>POST /api/terminales/{id}/usuarios/{tu_id}/huella-confirmada</code> con <code>{"nota"}</code>, gate <code>terminal_usuario_edicion</code>. 201 con el alta en <code>activo</code>, <code>huella_evidencia="manual"</code>, <code>huellas_capturadas=0</code> (<strong>0 = «conteo desconocido»</strong>, nunca «sin huellas» ni «0 huellas»).</li>
+<li>Errores (<code>detail</code> fijo, el frontend los muestra tal cual): 409 «El movimiento no es válido para el estado actual del alta.» · 409 «Ese movimiento no se puede registrar desde aquí.» (no debería ocurrir) · 422 «No puedes confirmar tu propia huella; la confirma otra persona con permiso.» · 422 «Quien asignó el alta no puede confirmar su huella; la confirma otra persona con permiso.» (sólo si la base activa los «cuatro ojos»; hoy apagado, mismo estilo de tarjeta de error) · 422 «La nota de la confirmación debe tener entre 10 y 500 caracteres.» · 403 «No tienes permiso para esta acción.»</li>
+<li><strong>Evidencia vigente:</strong> todo resumen (lista, ficha, cabecera del historial) pinta la evidencia del campo <code>huella_evidencia</code> <em>de la alta</em>, nunca la del último movimiento. Sólo cada fila del historial muestra la evidencia de su propio movimiento.</li>
+<li>Historial: <code>huella_capturada</code> / <code>huella_inferida</code> / <code>huella_confirmada_manual</code> traen su <code>huella_evidencia</code>; el autor sale de <code>registrado_por_nombre</code> («Terminal» si es nulo) y la nota va dentro del <code>detalle</code> ya saneado. Texto plano, nunca HTML.</li>
+<li><strong>Antes de aplicar 94_ en la base real</strong> las tres pantallas (<code>SeccionTerminalPersona</code>, <code>HistorialAltaModal</code>, <code>UsuariosTerminalPage</code>) deben dejar de pintar «N huellas» a partir de <code>huellas_capturadas</code>; este mockup ya lo cumple.</li>
+<li>Pendiente de backend: dónde viaja la marca que disparó la inferida en el historial (aquí se enlaza el nº de marca si llega; si no, sólo el texto).</li></ul></section>
+</div></main></div>
+<script src="_mockup.js"></script>
+</body></html>
