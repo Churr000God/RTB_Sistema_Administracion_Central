@@ -201,8 +201,26 @@ BEGIN
     ('terminal_inferir_huella_hasta',  p_hasta, DATE '2026-01-01', NULL, NULL);
 END;
 $$ LANGUAGE plpgsql;
-CREATE FUNCTION pg_temp.encendido() RETURNS void AS $$ SELECT pg_temp.set_int('1', pg_temp.iso(now() + interval '2 days')) $$ LANGUAGE sql;
+-- Ejecuta una sentencia SELECT que devuelve jsonb COMO el administrador real (rol authenticated, con su sub): la única forma legítima de ENCENDER (R1: el lector exige el respaldo de la función).
+CREATE FUNCTION pg_temp.como_admin(p_sql text) RETURNS void AS $$
+DECLARE v_j jsonb;
+BEGIN
+  PERFORM set_config('request.jwt.claims', json_build_object('sub', (SELECT v FROM _ens WHERE k = 'auth_uid'), 'role', 'authenticated')::text, true);
+  SET LOCAL ROLE authenticated;
+  EXECUTE p_sql INTO v_j;
+  RESET ROLE;
+  PERFORM set_config('request.jwt.claims', '', true);
+END;
+$$ LANGUAGE plpgsql;
+-- Encendido LEGÍTIMO: filas limpias (escritura directa del dueño, auditada) y después la función dedicada (nota, vencimiento a 2 días, consentimiento y terminal activa).
+CREATE FUNCTION pg_temp.encendido() RETURNS void AS $$
+BEGIN
+  PERFORM pg_temp.set_int('0', '1970-01-01T00:00:00Z');
+  PERFORM pg_temp.como_admin($q$SELECT tiempo.fn_terminal_inferir_huella_cambiar(true, 'Encendido de ensayo 98 para la regresión', now() + interval '2 days')$q$);
+END;
+$$ LANGUAGE plpgsql;
 SELECT pg_temp.alta('A' || i, (SELECT v FROM _ens WHERE k='auth_uid')) FROM generate_series(17, 19) i;   -- A17: «no activa»; A18, A19: activaciones
+SELECT pg_temp.como_admin($q$SELECT tiempo.fn_terminal_consentimiento_publicar('Texto de ensayo 98 del aviso de privacidad y consentimiento biométrico', false, 'ensayo 98')$q$);
 SELECT pg_temp.encendido();
 SELECT pg_temp.rpc('E00 con el interruptor ENCENDIDO (válido, 2 días) el estado efectivo es activo', 'service_role', 'tiempo.fn_terminal_inferir_huella_estado()', $c$ ($1->>'activo')::boolean $c$, '-');
 
@@ -374,8 +392,19 @@ DELETE FROM tiempo.parametro WHERE clave = 'terminal_inferir_huella_activa';
 INSERT INTO tiempo.parametro (clave, valor, vigente_desde, vigente_hasta, registrado_por) VALUES
   ('terminal_inferir_huella_activa', '0', DATE '2026-01-01', pg_temp.hoy_utc() - 1, NULL),
   ('terminal_inferir_huella_activa', '1', pg_temp.hoy_utc(), NULL, NULL);
-SELECT pg_temp.rpc('E23b apagado hasta AYER (UTC) y encendido HOY (después de la medianoche UTC): el RPC lee el último valor (activo)', 'service_role', 'tiempo.fn_terminal_inferir_huella_estado()',
-  $c$ ($1->>'activo')::boolean $c$, '-');
+SELECT pg_temp.rpc('E23b apagado hasta AYER (UTC) y encendido HOY (después de la medianoche UTC) escrito DIRECTO: el lector toma el último valor (1; el motivo NO es «apagado») pero sin respaldo de la función => APAGADO', 'service_role', 'tiempo.fn_terminal_inferir_huella_estado()',
+  $c$ NOT ($1->>'activo')::boolean AND $1->>'motivo' = 'sin_respaldo_de_la_funcion' AND $1->>'valor' = '1' $c$, '-');
+
+-- R1: escritura directa => el lote NO activa; la función dedicada (renovar) lo restablece.
+SELECT pg_temp.encendido();
+SELECT pg_temp.rpc('E24 encendido por la función: el estado es activo', 'service_role', 'tiempo.fn_terminal_inferir_huella_estado()', $c$ ($1->>'activo')::boolean $c$, '-');
+UPDATE tiempo.parametro SET valor = pg_temp.iso(now() + interval '3 days') WHERE clave = 'terminal_inferir_huella_hasta' AND vigente_hasta IS NULL;
+SELECT pg_temp.rpc('E24b UPDATE DIRECTO del vencimiento a otra fecha válida (R1: sin respaldo de la función): la marca por huella se CONFIRMA', 'service_role', pg_temp.marcar(jsonb_build_array(pg_temp.ev('A17', 98050, now(), '"huella"'::jsonb))), $c$ $1->'resultados'->0->>'estado' = 'confirmado' $c$, '-');
+SELECT pg_temp.verifica('E24bb ... y NO activa (A17 sigue esperando_huella, sin huella_inferida)', $$SELECT pg_temp.est('A17') = 'esperando_huella' AND pg_temp.n_inf('A17') = 0$$);
+SELECT pg_temp.como_admin($q$SELECT tiempo.fn_terminal_inferir_huella_cambiar(true, 'Renovación por la función, ensayo 98', now() + interval '4 days')$q$);
+SELECT pg_temp.rpc('E24c la función renueva => vuelve a estar activo', 'service_role', 'tiempo.fn_terminal_inferir_huella_estado()', $c$ ($1->>'activo')::boolean $c$, '-');
+SELECT pg_temp.rpc('E24d ... y la marca por huella de A19 se confirma', 'service_role', pg_temp.marcar(jsonb_build_array(pg_temp.ev('A19', 98051, now(), '"huella"'::jsonb))), $c$ $1->'resultados'->0->>'estado' = 'confirmado' $c$, '-');
+SELECT pg_temp.verifica('E24e ... y A19 SÍ se activó por inferencia', $$SELECT pg_temp.est('A19') = 'activo' AND pg_temp.n_inf('A19') = 1$$);
 
 -- ---------- F. integración con la función dedicada de 97_: encender y apagar el mismo día ----------
 SELECT pg_temp.set_int('0', '1970-01-01T00:00:00Z');

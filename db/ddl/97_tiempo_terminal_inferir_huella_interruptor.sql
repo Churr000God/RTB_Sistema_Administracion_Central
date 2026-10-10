@@ -34,6 +34,8 @@
 --   - de CADA clave hay exactamente UNA fila vigente (vigente_desde <= hoy_utc y vigente_hasta nulo o >= hoy_utc); cero o más de una => apagado;
 --   - el valor del interruptor es EXACTAMENTE la cadena '1' (lectura cruda, sin acotar);
 --   - 'hasta' pasa el patrón estricto, se convierte dentro de un bloque con excepción y cumple  hasta > now()  Y  hasta <= now() + 30 días (el tope también al LEER).
+--   - R1 (security): la ÚLTIMA fila de bitácora de CADA vigencia actual (la del interruptor y la del vencimiento, por fila_id) existe y tiene via_funcion verdadero. Una escritura
+--     directa en tiempo.parametro (service_role, psql) deja el estado APAGADO con motivo sin_respaldo_de_la_funcion: SOLO la función dedicada puede encender. Apagar no lo necesita.
 --   hoy_utc = (now() AT TIME ZONE 'UTC')::date explícito, no CURRENT_DATE (que depende de TimeZone de la sesión).
 --
 -- Errores (HINT estable; el backend los traduce):
@@ -423,6 +425,9 @@ DECLARE
   v_por        uuid;
   v_en         timestamptz;
   v_fila_id    bigint;
+  v_fila_hasta bigint;
+  v_resp_a     boolean;
+  v_resp_h     boolean;
   v_via_fn     boolean;
   v_sin_reg    boolean := false;
 BEGIN
@@ -436,7 +441,7 @@ BEGIN
   ELSE
     SELECT p.valor, p.id INTO v_valor, v_fila_id FROM tiempo.parametro p
     WHERE p.clave = c_activa AND p.vigente_desde <= v_hoy AND (p.vigente_hasta IS NULL OR p.vigente_hasta >= v_hoy);
-    SELECT p.valor INTO v_hasta_txt FROM tiempo.parametro p
+    SELECT p.valor, p.id INTO v_hasta_txt, v_fila_hasta FROM tiempo.parametro p
     WHERE p.clave = c_hasta AND p.vigente_desde <= v_hoy AND (p.vigente_hasta IS NULL OR p.vigente_hasta >= v_hoy);
 
     IF v_valor IS DISTINCT FROM '1' THEN
@@ -457,7 +462,18 @@ BEGIN
       ELSIF v_hasta > now() + c_tope THEN
         v_motivo := 'hasta_excede_tope';
       ELSE
-        v_activo := true;
+        -- R1 de security: solo la función dedicada puede ENCENDER. La ÚLTIMA fila de bitácora de CADA vigencia actual (la del interruptor y la del vencimiento, por fila_id)
+        -- debe existir y tener via_funcion verdadero; si no (escritura directa, fila ausente, último cambio que no hizo la función) => apagado con motivo propio. Apagar ('0')
+        -- nunca necesita esta condición (se resolvió antes). Un fallo de lectura cae en el EXCEPTION de abajo => apagado.
+        SELECT b.via_funcion INTO v_resp_a FROM tiempo.bitacora_config_terminal b
+        WHERE b.clave = c_activa AND b.fila_id = v_fila_id ORDER BY b.id DESC LIMIT 1;
+        SELECT b.via_funcion INTO v_resp_h FROM tiempo.bitacora_config_terminal b
+        WHERE b.clave = c_hasta AND b.fila_id = v_fila_hasta ORDER BY b.id DESC LIMIT 1;
+        IF COALESCE(v_resp_a, false) AND COALESCE(v_resp_h, false) THEN
+          v_activo := true;
+        ELSE
+          v_motivo := 'sin_respaldo_de_la_funcion';
+        END IF;
       END IF;
     END IF;
   END IF;
@@ -499,7 +515,7 @@ GRANT EXECUTE ON FUNCTION tiempo.fn_terminal_inferir_huella_estado() TO service_
 COMMENT ON FUNCTION tiempo.fn_terminal_inferir_huella_estado() IS
   '97_. Estado EFECTIVO del interruptor de la activación por huella: {activo, vencido, motivo, valor, hasta, encendido_por, encendido_en, ultimo_cambio_via_funcion, sin_registro} (quién y cuándo salen de la última fila de bitácora de la vigencia actual). UNA sola definición para el RPC de '
   'marcas (98_), el backend y el tablero. activo = exactamente una vigencia por clave, valor = ''1'' (lectura cruda, sin acotar), hasta futuro y a lo más a 30 días '
-  '(también al leer); cualquier otra cosa o error = apagado (falla cerrado; solo SQLSTATE en el warning). Solo lectura. SECURITY DEFINER, STABLE, '
+  '(también al leer) y, R1, el último cambio de CADA vigencia actual lo hizo la función dedicada (motivo sin_respaldo_de_la_funcion si no); cualquier otra cosa o error = apagado (falla cerrado; solo SQLSTATE en el warning). Solo lectura. SECURITY DEFINER, STABLE, '
   'search_path = tiempo, pg_temp, EXECUTE solo service_role.';
 
 -- ============================================================================

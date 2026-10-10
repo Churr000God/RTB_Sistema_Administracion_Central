@@ -1561,6 +1561,8 @@ FROM (VALUES
   ('fn_terminal_inferir_huella_estado',  'vigencias_inconsistentes'),
   ('fn_terminal_inferir_huella_estado',  '''30 days'''),
   ('fn_terminal_inferir_huella_estado',  'hasta_excede_tope'),
+  ('fn_terminal_inferir_huella_estado',  'via_funcion'),
+  ('fn_terminal_inferir_huella_estado',  'sin_respaldo_de_la_funcion'),
   ('fn_parametro_inferir_audita',        'scj.txid_interruptor'),
   ('fn_parametro_inferir_audita',        'txid_current()'),
   ('fn_terminal_config_actualizar',      'terminal_inferir_huella_activa'),

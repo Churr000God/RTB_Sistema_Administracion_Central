@@ -337,8 +337,8 @@ UPDATE tiempo.parametro SET valor = to_char((now() + interval '40 days') AT TIME
 SELECT pg_temp.rpc('82 hasta directo a 40 días -> APAGADO (hasta_excede_tope), no activo', 'service_role', 'pg_temp.est97()',
   $c$ NOT ($1->>'activo')::boolean AND $1->>'motivo' = 'hasta_excede_tope' $c$, '-');
 UPDATE tiempo.parametro SET valor = to_char((now() + interval '3 days') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') WHERE clave = 'terminal_inferir_huella_hasta' AND vigente_hasta IS NULL;
-SELECT pg_temp.rpc('82b hasta directo a 3 días con el interruptor en 1 -> ACTIVO (la escritura directa no se impide, queda auditada y sin nota)', 'service_role', 'pg_temp.est97()',
-  $c$ ($1->>'activo')::boolean $c$, '-');
+SELECT pg_temp.rpc('82b hasta directo a 3 días con el interruptor en 1 escrito DIRECTO -> APAGADO (R1: sin respaldo de la función; la escritura no se impide pero no enciende, y queda auditada sin nota)', 'service_role', 'pg_temp.est97()',
+  $c$ NOT ($1->>'activo')::boolean AND $1->>'motivo' = 'sin_respaldo_de_la_funcion' $c$, '-');
 -- Vigencias solapadas -> apagado.
 INSERT INTO tiempo.parametro (clave, valor, vigente_desde, vigente_hasta, registrado_por)
 VALUES ('terminal_inferir_huella_activa', '1', pg_temp.hoy_utc() - 1, pg_temp.hoy_utc() + 5, NULL);
@@ -394,8 +394,8 @@ SELECT pg_temp.rpc('87d con las dos filas vigentes (la abierta con 0 y la reabie
 SELECT pg_temp.caso('87e service_role CIERRA la fila vigente con 0 (vigente_hasta = hoy-1)', 'service_role',
   $$UPDATE tiempo.parametro SET vigente_hasta = (now() AT TIME ZONE 'UTC')::date - 1 WHERE clave = 'terminal_inferir_huella_activa' AND valor = '0' AND vigente_hasta IS NULL$$, 'ok', '-');
 UPDATE tiempo.parametro SET valor = to_char((now() + interval '2 days') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') WHERE clave = 'terminal_inferir_huella_hasta' AND vigente_hasta IS NULL;
-SELECT pg_temp.rpc('87f ... el estado efectivo YA es activo (la manipulación de vigencias lo logra), pero el último cambio de esa vigencia NO vino de la función dedicada', 'service_role', 'pg_temp.est97()',
-  $c$ ($1->>'activo')::boolean AND NOT ($1->>'ultimo_cambio_via_funcion')::boolean AND NOT ($1->>'sin_registro')::boolean $c$, '-');
+SELECT pg_temp.rpc('87f ... la manipulación de vigencias deja el interruptor en 1 pero el estado efectivo es APAGADO (R1: sin_respaldo_de_la_funcion); el último cambio de esa vigencia NO vino de la función y hay fila de rastro', 'service_role', 'pg_temp.est97()',
+  $c$ NOT ($1->>'activo')::boolean AND $1->>'motivo' = 'sin_respaldo_de_la_funcion' AND NOT ($1->>'ultimo_cambio_via_funcion')::boolean AND NOT ($1->>'sin_registro')::boolean AND $1->>'valor' = '1' $c$, '-');
 SELECT pg_temp.verifica('87g ... y quedan registrados los DOS movimientos de vigencia (reabrir y cerrar) con via_funcion falso, más la anomalía «sin nota» que los delata',
   $$SELECT (SELECT count(*) FROM tiempo.bitacora_config_terminal WHERE operacion = 'UPDATE_VIGENCIA' AND NOT via_funcion AND rol_jwt = 'service_role' AND clave = 'terminal_inferir_huella_activa') = 2
       AND (SELECT count(*) FROM tiempo.bitacora_config_terminal WHERE clave = 'terminal_inferir_huella_activa' AND valor_nuevo = '1' AND (nota IS NULL OR char_length(nota) < 10) AND NOT via_funcion) >= 1$$);
@@ -406,14 +406,39 @@ INSERT INTO tiempo.parametro (clave, valor, vigente_desde, vigente_hasta, regist
   ('terminal_inferir_huella_activa', '1', DATE '2026-01-01', NULL, NULL),
   ('terminal_inferir_huella_hasta',  to_char((now() + interval '2 days') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'), DATE '2026-01-01', NULL, NULL);
 ALTER TABLE tiempo.parametro ENABLE TRIGGER trg_parametro_inferir_huella_audita;
-SELECT pg_temp.rpc('88 B1: valor 1 vigente SIN fila de bitácora de esa vigencia -> activo pero «sin_registro» verdadero y sin atribuir el encendido a otra vigencia', 'service_role', 'pg_temp.est97()',
-  $c$ ($1->>'activo')::boolean AND ($1->>'sin_registro')::boolean AND $1->>'encendido_por' IS NULL AND $1->>'encendido_en' IS NULL $c$, '-');
+SELECT pg_temp.rpc('88 B1/R1: valor 1 vigente SIN fila de bitácora de esa vigencia -> «sin_registro» verdadero, sin atribuir el encendido a otra vigencia, y APAGADO (sin_respaldo_de_la_funcion)', 'service_role', 'pg_temp.est97()',
+  $c$ NOT ($1->>'activo')::boolean AND $1->>'motivo' = 'sin_respaldo_de_la_funcion' AND ($1->>'sin_registro')::boolean AND $1->>'encendido_por' IS NULL AND $1->>'encendido_en' IS NULL $c$, '-');
 SELECT pg_temp.verifica('88b ... el trigger quedó habilitado (tgenabled = O) para el resto del ensayo', $$SELECT tgenabled = 'O' FROM pg_trigger WHERE tgrelid = 'tiempo.parametro'::regclass AND tgname = 'trg_parametro_inferir_huella_audita'$$);
 -- Estado limpio para lo que sigue.
 DELETE FROM tiempo.parametro WHERE clave IN ('terminal_inferir_huella_activa', 'terminal_inferir_huella_hasta');
 INSERT INTO tiempo.parametro (clave, valor, vigente_desde, vigente_hasta, registrado_por) VALUES
   ('terminal_inferir_huella_activa', '0', DATE '2026-01-01', NULL, NULL),
   ('terminal_inferir_huella_hasta',  '1970-01-01T00:00:00Z', DATE '2026-01-01', NULL, NULL);
+
+-- ---------- H3. R1 de security: solo la función dedicada puede ENCENDER ----------
+-- (Estado de partida: las dos filas abiertas con '0' y el centinela, escritas arriba.)
+SELECT pg_temp.rpc('89 la función enciende (con respaldo de la función en la última fila de bitácora de CADA vigencia) -> ACTIVO', 'authenticated',
+  pg_temp.cambiar('true', 'Encendido por la función, ensayo R1', $$now() + interval '2 days'$$), $c$ ($1->'estado'->>'activo')::boolean AND ($1->'estado'->>'ultimo_cambio_via_funcion')::boolean $c$);
+SELECT pg_temp.caso('89b service_role cambia SOLO el vencimiento con un UPDATE directo a otra fecha VÁLIDA (+3 días)', 'service_role',
+  $$UPDATE tiempo.parametro SET valor = to_char((now() + interval '3 days') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') WHERE clave = 'terminal_inferir_huella_hasta' AND vigente_hasta IS NULL$$, 'ok', '-');
+SELECT pg_temp.rpc('89c ... el estado efectivo pasa a APAGADO con motivo sin_respaldo_de_la_funcion (el valor sigue en 1; el último cambio del vencimiento no vino de la función)', 'service_role', 'pg_temp.est97()',
+  $c$ NOT ($1->>'activo')::boolean AND $1->>'motivo' = 'sin_respaldo_de_la_funcion' AND $1->>'valor' = '1' $c$, '-');
+SELECT pg_temp.rpc('89d la función RENUEVA (otra fecha, nota nueva) -> vuelve a estar ACTIVO', 'authenticated',
+  pg_temp.cambiar('true', 'Renovación por la función, ensayo R1', $$now() + interval '4 days'$$), $c$ ($1->'estado'->>'activo')::boolean $c$);
+SELECT pg_temp.rpc('89e la función renueva otra vez estando ya activo -> SIGUE activo', 'authenticated',
+  pg_temp.cambiar('true', 'Otra renovación por la función, ensayo R1', $$now() + interval '5 days'$$), $c$ ($1->'estado'->>'activo')::boolean $c$);
+SELECT pg_temp.rpc('89f la función APAGA -> apagado (apagar nunca necesita respaldo)', 'authenticated', pg_temp.cambiar('false', NULL, 'NULL'),
+  $c$ NOT ($1->'estado'->>'activo')::boolean AND $1->'estado'->>'motivo' = 'apagado' $c$);
+SELECT pg_temp.caso('89g service_role intenta ENCENDER con escrituras directas: valor 1 ...', 'service_role',
+  $$UPDATE tiempo.parametro SET valor = '1' WHERE clave = 'terminal_inferir_huella_activa' AND vigente_hasta IS NULL$$, 'ok', '-');
+SELECT pg_temp.caso('89h ... y un vencimiento válido a 2 días', 'service_role',
+  $$UPDATE tiempo.parametro SET valor = to_char((now() + interval '2 days') AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') WHERE clave = 'terminal_inferir_huella_hasta' AND vigente_hasta IS NULL$$, 'ok', '-');
+SELECT pg_temp.rpc('89i ... con service_role YA NO se puede encender escribiendo en tiempo.parametro: APAGADO (sin_respaldo_de_la_funcion), con el rastro de ambas escrituras', 'service_role', 'pg_temp.est97()',
+  $c$ NOT ($1->>'activo')::boolean AND $1->>'motivo' = 'sin_respaldo_de_la_funcion' AND NOT ($1->>'ultimo_cambio_via_funcion')::boolean $c$, '-');
+SELECT pg_temp.verifica('89j ... las dos escrituras directas quedaron en la bitácora (via_funcion falso, rol service_role, nota NULL)',
+  $$SELECT count(*) >= 2 FROM tiempo.bitacora_config_terminal WHERE NOT via_funcion AND rol_jwt = 'service_role' AND nota IS NULL AND id > (SELECT max(id) - 4 FROM tiempo.bitacora_config_terminal)$$);
+SELECT pg_temp.rpc('89k la función apaga y deja el estado limpio para lo que sigue', 'authenticated', pg_temp.cambiar('false', NULL, 'NULL'),
+  $c$ NOT ($1->'estado'->>'activo')::boolean AND $1->'estado'->>'motivo' = 'apagado' $c$);
 
 -- ---------- I. la bitácora ----------
 SELECT pg_temp.caso('90 UPDATE sobre la bitácora (incluso el dueño) -> error', current_user::text, $$UPDATE tiempo.bitacora_config_terminal SET nota = 'x'$$, 'error', '-');
