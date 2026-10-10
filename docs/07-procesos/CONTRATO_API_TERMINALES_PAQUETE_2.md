@@ -201,6 +201,30 @@ Valida que `{tu_id}` pertenezca a `{id}` (404 si no). Inserta `baja_solicitada` 
 Errores: `SCJ11` → 409 (estado no válido / ya en baja), 403, 404. «Cancelar alta» y «Dar de baja» son **el mismo
 endpoint** (la diferencia es sólo el estado de origen, `accion_disponible`).
 
+### 2.5 bis `POST /api/terminales/{id}/usuarios/{tu_id}/huella-confirmada` — confirmar la huella a mano (94_, vía C)
+
+Con el conteo de huellas fuera de alcance en la terminal real (V1.3.0 no lo da), una persona declara en la web que **la huella quedó enrolada en el menú del aparato**. Cuerpo CERRADO:
+`{"nota": "…"}` — **la nota es OBLIGATORIA**: tras sanear (espacios colapsados, sin controles ni invisibles) debe medir **10 a 500 caracteres**; si no → **422** «La nota de la
+confirmación debe tener entre 10 y 500 caracteres.» y nada se escribe (el trigger repite la regla con `SCJ12`/`nota_requerida`). Campos extra o tipos distintos → 422 estándar.
+Gate: **`terminal_usuario_edicion`** (el mismo de asignar y dar de baja; no hay permiso nuevo). Valida que `{tu_id}` pertenezca a `{id}` (404 si no) e inserta
+`huella_confirmada_manual` en la bitácora **con el cliente del caller** (origen `web`, `registrado_por = auth.uid()`): la policy `bitacora_terminal_usuario_insert_web` y el trigger
+son la autorización real. **201** con el alta ya en `activo`, `huella_evidencia = "manual"` y `huellas_capturadas = 0` (**0 = «enrolada, conteo desconocido»**, nunca «sin huellas»).
+Una confirmación equivocada **no se deshace** (la bitácora es inmutable): se pide la baja y se asigna de nuevo. No elude el consentimiento biométrico (el de la asignación sigue ligado).
+
+| Error de la base | HTTP | `detail` fijo |
+|---|---|---|
+| `SCJ11` `transicion_invalida` (el alta no está en `esperando_huella`) | 409 | «El movimiento no es válido para el estado actual del alta.» |
+| `SCJ12` `auto_confirmacion_huella_prohibida` (confirmas la huella de tu propia alta; el puesto administrador sí puede) | 422 | «No puedes confirmar tu propia huella; la confirma otra persona con permiso.» |
+| `SCJ12` `misma_persona_que_asigno` (sólo si la base activa los «cuatro ojos»; hoy apagado) | 422 | «Quien asignó el alta no puede confirmar su huella; la confirma otra persona con permiso.» |
+| `SCJ12` `nota_requerida` | 422 | «La nota de la confirmación debe tener entre 10 y 500 caracteres.» |
+| `SCJ12` `marca_no_corresponde` (no debería ocurrir por este endpoint) | 409 | «Ese movimiento no se puede registrar desde aquí.» |
+| `42501` | 403 | «No tienes permiso para esta acción.» |
+
+**`huella_evidencia`** (nuevo en `AltaOut`, 94_): `"conteo"` (el aparato reportó el conteo) · `"inferida"` (la primera marca por huella la activó, 95_) · `"manual"` (una persona la
+confirmó) · `null` (sin evidencia). Sólo la fija el trigger y sólo sube. En el historial (§2.6), cada movimiento `huella_capturada` / `huella_inferida` / `huella_confirmada_manual`
+lleva el `huella_evidencia` correspondiente y los demás `null`. **El backend y la UI no deben leer `huellas_capturadas = 0` como «sin huellas».** DESPLIEGUE: el backend selecciona
+`terminal_usuario.huella_evidencia`, así que **requiere 94_ aplicado** antes de desplegar este corte (sin la columna, las lecturas de altas darían error).
+
 ### 2.6 `GET /api/terminales/{id}/usuarios/{tu_id}/movimientos` — historial
 
 ```json
@@ -415,6 +439,10 @@ Mismo patrón que `traducir_error_dia_cerrado` (devuelve `HTTPException|None`, y
 | `SCJ16` `version_base_desactualizada` | 409 | «Otra persona publicó una versión nueva del texto; vuelve a leerlo antes de publicar.» **+ `consentimiento_vigente`** |
 | `SCJ12` `auto_asignacion_prohibida` | 422 | «No puedes asignarte a ti mismo a una terminal. Sólo el puesto administrador puede hacerlo.» |
 | `SCJ12` `auto_reconsentimiento_prohibido` | 422 | «No puedes registrar tu propio reconsentimiento; lo registra otra persona con permiso.» |
+| `SCJ12` `auto_confirmacion_huella_prohibida` | 422 | «No puedes confirmar tu propia huella; la confirma otra persona con permiso.» (94_) |
+| `SCJ12` `misma_persona_que_asigno` | 422 | «Quien asignó el alta no puede confirmar su huella; la confirma otra persona con permiso.» (94_) |
+| `SCJ12` `nota_requerida` | 422 | «La nota de la confirmación debe tener entre 10 y 500 caracteres.» (94_) |
+| `SCJ12` `marca_no_corresponde` | 409 | «Ese movimiento no se puede registrar desde aquí.» (94_) |
 | cualquier otro | 500 genérico | — |
 
 ### 6.0 Campo estable `codigo` (cambio aditivo, 2026-10-08)
@@ -489,10 +517,10 @@ siguen (el tablero nunca es todo-o-nada).
   ]
 }
 ```
-- **El backend manda el `nivel`** (respuesta al pedido 5): 1 y 7 → `atender`; 2, 3, 4, 5, 6, 8, 10 → `revisar`; 9 →
+- **El backend manda el `nivel`** (respuesta al pedido 5): 1 y 7 → `atender`; 2, 3, 4, 5, 6, 8, 10, 11, 12, 13 → `revisar`; 9 →
   `informativo`; `null` cuando `total` = 0. El frontend sólo lo pinta.
 - **Categorías sin fuente / con fallo:** `no_disponible` si la fuente aún no existe (p. ej. antes de aplicar 84_ para la 5)
-  y `error` si la consulta falla; ambas con `total: null` y `ejemplos: []`.
+  y `error` si la consulta falla; ambas con `total: null` y `ejemplos: []`. Cada tarjeta lleva además `nota` (texto fijo de contexto o `null`; hoy sólo la 11).
 - **«Ver todos»:** `GET …/anomalias/{clave}?desde=&limite=&desplazamiento=` (limite ≤ 200) devuelve `{total, items:[…]}` con la
   misma forma de `ejemplos`.
 
@@ -508,6 +536,9 @@ siguen (el tablero nunca es todo-o-nada).
 | 8 | `altas_atascadas` | `pendiente_alta`/`pendiente_baja` con más de **N h** y `esperando_huella` ya vencidas | `{persona_nombre, estado, horas}` |
 | 9 | `altas_recientes` | `asignado` en el periodo (con quién asignó) | `{persona_nombre, asignada_por, creado_en}` |
 | 10 | `reconsentimientos_pendientes` | `fn_terminal_reconsentimiento_pendiente_ids()` | `{persona_nombre, version_confirmada, version_vigente, dias_pendiente}` |
+| 11 | `huellas_inferidas_exceso` (94_) | días con más de **5** `huella_inferida`, o confirmaciones **manuales** (≥ 3) que son más de la mitad de las activaciones del día (la vía automática no funciona). RPC `fn_terminal_anomalias` | `{dia, inferidas, manuales, activaciones, limite_inferidas}` + **`nota`** fija: «Es ESPERADO el primer día de puesta en marcha: varias altas se activan a la vez…» |
+| 12 | `inferida_sin_marcas` (94_) | alta activada por inferencia/confirmación manual hace > 7 días **sin ninguna marca más** de esa persona en los 7 días siguientes (la marca que sirvió de evidencia no cuenta). RPC | `{persona_nombre, evidencia, activada_en}` |
+| 13 | `asignador_confirmador` (94_) | confirmaciones manuales hechas por **la misma persona que asignó** el alta (la variante barata de los cuatro ojos). RPC | `{persona_nombre, confirmada_por, confirmada_en}` |
 
 **Datos que el caller no puede leer** (marcas, credenciales, `marca_rechazada`, personas con estado, `parametro`): se leen con `service_role`
 **filtrando siempre por el `terminal_id` de la URL en código** y exponiendo sólo lo de la tabla (nombres, fechas, cifras;
@@ -594,6 +625,7 @@ antes de commitear, como hasta ahora.
 | `GET …/{id}/personas-asignables` | edición | caller | C4 |
 | `POST …/{id}/usuarios` (asignar) | edición | caller | C5 |
 | `POST …/{id}/usuarios/{tu_id}/baja` | edición | caller | C4 |
+| `POST …/{id}/usuarios/{tu_id}/huella-confirmada` (94_) | edición | caller | 94_ |
 | `GET …/{id}/usuarios/{tu_id}/movimientos` | lectura/edición | caller | C4 |
 | `POST …/{id}/usuarios/{tu_id}/reconsentimiento` | edición | caller | C6 |
 | `POST …/{id}/usuarios/reconsentimientos` | edición | caller | C6 |

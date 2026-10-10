@@ -75,9 +75,14 @@ Llama `fn_marca_terminal_registrar(p_terminal_id, p_eventos jsonb)` (`service_ro
 | `momento_dispositivo` | — | ISO 8601 con fecha, hora y **zona** (`Z` o `±hh:mm`); 2024-01-01 ≤ t ≤ ahora + 1 año |
 | `desfase_local` | — | `^[+-]\d{2}:\d{2}$` (−12:00 … +14:00): la zona del **lugar** donde ocurrió la marca |
 | `estado_reloj` | — | `sincronizado` · `deriva` · `sin_sincronizar` |
+| `modo_verificacion` | **opcional** | única cadena significativa: **`huella`** (igualdad exacta, sin mayúsculas ni espacios). Cualquier otro valor, tipo o largo se **descarta** (queda `NULL`) antes del RPC; nunca es forma inválida |
 
+- **`modo_verificacion` (95_, 2026-10-09):** campo **opcional** del evento. El puente lo manda **solo** para una marca **`minor 38` cuyo `currentVerifyMode` coincide EXACTAMENTE
+  con el valor de huella del firmware real** (`VALOR_VERIFICACION_HUELLA`, hoy **sin confirmar**: a confirmar en la prueba física con TI; mientras tanto el puente no lo manda
+  nunca). Es la evidencia de la que el RPC infiere la huella enrolada (alta `esperando_huella` → `activo` con `huella_evidencia = 'inferida'`). El resto de los eventos no lleva
+  la clave. El backend lo deja pasar sólo si es la cadena exacta `huella`; no afecta el vocabulario de rechazos ni la idempotencia.
 - **Lista blanca, con tipo estricto por campo:** el backend reconstruye cada evento sólo con las 6 claves de la tabla (más `version_software`
-  inyectada). Se descartan en silencio `origen`, `requiere_revision`, `persona_id`, `fingerData` y cualquier otra. `employee_no` y
+  inyectada, y `modo_verificacion` si es exactamente `huella`). Se descartan en silencio `origen`, `requiere_revision`, `persona_id`, `fingerData` y cualquier otra. `employee_no` y
   `secuencia_local` deben ser **enteros estrictos** (ni `bool` ni `float` ni cadena) con |valor| ≤ 2⁶²; los otros cuatro, **cadenas de ≤ 64
   caracteres sin NUL, sin caracteres de control (C0/C1) y codificables en UTF-8** (un `\u0000` haría fallar a Postgres con `22P05` y tumbaría
   el lote; un sustituto suelto no se puede serializar). Un valor que no cumple **se omite** y el RPC rechaza **ese** evento como
