@@ -19,6 +19,13 @@ logger = logging.getLogger(__name__)
 ESQUEMA_REQUERIDO: tuple[tuple[str, str, str, str], ...] = (
     ("tiempo", "terminal_usuario", "huella_evidencia", "db/ddl/94_tiempo_terminal_huella_evidencia.sql"),
 )
+# (esquema, función, parámetros de la llamada de comprobación, migración). Se llama con service_role y parámetros nulos: la de estado es de solo lectura y la de cambio NO tiene EXECUTE para
+# service_role (la base responde 42501 sin ejecutar nada), de modo que la comprobación no puede escribir; una función inexistente responde PGRST202.
+FUNCIONES_REQUERIDAS: tuple[tuple[str, str, dict, str], ...] = (
+    ("tiempo", "fn_terminal_inferir_huella_estado", {}, "db/ddl/97_tiempo_terminal_inferir_huella_interruptor.sql"),
+    ("tiempo", "fn_terminal_inferir_huella_cambiar", {"p_activa": None, "p_nota": None, "p_hasta": None}, "db/ddl/97_tiempo_terminal_inferir_huella_interruptor.sql"),
+)
+CODIGOS_FUNCION_EXISTE = {"42501", "22023"}  # sin EXECUTE para service_role / parámetros nulos rechazados: la función existe
 # PostgREST/Postgres: columna o tabla inexistente (42703 undefined_column, 42P01 undefined_table, PGRST204 columna no encontrada en la caché, PGRST205 tabla no encontrada).
 CODIGOS_FALTANTE = {"42703", "42P01", "PGRST204", "PGRST205"}
 VARIABLE_OMITIR = "SCJ_PRECONDICIONES"   # "off" la apaga (pruebas y emergencias); por omisión está encendida
@@ -38,6 +45,16 @@ def faltantes(cliente: Client) -> list[tuple[str, str, str, str]]:
             if error.code in CODIGOS_FALTANTE:
                 perdidas.append((esquema, tabla, columna, migracion))
             else:
+                raise PrecondicionNoVerificable(f"código {error.code}") from None
+        except Exception as error:  # red, DNS, credenciales…
+            raise PrecondicionNoVerificable(type(error).__name__) from None
+    for esquema, funcion, parametros, migracion in FUNCIONES_REQUERIDAS:
+        try:
+            cliente.postgrest.schema(esquema).rpc(funcion, parametros).execute()
+        except APIError as error:
+            if error.code in CODIGOS_FALTANTE | {"PGRST202"}:
+                perdidas.append((esquema, funcion, "función", migracion))
+            elif error.code not in CODIGOS_FUNCION_EXISTE:
                 raise PrecondicionNoVerificable(f"código {error.code}") from None
         except Exception as error:  # red, DNS, credenciales…
             raise PrecondicionNoVerificable(type(error).__name__) from None

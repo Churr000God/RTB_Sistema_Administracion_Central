@@ -136,3 +136,52 @@ def test_scj_precondiciones_off_nunca_queda_en_env_example_compose_ni_dockerfile
     candidatos = [*RAIZ.glob(".env*"), *RAIZ.glob("docker-compose*.y*ml"), *RAIZ.glob("**/Dockerfile*"), *RAIZ.glob("frontend/.env*"), RAIZ / "scripts" / "desplegar.sh"]
     candidatos = [c for c in candidatos if c.is_file() and ".venv" not in c.parts and "node_modules" not in c.parts]
     assert candidatos and not [c.name for c in candidatos if "SCJ_PRECONDICIONES" in c.read_text(encoding="utf-8", errors="replace")]
+
+
+# --- funciones del interruptor de la activación por huella (97_) ------------------------------------------------------------------------------
+
+
+def _cliente_con_rpc(errores):
+    """errores: {nombre_de_funcion: APIError|None}; las tablas responden bien."""
+    db = MagicMock()
+    db.postgrest.schema.return_value.table.return_value.select.return_value.limit.return_value.execute.return_value = None
+
+    def rpc(nombre, params):
+        r = MagicMock()
+        error = errores.get(nombre)
+        if error is not None:
+            r.execute.side_effect = error
+        return r
+
+    db.postgrest.schema.return_value.rpc.side_effect = rpc
+    return db
+
+
+def test_las_dos_funciones_del_interruptor_son_precondiciones_de_la_migracion_97():
+    from app.precondiciones import FUNCIONES_REQUERIDAS
+
+    assert {f[1] for f in FUNCIONES_REQUERIDAS} == {"fn_terminal_inferir_huella_estado", "fn_terminal_inferir_huella_cambiar"}
+    assert all(f[3] == "db/ddl/97_tiempo_terminal_inferir_huella_interruptor.sql" for f in FUNCIONES_REQUERIDAS)
+
+
+def test_con_las_funciones_presentes_no_falta_nada():
+    assert faltantes(_cliente_con_rpc({"fn_terminal_inferir_huella_cambiar": APIError({"code": "42501", "message": "x"})})) == []   # sin EXECUTE para service_role: existe
+
+
+def test_una_funcion_inexistente_es_un_faltante_con_su_migracion():
+    perdidas = faltantes(_cliente_con_rpc({"fn_terminal_inferir_huella_estado": APIError({"code": "PGRST202", "message": "no function"})}))
+    assert perdidas == [("tiempo", "fn_terminal_inferir_huella_estado", "función", "db/ddl/97_tiempo_terminal_inferir_huella_interruptor.sql")]
+    assert "97_tiempo_terminal_inferir_huella_interruptor.sql" in mensaje(perdidas) and "fn_terminal_inferir_huella_estado" in mensaje(perdidas)
+
+
+def test_la_comprobacion_de_la_funcion_de_cambio_no_puede_escribir():
+    """Se llama con parámetros NULOS y service_role (sin EXECUTE): la base responde 42501 antes de ejecutar; la comprobación nunca lleva una nota ni un p_activa verdadero."""
+    db = _cliente_con_rpc({"fn_terminal_inferir_huella_cambiar": APIError({"code": "42501", "message": "x"})})
+    faltantes(db)
+    llamadas_cambiar = [c for c in db.postgrest.schema.return_value.rpc.call_args_list if c.args[0] == "fn_terminal_inferir_huella_cambiar"]
+    assert [c.args[1] for c in llamadas_cambiar] == [{"p_activa": None, "p_nota": None, "p_hasta": None}]
+
+
+def test_un_fallo_raro_al_comprobar_la_funcion_es_no_verificable():
+    with pytest.raises(PrecondicionNoVerificable):
+        faltantes(_cliente_con_rpc({"fn_terminal_inferir_huella_estado": APIError({"code": "XX999", "message": "x"})}))

@@ -13,6 +13,7 @@ from postgrest.exceptions import APIError
 
 from app.config import parse_frontend_urls
 from app.errores import CODIGOS_MIGRACION_FALTANTE, MENSAJE_DATOS_INVALIDOS
+from app.interruptor_huella import PREFIJO as PREFIJO_INTERRUPTOR_HUELLA, SinCacheInterruptor
 from app.respuestas_error import ErrorConCampos, manejar_error_con_campos
 from app.scheduler import lifespan
 from app.terminal_auth import HSTS, CabecerasTerminal, LimiteCuerpoTerminal, advertir_despliegue, es_ruta_terminal
@@ -36,6 +37,7 @@ app.add_middleware(
 )
 
 # HSTS en toda respuesta de /api/terminal/* (SCJ-DEC-12 §7), incluidos 401/403/429.
+app.add_middleware(SinCacheInterruptor)  # Cache-Control: no-store en todo el prefijo del interruptor (nombres y notas de texto libre)
 app.add_middleware(LimiteCuerpoTerminal)
 app.add_middleware(CabecerasTerminal)  # el más externo: cubre también el 413 y las respuestas de los handlers
 
@@ -101,6 +103,9 @@ async def manejador_excepciones_no_capturadas(request: Request, exc: Exception) 
         # ServerErrorMiddleware queda por fuera de CabecerasTerminal: se agrega acá (SCJ-DEC-12 §7)
         respuesta.headers["Strict-Transport-Security"] = HSTS
         respuesta.headers["Cache-Control"] = "no-store"
+    if request.url.path.startswith(PREFIJO_INTERRUPTOR_HUELLA):
+        respuesta.headers["Cache-Control"] = "no-store"  # ServerErrorMiddleware queda por fuera de SinCacheInterruptor
+        respuesta.headers["Pragma"] = "no-cache"
     origen = request.headers.get("origin")
     if origen in ORIGENES_PERMITIDOS:
         respuesta.headers["Access-Control-Allow-Origin"] = origen
@@ -152,6 +157,7 @@ from app.routers import terminales  # noqa: E402
 from app.routers import consentimiento_terminales  # noqa: E402
 from app.routers import config_terminales  # noqa: E402
 from app.routers import anomalias_terminales  # noqa: E402
+from app.routers import interruptor_huella  # noqa: E402
 
 app.include_router(personas.router)
 app.include_router(usuarios.router)
@@ -182,6 +188,7 @@ app.include_router(terminales.router_personas)
 app.include_router(consentimiento_terminales.router)
 app.include_router(config_terminales.router)
 app.include_router(anomalias_terminales.router)
+app.include_router(interruptor_huella.router)
 
 
 @app.get("/salud")
