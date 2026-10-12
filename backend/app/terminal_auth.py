@@ -124,12 +124,21 @@ def _par(request: Request) -> str | None:
     return request.client.host if request.client else None
 
 
+def _cabecera_unida(request: Request, nombre: str) -> str:
+    """Todas las líneas de una cabecera repetida, unidas en el orden en que llegaron. `headers.get` devolvería sólo la PRIMERA línea,
+    que es justo la que puede escribir el cliente; un proxy que AÑADE otra línea (en vez de unir con coma) quedaría ignorado."""
+    cabeceras = request.headers
+    if hasattr(cabeceras, "getlist"):
+        return ",".join(cabeceras.getlist(nombre))
+    return cabeceras.get(nombre, "")
+
+
 def ip_cliente(request: Request, settings: Settings) -> str:
     """X-Forwarded-For sólo si el par inmediato es un proxy de confianza; entonces vale la última
     IP NO confiable de la cadena (lo anterior lo puede escribir el cliente)."""
     par = _par(request)
     if _es_confiable(par, settings):
-        reenviado = request.headers.get("x-forwarded-for", "")
+        reenviado = _cabecera_unida(request, "x-forwarded-for")
         for candidato in reversed([parte.strip() for parte in reenviado.split(",")]):
             if not candidato:
                 continue
@@ -144,7 +153,7 @@ def esquema_efectivo(request: Request, settings: Settings) -> str:
     """Esquema real de la petición; X-Forwarded-Proto sólo cuenta si lo manda un proxy de
     confianza y entonces vale el ÚLTIMO valor (el que agregó el proxy)."""
     if _es_confiable(_par(request), settings):
-        proto = request.headers.get("x-forwarded-proto", "").split(",")[-1].strip().lower()
+        proto = _cabecera_unida(request, "x-forwarded-proto").split(",")[-1].strip().lower()
         if proto:
             return proto
     return request.url.scheme.lower()

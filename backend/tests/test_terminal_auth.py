@@ -887,3 +887,94 @@ def test_settings_valores_por_defecto_de_terminal(monkeypatch):
         ajustes.terminal_ventana_fallos_seg,
         ajustes.terminal_bloqueo_base_seg,
     ) == (10, 300, 60)
+
+
+# --- X-Forwarded-For / X-Forwarded-Proto: sólo cuenta lo que agrega un proxy de confianza -------------------------------------------------------
+# Petición ASGI REAL de Starlette con cabeceras crudas (las repetidas se conservan como líneas separadas).
+
+PROXY = "172.19.0.1"          # el proxy de confianza (tailscale serve) en el despliegue de pruebas
+TAILNET = "100.101.102.103"   # IP real del cliente de la tailnet
+
+
+def _peticion(par, cabeceras=(), esquema="http"):
+    from starlette.requests import Request
+
+    scope = {
+        "type": "http", "method": "POST", "path": "/api/terminal/latido", "query_string": b"", "scheme": esquema,
+        "server": ("backend", 8000), "client": (par, 40000) if par else None,
+        "headers": [(k.lower().encode(), v.encode()) for k, v in cabeceras],
+    }
+    return Request(scope)
+
+
+def _confianza(*proxies):
+    return _settings(terminal_proxies_confianza=",".join(proxies))
+
+
+def test_ip_cliente_falsificada_primero_real_despues_toma_la_mas_a_la_derecha_no_confiable():
+    peticion = _peticion(PROXY, [("X-Forwarded-For", f"1.2.3.4, {TAILNET}")])
+    assert terminal_auth.ip_cliente(peticion, _confianza(PROXY)) == TAILNET          # no el primero (que escribió el cliente)
+
+
+def test_ip_cliente_con_varios_saltos_confiables_al_final_los_salta_y_devuelve_la_primera_no_confiable():
+    peticion = _peticion(PROXY, [("X-Forwarded-For", f"1.2.3.4, {TAILNET}, 172.19.0.9")])
+    assert terminal_auth.ip_cliente(peticion, _confianza(PROXY, "172.19.0.0/24")) == TAILNET
+
+
+def test_ip_cliente_cabeceras_repetidas_se_leen_todas_y_vale_la_ultima_linea():
+    """El cliente manda su propio X-Forwarded-For y el proxy AÑADE otra línea en vez de unirlas: la del proxy es la última."""
+    peticion = _peticion(PROXY, [("X-Forwarded-For", "1.2.3.4"), ("X-Forwarded-For", TAILNET)])
+    assert terminal_auth.ip_cliente(peticion, _confianza(PROXY)) == TAILNET
+
+
+def test_ip_cliente_cabeceras_repetidas_con_el_falso_en_la_ultima_linea_no_gana_si_es_confiable_o_el_proxy_agrego_despues():
+    peticion = _peticion(PROXY, [("X-Forwarded-For", "9.9.9.9, 1.2.3.4"), ("X-Forwarded-For", f"{TAILNET}, 172.19.0.9")])
+    assert terminal_auth.ip_cliente(peticion, _confianza(PROXY, "172.19.0.9")) == TAILNET
+
+
+def test_ip_cliente_proxy_no_confiable_ignora_las_cabeceras():
+    peticion = _peticion("203.0.113.50", [("X-Forwarded-For", f"1.2.3.4, {TAILNET}"), ("X-Forwarded-For", "5.6.7.8")])
+    assert terminal_auth.ip_cliente(peticion, _confianza(PROXY)) == "203.0.113.50"
+    assert terminal_auth.ip_cliente(peticion, _confianza()) == "203.0.113.50"          # lista vacía: no se confía en nadie
+
+
+def test_ip_cliente_basura_en_la_cadena_vuelve_al_par():
+    peticion = _peticion(PROXY, [("X-Forwarded-For", f"{TAILNET}, no-es-ip")])
+    assert terminal_auth.ip_cliente(peticion, _confianza(PROXY)) == PROXY
+
+
+@pytest.mark.parametrize("lista", [(PROXY,), (PROXY, "10.0.0.2", "172.19.0.0/16"), ("172.19.0.0/16",)])
+def test_ip_cliente_con_un_solo_elemento_y_con_varios_en_la_lista_de_confianza(lista):
+    peticion = _peticion(PROXY, [("X-Forwarded-For", f"1.2.3.4, {TAILNET}")])
+    assert terminal_auth.ip_cliente(peticion, _confianza(*lista)) == TAILNET
+
+
+def test_ip_cliente_cabecera_x_forwarded_for_ausente_devuelve_el_par():
+    assert terminal_auth.ip_cliente(_peticion(PROXY), _confianza(PROXY)) == PROXY
+    assert terminal_auth.ip_cliente(_peticion(None), _confianza(PROXY)) == "desconocida"
+
+
+def test_esquema_el_proxy_sobrescribe_a_https_y_el_cliente_mando_http_antes():
+    # cliente de la tailnet manda «X-Forwarded-Proto: http»; el proxy escribe https: gana lo último
+    peticion = _peticion(PROXY, [("X-Forwarded-Proto", "http, https")])
+    assert terminal_auth.esquema_efectivo(peticion, _confianza(PROXY)) == "https"
+    repetida = _peticion(PROXY, [("X-Forwarded-Proto", "http"), ("X-Forwarded-Proto", "https")])
+    assert terminal_auth.esquema_efectivo(repetida, _confianza(PROXY)) == "https"
+
+
+def test_esquema_el_cliente_no_puede_declararse_https_por_su_cuenta():
+    # directo (par no confiable) con «https»: se ignora y manda el esquema real (http)
+    assert terminal_auth.esquema_efectivo(_peticion("203.0.113.50", [("X-Forwarded-Proto", "https")]), _confianza(PROXY)) == "http"
+    # por el proxy, que NO sobrescribió y dejó el valor del cliente al final: «http» gana y el canal se rechaza
+    assert terminal_auth.esquema_efectivo(_peticion(PROXY, [("X-Forwarded-Proto", "https, http")]), _confianza(PROXY)) == "http"
+    assert terminal_auth.esquema_efectivo(_peticion(PROXY, [("X-Forwarded-Proto", "https"), ("X-Forwarded-Proto", "http")]), _confianza(PROXY)) == "http"
+
+
+def test_canal_seguro_rechaza_con_403_cuando_el_proxy_confiable_dice_http_aunque_el_cliente_mande_https():
+    from fastapi import HTTPException
+
+    ajustes = _settings(terminal_proxies_confianza=PROXY, terminal_requiere_https=True)
+    with pytest.raises(HTTPException) as e:
+        terminal_auth.canal_seguro(_peticion(PROXY, [("X-Forwarded-Proto", "https, http")]), ajustes)
+    assert e.value.status_code == 403
+    terminal_auth.canal_seguro(_peticion(PROXY, [("X-Forwarded-Proto", "http, https")]), ajustes)          # no lanza
