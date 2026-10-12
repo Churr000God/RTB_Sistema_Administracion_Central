@@ -123,3 +123,41 @@ describe("describirHallazgo · interruptor_huella usa el texto local por código
     expect(describirHallazgo("interruptor_huella", { codigo: "codigo_nuevo", mensaje: "Respaldo." })).toBe("Respaldo.");
   });
 });
+
+describe("describirHallazgo · terminal_sin_contacto (categoría 15)", () => {
+  const d = (e: Record<string, unknown>) => describirHallazgo("terminal_sin_contacto", e);
+
+  it("nunca_comunicada: texto local aunque el servidor mande otro", () => {
+    expect(d({ codigo: "nunca_comunicada", mensaje: "otro <b>texto</b>", minutos_sin_latido: null })).toBe("La terminal registrada aún no se ha comunicado.");
+  });
+
+  it("sin_latido_revisar: «lleva N minutos»; con 1 minuto va en singular; redondea", () => {
+    expect(d({ codigo: "sin_latido_revisar", mensaje: "x", minutos_sin_latido: 7 })).toBe("El puente lleva 7 minutos sin enviar latido.");
+    expect(d({ codigo: "sin_latido_revisar", mensaje: "x", minutos_sin_latido: 1 })).toBe("El puente lleva 1 minuto sin enviar latido.");
+    expect(d({ codigo: "sin_latido_revisar", mensaje: "x", minutos_sin_latido: 7.6 })).toBe("El puente lleva 8 minutos sin enviar latido.");
+  });
+
+  it("sin_latido_atender: «más de N minutos» y la indicación de revisar el servicio y la red", () => {
+    expect(d({ codigo: "sin_latido_atender", mensaje: "x", minutos_sin_latido: 42 })).toBe(
+      "El puente lleva más de 42 minutos sin enviar latido. Revisa el servicio del puente y la red.",
+    );
+  });
+
+  it("sin número legible no se inventa ninguno (null, texto, negativo, NaN)", () => {
+    for (const minutos of [null, "12", -3, Number.NaN, undefined]) {
+      expect(d({ codigo: "sin_latido_revisar", mensaje: "x", minutos_sin_latido: minutos })).toBe("El puente lleva unos minutos sin enviar latido.");
+      expect(d({ codigo: "sin_latido_atender", mensaje: "x", minutos_sin_latido: minutos })).toBe(
+        "El puente lleva mucho tiempo sin enviar latido. Revisa el servicio del puente y la red.",
+      );
+    }
+  });
+
+  it("ingesta_detenida: texto local", () => {
+    expect(d({ codigo: "ingesta_detenida", mensaje: "otro", minutos_sin_latido: 3 })).toBe("La ingesta del puente está detenida y espera a una persona.");
+  });
+
+  it("un código desconocido usa el mensaje del servidor de respaldo; sin mensaje, un texto neutro", () => {
+    expect(d({ codigo: "codigo_nuevo", mensaje: "Respaldo del servidor." })).toBe("Respaldo del servidor.");
+    expect(d({ codigo: "codigo_nuevo" })).toBe("Hallazgo de contacto de la terminal");
+  });
+});

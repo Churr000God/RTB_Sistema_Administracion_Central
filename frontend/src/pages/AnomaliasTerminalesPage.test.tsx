@@ -533,3 +533,57 @@ describe("AnomaliasTerminalesPage · enlace de la tarjeta 14 (huecos de mutació
     expect(screen.queryByRole("link", { name: /activación por huella/i })).not.toBeInTheDocument();
   });
 });
+
+describe("AnomaliasTerminalesPage · categoría 15 (terminal_sin_contacto)", () => {
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+    window.history.replaceState(null, "", "/tiempo/terminales/anomalias");
+  });
+
+  const NOTA = "Aviso pasivo: nadie recibe una notificación; el hallazgo sólo se ve aquí.";
+  const tablero = (categorias: unknown[]) =>
+    new Response(JSON.stringify({ terminal_id: 1, desde: "2026-10-01T00:00:00Z", hasta: "2026-10-08T00:00:00Z", generado_en: "2026-10-08T00:00:00Z", categorias }));
+  const t15 = (extra: Record<string, unknown>) => tarjeta("terminal_sin_contacto", 15, "Terminal sin contacto", extra);
+
+  it("nunca comunicada: descripción local, nivel Revisar y la nota de aviso pasivo (ya no «Hallazgo sin descripción»)", async () => {
+    mockApi({
+      anomalias: () =>
+        tablero([t15({ estado: "con_hallazgos", nivel: "revisar", total: 1, nota: NOTA, ejemplos: [{ codigo: "nunca_comunicada", mensaje: "otro", minutos_sin_latido: null }] })]),
+    });
+    render(<AnomaliasTerminalesPage />);
+    const tarjeta15 = (await screen.findByRole("heading", { name: /15 · terminal sin contacto/i })).closest(".anomalia") as HTMLElement;
+    expect(within(tarjeta15).getByText("La terminal registrada aún no se ha comunicado.")).toBeInTheDocument();
+    expect(within(tarjeta15).getByText("Revisar")).toBeInTheDocument();
+    expect(within(tarjeta15).getByText(NOTA)).toBeInTheDocument();
+    expect(screen.queryByText(/hallazgo sin descripción/i)).not.toBeInTheDocument();
+  });
+
+  it("sin latido con nivel atender: «más de N minutos», insignia Atender", async () => {
+    mockApi({
+      anomalias: () =>
+        tablero([t15({ estado: "con_hallazgos", nivel: "atender", total: 2, ejemplos: [{ codigo: "sin_latido_atender", mensaje: "x", minutos_sin_latido: 31 }, { codigo: "ingesta_detenida", mensaje: "y", minutos_sin_latido: 31 }] })]),
+    });
+    render(<AnomaliasTerminalesPage />);
+    const tarjeta15 = (await screen.findByRole("heading", { name: /15 · terminal sin contacto/i })).closest(".anomalia") as HTMLElement;
+    expect(within(tarjeta15).getByText("Atender")).toBeInTheDocument();
+    expect(within(tarjeta15).getByText(/más de 31 minutos sin enviar latido/)).toBeInTheDocument();
+    expect(within(tarjeta15).getByText("La ingesta del puente está detenida y espera a una persona.")).toBeInTheDocument();
+  });
+
+  it("el texto del servidor se pinta como texto plano y la tarjeta no lleva el enlace del interruptor", async () => {
+    mockApi({
+      anomalias: () => tablero([t15({ estado: "con_hallazgos", nivel: "revisar", total: 1, ejemplos: [{ codigo: "codigo_nuevo", mensaje: "<b>respaldo</b>" }] })]),
+    });
+    const { container } = render(<AnomaliasTerminalesPage />);
+    expect(await screen.findByText("<b>respaldo</b>")).toBeInTheDocument();
+    expect(container.querySelector("b")).toBeNull();
+    expect(screen.queryByRole("link", { name: /activación por huella/i })).not.toBeInTheDocument();
+  });
+
+  it("«Sin hallazgos en el periodo» cuenta las 15 revisiones", async () => {
+    const quince = Array.from({ length: 15 }, (_, i) => tarjeta(`clave_${i + 1}`, i + 1, `Revisión ${i + 1}`));
+    mockApi({ anomalias: () => tablero(quince) });
+    render(<AnomaliasTerminalesPage />);
+    expect(await screen.findByText(/las 15 revisiones se hicieron/i)).toBeInTheDocument();
+  });
+});

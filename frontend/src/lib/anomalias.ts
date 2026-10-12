@@ -55,6 +55,33 @@ const ESTADO_PERSONA: Record<string, string> = {
 
 const ESTADO_ALTA = (valor: unknown): string => ETIQUETA_ESTADO_ALTA[valor as EstadoAlta] ?? texto(valor);
 
+// «hace N minutos» a partir de minutos_sin_latido (redondeado). Sin un número legible no se inventa ninguno.
+function minutosTexto(valor: unknown): string | null {
+  if (typeof valor !== "number" || !Number.isFinite(valor) || valor < 0) return null;
+  const n = Math.round(valor);
+  return `${n} ${n === 1 ? "minuto" : "minutos"}`;
+}
+
+// Textos LOCALES de la categoría 15 por código; el mensaje del servidor sólo respalda un código desconocido.
+function describirSinContacto(e: Record<string, unknown>): string {
+  const minutos = minutosTexto(e.minutos_sin_latido);
+  switch (e.codigo) {
+    case "nunca_comunicada":
+      return "La terminal registrada aún no se ha comunicado.";
+    case "sin_latido_revisar":
+    case "sin_latido":
+      return minutos ? `El puente lleva ${minutos} sin enviar latido.` : "El puente lleva unos minutos sin enviar latido.";
+    case "sin_latido_atender":
+      return minutos
+        ? `El puente lleva más de ${minutos} sin enviar latido. Revisa el servicio del puente y la red.`
+        : "El puente lleva mucho tiempo sin enviar latido. Revisa el servicio del puente y la red.";
+    case "ingesta_detenida":
+      return "La ingesta del puente está detenida y espera a una persona.";
+    default:
+      return typeof e.mensaje === "string" && e.mensaje.length > 0 ? e.mensaje : "Hallazgo de contacto de la terminal";
+  }
+}
+
 // Una línea de texto PLANO por hallazgo (los nombres vienen del servidor: nunca se interpretan como HTML).
 // Nunca se muestran ids de persona, employee_no, hashes ni IP: el backend tampoco los manda.
 export function describirHallazgo(clave: string, e: Record<string, unknown>): string {
@@ -99,6 +126,8 @@ export function describirHallazgo(clave: string, e: Record<string, unknown>): st
       const evidencia = e.evidencia === "inferida" || e.evidencia === "manual" ? ETIQUETA_EVIDENCIA_SIN_CONTEO[e.evidencia] : "Huella activada";
       return `${texto(e.persona_nombre)} · ${evidencia} · activada ${fechaHora(e.activada_en)}, sin marcas posteriores en 7 días`;
     }
+    case "terminal_sin_contacto":
+      return describirSinContacto(e);
     case "interruptor_huella":
       return textoDeCodigoDeEstado(typeof e.codigo === "string" ? e.codigo : null, typeof e.mensaje === "string" ? e.mensaje : null) ?? "Revisa el interruptor de la activación por huella";
     case "asignador_confirmador":
