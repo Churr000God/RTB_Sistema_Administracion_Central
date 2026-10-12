@@ -84,6 +84,16 @@ INSERT INTO _res (caso, ok, detalle) SELECT 'P0 la foto previa tiene relaciones 
 
 SELECT pg_temp.foto('despues');
 
+-- Defaults de objetos (security): se IMPRIME siempre el pg_default_acl COMPLETO (todos los roles y esquemas, incluidos los globales de Supabase, defaclnamespace = 0), pase o falle D1.
+-- Si D1 falla NO se corrige con un REVOKE global sin verlo: un default global para anon no lo retira ALTER DEFAULT PRIVILEGES IN SCHEMA; se reporta.
+\echo '=== pg_default_acl COMPLETO tras aplicar 100_ (rol | esquema | tipo | aclitems) ==='
+SELECT pg_get_userbyid(d.defaclrole) AS rol, COALESCE(n.nspname, '(global)') AS esquema, d.defaclobjtype AS tipo, d.defaclacl::text AS aclitems
+FROM pg_default_acl d LEFT JOIN pg_namespace n ON n.oid = d.defaclnamespace ORDER BY 1, 2, 3;
+INSERT INTO _res (caso, ok, detalle)
+SELECT 'D0 (informativo) defaults que otorgan algo a anon (cualquier rol/esquema, incluido global)', true,
+       COALESCE(string_agg(pg_get_userbyid(d.defaclrole) || '/' || COALESCE(n.nspname, '(global)') || '/' || d.defaclobjtype, '; '), 'ninguno')
+FROM pg_default_acl d LEFT JOIN pg_namespace n ON n.oid = d.defaclnamespace CROSS JOIN LATERAL aclexplode(d.defaclacl) a JOIN pg_roles g ON g.oid = a.grantee WHERE g.rolname = 'anon';
+
 -- ============================================================================
 -- A) Diferencia de privilegios
 -- ============================================================================
@@ -181,6 +191,9 @@ SELECT pg_temp.verifica('E4 aplicarla una vez más no falla ni cambia los privil
 -- ============================================================================
 \ir ../verificar_ddl.sql
 
+\echo '=== pg_default_acl COMPLETO al final (tras reaplicar 100_) ==='
+SELECT pg_get_userbyid(d.defaclrole) AS rol, COALESCE(n.nspname, '(global)') AS esquema, d.defaclobjtype AS tipo, d.defaclacl::text AS aclitems
+FROM pg_default_acl d LEFT JOIN pg_namespace n ON n.oid = d.defaclnamespace ORDER BY 1, 2, 3;
 SELECT n, CASE WHEN ok THEN 'PASS' ELSE 'FAIL' END AS resultado, caso, detalle FROM _res ORDER BY n;
 SELECT count(*) FILTER (WHERE NOT ok) AS fallas, count(*) AS total FROM _res;
 ROLLBACK;

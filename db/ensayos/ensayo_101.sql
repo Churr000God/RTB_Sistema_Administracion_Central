@@ -1,6 +1,6 @@
 -- Ensayo de 101_tiempo_terminal_bitacora_aplica_sin_identidad_en_errores.sql. NO es DDL versionado. NO correr sin OK explícito del usuario ni antes de la revisión de security.
 --   psql -X "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/ensayos/ensayo_101.sql     (SIN -1; puerto 5432)
--- Todo dentro de BEGIN … ROLLBACK. Aplica SOLO 101_ (sobre 88_-100_). Terminales sintéticas; no toca altas ni personas reales (el trigger es BEFORE INSERT y levanta antes de cualquier efecto).
+-- Todo dentro de BEGIN … ROLLBACK. Aplica SOLO 101_ (sobre 88_-100_). Terminales, persona y alta SINTÉTICAS (creadas en la transacción y revertidas); el administrador real solo figura como autor (registrado_por) de la alta sintética.
 \set ON_ERROR_STOP on
 BEGIN;
 SET LOCAL lock_timeout = '3s';
@@ -55,7 +55,7 @@ SELECT pg_temp.verifica('5 el cuerpo ya no interpola identificadores en ningún 
   $$SELECT p.prosrc NOT LIKE '%NEW.persona_id, NEW.terminal_id%' AND p.prosrc NOT LIKE '%v_vivo.id, v_vivo.terminal_id%' AND p.prosrc NOT LIKE '%NEW.employee_no, v_vivo.id%' AND p.prosrc NOT LIKE '%NEW.terminal_id USING%'
     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'tiempo' AND p.proname = 'fn_bitacora_terminal_usuario_aplica'$$);
 
--- Comportamiento: mismos ERRCODE y HINT, sin el identificador en el mensaje (la persona es un uuid aleatorio: el chequeo de terminal va antes que el de persona).
+-- Comportamiento (7 raises cambiados: 6-8 y 11-14; el 7.º, 'ya tiene aceptada', es el 14): mismos ERRCODE y HINT, sin el identificador en el mensaje (la persona es un uuid aleatorio: el chequeo de terminal va antes que el de persona).
 SELECT pg_temp.rechaza('6 asignado con terminal INACTIVA: SCJ12 terminal_no_valida y el mensaje no contiene el id de la terminal',
   format($f$INSERT INTO tiempo.bitacora_movimiento_terminal_usuario (terminal_id, persona_id, tipo_movimiento, origen) VALUES (%s, gen_random_uuid(), 'asignado', 'web')$f$, (SELECT id FROM tiempo.terminal WHERE terminal_id = 'ENSAYO-101I')),
   'SCJ12', 'terminal_no_valida', (SELECT id::text FROM tiempo.terminal WHERE terminal_id = 'ENSAYO-101I'));
@@ -65,7 +65,45 @@ SELECT pg_temp.rechaza('7 asignado con terminal ACTIVA y persona inexistente: SC
 SELECT pg_temp.rechaza('8 movimiento sobre una alta inexistente: SCJ11 transicion_invalida y el mensaje no contiene el id recibido',
   format($f$INSERT INTO tiempo.bitacora_movimiento_terminal_usuario (terminal_id, persona_id, terminal_usuario_id, tipo_movimiento, origen) VALUES (%s, '00000000-0000-4000-8000-000000000101', 987654321, 'usuario_creado', 'terminal')$f$, (SELECT id FROM tiempo.terminal WHERE terminal_id = 'ENSAYO-101')),
   'SCJ11', 'transicion_invalida', '987654321');
-SELECT pg_temp.verifica('9 ninguna fila se escribió en la bitácora por los rechazos', $$SELECT NOT EXISTS (SELECT 1 FROM tiempo.bitacora_movimiento_terminal_usuario WHERE terminal_id IN (SELECT id FROM tiempo.terminal WHERE terminal_id LIKE 'ENSAYO-101%'))$$);
+SELECT pg_temp.verifica('9 ninguna fila se escribió en la bitácora por los rechazos', $$SELECT NOT EXISTS (SELECT 1 FROM tiempo.bitacora_movimiento_terminal_usuario WHERE terminal_id = (SELECT id FROM tiempo.terminal WHERE terminal_id = 'ENSAYO-101I'))$$);
+
+-- ---- Los 4 raises restantes: persona sintética con una alta REAL creada dentro de la transacción (se revierte) ----
+INSERT INTO personas.persona (curp, rfc, nss, primer_nombre, apellido_paterno, fecha_nacimiento, fecha_ingreso)
+VALUES ('XEXX010101HNEXXY91', 'XEXY01010191', '99999940091', 'Sintetica91', 'Ensayo101', DATE '2000-01-01', CURRENT_DATE);
+INSERT INTO tiempo.persona (id) SELECT id FROM personas.persona WHERE curp = 'XEXX010101HNEXXY91' ON CONFLICT DO NOTHING;
+CREATE TEMP TABLE _ens (k text PRIMARY KEY, v text);
+INSERT INTO _ens SELECT 'persona', id::text FROM personas.persona WHERE curp = 'XEXX010101HNEXXY91';
+INSERT INTO _ens SELECT 'terminal', id::text FROM tiempo.terminal WHERE terminal_id = 'ENSAYO-101';
+INSERT INTO _ens SELECT 'terminal_otra', id::text FROM tiempo.terminal WHERE terminal_id = 'ENSAYO-101I';
+INSERT INTO _ens SELECT 'autor', u.auth_user_id::text FROM personas.usuario u JOIN personas.persona p ON p.id = u.persona_id AND p.estado = 'activo'
+  JOIN personas.asignacion a ON a.persona_id = p.id AND a.vigente_hasta IS NULL JOIN personas.puesto pu ON pu.id = a.puesto_id AND pu.es_administrador_generico LIMIT 1;
+INSERT INTO _ens SELECT 'consent', id::text FROM tiempo.terminal_consentimiento ORDER BY version DESC LIMIT 1;
+-- Alta real: asignado (como dueño, autor = el administrador) y usuario_creado del Pi (el RPC pone employee_no y terminal_usuario).
+INSERT INTO tiempo.bitacora_movimiento_terminal_usuario (terminal_id, persona_id, tipo_movimiento, origen, registrado_por, consentimiento_id)
+SELECT (SELECT v::bigint FROM _ens WHERE k = 'terminal'), (SELECT v::uuid FROM _ens WHERE k = 'persona'), 'asignado', 'web', (SELECT v::uuid FROM _ens WHERE k = 'autor'), (SELECT v::bigint FROM _ens WHERE k = 'consent');
+INSERT INTO _ens SELECT 'tu', id::text FROM tiempo.terminal_usuario WHERE persona_id = (SELECT v::uuid FROM _ens WHERE k = 'persona');
+SELECT tiempo.fn_terminal_movimiento_registrar((SELECT v::bigint FROM _ens WHERE k = 'terminal'), (SELECT v::bigint FROM _ens WHERE k = 'tu'), 'usuario_creado', NULL, NULL);
+INSERT INTO _ens SELECT 'emp', employee_no::text FROM tiempo.terminal_usuario WHERE id = (SELECT v::bigint FROM _ens WHERE k = 'tu');
+SELECT pg_temp.verifica('10 la alta sintética quedó en esperando_huella (precondición de los casos 11-14)',
+  $$SELECT estado = 'esperando_huella' FROM tiempo.terminal_usuario WHERE id = (SELECT v::bigint FROM _ens WHERE k = 'tu')$$);
+SELECT pg_temp.rechaza('11 alta duplicada (la persona ya tiene alta vigente): SCJ12 alta_duplicada y el mensaje no contiene el uuid de la persona',
+  format($f$INSERT INTO tiempo.bitacora_movimiento_terminal_usuario (terminal_id, persona_id, tipo_movimiento, origen, registrado_por, consentimiento_id) VALUES (%s, %L::uuid, 'asignado', 'web', %L::uuid, %s)$f$,
+         (SELECT v FROM _ens WHERE k = 'terminal'), (SELECT v FROM _ens WHERE k = 'persona'), (SELECT v FROM _ens WHERE k = 'autor'), (SELECT v FROM _ens WHERE k = 'consent')),
+  'SCJ12', 'alta_duplicada', (SELECT v FROM _ens WHERE k = 'persona'));
+SELECT pg_temp.rechaza('12 terminal/persona no coinciden con la alta: SCJ11 transicion_invalida y el mensaje no contiene el uuid de la persona',
+  format($f$INSERT INTO tiempo.bitacora_movimiento_terminal_usuario (terminal_usuario_id, terminal_id, persona_id, employee_no, tipo_movimiento, origen) VALUES (%s, %s, %L::uuid, %s, 'huella_capturada', 'terminal')$f$,
+         (SELECT v FROM _ens WHERE k = 'tu'), (SELECT v FROM _ens WHERE k = 'terminal_otra'), (SELECT v FROM _ens WHERE k = 'persona'), (SELECT v FROM _ens WHERE k = 'emp')),
+  'SCJ11', 'transicion_invalida', (SELECT v FROM _ens WHERE k = 'persona'));
+SELECT pg_temp.rechaza('13 employee_no no coincide con el de la alta: SCJ11 transicion_invalida y el mensaje no contiene el uuid de la persona',
+  format($f$INSERT INTO tiempo.bitacora_movimiento_terminal_usuario (terminal_usuario_id, terminal_id, persona_id, employee_no, tipo_movimiento, origen) VALUES (%s, %s, %L::uuid, %s, 'huella_capturada', 'terminal')$f$,
+         (SELECT v FROM _ens WHERE k = 'tu'), (SELECT v FROM _ens WHERE k = 'terminal'), (SELECT v FROM _ens WHERE k = 'persona'), (SELECT (v::integer + 1)::text FROM _ens WHERE k = 'emp')),
+  'SCJ11', 'transicion_invalida', (SELECT v FROM _ens WHERE k = 'persona'));
+SELECT pg_temp.rechaza('14 la alta ya tiene aceptada esa versión del texto (reconsentido con la misma versión): SCJ11 transicion_invalida y el mensaje no contiene el uuid de la persona',
+  format($f$INSERT INTO tiempo.bitacora_movimiento_terminal_usuario (terminal_usuario_id, terminal_id, persona_id, employee_no, tipo_movimiento, origen, registrado_por, consentimiento_id) VALUES (%s, %s, %L::uuid, %s, 'reconsentido', 'web', %L::uuid, %s)$f$,
+         (SELECT v FROM _ens WHERE k = 'tu'), (SELECT v FROM _ens WHERE k = 'terminal'), (SELECT v FROM _ens WHERE k = 'persona'), (SELECT v FROM _ens WHERE k = 'emp'), (SELECT v FROM _ens WHERE k = 'autor'), (SELECT v FROM _ens WHERE k = 'consent')),
+  'SCJ11', 'transicion_invalida', (SELECT v FROM _ens WHERE k = 'persona'));
+SELECT pg_temp.verifica('15 los 4 rechazos no escribieron nada: la bitácora de la persona sintética tiene exactamente asignado y usuario_creado',
+  $$SELECT count(*) = 2 FROM tiempo.bitacora_movimiento_terminal_usuario WHERE persona_id = (SELECT v::uuid FROM _ens WHERE k = 'persona')$$);
 
 \ir ../verificar_ddl.sql
 

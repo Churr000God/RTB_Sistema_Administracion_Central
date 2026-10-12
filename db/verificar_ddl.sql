@@ -1645,8 +1645,10 @@ WHERE n.nspname = 'tiempo' AND d.defaclobjtype IN ('r', 'S')
   AND (g.rolname = 'anon'
        OR (d.defaclobjtype = 'r' AND g.rolname IN ('authenticated', 'service_role') AND a.privilege_type IN ('TRUNCATE', 'REFERENCES', 'TRIGGER')));
 
--- 64) fn_bitacora_terminal_usuario_aplica tras 101_: sigue SECURITY DEFINER con search_path exacto y sin EXECUTE para nadie de la API (es trigger), y sus RAISE EXCEPTION ya no interpolan
--- identificadores (terminal, persona, id de la alta ni employee_no). Esperado: 0 filas DESPUÉS de aplicar 101_.
+-- 64) fn_bitacora_terminal_usuario_aplica tras 101_: sigue SECURITY DEFINER con search_path exacto y sin EXECUTE para nadie de la API (es trigger), y NINGÚN RAISE EXCEPTION interpola
+-- identificadores: se examina cada sentencia «RAISE EXCEPTION … USING» del cuerpo (todas llevan USING ERRCODE/HINT; se comprueba que cuadra el conteo para que la expresión no sea vacua)
+-- y se rechaza NEW.(persona_id|terminal_id|employee_no|terminal_usuario_id) y v_vivo.(id|persona_id|terminal_id|employee_no) entre el RAISE y su USING. Se permiten los % con
+-- v_vivo.estado, NEW.tipo_movimiento y c_nota_min_manual. Esperado: 0 filas DESPUÉS de aplicar 101_.
 SELECT 'fn_bitacora_terminal_usuario_aplica: propiedades incorrectas o RAISE con identificadores' AS problema, p.proname AS detalle
 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
 WHERE n.nspname = 'tiempo' AND p.proname = 'fn_bitacora_terminal_usuario_aplica'
@@ -1654,6 +1656,8 @@ WHERE n.nspname = 'tiempo' AND p.proname = 'fn_bitacora_terminal_usuario_aplica'
            AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
            AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE')
            AND NOT EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')
-           AND p.prosrc NOT LIKE '%NEW.persona_id, NEW.terminal_id%' AND p.prosrc NOT LIKE '%v_vivo.id, v_vivo.terminal_id%' AND p.prosrc NOT LIKE '%NEW.employee_no, v_vivo.id%'
-           AND p.prosrc NOT LIKE '%NEW.terminal_id USING%' AND p.prosrc NOT LIKE '%NEW.persona_id USING%' AND p.prosrc NOT LIKE '%NEW.terminal_usuario_id%USING ERRCODE%'
-           AND p.prosrc NOT LIKE '%esa versión del texto'', v_vivo.id%');
+           AND (SELECT count(*) FROM regexp_matches(p.prosrc, 'RAISE EXCEPTION(.*?)USING', 'gs')) >= 20
+           AND (SELECT count(*) FROM regexp_matches(p.prosrc, 'RAISE EXCEPTION(.*?)USING', 'gs'))
+               = (length(p.prosrc) - length(replace(p.prosrc, 'RAISE EXCEPTION', ''))) / length('RAISE EXCEPTION')
+           AND NOT EXISTS (SELECT 1 FROM regexp_matches(p.prosrc, 'RAISE EXCEPTION(.*?)USING', 'gs') m
+                           WHERE m[1] ~ '(NEW\.(persona_id|terminal_id|employee_no|terminal_usuario_id)|v_vivo\.(id|persona_id|terminal_id|employee_no))\M'));
