@@ -1,0 +1,45 @@
+--- vigente (94_)
++++ nuevo (101_)
+@@ -70,4 +70,4 @@
+     IF NOT FOUND THEN
+-      RAISE EXCEPTION 'La terminal % no existe o no está activa; no se puede asignar',
+-        NEW.terminal_id USING ERRCODE = 'SCJ12', HINT = 'terminal_no_valida';
++      RAISE EXCEPTION 'La terminal no existe o no está activa; no se puede asignar'
++        USING ERRCODE = 'SCJ12', HINT = 'terminal_no_valida';
+     END IF;
+@@ -77,4 +77,4 @@
+     ) THEN
+-      RAISE EXCEPTION 'La persona % no existe o no está activa; no se puede asignar a la terminal',
+-        NEW.persona_id USING ERRCODE = 'SCJ12', HINT = 'persona_no_activa';
++      RAISE EXCEPTION 'La persona no existe o no está activa; no se puede asignar a la terminal'
++        USING ERRCODE = 'SCJ12', HINT = 'persona_no_activa';
+     END IF;
+@@ -86,4 +86,4 @@
+     ) THEN
+-      RAISE EXCEPTION 'La persona % ya tiene un alta vigente en la terminal %',
+-        NEW.persona_id, NEW.terminal_id USING ERRCODE = 'SCJ12', HINT = 'alta_duplicada';
++      RAISE EXCEPTION 'La persona ya tiene un alta vigente en la terminal'
++        USING ERRCODE = 'SCJ12', HINT = 'alta_duplicada';
+     END IF;
+@@ -127,3 +127,3 @@
+   IF NOT FOUND THEN
+-    RAISE EXCEPTION 'terminal_usuario % no existe', NEW.terminal_usuario_id
++    RAISE EXCEPTION 'La alta indicada no existe'
+       USING ERRCODE = 'SCJ11', HINT = 'transicion_invalida';
+@@ -133,4 +133,3 @@
+      OR NEW.persona_id IS DISTINCT FROM v_vivo.persona_id THEN
+-    RAISE EXCEPTION 'terminal_id/persona_id no coinciden con la alta % (terminal %, persona %)',
+-      v_vivo.id, v_vivo.terminal_id, v_vivo.persona_id
++    RAISE EXCEPTION 'terminal_id/persona_id no coinciden con la alta'
+       USING ERRCODE = 'SCJ11', HINT = 'transicion_invalida';
+@@ -141,4 +140,3 @@
+   ELSIF NEW.employee_no IS DISTINCT FROM v_vivo.employee_no THEN
+-    RAISE EXCEPTION 'employee_no % no coincide con el de la alta % (%)',
+-      NEW.employee_no, v_vivo.id, v_vivo.employee_no
++    RAISE EXCEPTION 'employee_no no coincide con el de la alta'
+       USING ERRCODE = 'SCJ11', HINT = 'transicion_invalida';
+@@ -279,3 +277,3 @@
+     IF v_vivo.consentimiento_id = NEW.consentimiento_id THEN
+-      RAISE EXCEPTION 'La alta % ya tiene aceptada esa versión del texto', v_vivo.id
++      RAISE EXCEPTION 'La alta ya tiene aceptada esa versión del texto'
+         USING ERRCODE = 'SCJ11', HINT = 'transicion_invalida';

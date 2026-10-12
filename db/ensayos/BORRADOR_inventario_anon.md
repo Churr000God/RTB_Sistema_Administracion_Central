@@ -1,6 +1,6 @@
 # Borrador de inventario — endurecimiento de `anon` (parte B de la propuesta de `security`)
 
-**Estado:** BORRADOR de texto. No contiene SQL aplicable, no se ha consultado la base real y no hay ningún archivo `.sql` asociado. Sirve para decidir el alcance antes de escribir un archivo de DDL, ensayarlo y pedir autorización.
+**Estado (12-oct-2026):** el borrador pasó a DDL escrito y sin aplicar: `db/ddl/100_tiempo_revoca_anon_y_privilegios_de_estructura.sql` (alcance: solo `tiempo`; revoca por catálogo, así que el inventario por tabla de abajo es informativo y no condiciona el script), ensayo `db/ensayos/ensayo_100.sql` y sección 63 del verificador. `personas`, `USAGE` del esquema y `EXECUTE` de funciones quedan fuera, a propósito.
 **Fecha:** 10 de octubre de 2026. **Autor:** sesión `db`. **Origen:** propuesta de `security` tras el retiro de `terminal_checador` (`93_`), anotada en `db/ensayos/README.md`.
 
 ---

@@ -1615,3 +1615,45 @@ WHERE n.nspname = 'tiempo' AND p.proname = 'fn_terminal_latido' AND p.pronargs =
            AND has_function_privilege('service_role', p.oid, 'EXECUTE')
            AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
            AND NOT EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE'));
+
+-- 63) Privilegios de estructura del esquema tiempo tras 100_: (a) anon no tiene NINGÚN privilegio (tabla, columna ni secuencia) sobre ninguna relación de tiempo; (b) authenticated y
+-- service_role no tienen TRUNCATE, REFERENCES ni TRIGGER sobre ninguna tabla de tiempo; (c) los privilegios por defecto del esquema (pg_default_acl) ya no conceden nada a anon ni
+-- TRUNCATE/REFERENCES/TRIGGER a authenticated/service_role. Esperado: 0 filas DESPUÉS de aplicar 100_ (antes de aplicarla devuelve filas).
+SELECT c.relname::text AS objeto, r.rol, p.priv AS privilegio_de_mas
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+CROSS JOIN (VALUES ('anon')) AS r(rol)
+CROSS JOIN (VALUES ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) AS p(priv)
+WHERE n.nspname = 'tiempo' AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+  AND (has_table_privilege(r.rol, c.oid, p.priv)
+       OR (p.priv IN ('SELECT', 'INSERT', 'UPDATE', 'REFERENCES') AND has_any_column_privilege(r.rol, c.oid, p.priv)))
+UNION ALL
+SELECT c.relname::text, 'anon', p.priv
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+CROSS JOIN (VALUES ('USAGE'), ('SELECT'), ('UPDATE')) AS p(priv)
+WHERE n.nspname = 'tiempo' AND c.relkind = 'S' AND has_sequence_privilege('anon', c.oid, p.priv)
+UNION ALL
+SELECT c.relname::text, r.rol, p.priv
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+CROSS JOIN (VALUES ('authenticated'), ('service_role')) AS r(rol)
+CROSS JOIN (VALUES ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) AS p(priv)
+WHERE n.nspname = 'tiempo' AND c.relkind IN ('r', 'p') AND has_table_privilege(r.rol, c.oid, p.priv)
+UNION ALL
+SELECT 'pg_default_acl(' || d.defaclobjtype || ')', g.rolname, a.privilege_type
+FROM pg_default_acl d JOIN pg_namespace n ON n.oid = d.defaclnamespace
+CROSS JOIN LATERAL aclexplode(d.defaclacl) a JOIN pg_roles g ON g.oid = a.grantee
+WHERE n.nspname = 'tiempo' AND d.defaclobjtype IN ('r', 'S')
+  AND (g.rolname = 'anon'
+       OR (d.defaclobjtype = 'r' AND g.rolname IN ('authenticated', 'service_role') AND a.privilege_type IN ('TRUNCATE', 'REFERENCES', 'TRIGGER')));
+
+-- 64) fn_bitacora_terminal_usuario_aplica tras 101_: sigue SECURITY DEFINER con search_path exacto y sin EXECUTE para nadie de la API (es trigger), y sus RAISE EXCEPTION ya no interpolan
+-- identificadores (terminal, persona, id de la alta ni employee_no). Esperado: 0 filas DESPUÉS de aplicar 101_.
+SELECT 'fn_bitacora_terminal_usuario_aplica: propiedades incorrectas o RAISE con identificadores' AS problema, p.proname AS detalle
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'tiempo' AND p.proname = 'fn_bitacora_terminal_usuario_aplica'
+  AND NOT (p.prosecdef AND p.proconfig = ARRAY['search_path=tiempo, personas, pg_temp']
+           AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
+           AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE')
+           AND NOT EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')
+           AND p.prosrc NOT LIKE '%NEW.persona_id, NEW.terminal_id%' AND p.prosrc NOT LIKE '%v_vivo.id, v_vivo.terminal_id%' AND p.prosrc NOT LIKE '%NEW.employee_no, v_vivo.id%'
+           AND p.prosrc NOT LIKE '%NEW.terminal_id USING%' AND p.prosrc NOT LIKE '%NEW.persona_id USING%' AND p.prosrc NOT LIKE '%NEW.terminal_usuario_id%USING ERRCODE%'
+           AND p.prosrc NOT LIKE '%esa versión del texto'', v_vivo.id%');
