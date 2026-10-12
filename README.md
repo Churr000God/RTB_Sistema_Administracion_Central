@@ -72,6 +72,12 @@ variables sólo de frontend (el backend no envía correos, delega 100% en Supaba
 leen de `frontend/.env`; en prod son de **build** (van como build arg, igual que las demás
 `VITE_*`) — cambiar el valor exige `--build`, no basta reiniciar el contenedor.
 
+`VITE_API_URL` (la URL del backend) es la `VITE_*` que más cambia entre entornos: en local es
+`http://localhost:8000`, pero **en producción debe ser `https`** (por ejemplo la URL que publica
+`tailscale serve` del servidor, `https://scj.<su-red>.ts.net`; un frontend servido por https no puede
+llamar a un backend `http` por contenido mixto). Como las demás, se lee de `frontend/.env` al construir:
+tras cambiarla hay que reconstruir con `--build`.
+
 ### Vía A — Docker (recomendada, un comando)
 
 ```bash

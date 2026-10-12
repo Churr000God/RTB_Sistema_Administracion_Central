@@ -105,6 +105,7 @@ Fuente: plan de migración (`okey-ahora-ya-casi-wobbly-crystal.md` §2.1). Ver t
 - [ ] `frontend/.env`: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (paso 1), `VITE_API_URL`,
       y los 4 `VITE_CONTACTO_*` (ver `frontend/.env.example` para los valores de RTB ya
       precargados como referencia).
+      `VITE_API_URL` es de *build* (cambiarla exige `--build`) y en producción debe ser `https`.
 - [ ] Confirmar con `git status` que ninguno de los dos `.env` quedó en seguimiento de git.
 
 ## 12. Verificación end-to-end
