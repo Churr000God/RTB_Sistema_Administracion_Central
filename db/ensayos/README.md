@@ -74,6 +74,11 @@ no coinciden…») terminan en el log del servidor aunque el backend no los mues
 que toque cada función (no en 94_/95_). Los `RAISE WARNING` ya están cubiertos: 95_ (`fn_marca_terminal_registrar`), 96_ (`fn_terminal_rechazo_registrar` y
 `fn_terminal_baja_por_persona_inactiva`) y la consulta estática 59 de `verificar_ddl.sql`.
 
+## Siguientes cortes anotados (12-oct-2026, de la revisión de `security` de `100_`/`101_`; no mezclar con ellos)
+- **Mismo REVOKE por catálogo para `personas`** (`08_personas_permisos.sql` da GRANT ALL a `anon`; ahí viven CURP/RFC/NSS: prioridad): archivo propio, ensayo con `SET ROLE anon` y sección nueva del verificador.
+- **Inventario de `EXECUTE`** en `tiempo` y `personas`: funciones con `prosecdef` y `has_function_privilege('anon', …)`, con decisión una por una (nacen con `EXECUTE` para `PUBLIC`).
+- Si el ensayo de `100_` muestra un default GLOBAL de Supabase que otorga algo a `anon` (D0/D1), se reporta antes de tocar nada: `ALTER DEFAULT PRIVILEGES IN SCHEMA` no retira un default global.
+
 ## Documentos de diseño (texto, sin SQL)
 - `DISENO_interruptor_inferir_huella.md` — diseño v4 del interruptor de la activación por huella (`97_`/`98_`).
 - `BORRADOR_inventario_anon.md` — borrador de inventario del endurecimiento de `anon` (parte B); sin SQL ni consulta a la base.
