@@ -182,3 +182,34 @@ Todo lo siguiente se hizo con autorización explícita del usuario en cada venta
 6. Mejoras: `operador probar-servidor` (latido sin validar `TERMINAL_CLAVE`); subir la versión del paquete a 0.1.1 en la
    próxima etiqueta; las dos aserciones opcionales de `security` en `test_despliegue.py`; sha256 del workflow en el acta
    (commit `f00c977`).
+
+## 10. Posibles implementaciones futuras (ideas, no pendientes)
+
+Anotadas a petición del usuario el 13 de octubre de 2026. No son tareas comprometidas ni bloquean nada; se retoman solo si el
+usuario las pide.
+
+- **Corte de luz del Pi con la terminal funcionando.** Hoy la terminal marca por su cuenta y guarda los eventos en su buffer
+  circular; al volver el Pi, el puente retoma desde su cursor persistente y sube lo que falta, con la hora original y sin
+  duplicados (identificador por serie, generación y serial). Si el buffer rotó, el puente lo detecta (`perdida_buffer`) y
+  cuantifica la pérdida. Ideas:
+  - **Medir la capacidad real del buffer** del aparato (el contador de serie cuenta también los eventos de operación `(3,*)`,
+    así que la capacidad útil para marcas es menor a la nominal).
+  - **Columna o reporte de «llegó tarde»** en el servidor y la interfaz: `momento_recepcion − momento_dispositivo` ya existe
+    en `tiempo.marca`, pero ninguna pantalla lo calcula.
+  - **Visibilidad del hueco durante una caída:** el servidor solo sabe que hay un hueco de contacto (`ultimo_contacto_en`,
+    tarjeta 15); no puede contar las marcas que siguen solo en el aparato.
+  - **UPS pequeño** para el Pi y la terminal.
+  - **Medir el tiempo de recuperación tras un corte** (se puede hacer en la ventana de `enable` y reinicio real del Pi).
+  - Efecto a comprobar con un retraso real: una marca que llega después del cierre de día genera una excepción
+    `dia_cerrado` para revisión.
+- **Endurecer el filtro de syscalls** de la unidad del puente (`security`): negar `io_uring_*`, `userfaultfd`, `kcmp`,
+  `process_vm_readv/writev`, `keyctl`, `add_key` y `request_key`; ninguna se usa. Es un cambio del filtro con su propio
+  análisis y recorrido, posterior a la ventana de `enable`.
+- **`operador probar-servidor`:** un latido con la `scjt_` del `.env` sin validar `TERMINAL_CLAVE` ni tocar la terminal,
+  para rotar la llave del servidor sin arrancar los lazos del aparato.
+- **Medición del desfase con subsegundos:** un timestamp con fracción en el cuerpo del latido, porque la cabecera `Date` de
+  HTTP trunca a segundos y el desfase terminal-servidor se mide con ±1–2 s.
+- **Valores de producción como predeterminados** del código y de `puente.env.ejemplo` (hoy 5 s / 50 páginas / intervalo 0,
+  que no se quiere con este firmware), y exigir una confirmación explícita para bajar `PUENTE_TERMINAL_INTERVALO_MIN_S` de 1 s.
+- **Protección de rama en `main`, `CODEOWNERS` para `.github/workflows/**` y un Environment con revisor**, cuando haya más de un
+  desarrollador o plan de pago (hoy decisión del usuario: no).
