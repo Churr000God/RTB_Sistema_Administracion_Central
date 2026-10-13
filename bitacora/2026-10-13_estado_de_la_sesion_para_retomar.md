@@ -139,3 +139,46 @@ reanudar-terminal`); commit y rueda instalados anotados en el acta; nadie más t
 puente); `raspi-pruebas` (Remote Control, en el Pi de pruebas). Los mensajes a `Checador` y `raspi-pruebas` no confirman
 entrega: si no responden, el usuario pega el texto. El navegador de Chrome del grupo MCP tiene la sesión iniciada en
 `http://100.115.160.115:8080` (la pantalla del interruptor y Anomalías son lentas: ~12 s por 15 categorías en serie).
+
+## 9. Actualización de la tarde del 13 de octubre de 2026 (después de compactar)
+
+Todo lo siguiente se hizo con autorización explícita del usuario en cada ventana, tras revisión de `security`.
+
+- **Puente, etapas 1 a 3 y recorrido completo (EPERM puesto):** reloj ON, trabajo + reconciliación ON y ritmo subido
+  (`INGESTA_CADA_S=30`, `MAX_PAGINAS=10`, `PAUSA_PAGINAS_S=2`, `INTERVALO_MIN_S=2`) sin 401 ni negativas. El -1.5 s de
+  `desfase_terminal_servidor` es la resolución de 1 s de la cabecera `Date` (reloj del backend a -2.9 ms por NTP). Con el
+  servidor sin altas el barrido de reconciliación sale `mapa_vacio` (el seguro, no una falla).
+- **`checador-fisico` en `origin/main` = `f00c977`:** `e719879` + `ba4d825` (prueba de reconciliación con usuario ajeno,
+  contadores `huerfanos_del_puente`/`altas_a_mano_ajenas` en `operador estado`) y el workflow `reconstruir-paquete.yml`
+  (segunda construcción, pines por SHA, `uv` 0.12.15 con checksum, solo lectura). Etiqueta firmada `puente-v0.1.1` sobre
+  `ba4d8257971abf18e632924f892bc7dea0ba5e34` (la `puente-v0.1.0` es de la instalación de prueba, no se mueve).
+- **R1 cumplida:** el CI (run `38443271837`) y la máquina del usuario dan la misma rueda
+  `b48c6d79f0283dc13da9565efcca97a86797be11e15c60bb8d00b8312e4cba7b` y el mismo paquete
+  `73e4450ba87f4d5397723fd79c1ba1e98f9797e38bcb2b6acb44231e3a6f0e7d`. `construir-paquete.sh`
+  `138e85672dea53ec447a687a329ad853091bb0213d2e1409a77b42c4bb6adc73`, `empaquetar.sh`
+  `d028cbac5c26d565d9dc2e78919147db649de7517489424d89dcbc57ceb24d3e`. Variables del repo creadas por el usuario desde su
+  máquina. `main` sin protección de rama (decisión del usuario, único desarrollador; recomendación documentada en el LEEME).
+- **Instalación verificada en el Pi del puente (ventana 1):** paquete v0.1.1 instalado con `--require-hashes`; rastros del
+  build local retirados; unidad definitiva; `.env` sin llaves; `uv` del Pi 0.12.12.
+- **Rotación de credenciales:** ventana A: `scjt_` nueva (id 2, etiqueta «puente v0.1.1 2026-10-13», emitida el usuario) y
+  revocación de la vieja (id 1) a las 19:33:43 UTC por el usuario (irreversible, SCJ14); la prueba «401 con la vieja» se
+  sustituyó por cuatro evidencias aceptadas por `security`. Ventana B: contraseña de administrador de la terminal cambiada
+  en el MENÚ LOCAL por el usuario; autentica sin 401. Ambas custodiadas por el usuario/TI; los valores nunca pasaron por chat.
+- **`db`:** `100_` APLICADO por el usuario el 13-oct (anon sin privilegios en `tiempo`; TRUNCATE/REFERENCES/TRIGGER/MAINTAIN
+  fuera para authenticated/service_role; guarda de versión PG17; verificador 1–65, secciones 63 y 65 en 0). Commits
+  `60ebc72`, `c908cf2`, `8f20e5e` empujados (`origin/main` de RTB-CRM-APP = `8f20e5e`). `101_` sigue sin ensayar.
+  `fn_terminal_autenticar` viva = archivo (md5 `76ed43c1…`). Reversa de `100_` guardada por `db` (115 sentencias) hasta una
+  semana de uso normal y el corte de `personas`.
+- **Pruebas de EPERM:** migración v15→v16 bajo el mismo sandbox y mapa de syscalls x86→aarch64 sin diferencia (122 usadas
+  frente a 356 permitidas en systemd 257.9); cinco unidades verificadas bajo su filtro. El drop-in EPERM NO se retira
+  todavía (ventana D, con llaves y configuración finales). Vigilancia: `futex_wake/wait/requeue`, `pidfd_getfd`.
+
+### Lo que queda (orden fijado por `security`)
+1. **Ventana C:** configuración de producción con el drop-in puesto: quitar los valores supervisados, `FRENO_EPISODIOS_MAX=4`.
+2. **Ventana D:** retiro del drop-in (`.disabled`) y recorrido completo con llaves finales; cinco unidades `is-failed`.
+3. **Ventana E:** `enable` del servicio y del timer; reinicio del Pi.
+4. Después: consentimiento definitivo, primera alta real supervisada, interruptor de huella (visto bueno aparte).
+5. Pendientes de `db`: `101_` (ensayo y aplicación), `REVOKE` del esquema `personas`, inventario de `EXECUTE`.
+6. Mejoras: `operador probar-servidor` (latido sin validar `TERMINAL_CLAVE`); subir la versión del paquete a 0.1.1 en la
+   próxima etiqueta; las dos aserciones opcionales de `security` en `test_despliegue.py`; sha256 del workflow en el acta
+   (commit `f00c977`).
