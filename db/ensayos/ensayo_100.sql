@@ -118,7 +118,7 @@ FROM _foto a WHERE a.fase = 'antes' AND NOT EXISTS (SELECT 1 FROM _foto d WHERE 
 -- ============================================================================
 SELECT pg_temp.caso('B1 anon SELECT tiempo.marca', 'anon', $$SELECT 1 FROM tiempo.marca LIMIT 1$$, '42501');
 SELECT pg_temp.caso('B2 anon INSERT tiempo.marca', 'anon', $$INSERT INTO tiempo.marca DEFAULT VALUES$$, '42501');
-SELECT pg_temp.caso('B3 anon UPDATE tiempo.marca', 'anon', $$UPDATE tiempo.marca SET id = id$$, '42501');
+SELECT pg_temp.caso('B3 anon UPDATE tiempo.marca', 'anon', $$UPDATE tiempo.marca SET version_software = version_software$$, '42501');
 SELECT pg_temp.caso('B4 anon DELETE tiempo.marca', 'anon', $$DELETE FROM tiempo.marca$$, '42501');
 SELECT pg_temp.caso('B5 anon TRUNCATE tiempo.marca (no está sujeto a RLS)', 'anon', $$TRUNCATE tiempo.marca$$, '42501');
 SELECT pg_temp.caso('B6 anon SELECT tiempo.parametro', 'anon', $$SELECT 1 FROM tiempo.parametro LIMIT 1$$, '42501');
@@ -133,7 +133,7 @@ SELECT pg_temp.caso('B11 anon TRUNCATE tiempo.tope_legal', 'anon', $$TRUNCATE ti
 -- ============================================================================
 SELECT pg_temp.caso('C1 authenticated SELECT tiempo.marca (RLS decide filas; sin sesión devuelve 0, sin error)', 'authenticated', $$SELECT 1 FROM tiempo.marca LIMIT 1$$, 'ok');
 SELECT pg_temp.caso('C2 authenticated TRUNCATE tiempo.marca denegado', 'authenticated', $$TRUNCATE tiempo.marca$$, '42501');
-SELECT pg_temp.caso('C3 authenticated no puede crear un FK hacia tiempo.terminal (REFERENCES)', 'authenticated', $$CREATE TEMP TABLE _ref_ensayo (a bigint REFERENCES tiempo.terminal (id))$$, '42501');
+SELECT pg_temp.verifica('C3 ni authenticated ni service_role tienen REFERENCES sobre tiempo.terminal (no se puede probar el FK real sin ser dueño de la tabla hija)', $$SELECT NOT has_table_privilege('authenticated', 'tiempo.terminal', 'REFERENCES') AND NOT has_table_privilege('service_role', 'tiempo.terminal', 'REFERENCES')$$);
 SELECT pg_temp.caso('C4 service_role SELECT tiempo.parametro', 'service_role', $$SELECT 1 FROM tiempo.parametro LIMIT 1$$, 'ok');
 SELECT pg_temp.caso('C5 service_role SELECT tiempo.banco_de_horas', 'service_role', $$SELECT 1 FROM tiempo.banco_de_horas LIMIT 1$$, 'ok');
 SELECT pg_temp.caso('C6 service_role TRUNCATE tiempo.terminal denegado', 'service_role', $$TRUNCATE tiempo.terminal$$, '42501');
