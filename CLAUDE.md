@@ -447,6 +447,19 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   `GRANT … WITH SET TRUE` temporal para ensayar privilegios residuales. Pendiente propuesto de
   `security`: `94_` que revoque a `anon` los GRANT de tablas de `tiempo` y `TRUNCATE`/`REFERENCES`/
   `TRIGGER` (ver `db/ensayos/README.md`). El diccionario de datos pasó a V1.5.
+- **Interruptor de la activación por huella, puente instalado y causa raíz del 401 (10–13 de octubre de 2026):**
+  `94_` a `99_` aplicados en la base real (huella «sin conteo» B+C; `97_`/`98_` interruptor apagado de fábrica,
+  solo `fn_terminal_inferir_huella_cambiar` lo enciende y exige consentimiento DEFINITIVO publicado; `99_` agrega
+  `tiempo.terminal.ingesta_detenida` y `fn_terminal_latido` de 7 argumentos). `100_` (revoca `anon`/TRUNCATE/REFERENCES/
+  TRIGGER en `tiempo`) y `101_` (errores sin identidad) están escritos, revisados y SIN ensayar ni aplicar. Backend: router
+  `routers/interruptor_huella.py` (contrato en `docs/07-procesos/CONTRATO_API_INTERRUPTOR_INFERIR_HUELLA.md`), tarjetas 14 y
+  15 del tablero, `registro_seguro.py` (ninguna excepción registra su texto), y HTTPS del backend de pruebas por
+  `tailscale serve` con el 8000 solo en loopback. El puente (`checador-fisico`) corre T-PI-9 instalado de forma directa en el
+  Pi del puente, aún detenido y por etapas: **el firmware V1.3.0 de la terminal rechaza reutilizar el nonce Digest** (401 sin
+  `WWW-Authenticate`), se corrigió con una petición lógica = desafío + `nc=1` sobre conexión nueva. Estado y siguientes pasos:
+  `bitacora/2026-10-13_estado_de_la_sesion_para_retomar.md`. Lecciones: un 401 de un aparato no es siempre credencial mala
+  (capturar cabeceras antes de reintentar); no probar variantes contra un aparato con contador de bloqueo desconocido; el
+  clasificador de auto-mode bloquea despliegues a producción aun con regla `allow` (no se rodea).
 - **`78_*.sql` nunca se había aplicado y su fix era evadible; cerrado con `86_*.sql` (7 de octubre
   de 2026):** al documentar el DDL, `db` contrastó los scripts con la base real y encontró 49
   funciones contra 50 definidas: `78_*` (constraint trigger que impide resolver a mano una
