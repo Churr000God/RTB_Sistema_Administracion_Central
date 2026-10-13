@@ -91,7 +91,7 @@ SELECT pg_get_userbyid(d.defaclrole) AS rol, COALESCE(n.nspname, '(global)') AS 
 FROM pg_default_acl d LEFT JOIN pg_namespace n ON n.oid = d.defaclnamespace ORDER BY 1, 2, 3;
 INSERT INTO _res (caso, ok, detalle)
 SELECT 'D0 (informativo) defaults que otorgan algo a anon (cualquier rol/esquema, incluido global)', true,
-       COALESCE(string_agg(pg_get_userbyid(d.defaclrole) || '/' || COALESCE(n.nspname, '(global)') || '/' || d.defaclobjtype, '; '), 'ninguno')
+       COALESCE(string_agg(pg_get_userbyid(d.defaclrole) || '/' || COALESCE(n.nspname, '(global)') || '/' || d.defaclobjtype::text, '; '), 'ninguno')
 FROM pg_default_acl d LEFT JOIN pg_namespace n ON n.oid = d.defaclnamespace CROSS JOIN LATERAL aclexplode(d.defaclacl) a JOIN pg_roles g ON g.oid = a.grantee WHERE g.rolname = 'anon';
 
 -- ============================================================================

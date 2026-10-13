@@ -1638,7 +1638,7 @@ CROSS JOIN (VALUES ('authenticated'), ('service_role')) AS r(rol)
 CROSS JOIN (VALUES ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) AS p(priv)
 WHERE n.nspname = 'tiempo' AND c.relkind IN ('r', 'p') AND has_table_privilege(r.rol, c.oid, p.priv)
 UNION ALL
-SELECT 'pg_default_acl(' || d.defaclobjtype || ')', g.rolname, a.privilege_type
+SELECT 'pg_default_acl(' || d.defaclobjtype::text || ')', g.rolname, a.privilege_type
 FROM pg_default_acl d JOIN pg_namespace n ON n.oid = d.defaclnamespace
 CROSS JOIN LATERAL aclexplode(d.defaclacl) a JOIN pg_roles g ON g.oid = a.grantee
 WHERE n.nspname = 'tiempo' AND d.defaclobjtype IN ('r', 'S')
