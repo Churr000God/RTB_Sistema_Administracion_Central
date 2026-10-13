@@ -1617,12 +1617,16 @@ WHERE n.nspname = 'tiempo' AND p.proname = 'fn_terminal_latido' AND p.pronargs =
            AND NOT EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE'));
 
 -- 63) Privilegios de estructura del esquema tiempo tras 100_: (a) anon no tiene NINGÚN privilegio (tabla, columna ni secuencia) sobre ninguna relación de tiempo; (b) authenticated y
--- service_role no tienen TRUNCATE, REFERENCES ni TRIGGER sobre ninguna tabla de tiempo; (c) los privilegios por defecto del esquema (pg_default_acl) ya no conceden nada a anon ni
--- TRUNCATE/REFERENCES/TRIGGER a authenticated/service_role. Esperado: 0 filas DESPUÉS de aplicar 100_ (antes de aplicarla devuelve filas).
+-- service_role no tienen TRUNCATE, REFERENCES, TRIGGER ni (PostgreSQL >= 17) MAINTAIN sobre ninguna tabla de tiempo; (c) los privilegios por defecto del esquema (pg_default_acl) ya no
+-- conceden nada a anon ni TRUNCATE/REFERENCES/TRIGGER/MAINTAIN a authenticated/service_role. MAINTAIN solo se comprueba si server_version_num >= 170000 (en versiones anteriores el privilegio
+-- no existe y has_table_privilege fallaría). Un MAINTAIN que service_role tenga por ser MIEMBRO de pg_maintain no lo quita ningún REVOKE de tabla: se excluye (residuo conocido; la
+-- sección 65 y el ensayo lo informan). Esperado: 0 filas DESPUÉS de aplicar 100_ (antes de aplicarla devuelve filas).
 SELECT c.relname::text AS objeto, r.rol, p.priv AS privilegio_de_mas
 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
 CROSS JOIN (VALUES ('anon')) AS r(rol)
-CROSS JOIN (VALUES ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) AS p(priv)
+CROSS JOIN unnest(CASE WHEN current_setting('server_version_num')::integer >= 170000
+                       THEN ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN']
+                       ELSE ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'] END) AS p(priv)
 WHERE n.nspname = 'tiempo' AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
   AND (has_table_privilege(r.rol, c.oid, p.priv)
        OR (p.priv IN ('SELECT', 'INSERT', 'UPDATE', 'REFERENCES') AND has_any_column_privilege(r.rol, c.oid, p.priv)))
@@ -1635,15 +1639,19 @@ UNION ALL
 SELECT c.relname::text, r.rol, p.priv
 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
 CROSS JOIN (VALUES ('authenticated'), ('service_role')) AS r(rol)
-CROSS JOIN (VALUES ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) AS p(priv)
+CROSS JOIN unnest(CASE WHEN current_setting('server_version_num')::integer >= 170000
+                       THEN ARRAY['TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN'] ELSE ARRAY['TRUNCATE', 'REFERENCES', 'TRIGGER'] END) AS p(priv)
 WHERE n.nspname = 'tiempo' AND c.relkind IN ('r', 'p') AND has_table_privilege(r.rol, c.oid, p.priv)
+  AND NOT (r.rol = 'service_role' AND p.priv = 'MAINTAIN'
+           AND EXISTS (SELECT 1 FROM pg_auth_members m JOIN pg_roles g ON g.oid = m.roleid JOIN pg_roles u ON u.oid = m.member
+                       WHERE g.rolname = 'pg_maintain' AND u.rolname = 'service_role'))
 UNION ALL
 SELECT 'pg_default_acl(' || d.defaclobjtype::text || ')', g.rolname, a.privilege_type
 FROM pg_default_acl d JOIN pg_namespace n ON n.oid = d.defaclnamespace
 CROSS JOIN LATERAL aclexplode(d.defaclacl) a JOIN pg_roles g ON g.oid = a.grantee
 WHERE n.nspname = 'tiempo' AND d.defaclobjtype IN ('r', 'S')
   AND (g.rolname = 'anon'
-       OR (d.defaclobjtype = 'r' AND g.rolname IN ('authenticated', 'service_role') AND a.privilege_type IN ('TRUNCATE', 'REFERENCES', 'TRIGGER')));
+       OR (d.defaclobjtype = 'r' AND g.rolname IN ('authenticated', 'service_role') AND a.privilege_type IN ('TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN')));
 
 -- 64) fn_bitacora_terminal_usuario_aplica tras 101_: sigue SECURITY DEFINER con search_path exacto y sin EXECUTE para nadie de la API (es trigger), y NINGÚN RAISE EXCEPTION interpola
 -- identificadores: se examina cada sentencia «RAISE EXCEPTION … USING» del cuerpo (todas llevan USING ERRCODE/HINT; se comprueba que cuadra el conteo para que la expresión no sea vacua)
@@ -1661,3 +1669,21 @@ WHERE n.nspname = 'tiempo' AND p.proname = 'fn_bitacora_terminal_usuario_aplica'
                = (length(p.prosrc) - length(replace(p.prosrc, 'RAISE EXCEPTION', ''))) / length('RAISE EXCEPTION')
            AND NOT EXISTS (SELECT 1 FROM regexp_matches(p.prosrc, 'RAISE EXCEPTION(.*?)USING', 'gs') m
                            WHERE m[1] ~ '(NEW\.(persona_id|terminal_id|employee_no|terminal_usuario_id)|v_vivo\.(id|persona_id|terminal_id|employee_no))\M'));
+
+-- 65) Superficie de roles y de esquema que 100_ no cambia pero que condiciona lo que revoca (informativa por EXCEPCIÓN: solo devuelve filas ante algo anómalo): (a) anon, authenticated o
+-- service_role con CREATE sobre el esquema tiempo o personas; (b) anon o authenticated con CREATE sobre la base de datos; (c) anon o authenticated MIEMBROS de un rol predefinido
+-- peligroso (pg_maintain, pg_write_all_data, pg_read_all_data, pg_execute_server_program, pg_signal_backend, pg_read_server_files, pg_write_server_files). Que service_role sea miembro de
+-- pg_maintain/pg_write_all_data/pg_read_all_data NO se marca aquí (es un diseño conocido de Supabase y lo informa el ensayo); lo que 100_ no puede quitar por REVOKE de tabla. Esperado: 0 filas.
+SELECT 'CREATE sobre el esquema ' || s.nsp AS problema, r.rol AS detalle
+FROM (VALUES ('tiempo'), ('personas')) AS s(nsp)
+CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role')) AS r(rol)
+WHERE EXISTS (SELECT 1 FROM pg_namespace n WHERE n.nspname = s.nsp) AND has_schema_privilege(r.rol, s.nsp, 'CREATE')
+UNION ALL
+SELECT 'CREATE sobre la base de datos', r.rol
+FROM (VALUES ('anon'), ('authenticated')) AS r(rol)
+WHERE has_database_privilege(r.rol, current_database(), 'CREATE')
+UNION ALL
+SELECT 'miembro de ' || g.rolname, u.rolname
+FROM pg_auth_members m JOIN pg_roles g ON g.oid = m.roleid JOIN pg_roles u ON u.oid = m.member
+WHERE u.rolname IN ('anon', 'authenticated')
+  AND g.rolname IN ('pg_maintain', 'pg_write_all_data', 'pg_read_all_data', 'pg_execute_server_program', 'pg_signal_backend', 'pg_read_server_files', 'pg_write_server_files');

@@ -1,8 +1,8 @@
 -- Ensayo de 100_tiempo_revoca_anon_y_privilegios_de_estructura.sql. NO es DDL versionado. NO correr sin OK explícito del usuario (en el chat de la sesión de orchestrator) ni antes de la revisión de security.
 --   psql -X "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/ensayos/ensayo_100.sql     (SIN -1; puerto 5432, no el pooler 6543)
 -- Todo dentro de BEGIN … ROLLBACK. Aplica SOLO 100_ ENCIMA de lo ya aplicado (88_-99_). No consulta ni escribe datos reales; solo catálogo de privilegios y una tabla sintética que se revierte.
--- Qué prueba: (A) comparando una foto de privilegios ANTES y DESPUÉS, que 100_ NO agrega nada y solo quita lo previsto (todo de anon; TRUNCATE/REFERENCES/TRIGGER de authenticated y
--- service_role) y que ningún otro privilegio de authenticated/service_role cambia; (B) el comportamiento real como anon con SET ROLE (la anon key simulada); (C) authenticated y service_role
+-- Qué prueba: (A) comparando una foto de privilegios ANTES y DESPUÉS, que 100_ NO agrega nada y solo quita lo previsto (todo de anon; TRUNCATE/REFERENCES/TRIGGER y, en PG >= 17, MAINTAIN de
+-- authenticated y service_role) y que ningún otro privilegio de authenticated/service_role cambia; (B) el comportamiento real como anon con SET ROLE (la anon key simulada); (C) authenticated y service_role
 -- siguen funcionando para lo que usa el backend; (D) los privilegios por defecto con una tabla nueva; (E) la REVERSA EXACTA documentada en 100_ restaura la foto previa, y 100_ es idempotente;
 -- (F) verificar_ddl.sql completo (sección 63 en 0 filas).
 \set ON_ERROR_STOP on
@@ -24,7 +24,9 @@ BEGIN
   SELECT p_fase, r.rol, c.relname::text, p.priv, 'tabla'
   FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
   CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role')) r(rol)
-  CROSS JOIN (VALUES ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) p(priv)
+  CROSS JOIN unnest(CASE WHEN current_setting('server_version_num')::integer >= 170000
+                         THEN ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN']
+                         ELSE ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'] END) p(priv)
   WHERE n.nspname = 'tiempo' AND c.relkind IN ('r', 'p', 'v', 'm', 'f') AND has_table_privilege(r.rol, c.oid, p.priv);
   INSERT INTO _foto
   SELECT p_fase, r.rol, c.relname::text, p.priv, 'columna'
@@ -102,12 +104,16 @@ SELECT pg_temp.verifica('A1 100_ NO agrega ningún privilegio (todo lo de despu�
 SELECT pg_temp.verifica('A2 lo que se quita es SOLO: todo de anon, y TRUNCATE/REFERENCES/TRIGGER de authenticated y service_role',
   $$SELECT NOT EXISTS (SELECT 1 FROM _foto a WHERE a.fase = 'antes'
         AND NOT EXISTS (SELECT 1 FROM _foto d WHERE d.fase = 'despues' AND (d.rol, d.rel, d.priv, d.nivel) = (a.rol, a.rel, a.priv, a.nivel))
-        AND NOT (a.rol = 'anon' OR a.priv IN ('TRUNCATE', 'REFERENCES', 'TRIGGER')))$$);
+        AND NOT (a.rol = 'anon' OR a.priv IN ('TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN')))$$);
 SELECT pg_temp.verifica('A3 authenticated y service_role CONSERVAN SELECT/INSERT/UPDATE/DELETE y de columna SELECT/INSERT/UPDATE exactamente igual',
   $$SELECT NOT EXISTS (SELECT 1 FROM _foto a WHERE a.fase = 'antes' AND a.rol IN ('authenticated', 'service_role') AND a.priv IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'USAGE')
         AND NOT EXISTS (SELECT 1 FROM _foto d WHERE d.fase = 'despues' AND (d.rol, d.rel, d.priv, d.nivel) = (a.rol, a.rel, a.priv, a.nivel)))$$);
 SELECT pg_temp.verifica('A4 después: anon sin ningún privilegio sobre ninguna relación de tiempo', $$SELECT NOT EXISTS (SELECT 1 FROM _foto WHERE fase = 'despues' AND rol = 'anon')$$);
 SELECT pg_temp.verifica('A5 después: ni authenticated ni service_role tienen TRUNCATE, REFERENCES ni TRIGGER', $$SELECT NOT EXISTS (SELECT 1 FROM _foto WHERE fase = 'despues' AND rol IN ('authenticated', 'service_role') AND priv IN ('TRUNCATE', 'REFERENCES', 'TRIGGER'))$$);
+SELECT pg_temp.verifica('A5b después: authenticated NO tiene MAINTAIN en ninguna tabla de tiempo (PG >= 17)', $$SELECT NOT EXISTS (SELECT 1 FROM _foto WHERE fase = 'despues' AND rol = 'authenticated' AND priv = 'MAINTAIN')$$);
+SELECT pg_temp.verifica('A5c después: service_role NO tiene MAINTAIN, salvo el heredado por ser MIEMBRO de pg_maintain (residuo conocido que ningún REVOKE de tabla quita; se informa en C11)',
+  $$SELECT NOT EXISTS (SELECT 1 FROM _foto WHERE fase = 'despues' AND rol = 'service_role' AND priv = 'MAINTAIN')
+        OR EXISTS (SELECT 1 FROM pg_auth_members m JOIN pg_roles g ON g.oid = m.roleid JOIN pg_roles u ON u.oid = m.member WHERE g.rolname = 'pg_maintain' AND u.rolname = 'service_role')$$);
 INSERT INTO _res (caso, ok, detalle)
 SELECT 'A6 (informativo) cuántos privilegios quitó 100_', true,
   'anon=' || count(*) FILTER (WHERE a.rol = 'anon') || ' authenticated=' || count(*) FILTER (WHERE a.rol = 'authenticated') || ' service_role=' || count(*) FILTER (WHERE a.rol = 'service_role')
@@ -140,17 +146,53 @@ SELECT pg_temp.caso('C6 service_role TRUNCATE tiempo.terminal denegado', 'servic
 SELECT pg_temp.caso('C7 service_role TRUNCATE tiempo.dia_festivo denegado', 'service_role', $$TRUNCATE tiempo.dia_festivo$$, '42501');
 SELECT pg_temp.caso('C8 service_role sigue ejecutando la RPC de latido (privilegio de función intacto; terminal -1 => SCJ12, no 42501)', 'service_role', $$SELECT tiempo.fn_terminal_latido(-1, now(), true, true, 'x', 0, NULL)$$, 'SCJ12');
 
+-- C9 (informativo): quitar MAINTAIN NO impide LOCK TABLE ... ACCESS EXCLUSIVE a authenticated/service_role: PostgreSQL lo permite con UPDATE/DELETE/TRUNCATE/MAINTAIN y ambos conservan UPDATE/DELETE.
+-- Se documenta que SIGUE permitido (la superficie de bloqueo por función DEFINER mal escrita es el inventario de EXECUTE). jornada_asignada: authenticated y service_role tienen UPDATE/DELETE; el bloqueo se libera con el ROLLBACK.
+SELECT pg_temp.caso('C9 (informativo) authenticated CONSERVA LOCK TABLE ... ACCESS EXCLUSIVE (tiene UPDATE/DELETE); se documenta, no es un fallo', 'authenticated', $$LOCK TABLE tiempo.jornada_asignada IN ACCESS EXCLUSIVE MODE$$, 'ok');
+SELECT pg_temp.caso('C9b (informativo) service_role CONSERVA LOCK TABLE ... ACCESS EXCLUSIVE', 'service_role', $$LOCK TABLE tiempo.jornada_asignada IN ACCESS EXCLUSIVE MODE$$, 'ok');
+-- C10: VACUUM no corre dentro de una transacción y ANALYZE/VACUUM sin privilegio emiten WARNING (no ERROR): se prueba por catálogo.
+SELECT pg_temp.verifica('C10 authenticated y service_role NO tienen MAINTAIN sobre tiempo.marca ni tiempo.banco_de_horas (salvo el heredado de pg_maintain)',
+  $$SELECT current_setting('server_version_num')::integer < 170000 OR (NOT has_table_privilege('authenticated', 'tiempo.marca', 'MAINTAIN') AND NOT has_table_privilege('authenticated', 'tiempo.banco_de_horas', 'MAINTAIN')
+     AND (NOT has_table_privilege('service_role', 'tiempo.marca', 'MAINTAIN')
+          OR EXISTS (SELECT 1 FROM pg_auth_members m JOIN pg_roles g ON g.oid = m.roleid JOIN pg_roles u ON u.oid = m.member WHERE g.rolname = 'pg_maintain' AND u.rolname = 'service_role')))$$);
+-- C11 (informativo): MAINTAIN por rol ANTES y DESPUÉS (cuántas tablas de tiempo), y membresías/privilegios de esquema y base que condicionan lo que 100_ puede quitar.
+INSERT INTO _res (caso, ok, detalle)
+SELECT 'C11 (informativo) MAINTAIN por rol, tablas antes -> después', true,
+  string_agg(r.rol || ' ' || COALESCE(a.n, 0) || '->' || COALESCE(d.n, 0), '; ' ORDER BY r.rol)
+FROM (VALUES ('anon'), ('authenticated'), ('service_role')) r(rol)
+LEFT JOIN (SELECT rol, count(*) n FROM _foto WHERE fase = 'antes' AND priv = 'MAINTAIN' AND nivel = 'tabla' GROUP BY rol) a ON a.rol = r.rol
+LEFT JOIN (SELECT rol, count(*) n FROM _foto WHERE fase = 'despues' AND priv = 'MAINTAIN' AND nivel = 'tabla' GROUP BY rol) d ON d.rol = r.rol;
+INSERT INTO _res (caso, ok, detalle)
+SELECT 'C12 (informativo) membresías de anon/authenticated/service_role en roles predefinidos o de Supabase', true,
+  COALESCE(string_agg(u.rolname || ' en ' || g.rolname, '; ' ORDER BY u.rolname, g.rolname), 'ninguna')
+FROM pg_auth_members m JOIN pg_roles g ON g.oid = m.roleid JOIN pg_roles u ON u.oid = m.member WHERE u.rolname IN ('anon', 'authenticated', 'service_role');
+INSERT INTO _res (caso, ok, detalle)
+SELECT 'C13 (informativo) membresías de anon/authenticated/service_role en roles predefinidos PELIGROSOS (pg_maintain, pg_write_all_data, pg_read_all_data, pg_execute_server_program, pg_signal_backend, pg_read/write_server_files)', true,
+  COALESCE(string_agg(u.rolname || ' en ' || g.rolname, '; ' ORDER BY u.rolname, g.rolname), 'ninguna')
+FROM pg_auth_members m JOIN pg_roles g ON g.oid = m.roleid JOIN pg_roles u ON u.oid = m.member
+WHERE u.rolname IN ('anon', 'authenticated', 'service_role')
+  AND g.rolname IN ('pg_maintain', 'pg_write_all_data', 'pg_read_all_data', 'pg_execute_server_program', 'pg_signal_backend', 'pg_read_server_files', 'pg_write_server_files');
+INSERT INTO _res (caso, ok, detalle)
+SELECT 'C14 (informativo) privilegios de ESQUEMA (USAGE/CREATE) de anon, authenticated y service_role sobre tiempo y personas', true,
+  string_agg(s.nsp || ':' || r.rol || '=' || CASE WHEN has_schema_privilege(r.rol, s.nsp, 'USAGE') THEN 'U' ELSE '-' END || CASE WHEN has_schema_privilege(r.rol, s.nsp, 'CREATE') THEN 'C' ELSE '-' END, ' ' ORDER BY s.nsp, r.rol)
+FROM (VALUES ('tiempo'), ('personas')) s(nsp) CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role')) r(rol);
+INSERT INTO _res (caso, ok, detalle)
+SELECT 'C15 (informativo) privilegios de BASE DE DATOS (CONNECT/CREATE/TEMP) de anon, authenticated y service_role', true,
+  string_agg(r.rol || '=' || CASE WHEN has_database_privilege(r.rol, current_database(), 'CONNECT') THEN 'N' ELSE '-' END || CASE WHEN has_database_privilege(r.rol, current_database(), 'CREATE') THEN 'C' ELSE '-' END
+             || CASE WHEN has_database_privilege(r.rol, current_database(), 'TEMP') THEN 'T' ELSE '-' END, ' ' ORDER BY r.rol)
+FROM (VALUES ('anon'), ('authenticated'), ('service_role')) r(rol);
+
 -- ============================================================================
 -- D) Privilegios por defecto: una tabla nueva ya no nace con GRANT ALL
 -- ============================================================================
 CREATE TABLE tiempo._ensayo_100 (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, x integer);
 CREATE SEQUENCE tiempo._ensayo_100_seq;
 SELECT pg_temp.verifica('D1 tabla nueva: anon sin ningún privilegio',
-  $$SELECT NOT EXISTS (SELECT 1 FROM unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']) p WHERE has_table_privilege('anon', 'tiempo._ensayo_100', p))$$);
+  $$SELECT NOT EXISTS (SELECT 1 FROM unnest(CASE WHEN current_setting('server_version_num')::integer >= 170000 THEN ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER','MAINTAIN'] ELSE ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER'] END) p WHERE has_table_privilege('anon', 'tiempo._ensayo_100', p))$$);
 SELECT pg_temp.verifica('D2 tabla nueva: authenticated y service_role sí tienen SELECT, INSERT, UPDATE y DELETE',
   $$SELECT bool_and(has_table_privilege(r, 'tiempo._ensayo_100', p)) FROM unnest(ARRAY['authenticated','service_role']) r CROSS JOIN unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE']) p$$);
-SELECT pg_temp.verifica('D3 tabla nueva: authenticated y service_role NO tienen TRUNCATE, REFERENCES ni TRIGGER',
-  $$SELECT NOT EXISTS (SELECT 1 FROM unnest(ARRAY['authenticated','service_role']) r CROSS JOIN unnest(ARRAY['TRUNCATE','REFERENCES','TRIGGER']) p WHERE has_table_privilege(r, 'tiempo._ensayo_100', p))$$);
+SELECT pg_temp.verifica('D3 tabla nueva: authenticated y service_role NO tienen TRUNCATE, REFERENCES, TRIGGER ni MAINTAIN (salvo el heredado de pg_maintain)',
+  $$SELECT NOT EXISTS (SELECT 1 FROM unnest(ARRAY['authenticated','service_role']) r CROSS JOIN unnest(CASE WHEN current_setting('server_version_num')::integer >= 170000 THEN ARRAY['TRUNCATE','REFERENCES','TRIGGER','MAINTAIN'] ELSE ARRAY['TRUNCATE','REFERENCES','TRIGGER'] END) p WHERE has_table_privilege(r, 'tiempo._ensayo_100', p) AND NOT (r = 'service_role' AND p = 'MAINTAIN' AND EXISTS (SELECT 1 FROM pg_auth_members m JOIN pg_roles g ON g.oid = m.roleid JOIN pg_roles u ON u.oid = m.member WHERE g.rolname = 'pg_maintain' AND u.rolname = 'service_role')))$$);
 SELECT pg_temp.verifica('D4 secuencia nueva: anon sin privilegios; authenticated y service_role con USAGE',
   $$SELECT NOT has_sequence_privilege('anon', 'tiempo._ensayo_100_seq', 'USAGE') AND has_sequence_privilege('authenticated', 'tiempo._ensayo_100_seq', 'USAGE') AND has_sequence_privilege('service_role', 'tiempo._ensayo_100_seq', 'USAGE')$$);
 DROP SEQUENCE tiempo._ensayo_100_seq;
