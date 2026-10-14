@@ -231,3 +231,19 @@ usuario las pide.
   (nunca `LimitAS=`) con un valor holgado sobre el pico medido. Mejora barata: que `operador estado` imprima
   `limite_memoria=aplicado|no_aplicado`; y que muestre «hace X, ya resuelto» junto al diagnóstico 401 histórico (el último 401
   real fue 2026-10-12T19:53:47Z, el del primer arranque).
+
+## 11. Límite de datos del servicio del puente (14 de octubre de 2026)
+
+- **Aplicado** `LimitDATA=384M` (402 653 184 B) con el drop-in `/etc/systemd/system/puente.service.d/20-limite-datos.conf`
+  (root:root 0644), como compensación de `MemoryMax=256M` no aplicado (`cgroup_disable=memory`). Regla: `max(384 MiB, 3 × el
+  máximo de VmData observado)`; `VmData` observado 68.9 MiB (después 61 MiB) con 5 hilos de 64. Nunca `LimitAS=`
+  (`VmSize` ≈ 410 MiB). Hora: 2026-10-14T18:26:19Z (restart 18:26:24Z).
+- **Prueba transitoria** (`systemd-run` con las mismas propiedades): importa `puente`, un hilo adicional arranca, y la
+  asignación forzada levanta `MemoryError` capturable a 360 MiB (sin ABRT/SEGV).
+- **Observación:** chequeos cada 5 min con el mismo PID, `NRestarts=0`, freno limpio, latido en segundos, `fallos_seguidos=0`,
+  journals sin `MemoryError`/ABRT/SEGV/EPERM/SIGSYS/status=31; ningún gatillo de reversa.
+- **Hash de `systemctl cat puente.service`:** antes `b9b7e904f25f802920fdaef79cbc231cb64e59eb6a5599630c11beb347005eb6`,
+  después `8212ca9f…b3dbed`. El `.disabled` del drop-in EPERM y el filtro de syscalls no se tocaron.
+- **Pendientes de esta compensación:** pasar `LimitDATA` al archivo de unidad en la próxima etiqueta (y un valor propio para
+  `puente-respaldo.service` y las unidades de aviso); verificar en el equipo definitivo `grep memory
+  /sys/fs/cgroup/cgroup.controllers` (LEEME §3). Reversa: renombrar el drop-in, `daemon-reload`, `restart`.
