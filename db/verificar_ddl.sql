@@ -1760,9 +1760,11 @@ FROM tiempo.banco_de_horas b
 LEFT JOIN (SELECT banco_de_horas_id, sum(monto) AS suma FROM tiempo.movimiento_de_saldo GROUP BY banco_de_horas_id) m ON m.banco_de_horas_id = b.id
 WHERE b.monto IS DISTINCT FROM COALESCE(m.suma, 0);
 
--- 69) fn_movimiento_de_saldo_actualiza_banco tras 104_: SECURITY DEFINER con search_path exacto, dueño postgres, sin EXECUTE para nadie de la API (ni PUBLIC), una sola sentencia UPDATE sobre
--- banco_de_horas sin lectura previa del monto (sin «SELECT monto»), y SCJ18 con HINT banco_inexistente. Esperado: 0 filas DESPUÉS de aplicar 104_ (antes devuelve la fila).
-SELECT 'fn_movimiento_de_saldo_actualiza_banco: propiedades o contenido de 104_ incorrectos' AS problema, p.proname AS detalle
+-- 69) 104_: (a) fn_movimiento_de_saldo_actualiza_banco: SECURITY DEFINER con search_path exacto, dueño postgres, sin EXECUTE para nadie de la API (ni PUBLIC), una sola sentencia UPDATE sobre
+-- banco_de_horas sin lectura previa del monto, y SCJ18 con HINT banco_inexistente; (b) tiempo.movimiento_de_saldo: authenticated SIN privilegio INSERT y SIN la policy
+-- movimiento_de_saldo_insert_manual (service_role conserva INSERT; la policy de SELECT sigue); (c) fn_movimiento_de_saldo_manual_registrar: SECURITY DEFINER, search_path = tiempo, personas, pg_temp,
+-- EXECUTE solo para authenticated (ni PUBLIC, anon ni service_role), con el chequeo de autorización 42501 al principio. Esperado: 0 filas DESPUÉS de aplicar 104_ (antes devuelve filas).
+SELECT 'fn_movimiento_de_saldo_actualiza_banco: propiedades o contenido de 104_ incorrectos' AS problema, p.proname::text AS detalle
 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
 WHERE n.nspname = 'tiempo' AND p.proname = 'fn_movimiento_de_saldo_actualiza_banco'
   AND NOT (p.prosecdef AND p.proconfig = ARRAY['search_path=tiempo, pg_temp'] AND pg_get_userbyid(p.proowner) = 'postgres'
@@ -1771,4 +1773,23 @@ WHERE n.nspname = 'tiempo' AND p.proname = 'fn_movimiento_de_saldo_actualiza_ban
            AND NOT EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')
            AND (length(p.prosrc) - length(replace(p.prosrc, 'UPDATE tiempo.banco_de_horas', ''))) / length('UPDATE tiempo.banco_de_horas') = 1
            AND p.prosrc !~* 'select\s+monto'
-           AND p.prosrc LIKE '%SCJ18%' AND p.prosrc LIKE '%banco_inexistente%' AND p.prosrc LIKE '%IF NOT FOUND%');
+           AND p.prosrc LIKE '%SCJ18%' AND p.prosrc LIKE '%banco_inexistente%' AND p.prosrc LIKE '%IF NOT FOUND%')
+UNION ALL
+SELECT 'movimiento_de_saldo: authenticated conserva INSERT o sigue la policy movimiento_de_saldo_insert_manual', 'tiempo.movimiento_de_saldo'
+WHERE has_table_privilege('authenticated', 'tiempo.movimiento_de_saldo', 'INSERT')
+   OR has_any_column_privilege('authenticated', 'tiempo.movimiento_de_saldo', 'INSERT')
+   OR EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'tiempo' AND tablename = 'movimiento_de_saldo' AND policyname = 'movimiento_de_saldo_insert_manual')
+   OR EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'tiempo' AND tablename = 'movimiento_de_saldo' AND cmd IN ('INSERT', 'ALL') AND 'authenticated' = ANY (roles))
+UNION ALL
+SELECT 'movimiento_de_saldo: service_role sin INSERT (el batch lo necesita)', 'tiempo.movimiento_de_saldo'
+WHERE NOT has_table_privilege('service_role', 'tiempo.movimiento_de_saldo', 'INSERT')
+UNION ALL
+SELECT 'fn_movimiento_de_saldo_manual_registrar: propiedades o contenido de 104_ incorrectos', p.proname::text
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'tiempo' AND p.proname = 'fn_movimiento_de_saldo_manual_registrar'
+  AND NOT (p.prosecdef AND p.proconfig = ARRAY['search_path=tiempo, personas, pg_temp'] AND pg_get_userbyid(p.proowner) = 'postgres'
+           AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
+           AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE')
+           AND NOT EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')
+           AND p.prosrc LIKE '%fn_caller_tiene_permiso(''movimiento_de_saldo_edicion'')%' AND p.prosrc LIKE '%ERRCODE = ''42501''%'
+           AND p.prosrc LIKE '%auth.uid()%' AND p.prosrc NOT LIKE '%creado_en%');

@@ -1,0 +1,46 @@
+--- vigente (68_)
++++ nuevo (104_)
+@@ -1,2 +1,2 @@
+-CREATE FUNCTION tiempo.fn_movimiento_de_saldo_manual_registrar(
++CREATE OR REPLACE FUNCTION tiempo.fn_movimiento_de_saldo_manual_registrar(
+   p_persona_id  uuid,
+@@ -5,3 +5,7 @@
+   p_motivo      text
+-) RETURNS SETOF tiempo.movimiento_de_saldo AS $$
++) RETURNS SETOF tiempo.movimiento_de_saldo
++LANGUAGE plpgsql
++SECURITY DEFINER
++SET search_path = tiempo, personas, pg_temp
++AS $$
+ DECLARE
+@@ -11,2 +15,13 @@
+ BEGIN
++  -- Autorización (antes lo hacía la policy movimiento_de_saldo_insert_manual): persona activa con el permiso de edición.
++  IF NOT (personas.fn_caller_activo() AND personas.fn_caller_tiene_permiso('movimiento_de_saldo_edicion')) THEN
++    RAISE EXCEPTION 'No tienes permiso para registrar movimientos de saldo.' USING ERRCODE = '42501';
++  END IF;
++
++  -- autor_id SIEMPRE desde la sesión (nunca del cliente).
++  SELECT u.persona_id INTO v_autor_id FROM personas.usuario u WHERE u.auth_user_id = auth.uid();
++  IF v_autor_id IS NULL THEN
++    RAISE EXCEPTION 'No tienes permiso para registrar movimientos de saldo.' USING ERRCODE = '42501';
++  END IF;
++
+   IF p_tipo NOT IN ('arrastrar', 'descontar', 'condonar') THEN
+@@ -18,4 +33,5 @@
+ 
++  -- FOR UPDATE: serializa dos movimientos concurrentes sobre el mismo banco (la comprobación de saldo es check-then-act).
+   SELECT id, monto INTO v_banco_id, v_monto_actual
+-  FROM tiempo.banco_de_horas WHERE persona_id = p_persona_id;
++  FROM tiempo.banco_de_horas WHERE persona_id = p_persona_id FOR UPDATE;
+   IF v_banco_id IS NULL THEN
+@@ -26,4 +42,2 @@
+   END IF;
+-
+-  SELECT u.persona_id INTO v_autor_id FROM personas.usuario u WHERE u.auth_user_id = auth.uid();
+ 
+@@ -39,3 +53,2 @@
+ END;
+-$$ LANGUAGE plpgsql;
+-
++$$;

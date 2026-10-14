@@ -3,7 +3,8 @@
 -- Todo dentro de BEGIN … ROLLBACK. Aplica SOLO 104_ ENCIMA de lo ya aplicado (88_-103_, o al menos 88_-100_). Personas, usuarios, bancos y movimientos SINTÉTICOS creados en la transacción y
 -- revertidos (incluye filas en personas.bitacora_movimiento_persona por el alta del usuario sintético, que el ROLLBACK descarta). El administrador real solo es caller (y autor) de movimientos manuales.
 -- (A0) ANTES de aplicar 104_ documenta el defecto vigente; (A) atributos; (B) tres tipos manuales con el permiso (admin): saldo y vivo_desde exactos; (C) camino del batch (service_role);
--- (D) sin permiso: el INSERT falla y el banco no cambia; (E) propiedades estáticas (una sola sentencia, sin lectura previa); (F) verificador completo (secciones 68 y 69 en 0 filas).
+-- (D) vía directa cerrada para TODOS (también con permiso) con cada forma de abuso, autorización dentro del RPC (sin permiso, suspendida, solo lectura, anon) y validaciones intactas; (E) propiedades
+-- estáticas (cuerpo, policy, grants, RPC); (F) verificador completo (secciones 68 y 69 en 0 filas).
 -- CONCURRENCIA (no simulable en una sola transacción): la ausencia de actualización perdida se apoya en la semántica de PostgreSQL (UPDATE toma el candado de la fila y, en READ COMMITTED, una segunda
 -- sesión espera y re-evalúa «monto + NEW.monto» sobre la versión actualizada) y en la prueba E2 (una sola sentencia UPDATE, sin SELECT del monto). Una prueba con dos sesiones reales exige COMMIT
 -- (residuo) y no se hace contra la base real.
@@ -65,9 +66,39 @@ INSERT INTO tiempo.persona (id) SELECT v::uuid FROM _ens WHERE k ~ '^P[0-9]$' ON
 -- P1 = banco BB (pre-prueba del defecto), P2 = banco BA (pruebas principales), P3 = banco BC (acumulación del batch), P4 = usuario sin permisos (con banco BD).
 INSERT INTO tiempo.banco_de_horas (persona_id, monto) SELECT v::uuid, 0 FROM _ens WHERE k IN ('P1', 'P2', 'P3', 'P4');
 INSERT INTO _ens SELECT CASE e.k WHEN 'P1' THEN 'BB' WHEN 'P2' THEN 'BA' WHEN 'P3' THEN 'BC' ELSE 'BD' END, b.id::text FROM _ens e JOIN tiempo.banco_de_horas b ON b.persona_id = e.v::uuid WHERE e.k IN ('P1', 'P2', 'P3', 'P4');
-INSERT INTO _ens VALUES ('auth_sin', gen_random_uuid()::text);
-INSERT INTO auth.users (id, aud, role, email) VALUES ((SELECT v::uuid FROM _ens WHERE k = 'auth_sin'), 'authenticated', 'authenticated', 'ens104sin@invalid.test');
-INSERT INTO personas.usuario (auth_user_id, persona_id, nombre_usuario) VALUES ((SELECT v::uuid FROM _ens WHERE k = 'auth_sin'), (SELECT v::uuid FROM _ens WHERE k = 'P4'), 'ens104sin');
+INSERT INTO _ens VALUES ('auth_sin', gen_random_uuid()::text), ('auth_lec', gen_random_uuid()::text), ('auth_susp', gen_random_uuid()::text), ('auth_edi', gen_random_uuid()::text);
+INSERT INTO auth.users (id, aud, role, email) SELECT v::uuid, 'authenticated', 'authenticated', k || '@invalid.test' FROM _ens WHERE k IN ('auth_sin', 'auth_lec', 'auth_susp', 'auth_edi');
+-- Más personas: P5 = suspendida CON el permiso de edición; P6 = activa con SOLO banco_de_horas_lectura; P7 = activa con movimiento_de_saldo_edicion (no administrador).
+INSERT INTO personas.persona (curp, rfc, nss, primer_nombre, apellido_paterno, fecha_nacimiento, fecha_ingreso)
+SELECT 'XEXX010101HNEXXY' || i, 'XEXY010101' || i, '9999994' || '00' || i, 'Sintetica' || i, 'Ensayo104', DATE '2000-01-01', CURRENT_DATE FROM unnest(ARRAY['75', '76', '77']) i;
+INSERT INTO _ens SELECT 'P' || (4 + ord), p.id::text FROM unnest(ARRAY['75', '76', '77']) WITH ORDINALITY u(i, ord) JOIN personas.persona p ON p.curp = 'XEXX010101HNEXXY' || u.i;
+INSERT INTO tiempo.persona (id) SELECT v::uuid FROM _ens WHERE k IN ('P5', 'P6', 'P7') ON CONFLICT DO NOTHING;
+-- Puestos sintéticos hijos del Gerente General (no heredan nada hacia abajo): uno con movimiento_de_saldo_edicion y otro con SOLO banco_de_horas_lectura.
+INSERT INTO personas.puesto (departamento_id, nombre_puesto, nivel, reporta_a_id)
+SELECT departamento_id, 'ENS104 edicion', 'operativo', id FROM personas.puesto WHERE nombre_puesto = 'Gerente General';
+INSERT INTO personas.puesto (departamento_id, nombre_puesto, nivel, reporta_a_id)
+SELECT departamento_id, 'ENS104 edicion B', 'operativo', id FROM personas.puesto WHERE nombre_puesto = 'Gerente General';
+INSERT INTO personas.puesto (departamento_id, nombre_puesto, nivel, reporta_a_id)
+SELECT departamento_id, 'ENS104 lectura', 'operativo', id FROM personas.puesto WHERE nombre_puesto = 'Gerente General';
+INSERT INTO personas.bitacora_movimiento_puesto_permiso (puesto_id, codigo, tipo_movimiento)
+SELECT id, 'movimiento_de_saldo_edicion', 'otorgado' FROM personas.puesto WHERE nombre_puesto = 'ENS104 edicion';
+INSERT INTO personas.bitacora_movimiento_puesto_permiso (puesto_id, codigo, tipo_movimiento)
+SELECT id, 'movimiento_de_saldo_edicion', 'otorgado' FROM personas.puesto WHERE nombre_puesto = 'ENS104 edicion B';
+INSERT INTO personas.bitacora_movimiento_puesto_permiso (puesto_id, codigo, tipo_movimiento)
+SELECT id, 'banco_de_horas_lectura', 'otorgado' FROM personas.puesto WHERE nombre_puesto = 'ENS104 lectura';
+INSERT INTO personas.usuario (auth_user_id, persona_id, nombre_usuario) VALUES
+  ((SELECT v::uuid FROM _ens WHERE k = 'auth_sin'),  (SELECT v::uuid FROM _ens WHERE k = 'P4'), 'ens104sin'),
+  ((SELECT v::uuid FROM _ens WHERE k = 'auth_susp'), (SELECT v::uuid FROM _ens WHERE k = 'P5'), 'ens104susp'),
+  ((SELECT v::uuid FROM _ens WHERE k = 'auth_lec'),  (SELECT v::uuid FROM _ens WHERE k = 'P6'), 'ens104lec'),
+  ((SELECT v::uuid FROM _ens WHERE k = 'auth_edi'),  (SELECT v::uuid FROM _ens WHERE k = 'P7'), 'ens104edi');
+INSERT INTO personas.asignacion (persona_id, puesto_id, vigente_desde)
+SELECT (SELECT v::uuid FROM _ens WHERE k = 'P5'), id, CURRENT_DATE FROM personas.puesto WHERE nombre_puesto = 'ENS104 edicion';
+INSERT INTO personas.asignacion (persona_id, puesto_id, vigente_desde)
+SELECT (SELECT v::uuid FROM _ens WHERE k = 'P6'), id, CURRENT_DATE FROM personas.puesto WHERE nombre_puesto = 'ENS104 lectura';
+INSERT INTO personas.asignacion (persona_id, puesto_id, vigente_desde)
+SELECT (SELECT v::uuid FROM _ens WHERE k = 'P7'), id, CURRENT_DATE FROM personas.puesto WHERE nombre_puesto = 'ENS104 edicion B';
+-- P5 queda suspendida (conserva el puesto): fn_caller_activo debe responder false.
+UPDATE personas.persona SET estado = 'suspension' WHERE id = (SELECT v::uuid FROM _ens WHERE k = 'P5');
 -- saldo inicial de BB (como lo haría el batch, ANTES de aplicar 104_; el trigger vigente corre como el dueño y sí actualiza)
 INSERT INTO tiempo.movimiento_de_saldo (banco_de_horas_id, tipo, monto, motivo, creado_en)
 VALUES ((SELECT v::bigint FROM _ens WHERE k = 'BB'), 'generado_quincena', 10, 'ens104', TIMESTAMPTZ '2026-01-15 10:00:00+00');
@@ -141,16 +172,54 @@ SELECT pg_temp.verifica('C5b monto = -2 y vivo_desde = NULL', $$SELECT pg_temp.m
 SELECT pg_temp.caso('D1 usuario sin permisos: INSERT directo en movimiento_de_saldo => 42501 (RLS)', 'authenticated',
   format($f$INSERT INTO tiempo.movimiento_de_saldo (banco_de_horas_id, tipo, monto, motivo, autor_id) VALUES (%s, 'descontar', -1, 'ens104 sin permiso', %L::uuid)$f$, (SELECT v FROM _ens WHERE k = 'BA'), (SELECT v FROM _ens WHERE k = 'P4')),
   '42501', (SELECT v FROM _ens WHERE k = 'auth_sin'));
-SELECT pg_temp.caso('D2 usuario sin permisos: el RPC => SCJ03 (no ve el banco: sin banco_de_horas_lectura)', 'authenticated',
-  format($f$SELECT * FROM tiempo.fn_movimiento_de_saldo_manual_registrar(%L::uuid, 'descontar', 1, 'ens104 sin permiso')$f$, (SELECT v FROM _ens WHERE k = 'P2')), 'SCJ03', (SELECT v FROM _ens WHERE k = 'auth_sin'));
-SELECT pg_temp.caso('D3 con permiso pero autor_id de OTRA persona (suplantación) => 42501', 'authenticated',
+SELECT pg_temp.caso('D2 usuario sin permisos: el RPC => 42501 (la autorización pasó al RPC DEFINER)', 'authenticated',
+  format($f$SELECT * FROM tiempo.fn_movimiento_de_saldo_manual_registrar(%L::uuid, 'descontar', 1, 'ens104 sin permiso')$f$, (SELECT v FROM _ens WHERE k = 'P2')), '42501', (SELECT v FROM _ens WHERE k = 'auth_sin'));
+SELECT pg_temp.caso('D3 con permiso, INSERT directo con autor_id de OTRA persona (suplantación) => 42501 (sin privilegio INSERT)', 'authenticated',
   format($f$INSERT INTO tiempo.movimiento_de_saldo (banco_de_horas_id, tipo, monto, motivo, autor_id) VALUES (%s, 'descontar', -1, 'ens104 suplanta', %L::uuid)$f$, (SELECT v FROM _ens WHERE k = 'BA'), (SELECT v FROM _ens WHERE k = 'P4')), '42501');
 SELECT pg_temp.verifica('D4 el banco BA no cambió por los intentos fallidos', $$SELECT pg_temp.monto('BA') = 5 AND pg_temp.suma('BA') = 5$$);
 SELECT pg_temp.caso('D5 tipo no permitido por la vía manual (generado_quincena como authenticated) => 42501 (policy)', 'authenticated',
   format($f$INSERT INTO tiempo.movimiento_de_saldo (banco_de_horas_id, tipo, monto, motivo, autor_id) VALUES (%s, 'generado_quincena', 1, 'ens104', %L::uuid)$f$, (SELECT v FROM _ens WHERE k = 'BA'), (SELECT v FROM _ens WHERE k = 'persona_admin')), '42501');
 
+-- ---- D6–D12: la vía directa está CERRADA para quien TIENE el permiso (admin): cada forma de abuso => 42501 (sin privilegio) y el banco no cambia ----
+SELECT pg_temp.caso('D6 INSERT directo con permiso: monto POSITIVO (aumentar deuda)', 'authenticated',
+  format($f$INSERT INTO tiempo.movimiento_de_saldo (banco_de_horas_id, tipo, monto, motivo, autor_id) VALUES (%s, 'descontar', 5, 'ens104 abuso', %L::uuid)$f$, (SELECT v FROM _ens WHERE k = 'BA'), (SELECT v FROM _ens WHERE k = 'persona_admin')), '42501');
+SELECT pg_temp.caso('D7 INSERT directo con permiso: monto NEGATIVO mayor que la deuda', 'authenticated',
+  format($f$INSERT INTO tiempo.movimiento_de_saldo (banco_de_horas_id, tipo, monto, motivo, autor_id) VALUES (%s, 'condonar', -50, 'ens104 abuso', %L::uuid)$f$, (SELECT v FROM _ens WHERE k = 'BA'), (SELECT v FROM _ens WHERE k = 'persona_admin')), '42501');
+SELECT pg_temp.caso('D8 INSERT directo con permiso: monto 0', 'authenticated',
+  format($f$INSERT INTO tiempo.movimiento_de_saldo (banco_de_horas_id, tipo, monto, motivo, autor_id) VALUES (%s, 'descontar', 0, 'ens104 abuso', %L::uuid)$f$, (SELECT v FROM _ens WHERE k = 'BA'), (SELECT v FROM _ens WHERE k = 'persona_admin')), '42501');
+SELECT pg_temp.caso('D9 INSERT directo con permiso: UNA sola fila arrastrar con +X sin su par', 'authenticated',
+  format($f$INSERT INTO tiempo.movimiento_de_saldo (banco_de_horas_id, tipo, monto, motivo, autor_id) VALUES (%s, 'arrastrar', 3, 'ens104 abuso', %L::uuid)$f$, (SELECT v FROM _ens WHERE k = 'BA'), (SELECT v FROM _ens WHERE k = 'persona_admin')), '42501');
+SELECT pg_temp.caso('D10 INSERT directo con permiso: creado_en en el pasado (distorsionaría vivo_desde y el FIFO)', 'authenticated',
+  format($f$INSERT INTO tiempo.movimiento_de_saldo (banco_de_horas_id, tipo, monto, motivo, autor_id, creado_en) VALUES (%s, 'descontar', -1, 'ens104 abuso', %L::uuid, TIMESTAMPTZ '2020-01-01 00:00:00+00')$f$, (SELECT v FROM _ens WHERE k = 'BA'), (SELECT v FROM _ens WHERE k = 'persona_admin')), '42501');
+SELECT pg_temp.caso('D11 INSERT directo con permiso: banco AJENO (BC)', 'authenticated',
+  format($f$INSERT INTO tiempo.movimiento_de_saldo (banco_de_horas_id, tipo, monto, motivo, autor_id) VALUES (%s, 'descontar', -1, 'ens104 abuso', %L::uuid)$f$, (SELECT v FROM _ens WHERE k = 'BC'), (SELECT v FROM _ens WHERE k = 'persona_admin')), '42501');
+SELECT pg_temp.verifica('D12 ningún abuso movió nada: BA = 5 = ledger y BC = -2 = ledger', $$SELECT pg_temp.monto('BA') = 5 AND pg_temp.suma('BA') = 5 AND pg_temp.monto('BC') = -2 AND pg_temp.suma('BC') = -2$$);
+-- ---- D13–D16: autorización dentro del RPC ----
+SELECT pg_temp.caso('D13 persona SUSPENDIDA (con el permiso de edición por su puesto): el RPC => 42501', 'authenticated',
+  format($f$SELECT * FROM tiempo.fn_movimiento_de_saldo_manual_registrar(%L::uuid, 'descontar', 1, 'ens104 suspendida')$f$, (SELECT v FROM _ens WHERE k = 'P2')), '42501', (SELECT v FROM _ens WHERE k = 'auth_susp'));
+SELECT pg_temp.caso('D14 usuario con OTRO permiso (banco_de_horas_lectura) pero SIN movimiento_de_saldo_edicion: el RPC => 42501', 'authenticated',
+  format($f$SELECT * FROM tiempo.fn_movimiento_de_saldo_manual_registrar(%L::uuid, 'descontar', 1, 'ens104 solo lectura')$f$, (SELECT v FROM _ens WHERE k = 'P2')), '42501', (SELECT v FROM _ens WHERE k = 'auth_lec'));
+SELECT pg_temp.caso('D15 anon: sin EXECUTE del RPC => 42501', 'anon',
+  format($f$SELECT * FROM tiempo.fn_movimiento_de_saldo_manual_registrar(%L::uuid, 'descontar', 1, 'ens104 anon')$f$, (SELECT v FROM _ens WHERE k = 'P2')), '42501');
+SELECT pg_temp.verifica('D16 el banco BA sigue en 5 tras los rechazos del RPC', $$SELECT pg_temp.monto('BA') = 5 AND pg_temp.suma('BA') = 5$$);
+-- ---- D17: un usuario NO administrador con movimiento_de_saldo_edicion (P7, activo): funciona, y el autor es él (fn_caller_* siguen leyendo los claims dentro de DEFINER) ----
+SELECT pg_temp.caso('D17 persona ACTIVA con movimiento_de_saldo_edicion (no admin) descuenta 1 => ok', 'authenticated',
+  format($f$SELECT * FROM tiempo.fn_movimiento_de_saldo_manual_registrar(%L::uuid, 'descontar', 1, 'ens104 edicion')$f$, (SELECT v FROM _ens WHERE k = 'P2')), 'ok', (SELECT v FROM _ens WHERE k = 'auth_edi'));
+SELECT pg_temp.verifica('D17b BA = 4 = ledger y el autor del movimiento es P7 (sale de auth.uid(), no del cliente) y creado_en lo fijó el servidor',
+  $$SELECT pg_temp.monto('BA') = 4 AND pg_temp.suma('BA') = 4
+    AND (SELECT autor_id FROM tiempo.movimiento_de_saldo WHERE motivo = 'ens104 edicion') = (SELECT v::uuid FROM _ens WHERE k = 'P7')
+    AND (SELECT creado_en FROM tiempo.movimiento_de_saldo WHERE motivo = 'ens104 edicion') = now()$$);
+SELECT pg_temp.caso('D18 el RPC con monto mayor que el saldo => SCJ04 (validaciones intactas)', 'authenticated',
+  format($f$SELECT * FROM tiempo.fn_movimiento_de_saldo_manual_registrar(%L::uuid, 'descontar', 99, 'ens104 excede')$f$, (SELECT v FROM _ens WHERE k = 'P2')), 'SCJ04');
+SELECT pg_temp.caso('D19 el RPC con tipo no permitido (cubrir) => SCJ01', 'authenticated',
+  format($f$SELECT * FROM tiempo.fn_movimiento_de_saldo_manual_registrar(%L::uuid, 'cubrir', 1, 'ens104 tipo')$f$, (SELECT v FROM _ens WHERE k = 'P2')), 'SCJ01');
+SELECT pg_temp.caso('D20 el RPC con monto 0 => SCJ02', 'authenticated',
+  format($f$SELECT * FROM tiempo.fn_movimiento_de_saldo_manual_registrar(%L::uuid, 'descontar', 0, 'ens104 cero')$f$, (SELECT v FROM _ens WHERE k = 'P2')), 'SCJ02');
+SELECT pg_temp.caso('D21 el RPC sobre persona sin banco => SCJ03', 'authenticated',
+  format($f$SELECT * FROM tiempo.fn_movimiento_de_saldo_manual_registrar(%L::uuid, 'descontar', 1, 'ens104 sin banco')$f$, (SELECT v FROM _ens WHERE k = 'P7')), 'SCJ03');
+
 -- ============================================================================
--- E) Propiedades estáticas del cuerpo
+-- E) Propiedades estáticas del cuerpo y de la superficie (policy, grants, RPC)
 -- ============================================================================
 SELECT pg_temp.verifica('E1 el cuerpo tiene exactamente UNA sentencia UPDATE sobre banco_de_horas y ningún SELECT del monto',
   $$SELECT (length(p.prosrc) - length(replace(p.prosrc, 'UPDATE tiempo.banco_de_horas', ''))) / length('UPDATE tiempo.banco_de_horas') = 1 AND p.prosrc !~* 'select\s+monto'
@@ -161,6 +230,19 @@ SELECT pg_temp.verifica('E2 la rama IF NOT FOUND levanta SCJ18 con HINT banco_in
 SELECT pg_temp.verifica('E3 SCJ18 no se usaba antes en ninguna otra función de tiempo/personas (código nuevo libre)',
   $$SELECT (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname IN ('tiempo', 'personas') AND p.prosrc LIKE '%SCJ18%') = 1$$);
 -- El invariante en las filas sintéticas: todo banco creado aquí cuadra con su ledger (la sección 68 del verificador lo comprueba en toda la base).
+SELECT pg_temp.verifica('E5 la policy de INSERT ya no existe y authenticated no tiene INSERT (ni de columna) sobre movimiento_de_saldo; service_role conserva INSERT; la policy de SELECT sigue',
+  $$SELECT NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'tiempo' AND tablename = 'movimiento_de_saldo' AND (cmd IN ('INSERT', 'ALL') OR policyname = 'movimiento_de_saldo_insert_manual'))
+    AND NOT has_any_column_privilege('authenticated', 'tiempo.movimiento_de_saldo', 'INSERT') AND has_table_privilege('service_role', 'tiempo.movimiento_de_saldo', 'INSERT')
+    AND EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'tiempo' AND tablename = 'movimiento_de_saldo' AND policyname = 'movimiento_de_saldo_select_requiere_permiso')$$);
+SELECT pg_temp.verifica('E6 el RPC: SECURITY DEFINER, search_path = tiempo, personas, pg_temp, dueño postgres, ACL {postgres, authenticated} (sin PUBLIC, anon ni service_role)',
+  $$SELECT p.prosecdef AND p.proconfig = ARRAY['search_path=tiempo, personas, pg_temp'] AND pg_get_userbyid(p.proowner) = 'postgres'
+    AND has_function_privilege('authenticated', p.oid, 'EXECUTE') AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE')
+    AND NOT EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'tiempo' AND p.proname = 'fn_movimiento_de_saldo_manual_registrar'$$);
+SELECT pg_temp.verifica('E7 el RPC autoriza al principio y no acepta creado_en ni autor del cliente',
+  $$SELECT position('fn_caller_tiene_permiso(''movimiento_de_saldo_edicion'')' IN p.prosrc) > 0 AND position('fn_caller_tiene_permiso' IN p.prosrc) < position('INSERT INTO' IN p.prosrc)
+    AND p.prosrc NOT LIKE '%creado_en%' AND p.prosrc LIKE '%auth.uid()%' AND p.prosrc LIKE '%FOR UPDATE%'
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'tiempo' AND p.proname = 'fn_movimiento_de_saldo_manual_registrar'$$);
 SELECT pg_temp.verifica('E4 invariante banco = ledger en los 3 bancos sintéticos que recibieron movimientos de 104_ (BA, BC) y BB queda desalineado SOLO si el defecto vigente existía antes',
   $$SELECT pg_temp.monto('BA') = pg_temp.suma('BA') AND pg_temp.monto('BC') = pg_temp.suma('BC')$$);
 
