@@ -157,9 +157,18 @@ SELECT pg_temp.caso('C4 service_role SELECT personas.persona', 'service_role', $
 SELECT pg_temp.caso('C5 service_role SELECT personas.usuario', 'service_role', $$SELECT 1 FROM personas.usuario LIMIT 1$$, 'ok');
 SELECT pg_temp.caso('C6 service_role SELECT personas.bitacora_movimiento_persona', 'service_role', $$SELECT 1 FROM personas.bitacora_movimiento_persona LIMIT 1$$, 'ok');
 SELECT pg_temp.caso('C7 service_role TRUNCATE personas.persona denegado', 'service_role', $$TRUNCATE personas.persona$$, '42501');
-SELECT pg_temp.verifica('C8 las dos bitácoras siguen SIN UPDATE ni DELETE ni TRUNCATE para authenticated y service_role (28_ intacto; por catálogo, sin escribir)',
+SELECT pg_temp.verifica('C8 después: las dos bitácoras NO tienen TRUNCATE para authenticated ni service_role (por catálogo, sin escribir); su inmutabilidad real es el trigger (C9), no el privilegio',
   $$SELECT NOT EXISTS (SELECT 1 FROM unnest(ARRAY['personas.bitacora_movimiento_persona', 'personas.bitacora_movimiento_puesto_permiso']) t CROSS JOIN unnest(ARRAY['authenticated', 'service_role']) r
-        CROSS JOIN unnest(ARRAY['UPDATE', 'DELETE', 'TRUNCATE']) p WHERE has_table_privilege(r, t, p))$$);
+        WHERE has_table_privilege(r, t, 'TRUNCATE'))$$);
+SELECT pg_temp.verifica('C8b UPDATE/DELETE de las dos bitácoras para authenticated y service_role quedan EXACTAMENTE como estaban (102_ no los toca; ver A4)',
+  $$SELECT NOT EXISTS (SELECT 1 FROM _foto a WHERE a.fase = 'antes' AND a.rel IN ('personas.bitacora_movimiento_persona', 'personas.bitacora_movimiento_puesto_permiso') AND a.priv IN ('UPDATE', 'DELETE') AND a.rol IN ('authenticated', 'service_role')
+        AND NOT EXISTS (SELECT 1 FROM _foto d WHERE d.fase = 'despues' AND (d.rol, d.rel, d.priv, d.nivel) = (a.rol, a.rel, a.priv, a.nivel)))
+    AND NOT EXISTS (SELECT 1 FROM _foto d WHERE d.fase = 'despues' AND d.rel IN ('personas.bitacora_movimiento_persona', 'personas.bitacora_movimiento_puesto_permiso') AND d.priv IN ('UPDATE', 'DELETE') AND d.rol IN ('authenticated', 'service_role')
+        AND NOT EXISTS (SELECT 1 FROM _foto a WHERE a.fase = 'antes' AND (a.rol, a.rel, a.priv, a.nivel) = (d.rol, d.rel, d.priv, d.nivel)))$$);
+INSERT INTO _res (caso, ok, detalle)
+SELECT 'C8c (informativo) UPDATE/DELETE vigentes sobre las bitácoras tras 102_', true,
+       COALESCE(string_agg(rel || ':' || rol || ':' || priv, '; ' ORDER BY rel, rol, priv), 'ninguno')
+FROM _foto WHERE fase = 'despues' AND rel IN ('personas.bitacora_movimiento_persona', 'personas.bitacora_movimiento_puesto_permiso') AND priv IN ('UPDATE', 'DELETE') AND nivel = 'tabla';
 SELECT pg_temp.verifica('C9 los triggers de inmutabilidad de las bitácoras de personas siguen habilitados (102_ no los toca)',
   $$SELECT count(*) >= 2 AND bool_and(t.tgenabled = 'O') FROM pg_trigger t WHERE t.tgrelid IN ('personas.bitacora_movimiento_persona'::regclass, 'personas.bitacora_movimiento_puesto_permiso'::regclass) AND NOT t.tgisinternal$$);
 SELECT pg_temp.verifica('C10 el número de policies de personas no cambió respecto de la línea base (102_ no crea ni cambia policies; 77 en total con tiempo)',
