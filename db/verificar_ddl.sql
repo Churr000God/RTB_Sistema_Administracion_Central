@@ -1687,3 +1687,40 @@ SELECT 'miembro de ' || g.rolname, u.rolname
 FROM pg_auth_members m JOIN pg_roles g ON g.oid = m.roleid JOIN pg_roles u ON u.oid = m.member
 WHERE u.rolname IN ('anon', 'authenticated')
   AND g.rolname IN ('pg_maintain', 'pg_write_all_data', 'pg_read_all_data', 'pg_execute_server_program', 'pg_signal_backend', 'pg_read_server_files', 'pg_write_server_files');
+
+-- 66) Privilegios de estructura del esquema personas tras 102_: (a) anon no tiene NINGÚN privilegio (tabla, columna ni secuencia) sobre ninguna relación de personas, con UNA excepción
+-- documentada: SELECT sobre personas.permiso (humo del Data API, sección 9); (b) authenticated y service_role no tienen TRUNCATE, REFERENCES, TRIGGER ni (PG >= 17) MAINTAIN sobre
+-- ninguna tabla de personas (MAINTAIN de service_role heredado por ser MIEMBRO de pg_maintain se excluye, como en la sección 63); (c) los privilegios por defecto del esquema
+-- (pg_default_acl) no conceden nada a anon ni TRUNCATE/REFERENCES/TRIGGER/MAINTAIN a authenticated/service_role. Esperado: 0 filas DESPUÉS de aplicar 102_ (antes devuelve filas).
+SELECT c.relname::text AS objeto, r.rol, p.priv AS privilegio_de_mas
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+CROSS JOIN (VALUES ('anon')) AS r(rol)
+CROSS JOIN unnest(CASE WHEN current_setting('server_version_num')::integer >= 170000
+                       THEN ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN']
+                       ELSE ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'] END) AS p(priv)
+WHERE n.nspname = 'personas' AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
+  AND NOT (c.relname = 'permiso' AND p.priv = 'SELECT')
+  AND (has_table_privilege(r.rol, c.oid, p.priv)
+       OR (p.priv IN ('SELECT', 'INSERT', 'UPDATE', 'REFERENCES') AND has_any_column_privilege(r.rol, c.oid, p.priv)))
+UNION ALL
+SELECT c.relname::text, 'anon', p.priv
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+CROSS JOIN (VALUES ('USAGE'), ('SELECT'), ('UPDATE')) AS p(priv)
+WHERE n.nspname = 'personas' AND c.relkind = 'S' AND has_sequence_privilege('anon', c.oid, p.priv)
+UNION ALL
+SELECT c.relname::text, r.rol, p.priv
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+CROSS JOIN (VALUES ('authenticated'), ('service_role')) AS r(rol)
+CROSS JOIN unnest(CASE WHEN current_setting('server_version_num')::integer >= 170000
+                       THEN ARRAY['TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN'] ELSE ARRAY['TRUNCATE', 'REFERENCES', 'TRIGGER'] END) AS p(priv)
+WHERE n.nspname = 'personas' AND c.relkind IN ('r', 'p') AND has_table_privilege(r.rol, c.oid, p.priv)
+  AND NOT (r.rol = 'service_role' AND p.priv = 'MAINTAIN'
+           AND EXISTS (SELECT 1 FROM pg_auth_members m JOIN pg_roles g ON g.oid = m.roleid JOIN pg_roles u ON u.oid = m.member
+                       WHERE g.rolname = 'pg_maintain' AND u.rolname = 'service_role'))
+UNION ALL
+SELECT 'pg_default_acl(' || d.defaclobjtype::text || ')', g.rolname, a.privilege_type
+FROM pg_default_acl d JOIN pg_namespace n ON n.oid = d.defaclnamespace
+CROSS JOIN LATERAL aclexplode(d.defaclacl) a JOIN pg_roles g ON g.oid = a.grantee
+WHERE n.nspname = 'personas' AND d.defaclobjtype IN ('r', 'S')
+  AND (g.rolname = 'anon'
+       OR (d.defaclobjtype = 'r' AND g.rolname IN ('authenticated', 'service_role') AND a.privilege_type IN ('TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN')));
