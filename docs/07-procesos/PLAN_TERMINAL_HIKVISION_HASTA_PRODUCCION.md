@@ -1,5 +1,7 @@
 # Plan — Terminal Hikvision y correcciones de Tiempo, hasta producción y pruebas físicas
 
+> **Nota del 14 de octubre de 2026:** este plan se escribió el 8 de octubre. Su estado de avance quedó superado por `bitacora/2026-10-13_estado_de_la_sesion_para_retomar.md` (secciones 9 y 10) y, para el piloto, por `docs/07-procesos/PLAN_PILOTO_TERMINAL_HIKVISION.md`. Las pruebas físicas de la sección 6 se adaptaron al diseño vigente (activación por confirmación humana, reconciliación que nunca borra).
+
 **Sistema de Control de Jornada · RTB-CRM-APP**
 Estado al **8 de octubre de 2026**. Documento vivo (sin folio, mismo trato que
 `PLAN_IMPLEMENTACION_TIEMPO.md`): se actualiza en cada sesión. Existe para que una conversación nueva
