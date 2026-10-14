@@ -213,3 +213,13 @@ usuario las pide.
   que no se quiere con este firmware), y exigir una confirmación explícita para bajar `PUENTE_TERMINAL_INTERVALO_MIN_S` de 1 s.
 - **Protección de rama en `main`, `CODEOWNERS` para `.github/workflows/**` y un Environment con revisor**, cuando haya más de un
   desarrollador o plan de pago (hoy decisión del usuario: no).
+- **E2, corte de luz duro del Pi (sin apagado limpio):** prueba de durabilidad opcional (WAL, `integrity_check`, candado
+  huérfano, outbox sin marcas perdidas ni duplicadas). Riesgo de dañar el sistema de archivos de la tarjeta SD: solo con
+  respaldo previo y, mejor, con imagen de la SD, o ya en el equipo definitivo. El caso del apagado limpio (P6) no la necesita.
+- **`After=tailscaled.service` en la unidad definitiva** para eliminar la carrera de orden del arranque (hoy el servicio
+  espera `network-online.target` y `chrony.service`, pero no a Tailscale; en el arranque real no se manifestó). Es un cambio
+  de unidad aparte, con su ventana.
+- **Subir la versión del paquete a 0.1.1** en la próxima etiqueta (la telemetría `version_pi` dice `0.1.0` aunque la
+  etiqueta es `puente-v0.1.1`); la etiqueta existente no se mueve.
+- **`MemoryAccounting` en la unidad** si se quiere que `MemoryPeak` se reporte (hoy se lee de `memory.peak` y
+  `memory.events` del cgroup); que `operador estado` muestre «hace X, ya resuelto» junto al diagnóstico 401 histórico.
