@@ -81,7 +81,8 @@ SELECT count(*) FROM personas.puesto WHERE es_administrador_generico = true;
 -- 9) curl de humo contra PostgREST con el esquema personas expuesto:
 --   curl -s -o /dev/null -w '%{http_code}\n' "$SUPABASE_URL/rest/v1/permiso" \
 --     -H "apikey: $SUPABASE_ANON_KEY" -H "Accept-Profile: personas"
--- Esperado: 200 (cuerpo [] si no hay sesión — RLS deny-by-default para anon). Errores comunes:
+-- Esperado hasta 102_: 200 (cuerpo [] si no hay sesión — RLS deny-by-default para anon). Desde 103_ (REVOKE SELECT de anon sobre personas.permiso): 401 con código 42501
+-- («permission denied for table permiso»): sigue probando que el Data API responde y que anon no lee nada; ya no hay 200 con []. Errores comunes:
 --   404 con código PGRST106 -> el esquema no está expuesto en Data API.
 --   "permission denied for schema personas" -> falta el GRANT explícito (08_personas_permisos.sql).
 
@@ -1724,3 +1725,30 @@ CROSS JOIN LATERAL aclexplode(d.defaclacl) a JOIN pg_roles g ON g.oid = a.grante
 WHERE n.nspname = 'personas' AND d.defaclobjtype IN ('r', 'S')
   AND (g.rolname = 'anon'
        OR (d.defaclobjtype = 'r' AND g.rolname IN ('authenticated', 'service_role') AND a.privilege_type IN ('TRUNCATE', 'REFERENCES', 'TRIGGER', 'MAINTAIN')));
+
+-- 67) UPDATE/DELETE/TRUNCATE sobre tablas inmutables o append-only tras 103_: (a) toda tabla de personas o tiempo con un trigger BEFORE (UPDATE y DELETE) cuyo nombre contenga «inmutable» no
+-- tiene UPDATE, DELETE ni TRUNCATE (de tabla ni, para UPDATE, de columna) para ningún rol de la API (anon, authenticated, service_role); (b) las tablas append-only por privilegio (tiempo.marca,
+-- tiempo.movimiento_de_saldo, tiempo.correccion, tiempo.marca_rechazada) tampoco; (c) anon no tiene NINGÚN privilegio sobre personas.permiso (cierra la excepción de 102_ / sección 66);
+-- (d) service_role no tiene DELETE sobre tiempo.parametro. Esperado: 0 filas DESPUÉS de aplicar 103_ (antes devuelve filas).
+SELECT n.nspname || '.' || c.relname AS tabla, r.rol, p.priv AS privilegio_de_mas, 'inmutable por trigger' AS motivo
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role')) AS r(rol)
+CROSS JOIN (VALUES ('UPDATE'), ('DELETE'), ('TRUNCATE')) AS p(priv)
+WHERE n.nspname IN ('personas', 'tiempo') AND c.relkind IN ('r', 'p')
+  AND EXISTS (SELECT 1 FROM pg_trigger t WHERE t.tgrelid = c.oid AND NOT t.tgisinternal AND t.tgname LIKE '%inmutable%'
+              AND (t.tgtype & 2) = 2 AND (t.tgtype & 16) = 16 AND (t.tgtype & 8) = 8)
+  AND (has_table_privilege(r.rol, c.oid, p.priv) OR (p.priv = 'UPDATE' AND has_any_column_privilege(r.rol, c.oid, 'UPDATE')))
+UNION ALL
+SELECT 'tiempo.' || c.relname::text, r.rol, p.priv, 'append-only por privilegio'
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+CROSS JOIN (VALUES ('anon'), ('authenticated'), ('service_role')) AS r(rol)
+CROSS JOIN (VALUES ('UPDATE'), ('DELETE'), ('TRUNCATE')) AS p(priv)
+WHERE n.nspname = 'tiempo' AND c.relname IN ('marca', 'movimiento_de_saldo', 'correccion', 'marca_rechazada')
+  AND (has_table_privilege(r.rol, c.oid, p.priv) OR (p.priv = 'UPDATE' AND has_any_column_privilege(r.rol, c.oid, 'UPDATE')))
+UNION ALL
+SELECT 'personas.permiso', 'anon', p.priv, 'anon sin ningún privilegio'
+FROM (VALUES ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) AS p(priv)
+WHERE has_table_privilege('anon', 'personas.permiso', p.priv)
+UNION ALL
+SELECT 'tiempo.parametro', 'service_role', 'DELETE', 'nadie borra vigencias'
+WHERE has_table_privilege('service_role', 'tiempo.parametro', 'DELETE');
