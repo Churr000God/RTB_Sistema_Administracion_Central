@@ -90,6 +90,9 @@ que toque cada función (no en 94_/95_). Los `RAISE WARNING` ya están cubiertos
 
 ## Regla de funciones (desde `105_`)
 - **Toda migración que CREE una función hace su `REVOKE EXECUTE … FROM PUBLIC` y concede lo mínimo** (típicamente `GRANT EXECUTE … TO authenticated` o `TO service_role`; las funciones de trigger no se conceden a nadie).
+  **Patrón estándar completo** (en este orden, en el MISMO archivo que crea la función, con su firma exacta):
+  `REVOKE EXECUTE ON FUNCTION esquema.fn(args) FROM PUBLIC, anon, authenticated, service_role;` y DESPUÉS solo el GRANT mínimo, p. ej. `GRANT EXECUTE ON FUNCTION esquema.fn(args) TO authenticated;`.
+  Se revoca a los cuatro, no solo a PUBLIC: en `public` y en los esquemas con defaults de Supabase, `anon` (y los demás roles de la API) pueden tener un `EXECUTE` EXPLÍCITO además del de PUBLIC, y revocar solo PUBLIC no lo quita.
   `ALTER DEFAULT PRIVILEGES … ON FUNCTIONS … IN SCHEMA` NO sirve para esto: PostgreSQL concede `EXECUTE` a PUBLIC a toda función nueva y un default por esquema no lo quita (además existen defaults de `postgres`
   y `supabase_admin` en `public`/`storage`). La sección 70 de `verificar_ddl.sql` hace cumplir la regla: ninguna función propia con `EXECUTE` para PUBLIC o anon (excepción documentada: `public.rls_auto_enable`),
   ninguna función de trigger con `EXECUTE` para nadie, toda `SECURITY DEFINER` con `search_path` fijo, dueño `postgres` y no `LEAKPROOF`, y lista cerrada de funciones con `EXECUTE` para `authenticated`.
@@ -97,4 +100,10 @@ que toque cada función (no en 94_/95_). Los `RAISE WARNING` ya están cubiertos
 - **Cambiar un atributo de una función ya existente: `ALTER FUNCTION … SET/RESET`, no `CREATE OR REPLACE`** (este último resetea `SECURITY DEFINER`, `search_path` y la ACL si no se repiten).
 - Una función de trigger que SIEMPRE levanta excepción (las «inmutables») no cuenta en `pg_stat_get_xact_function_calls`: probarla por el mensaje de su excepción. Un constraint trigger `DEFERRABLE INITIALLY DEFERRED` no
   dispara bajo `ROLLBACK` si no se fuerza con `SET CONSTRAINTS ALL IMMEDIATE`.
-
+- **Una `SECURITY DEFINER` que sustituye a una policy o a una RLS debe repetir DENTRO la autorización** (persona activa + permiso: `personas.fn_caller_activo() AND personas.fn_caller_tiene_permiso(…)`), **tomar el autor
+  de `auth.uid()` y fijar lo que el cliente no debe controlar** (por ejemplo `creado_en`, el banco o el signo del monto): la policy no se hereda. Lección de `104_`: al volver `DEFINER` el trigger que actualiza
+  `banco_de_horas`, la policy de INSERT de `movimiento_de_saldo` (sin límites de monto, banco ni fecha) habría dejado mover el saldo por PostgREST con solo el permiso; se cerró la vía directa y la autorización pasó al RPC.
+- **Lista cerrada de la sección 70(d):** añadir una RPC ejecutable por `authenticated` exige agregar su nombre a la lista de `verificar_ddl.sql` (sección 70, bloque `NOT IN (…)`) **en el MISMO commit**, con su
+  llamador (archivo:línea y cliente: caller o service_role) en el mensaje del commit o en el encabezado de la migración. Sin esa entrada, la sección 70 da una fila y la migración no cierra.
+- **Nota:** `personas.fn_caller_persona_id` y `personas.fn_caller_es_administrador_generico` solo las llama `tiempo.fn_terminal_reconsentir` (INVOKER, ejecutada por `authenticated`); es aceptable porque devuelven
+  datos propios del caller, pero son candidatas a NO exponerse a authenticated si esa función se reescribe como `SECURITY DEFINER`.
