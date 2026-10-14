@@ -221,5 +221,13 @@ usuario las pide.
   de unidad aparte, con su ventana.
 - **Subir la versión del paquete a 0.1.1** en la próxima etiqueta (la telemetría `version_pi` dice `0.1.0` aunque la
   etiqueta es `puente-v0.1.1`); la etiqueta existente no se mueve.
-- **`MemoryAccounting` en la unidad** si se quiere que `MemoryPeak` se reporte (hoy se lee de `memory.peak` y
-  `memory.events` del cgroup); que `operador estado` muestre «hace X, ya resuelto» junto al diagnóstico 401 histórico.
+- **Límite de memoria del puente (residuo aceptado en el banco de pruebas).** `MemoryMax=256M` está declarado en la unidad pero el
+  kernel del Pi trae `cgroup_disable=memory` de fábrica (`cgroup.controllers` = `cpuset cpu io pids`, sin `memory`), así que el
+  tope no se aplica y no existen `MemoryCurrent`/`memory.peak`/`memory.events`; `TasksMax=64` sí se aplica (existe `pids`).
+  Medición sustituta: `VmRSS`, `VmHWM` y `Threads` de `/proc/<pid>/status`. Para el EQUIPO DEFINITIVO, antes de usar el puente con
+  personas reales (y como verificación previa en el LEEME §3: `grep memory /sys/fs/cgroup/cgroup.controllers` debe imprimir
+  `memory`): habilitar el controlador (quitar `cgroup_disable=memory` y añadir `cgroup_enable=memory cgroup_memory=1` en
+  `/boot/firmware/cmdline.txt`, una sola línea, con copia del archivo e imagen de la SD y acceso físico) o fijar `LimitDATA=`
+  (nunca `LimitAS=`) con un valor holgado sobre el pico medido. Mejora barata: que `operador estado` imprima
+  `limite_memoria=aplicado|no_aplicado`; y que muestre «hace X, ya resuelto» junto al diagnóstico 401 histórico (el último 401
+  real fue 2026-10-12T19:53:47Z, el del primer arranque).
