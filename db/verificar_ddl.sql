@@ -1079,7 +1079,7 @@ WHERE p.clave LIKE 'terminal\_%' AND p.clave NOT IN (SELECT clave FROM tiempo.fn
 WITH f(proname, definer, search_path, roles) AS (VALUES
   ('fn_terminal_config_actualizar',               true,  'search_path=tiempo, personas, pg_temp', ARRAY['authenticated']),
   ('fn_terminal_config_valor',                    true,  'search_path=tiempo, pg_temp',           ARRAY['service_role']),
-  ('fn_terminal_config_catalogo',                 false, 'search_path=pg_temp',                   ARRAY['authenticated', 'service_role']),
+  ('fn_terminal_config_catalogo',                 false, 'search_path=pg_temp',                   ARRAY[]::text[]),   -- 105_: EXECUTE revocado a authenticated y service_role (solo la usan funciones DEFINER)
   ('fn_parametro_actualizar_valor',               false, NULL,                                    ARRAY['service_role']))
 SELECT f.proname, 'falta la función' AS problema
 FROM f WHERE NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
@@ -1793,3 +1793,43 @@ WHERE n.nspname = 'tiempo' AND p.proname = 'fn_movimiento_de_saldo_manual_regist
            AND NOT EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')
            AND p.prosrc LIKE '%fn_caller_tiene_permiso(''movimiento_de_saldo_edicion'')%' AND p.prosrc LIKE '%ERRCODE = ''42501''%'
            AND p.prosrc LIKE '%auth.uid()%' AND p.prosrc NOT LIKE '%creado_en%');
+
+-- 70) EXECUTE de funciones propias tras 105_ (esquemas personas, tiempo y public; sin funciones de extensiones): (a) toda función de TRIGGER sin EXECUTE para PUBLIC, anon, authenticated ni
+-- service_role; (b) ninguna función con EXECUTE para PUBLIC ni para anon (excepción documentada: public.rls_auto_enable, helper de Supabase); (c) toda SECURITY DEFINER con search_path fijo, dueño
+-- postgres y no LEAKPROOF; (d) lista CERRADA de funciones con EXECUTE para authenticated: cualquier otra es violación. Regla del proyecto que esta sección hace cumplir: toda migración que cree una
+-- función hace su REVOKE EXECUTE … FROM PUBLIC y concede lo mínimo (ALTER DEFAULT PRIVILEGES … IN SCHEMA no quita el EXECUTE de PUBLIC). Esperado: 0 filas DESPUÉS de aplicar 105_.
+WITH f AS (
+  SELECT p.oid, n.nspname, p.proname, p.prosecdef, p.proleakproof, p.proconfig, p.proowner, p.prorettype,
+         pg_get_function_identity_arguments(p.oid) AS args,
+         EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE') AS pub
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname IN ('personas', 'tiempo', 'public')
+    AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')
+)
+SELECT nspname || '.' || proname || '(' || args || ')' AS funcion, 'trigger con EXECUTE para PUBLIC/anon/authenticated/service_role' AS problema
+FROM f WHERE prorettype = 'trigger'::regtype
+  AND (pub OR has_function_privilege('anon', oid, 'EXECUTE') OR has_function_privilege('authenticated', oid, 'EXECUTE') OR has_function_privilege('service_role', oid, 'EXECUTE'))
+UNION ALL
+SELECT nspname || '.' || proname || '(' || args || ')', 'EXECUTE para PUBLIC o anon'
+FROM f WHERE (pub OR has_function_privilege('anon', oid, 'EXECUTE')) AND NOT (nspname = 'public' AND proname = 'rls_auto_enable')
+UNION ALL
+SELECT nspname || '.' || proname || '(' || args || ')', 'DEFINER sin search_path fijo, dueño distinto de postgres o LEAKPROOF'
+FROM f WHERE prosecdef
+  AND (NOT EXISTS (SELECT 1 FROM unnest(COALESCE(proconfig, '{}')) c WHERE c LIKE 'search_path=%') OR pg_get_userbyid(proowner) <> 'postgres' OR proleakproof)
+UNION ALL
+SELECT nspname || '.' || proname || '(' || args || ')', 'EXECUTE para authenticated fuera de la lista cerrada'
+FROM f WHERE has_function_privilege('authenticated', oid, 'EXECUTE') AND nspname IN ('personas', 'tiempo')
+  AND (nspname || '.' || proname) NOT IN (
+    'personas.fn_asignacion_cambiar_puesto', 'personas.fn_caller_activo', 'personas.fn_caller_es_administrador_generico', 'personas.fn_caller_persona_id',
+    'personas.fn_caller_tiene_permiso', 'personas.fn_persona_actualizar_datos',
+    'tiempo.fn_ausencia_resolver', 'tiempo.fn_dia_calcular_armado_tramos', 'tiempo.fn_dia_revisar', 'tiempo.fn_excepcion_dia_cerrado_descartar',
+    'tiempo.fn_jornada_asignar_renovar', 'tiempo.fn_jornada_en_curso_mover_limite', 'tiempo.fn_jornada_futura_actualizar', 'tiempo.fn_jornada_futura_eliminar',
+    'tiempo.fn_movimiento_de_saldo_manual_registrar', 'tiempo.fn_terminal_config_actualizar', 'tiempo.fn_terminal_consentimiento_publicar',
+    'tiempo.fn_terminal_inferir_huella_cambiar', 'tiempo.fn_terminal_reconsentimiento_pendiente_ids', 'tiempo.fn_terminal_reconsentir');
+
+-- 71) search_path de las funciones INVOKER de apoyo a RLS tras 106_: personas.fn_caller_tiene_permiso, personas.fn_persona_de_usuario y personas.fn_usuario_es_administrador_generico con
+-- search_path = personas, pg_temp. Esperado: 0 filas DESPUÉS de aplicar 106_ (antes devuelve la fila de fn_caller_tiene_permiso).
+SELECT p.proname::text AS funcion, COALESCE(array_to_string(p.proconfig, ';'), '(sin search_path)') AS configuracion
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'personas' AND p.proname IN ('fn_caller_tiene_permiso', 'fn_persona_de_usuario', 'fn_usuario_es_administrador_generico')
+  AND p.proconfig IS DISTINCT FROM ARRAY['search_path=personas, pg_temp'];
