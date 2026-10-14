@@ -71,6 +71,7 @@ $$ LANGUAGE plpgsql;
 -- ============================================================================
 -- Foto previa y reversa (la consulta EXACTA que 102_ documenta en su encabezado, para personas)
 -- ============================================================================
+CREATE TEMP TABLE _pol AS SELECT count(*)::integer AS n FROM pg_policies WHERE schemaname IN ('personas', 'tiempo');
 SELECT pg_temp.foto('antes');
 INSERT INTO _reversa (sentencia)
 SELECT format('GRANT %s ON %s %s TO %I;', string_agg(a.privilege_type, ', ' ORDER BY a.privilege_type),
@@ -171,8 +172,8 @@ SELECT 'C8c (informativo) UPDATE/DELETE vigentes sobre las bitácoras tras 102_'
 FROM _foto WHERE fase = 'despues' AND rel IN ('personas.bitacora_movimiento_persona', 'personas.bitacora_movimiento_puesto_permiso') AND priv IN ('UPDATE', 'DELETE') AND nivel = 'tabla';
 SELECT pg_temp.verifica('C9 los triggers de inmutabilidad de las bitácoras de personas siguen habilitados (102_ no los toca)',
   $$SELECT count(*) >= 2 AND bool_and(t.tgenabled = 'O') FROM pg_trigger t WHERE t.tgrelid IN ('personas.bitacora_movimiento_persona'::regclass, 'personas.bitacora_movimiento_puesto_permiso'::regclass) AND NOT t.tgisinternal$$);
-SELECT pg_temp.verifica('C10 el número de policies de personas no cambió respecto de la línea base (102_ no crea ni cambia policies; 77 en total con tiempo)',
-  $$SELECT (SELECT count(*) FROM pg_policies WHERE schemaname IN ('personas', 'tiempo')) = 77$$);
+SELECT pg_temp.verifica('C10 el número de policies no cambió respecto de antes de aplicar (102_ no crea ni cambia policies; 77 con la base previa a 104_, 76 después)',
+  $$SELECT (SELECT count(*) FROM pg_policies WHERE schemaname IN ('personas', 'tiempo')) = (SELECT n FROM _pol)$$);
 
 -- ============================================================================
 -- D) Privilegios por defecto: una tabla nueva ya no nace con GRANT ALL

@@ -82,6 +82,7 @@ $$ LANGUAGE plpgsql;
 -- ============================================================================
 -- Foto previa y reversa (la consulta de la reversa de 103_, para los dos esquemas)
 -- ============================================================================
+CREATE TEMP TABLE _pol AS SELECT count(*)::integer AS n FROM pg_policies WHERE schemaname IN ('personas', 'tiempo');
 SELECT pg_temp.foto('antes');
 INSERT INTO _reversa (sentencia)
 SELECT format('GRANT %s ON %s %s TO %I;', string_agg(a.privilege_type, ', ' ORDER BY a.privilege_type),
@@ -146,7 +147,7 @@ SELECT pg_temp.verifica('C2 authenticated conserva DELETE en jornada_asignada y 
 SELECT pg_temp.verifica('C3 las 11 tablas de personas: authenticated y service_role conservan SELECT; service_role conserva INSERT en bitacora_movimiento_persona',
   $$SELECT bool_and(has_table_privilege(r, t, 'SELECT')) AND has_table_privilege('service_role', 'personas.bitacora_movimiento_persona', 'INSERT')
     FROM unnest(ARRAY['authenticated','service_role']) r CROSS JOIN (SELECT n.nspname || '.' || c.relname AS t FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'personas' AND c.relkind = 'r') x$$);
-SELECT pg_temp.verifica('C4 policies: 77 en total (103_ no crea ni cambia policies)', $$SELECT (SELECT count(*) FROM pg_policies WHERE schemaname IN ('personas', 'tiempo')) = 77$$);
+SELECT pg_temp.verifica('C4 policies: el mismo número que antes de aplicar (103_ no crea ni cambia policies; 77 con la base previa a 104_, 76 después)', $$SELECT (SELECT count(*) FROM pg_policies WHERE schemaname IN ('personas', 'tiempo')) = (SELECT n FROM _pol)$$);
 SELECT pg_temp.verifica('C5 los triggers de inmutabilidad siguen habilitados',
   $$SELECT count(*) >= 6 AND bool_and(t.tgenabled = 'O') FROM pg_trigger t WHERE NOT t.tgisinternal AND t.tgname LIKE '%inmutable%' AND t.tgrelid::regclass::text ~ '^(personas|tiempo)\.'$$);
 
