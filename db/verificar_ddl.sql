@@ -1752,3 +1752,23 @@ WHERE has_table_privilege('anon', 'personas.permiso', p.priv)
 UNION ALL
 SELECT 'tiempo.parametro', 'service_role', 'DELETE', 'nadie borra vigencias'
 WHERE has_table_privilege('service_role', 'tiempo.parametro', 'DELETE');
+
+-- 68) Invariante del banco de horas (SCJ-DEC-02): para todo tiempo.banco_de_horas, monto = Σ tiempo.movimiento_de_saldo.monto (0 si no tiene movimientos). Una fila indica un saldo desalineado de su
+-- ledger (p. ej. un movimiento manual cuyo UPDATE del trigger filtró 0 filas por RLS, antes de 104_). Sin falsos positivos hoy: hay 1 banco con monto 0 y 0 movimientos. Esperado: 0 filas.
+SELECT b.id AS banco_de_horas_id, b.monto AS monto_del_banco, COALESCE(m.suma, 0) AS suma_del_ledger, b.monto - COALESCE(m.suma, 0) AS diferencia
+FROM tiempo.banco_de_horas b
+LEFT JOIN (SELECT banco_de_horas_id, sum(monto) AS suma FROM tiempo.movimiento_de_saldo GROUP BY banco_de_horas_id) m ON m.banco_de_horas_id = b.id
+WHERE b.monto IS DISTINCT FROM COALESCE(m.suma, 0);
+
+-- 69) fn_movimiento_de_saldo_actualiza_banco tras 104_: SECURITY DEFINER con search_path exacto, dueño postgres, sin EXECUTE para nadie de la API (ni PUBLIC), una sola sentencia UPDATE sobre
+-- banco_de_horas sin lectura previa del monto (sin «SELECT monto»), y SCJ18 con HINT banco_inexistente. Esperado: 0 filas DESPUÉS de aplicar 104_ (antes devuelve la fila).
+SELECT 'fn_movimiento_de_saldo_actualiza_banco: propiedades o contenido de 104_ incorrectos' AS problema, p.proname AS detalle
+FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'tiempo' AND p.proname = 'fn_movimiento_de_saldo_actualiza_banco'
+  AND NOT (p.prosecdef AND p.proconfig = ARRAY['search_path=tiempo, pg_temp'] AND pg_get_userbyid(p.proowner) = 'postgres'
+           AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
+           AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE')
+           AND NOT EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')
+           AND (length(p.prosrc) - length(replace(p.prosrc, 'UPDATE tiempo.banco_de_horas', ''))) / length('UPDATE tiempo.banco_de_horas') = 1
+           AND p.prosrc !~* 'select\s+monto'
+           AND p.prosrc LIKE '%SCJ18%' AND p.prosrc LIKE '%banco_inexistente%' AND p.prosrc LIKE '%IF NOT FOUND%');

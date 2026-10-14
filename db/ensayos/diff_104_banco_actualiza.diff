@@ -1,0 +1,45 @@
+--- vigente (02_)
++++ nuevo (104_)
+@@ -1,22 +1,25 @@
+-CREATE FUNCTION tiempo.fn_movimiento_de_saldo_actualiza_banco()
+-RETURNS trigger AS $$
+-DECLARE
+-  v_monto_antes numeric(8,2);
+-  v_monto_despues numeric(8,2);
++CREATE OR REPLACE FUNCTION tiempo.fn_movimiento_de_saldo_actualiza_banco()
++RETURNS trigger
++LANGUAGE plpgsql
++SECURITY DEFINER
++SET search_path = tiempo, pg_temp
++AS $$
+ BEGIN
+-  SELECT monto INTO v_monto_antes FROM tiempo.banco_de_horas WHERE id = NEW.banco_de_horas_id;
+-  v_monto_despues := v_monto_antes + NEW.monto;
++  UPDATE tiempo.banco_de_horas
++  SET monto = monto + NEW.monto,
++      vivo_desde = CASE
++        WHEN monto = 0 AND monto + NEW.monto > 0 THEN NEW.creado_en
++        WHEN monto + NEW.monto = 0 THEN NULL
++        ELSE vivo_desde
++      END,
++      actualizado_en = NEW.creado_en
++  WHERE id = NEW.banco_de_horas_id;
+ 
+-  UPDATE tiempo.banco_de_horas
+-  SET monto = v_monto_despues,
+-      actualizado_en = NEW.creado_en,
+-      vivo_desde = CASE
+-        WHEN v_monto_antes = 0 AND v_monto_despues > 0 THEN NEW.creado_en
+-        WHEN v_monto_despues = 0 THEN NULL
+-        ELSE vivo_desde
+-      END
+-  WHERE id = NEW.banco_de_horas_id;
++  IF NOT FOUND THEN
++    RAISE EXCEPTION 'El banco de horas del movimiento no existe'
++      USING ERRCODE = 'SCJ18', HINT = 'banco_inexistente';
++  END IF;
+ 
+   RETURN NEW;
+ END;
+-$$ LANGUAGE plpgsql;
++$$;
