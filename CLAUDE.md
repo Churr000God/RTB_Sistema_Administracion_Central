@@ -450,8 +450,8 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
 - **Interruptor de la activación por huella, puente instalado y causa raíz del 401 (10–13 de octubre de 2026):**
   `94_` a `99_` aplicados en la base real (huella «sin conteo» B+C; `97_`/`98_` interruptor apagado de fábrica,
   solo `fn_terminal_inferir_huella_cambiar` lo enciende y exige consentimiento DEFINITIVO publicado; `99_` agrega
-  `tiempo.terminal.ingesta_detenida` y `fn_terminal_latido` de 7 argumentos). `100_` (revoca `anon`/TRUNCATE/REFERENCES/
-  TRIGGER en `tiempo`) y `101_` (errores sin identidad) están escritos, revisados y SIN ensayar ni aplicar. Backend: router
+  `tiempo.terminal.ingesta_detenida` y `fn_terminal_latido` de 7 argumentos). `100_` a `104_` también están aplicados
+  (ver el bullet siguiente). Backend: router
   `routers/interruptor_huella.py` (contrato en `docs/07-procesos/CONTRATO_API_INTERRUPTOR_INFERIR_HUELLA.md`), tarjetas 14 y
   15 del tablero, `registro_seguro.py` (ninguna excepción registra su texto), y HTTPS del backend de pruebas por
   `tailscale serve` con el 8000 solo en loopback. El puente (`checador-fisico`) corre T-PI-9 instalado de forma directa en el
@@ -460,6 +460,27 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   `bitacora/2026-10-13_estado_de_la_sesion_para_retomar.md`. Lecciones: un 401 de un aparato no es siempre credencial mala
   (capturar cabeceras antes de reintentar); no probar variantes contra un aparato con contador de bloqueo desconocido; el
   clasificador de auto-mode bloquea despliegues a producción aun con regla `allow` (no se rodea).
+- **Endurecimiento de privilegios, puente verificado y plan del piloto (13–14 de octubre de 2026):** `100_` (revoca
+  `anon`, TRUNCATE/REFERENCES/TRIGGER y MAINTAIN —PG17, con guarda de versión— en `tiempo`), `102_` (lo mismo en
+  `personas`, con la excepción temporal de `personas.permiso`), `103_` (quita `SELECT` de `anon` sobre `personas.permiso`,
+  `UPDATE`/`DELETE` de `service_role` en `bitacora_movimiento_persona` y los sobrantes de `authenticated` y del `DELETE` de
+  `parametro`; sección 67 del verificador), `104_` y `101_` quedaron APLICADOS por el usuario con su propio comando
+  (el clasificador de la sesión `db` deniega aplicar en la base real: no se rodea). `104_` corrige un defecto de
+  integridad silencioso: `fn_movimiento_de_saldo_actualiza_banco` era `SECURITY INVOKER` y su `UPDATE` sobre
+  `banco_de_horas` filtraba 0 filas por RLS, así que un movimiento manual entraba al ledger y el saldo no cambiaba
+  (reproducido en el ensayo: saldo 10, ledger 7); ahora es `DEFINER` con un solo `UPDATE` atómico, y
+  `fn_movimiento_de_saldo_manual_registrar` es `DEFINER` y la ÚNICA vía de escritura manual (se eliminó la policy de
+  INSERT y el `INSERT` de `authenticated`, porque con el trigger corregido esa policy habría movido saldo sin las
+  validaciones del RPC). Estado final de la base: DDL `00` a `104` (105 archivos), 76 policies, 72 funciones, 53 permisos,
+  `verificar_ddl.sql` 1–69 con la línea base de 10. Lección: **al arreglar un trigger que antes era no-op, revisar qué
+  caminos de escritura quedan ahora con efecto real**. Pendientes de `db`: grupo E (UPDATE/DELETE de `service_role` en
+  `tiempo`, leer cada RPC INVOKER/DEFINER) e inventario de `EXECUTE`. Puente: paquete `puente-v0.1.1` (commit `ba4d825`,
+  rueda `b48c6d79…`) firmado y reconstruido de forma independiente en CI (R1), instalado por el flujo verificado;
+  credenciales rotadas (llave `scjt_` id 2, contraseña de la terminal cambiada en su menú local); drop-in EPERM
+  retirado tras comparar las 122 syscalls usadas con el filtro efectivo de systemd 257.9 (356; diferencia vacía);
+  producción continua sin incidentes en las ventanas A–D; ventana E (`enable` + reinicio real del Pi) en curso.
+  Plan del piloto de un mes con personal avisado: `docs/07-procesos/PLAN_PILOTO_TERMINAL_HIKVISION.md`. Estado completo:
+  `bitacora/2026-10-13_estado_de_la_sesion_para_retomar.md` (secciones 9 y 10).
 - **`78_*.sql` nunca se había aplicado y su fix era evadible; cerrado con `86_*.sql` (7 de octubre
   de 2026):** al documentar el DDL, `db` contrastó los scripts con la base real y encontró 49
   funciones contra 50 definidas: `78_*` (constraint trigger que impide resolver a mano una
@@ -533,7 +554,7 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   `http://localhost:5173` fijo a mano — esa configuración no vive en este repositorio. Al pasar a
   producción (`docker compose … prod`, frontend en `:8080`) hay que actualizarla ahí también, o
   los links de invitación/recuperación de contraseña no aterrizan en la app.
-- El DDL llega hasta `db/ddl/93_*.sql` (94 archivos, `00` a `93`) y TODO está aplicado en la base real (`88_`-`92_` aplicados el 8 de octubre de 2026 tras ensayos `BEGIN…ROLLBACK` 143/143, 60/60, 21/21, 22/22 y 38/38; `93_` aplicado el 9 de octubre de 2026 tras ensayo `BEGIN…ROLLBACK` 19/19 y revisión de `security`; `verificar_ddl.sql` completo en 0 filas, 72 funciones, 76 policies, 53 permisos; única excepción: 1 huérfano de `auth.users`, `prueba-diagnostico-local@example.com`, ajeno al DDL, aceptado por el usuario el 9 de octubre de 2026 — se deja). `92_` ata autor y hora de `personas.bitacora_movimiento_persona` (el INSERT en `personas.usuario` debe hacerse siempre con `service_role`). `personas.permiso`
+- El DDL llega hasta `db/ddl/104_*.sql` (105 archivos, `00` a `104`; 76 policies tras `104_`) y TODO está aplicado en la base real; el resto de este renglón conserva el detalle histórico hasta `93_` (`88_`-`92_` aplicados el 8 de octubre de 2026 tras ensayos `BEGIN…ROLLBACK` 143/143, 60/60, 21/21, 22/22 y 38/38; `93_` aplicado el 9 de octubre de 2026 tras ensayo `BEGIN…ROLLBACK` 19/19 y revisión de `security`; `verificar_ddl.sql` completo en 0 filas, 72 funciones, 76 policies, 53 permisos; única excepción: 1 huérfano de `auth.users`, `prueba-diagnostico-local@example.com`, ajeno al DDL, aceptado por el usuario el 9 de octubre de 2026 — se deja). `92_` ata autor y hora de `personas.bitacora_movimiento_persona` (el INSERT en `personas.usuario` debe hacerse siempre con `service_role`). `personas.permiso`
   es la única tabla del proyecto con clave natural (`codigo varchar PRIMARY KEY`) en vez de `uuid`
   — decisión deliberada, fiel a la redacción literal de `SCJ-PRO-05`, no un descuido a corregir.
 - Las tablas de bitácora inmutables (`bitacora_movimiento_persona`,
