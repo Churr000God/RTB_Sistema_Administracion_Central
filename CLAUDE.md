@@ -450,7 +450,7 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
 - **Interruptor de la activación por huella, puente instalado y causa raíz del 401 (10–13 de octubre de 2026):**
   `94_` a `99_` aplicados en la base real (huella «sin conteo» B+C; `97_`/`98_` interruptor apagado de fábrica,
   solo `fn_terminal_inferir_huella_cambiar` lo enciende y exige consentimiento DEFINITIVO publicado; `99_` agrega
-  `tiempo.terminal.ingesta_detenida` y `fn_terminal_latido` de 7 argumentos). `100_` a `104_` también están aplicados
+  `tiempo.terminal.ingesta_detenida` y `fn_terminal_latido` de 7 argumentos). `100_` a `106_` también están aplicados
   (ver el bullet siguiente). Backend: router
   `routers/interruptor_huella.py` (contrato en `docs/07-procesos/CONTRATO_API_INTERRUPTOR_INFERIR_HUELLA.md`), tarjetas 14 y
   15 del tablero, `registro_seguro.py` (ninguna excepción registra su texto), y HTTPS del backend de pruebas por
@@ -471,10 +471,10 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   (reproducido en el ensayo: saldo 10, ledger 7); ahora es `DEFINER` con un solo `UPDATE` atómico, y
   `fn_movimiento_de_saldo_manual_registrar` es `DEFINER` y la ÚNICA vía de escritura manual (se eliminó la policy de
   INSERT y el `INSERT` de `authenticated`, porque con el trigger corregido esa policy habría movido saldo sin las
-  validaciones del RPC). Estado final de la base: DDL `00` a `104` (105 archivos), 76 policies, 72 funciones, 53 permisos,
-  `verificar_ddl.sql` 1–69 con la línea base de 10. Lección: **al arreglar un trigger que antes era no-op, revisar qué
-  caminos de escritura quedan ahora con efecto real**. Pendientes de `db`: grupo E (UPDATE/DELETE de `service_role` en
-  `tiempo`, leer cada RPC INVOKER/DEFINER) e inventario de `EXECUTE`. Puente: paquete `puente-v0.1.1` (commit `ba4d825`,
+  validaciones del RPC). Estado final de la base: DDL `00` a `106` (107 archivos), 76 policies, 81 funciones propias (33 `SECURITY DEFINER`, todas con `search_path` fijo), 53 permisos,
+  `verificar_ddl.sql` 1–71 con la línea base de 10 (`105_`: 13 funciones de trigger sin EXECUTE y las dos helpers de RLS sin PUBLIC/anon; `106_`: `search_path` de `fn_caller_tiene_permiso`; regla: toda función nueva hace su `REVOKE EXECUTE … FROM PUBLIC` y la lista cerrada de la sección 70 se amplía en el mismo commit). Lección: **al arreglar un trigger que antes era no-op, revisar qué
+  caminos de escritura quedan ahora con efecto real**. Pendiente de `db`: grupo E (UPDATE/DELETE de `service_role` en
+  `tiempo`, leer cada RPC INVOKER/DEFINER) y el diccionario V1.6 completo; excepciones documentadas: `public.rls_auto_enable` y `graphql_public.graphql` (de Supabase). Puente: paquete `puente-v0.1.1` (commit `ba4d825`,
   rueda `b48c6d79…`) firmado y reconstruido de forma independiente en CI (R1), instalado por el flujo verificado;
   credenciales rotadas (llave `scjt_` id 2, contraseña de la terminal cambiada en su menú local); drop-in EPERM
   retirado tras comparar las 122 syscalls usadas con el filtro efectivo de systemd 257.9 (356; diferencia vacía);
@@ -554,7 +554,7 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   `http://localhost:5173` fijo a mano — esa configuración no vive en este repositorio. Al pasar a
   producción (`docker compose … prod`, frontend en `:8080`) hay que actualizarla ahí también, o
   los links de invitación/recuperación de contraseña no aterrizan en la app.
-- El DDL llega hasta `db/ddl/104_*.sql` (105 archivos, `00` a `104`; 76 policies tras `104_`) y TODO está aplicado en la base real; el resto de este renglón conserva el detalle histórico hasta `93_` (`88_`-`92_` aplicados el 8 de octubre de 2026 tras ensayos `BEGIN…ROLLBACK` 143/143, 60/60, 21/21, 22/22 y 38/38; `93_` aplicado el 9 de octubre de 2026 tras ensayo `BEGIN…ROLLBACK` 19/19 y revisión de `security`; `verificar_ddl.sql` completo en 0 filas, 72 funciones, 76 policies, 53 permisos; única excepción: 1 huérfano de `auth.users`, `prueba-diagnostico-local@example.com`, ajeno al DDL, aceptado por el usuario el 9 de octubre de 2026 — se deja). `92_` ata autor y hora de `personas.bitacora_movimiento_persona` (el INSERT en `personas.usuario` debe hacerse siempre con `service_role`). `personas.permiso`
+- El DDL llega hasta `db/ddl/106_*.sql` (107 archivos, `00` a `106`; 76 policies tras `104_`) y TODO está aplicado en la base real; el resto de este renglón conserva el detalle histórico hasta `93_` (`88_`-`92_` aplicados el 8 de octubre de 2026 tras ensayos `BEGIN…ROLLBACK` 143/143, 60/60, 21/21, 22/22 y 38/38; `93_` aplicado el 9 de octubre de 2026 tras ensayo `BEGIN…ROLLBACK` 19/19 y revisión de `security`; `verificar_ddl.sql` completo en 0 filas, 72 funciones, 76 policies, 53 permisos; única excepción: 1 huérfano de `auth.users`, `prueba-diagnostico-local@example.com`, ajeno al DDL, aceptado por el usuario el 9 de octubre de 2026 — se deja). `92_` ata autor y hora de `personas.bitacora_movimiento_persona` (el INSERT en `personas.usuario` debe hacerse siempre con `service_role`). `personas.permiso`
   es la única tabla del proyecto con clave natural (`codigo varchar PRIMARY KEY`) en vez de `uuid`
   — decisión deliberada, fiel a la redacción literal de `SCJ-PRO-05`, no un descuido a corregir.
 - Las tablas de bitácora inmutables (`bitacora_movimiento_persona`,
