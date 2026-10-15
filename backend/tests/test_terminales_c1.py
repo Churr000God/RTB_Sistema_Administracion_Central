@@ -157,8 +157,7 @@ def _sesion(monkeypatch, permisos_concedidos, estado_persona="activo"):
 
     monkeypatch.setattr(sesion, "tiene_permisos", tiene_permisos)
     db = _db(
-        usuario=_tabla([{"auth_user_id": "a", "nombre_usuario": "ana", "persona_id": "persona"}]),
-        persona=_tabla([{"estado": estado_persona}]),
+        usuario=_tabla([{"auth_user_id": "a", "nombre_usuario": "ana", "persona_id": "persona", "persona": {"estado": estado_persona}}]),
     )
     app.dependency_overrides[get_service_client] = lambda: db
     app.dependency_overrides[get_caller_identity] = lambda: CALLER
@@ -280,8 +279,7 @@ def test_22023_desconocido_ya_no_dice_motivo_obligatorio():
 def test_sesion_real_con_puesto_vigente_pero_sin_permisos_ni_codigos_88_da_las_tres_false():
     """Tolerancia REAL a 88_ sin aplicar: el puesto vigente existe, puesto_permiso y permiso devuelven []."""
     db = _db(
-        usuario=_tabla([{"auth_user_id": "a", "nombre_usuario": "ana", "persona_id": "persona"}]),
-        persona=_tabla([{"estado": "activo"}]),
+        usuario=_tabla([{"auth_user_id": "a", "nombre_usuario": "ana", "persona_id": "persona", "persona": {"estado": "activo"}}]),
         asignacion=_tabla([{"puesto_id": "p1"}]),
         puesto_permiso=_tabla([]),
         permiso=_tabla([]),
@@ -300,8 +298,7 @@ def test_sesion_resuelve_los_permisos_con_consultas_fijas_no_con_una_por_codigo(
     """El rendimiento no se rompe: puesto_permiso se consulta UNA vez sin importar cuántos códigos."""
     pp = _tabla([{"puesto_id": "p1", "codigo": "terminal_usuario_edicion"}])
     db = _db(
-        usuario=_tabla([{"auth_user_id": "a", "nombre_usuario": "ana", "persona_id": "persona"}]),
-        persona=_tabla([{"estado": "activo"}]),
+        usuario=_tabla([{"auth_user_id": "a", "nombre_usuario": "ana", "persona_id": "persona", "persona": {"estado": "activo"}}]),
         asignacion=_tabla([{"puesto_id": "p1"}]),
         puesto_permiso=pp,
         permiso=_tabla([]),

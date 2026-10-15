@@ -322,8 +322,7 @@ def test_sesion_expone_si_puede_descartar_excepciones(monkeypatch, tiene, espera
 
     monkeypatch.setattr(sesion, "tiene_permisos", tiene_permisos)
     db = _db(
-        usuario=_tabla([{"auth_user_id": "a", "nombre_usuario": "ana", "persona_id": PERSONA}]),
-        persona=_tabla([{"estado": "activo"}]),
+        usuario=_tabla([{"auth_user_id": "a", "nombre_usuario": "ana", "persona_id": PERSONA, "persona": {"estado": "activo"}}]),
     )
     app.dependency_overrides[get_service_client] = lambda: db
     app.dependency_overrides[get_caller_identity] = lambda: CALLER
@@ -338,8 +337,7 @@ def test_sesion_de_cuenta_bloqueada_no_puede_descartar(monkeypatch):
 
     monkeypatch.setattr(sesion, "tiene_permisos", lambda db, p, codigos: {c: True for c in codigos})
     db = _db(
-        usuario=_tabla([{"auth_user_id": "a", "nombre_usuario": "ana", "persona_id": PERSONA}]),
-        persona=_tabla([{"estado": "suspension"}]),
+        usuario=_tabla([{"auth_user_id": "a", "nombre_usuario": "ana", "persona_id": PERSONA, "persona": {"estado": "suspension"}}]),
     )
     app.dependency_overrides[get_service_client] = lambda: db
     app.dependency_overrides[get_caller_identity] = lambda: CALLER

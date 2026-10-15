@@ -134,3 +134,74 @@ def test_si_todo_se_resolvio_directo_no_consulta_herencia():
 def test_codigos_duplicados_devuelven_una_sola_clave():
     db = _db(["jefe"], POSEEDORES, HEREDABLES)
     assert list(tiene_permisos(db, "persona", ["directo", "directo"])) == ["directo"]
+
+
+# --- tiene_permisos_paralelo: el MISMO resultado que tiene_permisos ---------------------------------------------------------------------------------------
+
+from app.permisos import tiene_permisos_paralelo  # noqa: E402
+
+
+@pytest.mark.parametrize("vigentes", [["jefe"], ["medio"], ["operativo"], ["jefe", "operativo"], []])
+def test_el_paralelo_da_lo_mismo_que_el_lote_y_que_tiene_permiso(vigentes):
+    db = _db(vigentes, POSEEDORES, HEREDABLES)
+    esperado = {c: tiene_permiso(db, "persona", c) for c in CODIGOS}
+    assert tiene_permisos(db, "persona", CODIGOS) == esperado
+    assert tiene_permisos_paralelo(db.postgrest.schema("personas"), "persona", CODIGOS) == esperado
+
+
+def test_el_paralelo_sin_codigos_no_consulta_nada():
+    db = _db(["jefe"], POSEEDORES, HEREDABLES)
+    assert tiene_permisos_paralelo(db.postgrest.schema("personas"), "persona", []) == {}
+    db.postgrest.schema.return_value.table.assert_not_called()
+
+
+# --- herencia de más de un nivel y permisos no heredables --------------------------------------------------------------------------------------------------
+
+# director → gerente → jefe → operativo → auxiliar (4 niveles hacia abajo) y una rama lateral
+ARBOL_PROFUNDO = [
+    {"id": "director", "reporta_a_id": None},
+    {"id": "gerente", "reporta_a_id": "director"},
+    {"id": "jefe", "reporta_a_id": "gerente"},
+    {"id": "operativo", "reporta_a_id": "jefe"},
+    {"id": "auxiliar", "reporta_a_id": "operativo"},
+    {"id": "lateral", "reporta_a_id": "gerente"},
+]
+CODIGOS_PROFUNDOS = ["heredable_del_auxiliar", "no_heredable_del_auxiliar", "heredable_del_lateral", "directo_del_director", "de_nadie"]
+POSEEDORES_PROFUNDOS = {
+    "heredable_del_auxiliar": ["auxiliar"],
+    "no_heredable_del_auxiliar": ["auxiliar"],
+    "heredable_del_lateral": ["lateral"],
+    "directo_del_director": ["director"],
+}
+HEREDABLES_PROFUNDOS = {"heredable_del_auxiliar": True, "no_heredable_del_auxiliar": False, "heredable_del_lateral": True, "directo_del_director": True}
+
+
+def _db_profundo(vigentes):
+    db = _db(vigentes, POSEEDORES_PROFUNDOS, HEREDABLES_PROFUNDOS)
+    db.tablas["puesto"].select.return_value.execute.return_value.data = ARBOL_PROFUNDO
+    return db
+
+
+@pytest.mark.parametrize("vigentes", [["director"], ["gerente"], ["jefe"], ["operativo"], ["auxiliar"], ["lateral"], ["jefe", "lateral"], []])
+def test_herencia_de_varios_niveles_paralelo_igual_a_lote_y_por_codigo(vigentes):
+    db = _db_profundo(vigentes)
+    por_codigo = {c: tiene_permiso(db, "persona", c) for c in CODIGOS_PROFUNDOS}
+    assert tiene_permisos(db, "persona", CODIGOS_PROFUNDOS) == por_codigo
+    assert tiene_permisos_paralelo(db.postgrest.schema("personas"), "persona", CODIGOS_PROFUNDOS) == por_codigo
+
+
+def test_el_director_hereda_del_auxiliar_cuatro_niveles_abajo_pero_no_lo_no_heredable():
+    r = tiene_permisos_paralelo(_db_profundo(["director"]).postgrest.schema("personas"), "persona", CODIGOS_PROFUNDOS)
+    assert r["heredable_del_auxiliar"] is True            # varios niveles hacia abajo
+    assert r["heredable_del_lateral"] is True             # y por la rama lateral
+    assert r["no_heredable_del_auxiliar"] is False        # un permiso NO heredable de un subordinado NO se hereda
+    assert r["directo_del_director"] is True and r["de_nadie"] is False
+
+
+def test_el_subordinado_y_la_rama_lateral_no_heredan_hacia_arriba_ni_de_lado():
+    r_jefe = tiene_permisos_paralelo(_db_profundo(["jefe"]).postgrest.schema("personas"), "persona", CODIGOS_PROFUNDOS)
+    assert r_jefe["heredable_del_auxiliar"] is True and r_jefe["heredable_del_lateral"] is False        # el lateral no es subordinado de jefe
+    assert r_jefe["directo_del_director"] is False                                                       # y el jefe no hereda hacia arriba
+    r_aux = tiene_permisos_paralelo(_db_profundo(["auxiliar"]).postgrest.schema("personas"), "persona", CODIGOS_PROFUNDOS)
+    assert r_aux["heredable_del_auxiliar"] is True and r_aux["no_heredable_del_auxiliar"] is True       # lo tiene directo
+    assert r_aux["directo_del_director"] is False

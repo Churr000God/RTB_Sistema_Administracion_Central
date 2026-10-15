@@ -402,3 +402,53 @@ def traducir_error_interruptor_huella(error: APIError) -> HTTPException | None:
         logger.error("interruptor de la activación por huella: parámetros rechazados por la base (sqlstate 22023, bug del backend)")
         return err(status.HTTP_500_INTERNAL_SERVER_ERROR, MENSAJE_ERROR_INTERNO)
     return None
+
+
+# --- lecturas con UN reintento ante un error transitorio de la base ----------------------------------------------------------------------------------
+
+SQLSTATE_TRANSITORIOS_BASE = frozenset({
+    "57014",   # query_canceled (statement timeout)
+    "57P01", "57P03",   # admin_shutdown, cannot_connect_now
+    "53300", "53400",   # too_many_connections, configuration_limit_exceeded
+    "40001", "40P01", "55P03",   # fallo de serialización, deadlock, lock no disponible
+    "08000", "08001", "08003", "08004", "08006",   # clase 08: conexión
+    "PGRST000", "PGRST001", "PGRST002", "PGRST003",   # PostgREST: conexión/pool de la base
+})
+MENSAJE_BASE_NO_DISPONIBLE = "El servicio no está disponible un momento; reintenta."
+REINTENTAR_DESPUES_S = 2
+PAUSA_REINTENTO_S = 0.25
+
+
+def es_error_transitorio_de_base(exc: BaseException) -> bool:
+    """Un fallo que suele pasar solo: statement timeout o conexión de la base (SQLSTATE), un 5xx de PostgREST (código HTTP numérico), o un error de transporte de httpx. Un 4xx, una violación
+    de restricción o un permiso denegado NO lo son."""
+    import httpx
+
+    if isinstance(exc, APIError):
+        codigo = exc.code or ""
+        return codigo in SQLSTATE_TRANSITORIOS_BASE or re.fullmatch(r"5[0-9]{2}", codigo) is not None
+    return isinstance(exc, httpx.TransportError)
+
+
+def leer_con_reintento(consulta, *, contexto: str, pausa_s: float = PAUSA_REINTENTO_S, dormir=None):
+    """Ejecuta `consulta()` (una LECTURA idempotente que arma su propia petición en cada llamada) y, ante un error transitorio, la reintenta UNA vez tras una pausa corta. Si vuelve a
+    fallar responde 503 con mensaje fijo y `Retry-After` (el frontend distingue «reintenta» de «no autorizado»). El log lleva solo la clase del error y el SQLSTATE; nunca datos ni
+    texto de la base. Un error que no es transitorio se relanza tal cual."""
+    import time
+
+    espera = dormir or time.sleep
+    for intento in (1, 2):
+        try:
+            return consulta()
+        except Exception as error:  # noqa: BLE001
+            if not es_error_transitorio_de_base(error):
+                raise
+            sqlstate = limpiar_para_log(getattr(error, "code", None), 20) if isinstance(error, APIError) else "-"
+            if intento == 1:
+                logger.warning("%s: error transitorio de la base (%s, sqlstate %s); se reintenta una vez", contexto, type(error).__name__, sqlstate)
+                espera(pausa_s)
+                continue
+            logger.error("%s: la base sigue fallando tras el reintento (%s, sqlstate %s); 503", contexto, type(error).__name__, sqlstate)
+            raise HTTPException(
+                status.HTTP_503_SERVICE_UNAVAILABLE, MENSAJE_BASE_NO_DISPONIBLE, headers={"Retry-After": str(REINTENTAR_DESPUES_S)}
+            ) from None

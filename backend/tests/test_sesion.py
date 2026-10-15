@@ -50,6 +50,10 @@ def _tabla_puesto_permiso_por_codigo(codigos_activos):
 def _fake_db(filas_usuario, filas_persona=None, codigos_activos=()):
     fake_client = MagicMock()
     tabla_mock = fake_client.postgrest.schema.return_value.table
+    # El estado de la persona viaja EMBEBIDO en la fila de usuario (`persona:persona_id(estado)`), como lo devuelve PostgREST.
+    filas_usuario = [
+        {**fila, "persona": (filas_persona[0] if filas_persona else None)} if fila.get("persona_id") else fila for fila in filas_usuario
+    ]
 
     def side_effect(nombre_tabla):
         if nombre_tabla == "usuario":
@@ -57,10 +61,11 @@ def _fake_db(filas_usuario, filas_persona=None, codigos_activos=()):
             tabla.select.return_value.eq.return_value.execute.return_value.data = filas_usuario
             return tabla
         if nombre_tabla == "persona":
+            raise AssertionError("/api/sesion ya no consulta personas.persona aparte: el estado viene embebido en usuario")
+        if nombre_tabla in ("permiso", "puesto"):
             tabla = MagicMock()
-            tabla.select.return_value.eq.return_value.execute.return_value.data = (
-                filas_persona or []
-            )
+            tabla.select.return_value.in_.return_value.execute.return_value.data = []
+            tabla.select.return_value.execute.return_value.data = []
             return tabla
         if nombre_tabla == "asignacion":
             tabla = MagicMock()
@@ -253,3 +258,257 @@ def test_sesion_rechaza_sin_token():
 
     app.dependency_overrides.clear()
     assert response.status_code in (401, 422)
+
+
+# --- costo y transitorios de /api/sesion --------------------------------------------------------------------------------------------------------------
+
+import threading  # noqa: E402
+import time  # noqa: E402
+
+import httpx  # noqa: E402
+from postgrest.exceptions import APIError  # noqa: E402
+
+
+def _pedir_sesion(fake_client):
+    _overrides(fake_client)
+    try:
+        return TestClient(app, raise_server_exceptions=False).get("/api/sesion", headers={"Authorization": "Bearer fake-token"})
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_sesion_obtiene_el_esquema_una_sola_vez_y_no_hace_la_consulta_de_persona():
+    """Cada `.schema()` fabrica un cliente httpx nuevo (otro TCP/TLS): /api/sesion lo pide UNA vez y hace 1 consulta de usuario+persona (embed) + 4 lecturas de permisos."""
+    fake_client = _fake_db(filas_usuario=[{"auth_user_id": AUTH_USER_ID, "nombre_usuario": "m", "persona_id": PERSONA_ID}], filas_persona=[{"estado": "activo"}],
+                           codigos_activos=("ver_modulo_1",))
+    respuesta = _pedir_sesion(fake_client)
+    assert respuesta.status_code == 200 and respuesta.json()["acceso_permitido"] is True and respuesta.json()["puede_ver_modulo_1"] is True
+    assert fake_client.postgrest.schema.call_count == 1
+    tablas = [c.args[0] for c in fake_client.postgrest.schema.return_value.table.call_args_list]
+    assert sorted(tablas) == ["asignacion", "permiso", "puesto", "puesto_permiso", "usuario"]
+    assert "persona" not in tablas
+
+
+def test_sesion_persona_suspendida_no_consulta_permisos():
+    fake_client = _fake_db(filas_usuario=[{"auth_user_id": AUTH_USER_ID, "nombre_usuario": "m", "persona_id": PERSONA_ID}], filas_persona=[{"estado": "suspension"}])
+    respuesta = _pedir_sesion(fake_client)
+    assert respuesta.status_code == 200 and respuesta.json()["motivo_bloqueo"] == "suspension"
+    tablas = [c.args[0] for c in fake_client.postgrest.schema.return_value.table.call_args_list]
+    assert tablas == ["usuario"]
+
+
+def test_sesion_las_lecturas_de_permisos_salen_a_la_vez():
+    """Las 4 lecturas independientes corren concurrentemente: con una barrera de 4 hilos, si fueran en serie nunca se llenaría y la prueba fallaría por timeout."""
+    barrera = threading.Barrier(4, timeout=3)
+    fake_client = _fake_db(filas_usuario=[{"auth_user_id": AUTH_USER_ID, "nombre_usuario": "m", "persona_id": PERSONA_ID}], filas_persona=[{"estado": "activo"}])
+    original = fake_client.postgrest.schema.return_value.table.side_effect
+
+    def con_barrera(nombre):
+        if nombre in ("asignacion", "puesto_permiso", "permiso", "puesto"):
+            barrera.wait()
+        return original(nombre)
+
+    fake_client.postgrest.schema.return_value.table.side_effect = con_barrera
+    assert _pedir_sesion(fake_client).status_code == 200
+
+
+def _fallar_una_vez_en(fake_client, tabla_objetivo, error):
+    """La PRIMERA lectura de `tabla_objetivo` lanza `error`; las siguientes responden normal."""
+    original = fake_client.postgrest.schema.return_value.table.side_effect
+    estado = {"fallos": 0}
+
+    def tabla(nombre):
+        t = original(nombre)
+        if nombre == tabla_objetivo and estado["fallos"] < estado.get("max", 1):
+            estado["fallos"] += 1
+            roto = MagicMock()
+            roto.select.return_value.eq.return_value.execute.side_effect = error
+            roto.select.return_value.eq.return_value.is_.return_value.execute.side_effect = error
+            roto.select.return_value.in_.return_value.eq.return_value.execute.side_effect = error
+            roto.select.return_value.in_.return_value.execute.side_effect = error
+            roto.select.return_value.execute.side_effect = error
+            return roto
+        return t
+
+    fake_client.postgrest.schema.return_value.table.side_effect = tabla
+    return estado
+
+
+def _db_activa():
+    return _fake_db(filas_usuario=[{"auth_user_id": AUTH_USER_ID, "nombre_usuario": "m", "persona_id": PERSONA_ID}], filas_persona=[{"estado": "activo"}],
+                    codigos_activos=("ver_modulo_1",))
+
+
+def test_sesion_un_statement_timeout_transitorio_se_reintenta_una_vez_y_responde_200(caplog):
+    import logging
+
+    fake_client = _db_activa()
+    estado = _fallar_una_vez_en(fake_client, "usuario", APIError({"code": "57014", "message": "canceling statement due to statement timeout TEXTO INTERNO"}))
+    with caplog.at_level(logging.WARNING, logger="app.errores"):
+        respuesta = _pedir_sesion(fake_client)
+    assert respuesta.status_code == 200 and respuesta.json()["puede_ver_modulo_1"] is True and estado["fallos"] == 1
+    avisos = [r.getMessage() for r in caplog.records if r.name == "app.errores"]
+    assert len(avisos) == 1 and "APIError" in avisos[0] and "57014" in avisos[0] and "TEXTO INTERNO" not in avisos[0]
+
+
+def test_sesion_si_el_reintento_tambien_falla_responde_503_con_retry_after_y_mensaje_fijo():
+    fake_client = _db_activa()
+    _fallar_una_vez_en(fake_client, "usuario", APIError({"code": "57014", "message": "TEXTO INTERNO de la base"}))
+    original = fake_client.postgrest.schema.return_value.table.side_effect
+    # que el reintento TAMBIÉN falle: la tabla `usuario` falla siempre
+    def siempre_rota(nombre):
+        if nombre == "usuario":
+            roto = MagicMock()
+            roto.select.return_value.eq.return_value.execute.side_effect = APIError({"code": "57014", "message": "TEXTO INTERNO de la base"})
+            return roto
+        return original(nombre)
+
+    fake_client.postgrest.schema.return_value.table.side_effect = siempre_rota
+    respuesta = _pedir_sesion(fake_client)
+    assert respuesta.status_code == 503 and respuesta.headers["Retry-After"] == "2"
+    assert respuesta.json()["detail"] == "El servicio no está disponible un momento; reintenta."
+    assert "TEXTO INTERNO" not in respuesta.text
+
+
+def test_sesion_una_lectura_de_permisos_que_falla_dos_veces_es_503_no_sesion_vacia():
+    """Antes un timeout dejaba a la persona sin sesión (y el frontend lo leía como «abre todo»): ahora es un 503 explícito."""
+    fake_client = _db_activa()
+    original = fake_client.postgrest.schema.return_value.table.side_effect
+
+    def rota(nombre):
+        if nombre == "puesto_permiso":
+            t = MagicMock()
+            t.select.return_value.in_.return_value.eq.return_value.execute.side_effect = APIError({"code": "57014", "message": "x"})
+            return t
+        return original(nombre)
+
+    fake_client.postgrest.schema.return_value.table.side_effect = rota
+    respuesta = _pedir_sesion(fake_client)
+    assert respuesta.status_code == 503 and respuesta.headers["Retry-After"] == "2"
+
+
+def test_sesion_un_error_de_transporte_httpx_tambien_se_reintenta():
+    fake_client = _db_activa()
+    estado = _fallar_una_vez_en(fake_client, "asignacion", httpx.ReadTimeout("texto con url https://secreto"))
+    respuesta = _pedir_sesion(fake_client)
+    assert respuesta.status_code == 200 and estado["fallos"] == 1
+
+
+def test_sesion_un_error_no_transitorio_no_se_reintenta_ni_se_convierte_en_503():
+    fake_client = _db_activa()
+    estado = _fallar_una_vez_en(fake_client, "usuario", APIError({"code": "42501", "message": "permission denied"}))
+    respuesta = _pedir_sesion(fake_client)
+    assert respuesta.status_code == 500 and estado["fallos"] == 1          # no hubo segundo intento: el manejador global lo trata como siempre
+    assert "Retry-After" not in respuesta.headers
+
+
+def test_sesion_sigue_respondiendo_lo_mismo_para_las_ramas_sin_usuario_y_sin_persona():
+    r1 = _pedir_sesion(_fake_db(filas_usuario=[]))
+    assert r1.status_code == 200 and r1.json()["motivo_bloqueo"] == "sin_usuario"
+    r2 = _pedir_sesion(_fake_db(filas_usuario=[{"auth_user_id": AUTH_USER_ID, "nombre_usuario": "m", "persona_id": None}]))
+    assert r2.status_code == 200 and r2.json()["motivo_bloqueo"] == "sin_persona"
+
+
+# --- guarda de la memoización del esquema (security) ---------------------------------------------------------------------------------------------------
+
+
+def test_el_esquema_se_memoiza_por_objeto_cliente_dos_clientes_dos_esquemas():
+    from app.routers.sesion import _esquema_personas
+
+    a, b = MagicMock(), MagicMock()
+    a.postgrest.schema.return_value, b.postgrest.schema.return_value = MagicMock(name="esquema_a"), MagicMock(name="esquema_b")
+    assert _esquema_personas(a) is _esquema_personas(a) and a.postgrest.schema.call_count == 1
+    assert _esquema_personas(b) is not _esquema_personas(a)                      # clientes distintos: NUNCA comparten esquema (ni cabeceras, ni JWT)
+    assert b.postgrest.schema.call_count == 1
+
+
+def test_los_get_client_fabrican_un_objeto_nuevo_en_cada_llamada_nunca_un_singleton(monkeypatch):
+    """Si alguien cacheara `get_service_client` o `get_caller_client` (lru_cache, global), `_esquema_personas` compartiría el esquema entre peticiones/identidades: esta prueba lo detecta."""
+    import app.deps as deps
+    from app.config import Settings
+
+    monkeypatch.setattr(deps, "create_client", lambda *a, **k: MagicMock())
+    ajustes = Settings(supabase_url="http://supabase.invalido", supabase_anon_key="anon-ficticia", supabase_service_role_key="service-ficticia")
+    assert deps.get_service_client(ajustes) is not deps.get_service_client(ajustes)
+    assert deps.get_caller_client("Bearer token-a", ajustes) is not deps.get_caller_client("Bearer token-a", ajustes)
+    assert deps.get_caller_client("Bearer token-a", ajustes) is not deps.get_caller_client("Bearer token-b", ajustes)
+
+
+# --- lecturas de permisos: fallos permanentes y no transitorios -----------------------------------------------------------------------------------------
+
+import pytest  # noqa: E402
+
+
+def _tabla_rota(error):
+    roto = MagicMock()
+    for cadena in (roto.select.return_value.eq.return_value.execute, roto.select.return_value.eq.return_value.is_.return_value.execute,
+                   roto.select.return_value.in_.return_value.eq.return_value.execute, roto.select.return_value.in_.return_value.execute, roto.select.return_value.execute):
+        cadena.side_effect = error
+    return roto
+
+
+@pytest.mark.parametrize("tabla_rota", ["asignacion", "puesto_permiso", "permiso", "puesto"])
+def test_si_una_de_las_cuatro_lecturas_falla_de_forma_permanente_es_503_y_ningun_codigo_resuelto(tabla_rota):
+    fake_client = _db_activa()
+    original = fake_client.postgrest.schema.return_value.table.side_effect
+    llamadas = {"n": 0}
+
+    def tabla(nombre):
+        if nombre == tabla_rota:
+            llamadas["n"] += 1
+            return _tabla_rota(APIError({"code": "57014", "message": "TEXTO INTERNO"}))
+        return original(nombre)
+
+    fake_client.postgrest.schema.return_value.table.side_effect = tabla
+    respuesta = _pedir_sesion(fake_client)
+    assert respuesta.status_code == 503 and respuesta.headers["Retry-After"] == "2" and llamadas["n"] == 2           # un intento y UN reintento
+    cuerpo = respuesta.json()
+    assert list(cuerpo) == ["detail"]                                                                             # ningún `puede_*`: no hay «sin permisos» fabricado
+    assert "TEXTO INTERNO" not in respuesta.text
+
+
+@pytest.mark.parametrize("codigo", ["42501", "23505", "23514", "23503"])
+@pytest.mark.parametrize("tabla_rota", ["asignacion", "puesto_permiso"])
+def test_un_42501_o_23xxx_en_una_lectura_no_se_reintenta_y_se_propaga(tabla_rota, codigo):
+    fake_client = _db_activa()
+    original = fake_client.postgrest.schema.return_value.table.side_effect
+    llamadas = {"n": 0}
+
+    def tabla(nombre):
+        if nombre == tabla_rota:
+            llamadas["n"] += 1
+            return _tabla_rota(APIError({"code": codigo, "message": "TEXTO INTERNO"}))
+        return original(nombre)
+
+    fake_client.postgrest.schema.return_value.table.side_effect = tabla
+    respuesta = _pedir_sesion(fake_client)
+    assert llamadas["n"] == 1 and respuesta.status_code == 500 and "Retry-After" not in respuesta.headers
+    assert "TEXTO INTERNO" not in respuesta.text and "puede_" not in respuesta.text
+
+
+# --- embed `persona` ausente o nulo ---------------------------------------------------------------------------------------------------------------------
+
+
+def test_embed_de_persona_nulo_es_sin_persona_y_sin_acceso():
+    fake_client = _fake_db(filas_usuario=[{"auth_user_id": AUTH_USER_ID, "nombre_usuario": "m", "persona_id": PERSONA_ID}], filas_persona=None)       # persona: None
+    cuerpo = _pedir_sesion(fake_client).json()
+    assert cuerpo["acceso_permitido"] is False and cuerpo["motivo_bloqueo"] == "sin_persona" and cuerpo["persona_estado"] is None
+    assert cuerpo["puede_ver_modulo_1"] is False and cuerpo["puede_editar_terminales"] is False
+
+
+def test_embed_de_persona_ausente_es_sin_persona_y_sin_acceso_y_no_consulta_permisos():
+    fake_client = _fake_db(filas_usuario=[{"auth_user_id": AUTH_USER_ID, "nombre_usuario": "m", "persona_id": PERSONA_ID}], filas_persona=None)
+    original = fake_client.postgrest.schema.return_value.table.side_effect
+
+    def tabla(nombre):
+        if nombre == "usuario":
+            t = MagicMock()
+            t.select.return_value.eq.return_value.execute.return_value.data = [{"auth_user_id": AUTH_USER_ID, "nombre_usuario": "m", "persona_id": PERSONA_ID}]   # SIN clave persona
+            return t
+        return original(nombre)
+
+    fake_client.postgrest.schema.return_value.table.side_effect = tabla
+    cuerpo = _pedir_sesion(fake_client).json()
+    assert cuerpo["acceso_permitido"] is False and cuerpo["motivo_bloqueo"] == "sin_persona"
+    tablas = [c.args[0] for c in fake_client.postgrest.schema.return_value.table.call_args_list]
+    assert tablas == ["usuario"]

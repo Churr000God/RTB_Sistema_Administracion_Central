@@ -232,3 +232,74 @@ def tiene_permisos(db: Client, persona_id: str, codigos) -> dict[str, bool]:
         if alcanzables & poseedores[codigo]:
             resultado[codigo] = True
     return resultado
+
+
+def resolver_permisos_en_memoria(codigos, puestos_vigentes, filas_poseedores, filas_permiso, filas_puesto) -> dict[str, bool]:
+    """LA MISMA lógica que `tiene_permisos` (poseedor directo; herencia jerárquica solo para permisos heredables, hacia los subordinados) sobre filas YA leídas: no hace consultas. Existe
+    para poder leer en paralelo (`tiene_permisos_paralelo`) sin duplicar ni cambiar la regla."""
+    codigos = list(dict.fromkeys(codigos))
+    resultado = {codigo: False for codigo in codigos}
+    if not codigos or not puestos_vigentes:
+        return resultado
+    poseedores: dict[str, set[str]] = {codigo: set() for codigo in codigos}
+    for fila in filas_poseedores:
+        if fila["codigo"] in poseedores:
+            poseedores[fila["codigo"]].add(fila["puesto_id"])
+    propios = set(puestos_vigentes)
+    pendientes = []
+    for codigo in codigos:
+        if poseedores[codigo] & propios:
+            resultado[codigo] = True
+        elif poseedores[codigo]:
+            pendientes.append(codigo)
+    if not pendientes:
+        return resultado
+    heredables = {fila["codigo"] for fila in filas_permiso if fila["heredable"] and fila["codigo"] in pendientes}
+    if not heredables:
+        return resultado
+    hijos: dict[str, list[str]] = {}
+    for fila in filas_puesto:
+        if fila["reporta_a_id"] is not None:
+            hijos.setdefault(fila["reporta_a_id"], []).append(fila["id"])
+    alcanzables: set[str] = set()
+    for puesto in puestos_vigentes:
+        alcanzables |= descendientes_incluido_si_mismo(hijos, puesto)
+    for codigo in heredables:
+        if alcanzables & poseedores[codigo]:
+            resultado[codigo] = True
+    return resultado
+
+
+def tiene_permisos_paralelo(esquema, persona_id: str, codigos, *, ejecutor=None, leer=None) -> dict[str, bool]:
+    """Igual resultado que `tiene_permisos`, pero las CUATRO lecturas independientes (puestos vigentes de la persona, poseedores de los códigos, heredabilidad de los códigos y el árbol de
+    puestos) salen a la vez y sobre UN mismo cliente de esquema (`esquema` = `db.postgrest.schema("personas")`, obtenido UNA vez: cada `.schema()` fabrica un cliente httpx nuevo y con él
+    otro TCP/TLS). Cada lectura pasa por `leer` (p. ej. `leer_con_reintento`). Sin códigos no consulta nada."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    codigos = list(dict.fromkeys(codigos))
+    if not codigos:
+        return {}
+    leer = leer or (lambda consulta: consulta())
+    tabla = esquema.table
+
+    def puestos():
+        return leer(lambda: tabla("asignacion").select("puesto_id").eq("persona_id", persona_id).is_("vigente_hasta", "null").execute().data)
+
+    def poseedores():
+        return leer(lambda: tabla("puesto_permiso").select("puesto_id, codigo").in_("codigo", codigos).eq("activo", True).execute().data)
+
+    def permisos():
+        return leer(lambda: tabla("permiso").select("codigo, heredable").in_("codigo", codigos).execute().data)
+
+    def arbol():
+        return leer(lambda: tabla("puesto").select("id, reporta_a_id").execute().data)
+
+    propio = ejecutor is None
+    ejecutor = ejecutor or ThreadPoolExecutor(max_workers=4)
+    try:
+        futuros = [ejecutor.submit(f) for f in (puestos, poseedores, permisos, arbol)]
+        filas_puestos, filas_poseedores, filas_permiso, filas_arbol = (f.result() for f in futuros)
+    finally:
+        if propio:
+            ejecutor.shutdown(wait=False)
+    return resolver_permisos_en_memoria(codigos, [f["puesto_id"] for f in filas_puestos], filas_poseedores, filas_permiso, filas_arbol)
