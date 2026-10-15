@@ -19,14 +19,12 @@ function aMayusculas(evento: ChangeEvent<HTMLInputElement>) {
 export function AltaPersonaPage() {
   const [error, setError] = useState<string | null>(null);
   const [errorDocumento, setErrorDocumento] = useState<string | null>(null);
-  const [personaYaCreada, setPersonaYaCreada] = useState(false);
   const [enviando, setEnviando] = useState(false);
 
   async function handleSubmit(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     setError(null);
     setErrorDocumento(null);
-    setPersonaYaCreada(false);
     const f = new FormData(evento.currentTarget);
     const documentoRef = String(f.get("documento_ref") ?? "").trim();
     // Misma expresión que la base: un folio mal formado se avisa aquí, antes de enviar.
@@ -55,7 +53,6 @@ export function AltaPersonaPage() {
       const fallo = await errorDePersona(respuesta, "No se pudo registrar el alta.");
       if (fallo.campoDocumentoRef) setErrorDocumento(fallo.texto);
       else setError(fallo.texto);
-      setPersonaYaCreada(fallo.personaYaCreada);
       setEnviando(false);
       return;
     }
@@ -216,12 +213,6 @@ export function AltaPersonaPage() {
         </fieldset>
 
         {error && <p role="alert">{error}</p>}
-        {personaYaCreada && (
-          <p className="ayuda-campo">
-            No vuelvas a enviar este formulario: la persona ya existe y repetirlo duplicaría su CURP.{" "}
-            <a href="/personas">Ir a Personas →</a>
-          </p>
-        )}
         <div className="botonera">
           <a href="/personas">Cancelar</a>
           <Button type="submit" icono={ArrowRight} cargando={enviando} textoCargando="Registrando…">

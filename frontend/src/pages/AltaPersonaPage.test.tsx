@@ -169,8 +169,17 @@ describe("AltaPersonaPage · folio del expediente y errores del backend", () => 
   it("403: texto de permiso", async () => {
     mockApi(() => new Response(JSON.stringify({ detail: "interno" }), { status: 403 }));
     await llenar("RTB-RH-EIT-2026-06");
-    expect(await screen.findByRole("alert")).toHaveTextContent("No tienes permiso para esta acción.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("No tienes permiso para dar de alta personas.");
     expect(screen.getByRole("alert")).not.toHaveTextContent(/interno/);
+  });
+
+  it("502 (respuesta sin id del RPC): cae al genérico y no pinta el mensaje del servidor", async () => {
+    mockApi(() => new Response(JSON.stringify({ detail: "El servicio devolvió una respuesta inesperada <b>interna</b>." }), { status: 502 }));
+    await llenar("RTB-RH-EIT-2026-06");
+    const alerta = await screen.findByRole("alert");
+    expect(alerta).toHaveTextContent("No se pudo registrar el alta.");
+    expect(alerta).not.toHaveTextContent(/inesperada|interna/);
+    expect(screen.queryByText(/no vuelvas a enviar/i)).not.toBeInTheDocument();
   });
 
   it("500: genérico, sin detail del servidor", async () => {
@@ -181,58 +190,3 @@ describe("AltaPersonaPage · folio del expediente y errores del backend", () => 
   });
 });
 
-describe("AltaPersonaPage · persona creada sin expediente", () => {
-  function mockApi(post: () => Response) {
-    vi.mocked(apiFetch).mockReset();
-    vi.mocked(apiFetch).mockImplementation((path: string) =>
-      path === "/api/sesion"
-        ? Promise.resolve(new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null })))
-        : Promise.resolve(post()),
-    );
-  }
-
-  async function enviar() {
-    render(<AltaPersonaPage />);
-    await userEvent.type(await screen.findByLabelText(/primer nombre/i), "Mariana");
-    await userEvent.type(screen.getByLabelText(/apellido paterno/i), "Alcántara");
-    await userEvent.type(screen.getByLabelText(/curp/i), "AARM910427MDFLVR03");
-    await userEvent.type(screen.getByLabelText(/rfc/i), "AARM910427H8A");
-    await userEvent.type(screen.getByLabelText(/nss/i), "62119145338");
-    await userEvent.type(screen.getByLabelText(/fecha de nacimiento/i), "1991-04-27");
-    await userEvent.type(screen.getByLabelText(/fecha de ingreso/i), "2026-01-01");
-    await userEvent.type(screen.getByLabelText(/documento_ref/i), "RTB-RH-EIT-2026-06");
-    await userEvent.click(screen.getByRole("button", { name: /registrar alta/i }));
-  }
-
-  it("409 por folio duplicado con la persona ya registrada: avisa que no reenvíe y ofrece ir a Personas", async () => {
-    mockApi(() =>
-      new Response(
-        JSON.stringify({ detail: "Ese folio de expediente ya está en uso por otra persona. La persona quedó registrada sin expediente: corrígelo desde su ficha." }),
-        { status: 409 },
-      ),
-    );
-    await enviar();
-    expect(await screen.findByText(/ese folio de expediente ya está en uso por otra persona/i)).toBeInTheDocument();
-    expect(screen.getByText(/no vuelvas a enviar este formulario: la persona ya existe/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /ir a personas/i })).toHaveAttribute("href", "/personas");
-  });
-
-  it("422 de folio con la persona ya registrada: marca el campo y también avisa que no reenvíe", async () => {
-    mockApi(() =>
-      new Response(
-        JSON.stringify({ detail: "El folio del expediente debe tener el formato RTB-RH-EIT-<año>-<número> (ej. RTB-RH-EIT-2026-06). La persona quedó registrada sin expediente: corrígelo desde su ficha." }),
-        { status: 422 },
-      ),
-    );
-    await enviar();
-    expect(await screen.findByText(/el folio del expediente debe tener el formato/i)).toBeInTheDocument();
-    expect(screen.getByText(/no vuelvas a enviar este formulario/i)).toBeInTheDocument();
-  });
-
-  it("un 409 normal (CURP duplicada, sin la marca) no muestra el aviso de persona creada", async () => {
-    mockApi(() => new Response(JSON.stringify({ detail: "Ya existe una persona registrada con esa CURP." }), { status: 409 }));
-    await enviar();
-    expect(await screen.findByText("Ya existe una persona registrada con esa CURP.")).toBeInTheDocument();
-    expect(screen.queryByText(/no vuelvas a enviar/i)).not.toBeInTheDocument();
-  });
-});
