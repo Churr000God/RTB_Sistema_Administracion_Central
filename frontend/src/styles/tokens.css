@@ -2752,3 +2752,20 @@ dialog.modal[open] {
   border-color: #b3261e;
   background: #fdecea;
 }
+
+/* «Inicio» del sidebar: un enlace plano (sin subitems), siempre habilitado. */
+.nav-item-plano--enlace {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+}
+
+.nav-item-plano--enlace:hover,
+.nav-item-plano--enlace:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.nav-item-plano--activo {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}

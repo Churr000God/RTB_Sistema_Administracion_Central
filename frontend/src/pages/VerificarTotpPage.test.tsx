@@ -105,9 +105,9 @@ describe("VerificarTotpPage · destino tras verificar", () => {
     await waitFor(() => expect(href).not.toBe(""));
   }
 
-  it("con módulo 1: /personas", async () => {
+  it("con módulo 1: /inicio (destino por defecto de todos)", async () => {
     await verificarConSesion({ puede_ver_modulo_1: true, puede_ver_modulo_2: false, puede_ver_modulo_3: false });
-    expect(href).toBe("/personas");
+    expect(href).toBe("/inicio");
   });
 
   it("sin ningún módulo: /inicio", async () => {
@@ -115,8 +115,8 @@ describe("VerificarTotpPage · destino tras verificar", () => {
     expect(href).toBe("/inicio");
   });
 
-  it("si /api/sesion falla: /personas (fail-open)", async () => {
+  it("si /api/sesion falla: también /inicio (Inicio verifica la sesión por su cuenta)", async () => {
     await verificarConSesion(null);
-    expect(href).toBe("/personas");
+    expect(href).toBe("/inicio");
   });
 });

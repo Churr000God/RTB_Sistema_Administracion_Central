@@ -178,14 +178,14 @@ describe("LoginPage · destino tras iniciar sesión", () => {
     await waitFor(() => expect(href).not.toBe(""));
   }
 
-  it("con módulo 1: /personas (comportamiento actual)", async () => {
+  it("con módulo 1: aterriza en /inicio (a todos los manda ahí; Inicio ofrece sus accesos)", async () => {
     await iniciarSesionCon({ puede_ver_modulo_1: true, puede_ver_modulo_2: false, puede_ver_modulo_3: false });
-    expect(href).toBe("/personas");
+    expect(href).toBe("/inicio");
   });
 
-  it("sin módulo 1 pero con Tiempo: va al primer módulo que sí ve", async () => {
+  it("sólo con Tiempo: también /inicio, no el primer módulo", async () => {
     await iniciarSesionCon({ puede_ver_modulo_1: false, puede_ver_modulo_2: false, puede_ver_modulo_3: true });
-    expect(href).toBe("/tiempo/asignacion-jornada");
+    expect(href).toBe("/inicio");
   });
 
   it("sin ningún módulo: /inicio", async () => {
@@ -193,9 +193,9 @@ describe("LoginPage · destino tras iniciar sesión", () => {
     expect(href).toBe("/inicio");
   });
 
-  it("si /api/sesion falla (fail-open): /personas como hasta ahora", async () => {
+  it("si /api/sesion falla en el login (fail-open, es sólo UX): /inicio, que verifica la sesión por su cuenta", async () => {
     await iniciarSesionCon(null);
-    expect(href).toBe("/personas");
+    expect(href).toBe("/inicio");
   });
 
   it("la bifurcación de 2FA no cambia: nivel aal1 -> /configurar-2fa aunque no tenga módulos", async () => {

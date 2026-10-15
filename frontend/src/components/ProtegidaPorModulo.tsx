@@ -11,14 +11,22 @@ type Props = {
   children: ReactNode;
 };
 
-// Guarda de UI para una ruta directa: si la sesión dice que NO puede ver el módulo, muestra un aviso de
-// acceso no autorizado en vez de la pantalla. Es sólo UX: la autorización real es backend/RLS (que
-// responden 403 o vacío). Mientras la sesión carga no se monta la pantalla (evita pedir datos de más), y
-// si la sesión no se pudo leer se deja pasar (fail-open, mismo criterio que AppShell).
+// Guarda de UI para una ruta directa. Tres estados de la sesión (ya no hay fail-open):
+//  - cargando o error: no se monta la pantalla; AppShell muestra «Verificando acceso…» o el error con
+//    «Reintentar» (usa la misma consulta, deduplicada);
+//  - cargada sin la bandera en true (false o ausente): aviso de acceso no autorizado;
+//  - cargada con la bandera: la pantalla.
+// Es sólo UX: la autorización real es backend/RLS (que responden 403 o vacío).
 export function ProtegidaPorModulo({ campo, children }: Props) {
-  const { sesion, cargando } = useSesion();
-  if (cargando) return <AppShell><p className="contenedor-pagina">Verificando acceso…</p></AppShell>;
-  if (sesion && sesion[campo] === false) {
+  const { sesion, cargando, error } = useSesion();
+  if (cargando || error || !sesion) {
+    return (
+      <AppShell>
+        <></>
+      </AppShell>
+    );
+  }
+  if (sesion[campo] !== true) {
     return (
       <AppShell>
         <div className="contenedor-pagina">

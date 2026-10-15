@@ -173,10 +173,12 @@ describe("TerminalesPage", () => {
     expect(vi.mocked(apiFetch).mock.calls.filter(([ruta]) => ruta === "/api/terminales")).toHaveLength(0);
   });
 
-  it("si /api/sesion falla, intenta cargar igual (fail-open; la autorización real es el backend)", async () => {
+  it("si /api/sesion falla NO abre la pantalla: «No pudimos verificar tu acceso» y no pide terminales", async () => {
     mockApi({ sesion: new Response(null, { status: 500 }) });
     render(<TerminalesPage />);
-    expect(await screen.findByText("Entrada principal")).toBeInTheDocument();
+    expect(await screen.findByText("No pudimos verificar tu acceso")).toBeInTheDocument();
+    expect(screen.queryByText("Entrada principal")).not.toBeInTheDocument();
+    expect(vi.mocked(apiFetch).mock.calls.some(([p]) => p === "/api/terminales")).toBe(false);
   });
 
   it("un 403 del backend se muestra como sin acceso", async () => {

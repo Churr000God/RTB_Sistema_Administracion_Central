@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiFetch } from "../lib/apiClient";
 import { supabase } from "../lib/supabaseClient";
@@ -25,7 +25,7 @@ describe("AppShell", () => {
 
   it("con acceso permitido, muestra el shell y el contenido sin redirigir", async () => {
     vi.mocked(apiFetch).mockResolvedValue(
-      new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null }), { status: 200 })
+      new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null, puede_ver_modulo_1: true, puede_ver_modulo_2: true }), { status: 200 })
     );
 
     render(
@@ -56,7 +56,7 @@ describe("AppShell", () => {
     expect(screen.queryByText("Contenido protegido")).not.toBeInTheDocument();
   });
 
-  it("si /api/sesion falla, no bloquea: muestra el shell igual (fail-open)", async () => {
+  it("si /api/sesion falla (red), NO abre nada: muestra «No pudimos verificar tu acceso» y no monta el contenido", async () => {
     vi.mocked(apiFetch).mockRejectedValue(new Error("network down"));
 
     render(
@@ -65,11 +65,13 @@ describe("AppShell", () => {
       </AppShell>
     );
 
-    await waitFor(() => expect(screen.getByText("Contenido protegido")).toBeInTheDocument());
+    expect(await screen.findByText("No pudimos verificar tu acceso")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reintentar" })).toBeInTheDocument();
+    expect(screen.queryByText("Contenido protegido")).not.toBeInTheDocument();
     expect(supabase.auth.signOut).not.toHaveBeenCalled();
   });
 
-  it("si /api/sesion responde con error HTTP, tampoco bloquea (fail-open)", async () => {
+  it("si /api/sesion responde 500, tampoco abre nada (error con Reintentar)", async () => {
     vi.mocked(apiFetch).mockResolvedValue(new Response(null, { status: 500 }));
 
     render(
@@ -78,8 +80,8 @@ describe("AppShell", () => {
       </AppShell>
     );
 
-    await waitFor(() => expect(screen.getByText("Contenido protegido")).toBeInTheDocument());
-    expect(supabase.auth.signOut).not.toHaveBeenCalled();
+    expect(await screen.findByText("No pudimos verificar tu acceso")).toBeInTheDocument();
+    expect(screen.queryByText("Contenido protegido")).not.toBeInTheDocument();
   });
 
   it("si signOut() falla tras detectar acceso no permitido, igual redirige (no cae a fail-open)", async () => {
@@ -137,7 +139,7 @@ describe("AppShell", () => {
 
   it("con acceso permitido, muestra los grupos de navegación colapsados por defecto", async () => {
     vi.mocked(apiFetch).mockResolvedValue(
-      new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null }), { status: 200 })
+      new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null, puede_ver_modulo_1: true, puede_ver_modulo_2: true }), { status: 200 })
     );
 
     render(
@@ -157,7 +159,7 @@ describe("AppShell", () => {
   it("autoexpande el grupo cuya ruta activa cae dentro de él", async () => {
     window.history.pushState({}, "", "/estructura/areas");
     vi.mocked(apiFetch).mockResolvedValue(
-      new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null }), { status: 200 })
+      new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null, puede_ver_modulo_1: true, puede_ver_modulo_2: true }), { status: 200 })
     );
 
     render(
@@ -180,7 +182,7 @@ describe("AppShell", () => {
     // más abajo), no de sub-item dentro de un grupo navegable.
     window.history.pushState({}, "", "/estructura/areas");
     vi.mocked(apiFetch).mockResolvedValue(
-      new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null }), { status: 200 })
+      new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null, puede_ver_modulo_1: true, puede_ver_modulo_2: true }), { status: 200 })
     );
 
     render(
@@ -206,7 +208,7 @@ describe("AppShell", () => {
 
   it("el grupo Personas y Usuarios sólo trae Directorio (alta de persona/usuario se dejaron de listar ahí)", async () => {
     vi.mocked(apiFetch).mockResolvedValue(
-      new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null }), { status: 200 })
+      new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null, puede_ver_modulo_1: true, puede_ver_modulo_2: true }), { status: 200 })
     );
 
     render(
@@ -302,7 +304,7 @@ describe("AppShell", () => {
     expect(screen.getByRole("button", { name: /estructura organizacional/i })).toBeInTheDocument();
   });
 
-  it("si /api/sesion falla (fail-open), muestra ambos grupos aunque no se sepan los permisos reales", async () => {
+  it("con la sesión en error el menú de módulos no se muestra (ni habilitado ni atenuado)", async () => {
     vi.mocked(apiFetch).mockRejectedValue(new Error("network down"));
 
     render(
@@ -311,26 +313,11 @@ describe("AppShell", () => {
       </AppShell>
     );
 
-    await waitFor(() => expect(screen.getByText("Contenido protegido")).toBeInTheDocument());
-    expect(screen.getByRole("button", { name: /personas y usuarios/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /estructura organizacional/i })).toBeInTheDocument();
-  });
-
-  it("un grupo sin items propios (p. ej. Panel) se muestra atenuado y sin botón expandible", async () => {
-    vi.mocked(apiFetch).mockResolvedValue(
-      new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null }), { status: 200 })
-    );
-
-    render(
-      <AppShell>
-        <p>Contenido protegido</p>
-      </AppShell>
-    );
-
-    await waitFor(() => expect(screen.getByText("Contenido protegido")).toBeInTheDocument());
-    const panel = screen.getByText("Panel").closest("[aria-disabled]");
-    expect(panel).toHaveAttribute("aria-disabled", "true");
-    expect(screen.queryByRole("button", { name: /^panel$/i })).not.toBeInTheDocument();
+    await screen.findByText("No pudimos verificar tu acceso");
+    expect(screen.queryByRole("button", { name: /personas y usuarios/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /estructura organizacional/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Inicio" })).not.toBeInTheDocument();
+    expect(screen.getByText("Cerrar sesión")).toBeInTheDocument();
   });
 
   describe("grupo Terminales", () => {
@@ -405,15 +392,143 @@ describe("AppShell", () => {
       expect(screen.queryByRole("button", { name: /^terminales$/i })).not.toBeInTheDocument();
     });
 
-    it("si /api/sesion falla (fail-open) el grupo queda visible", async () => {
+    it("si /api/sesion falla el grupo Terminales NO aparece", async () => {
       vi.mocked(apiFetch).mockRejectedValue(new Error("network down"));
       render(
         <AppShell>
           <p>Contenido protegido</p>
         </AppShell>,
       );
-      await waitFor(() => expect(screen.getByText("Contenido protegido")).toBeInTheDocument());
-      expect(screen.getByRole("button", { name: /^terminales$/i })).toBeInTheDocument();
+      await screen.findByText("No pudimos verificar tu acceso");
+      expect(screen.queryByRole("button", { name: /^terminales$/i })).not.toBeInTheDocument();
     });
   });
+});
+
+describe("AppShell · Inicio, estados de la sesión y reintento", () => {
+  const originalLocation = window.location;
+  let href = "";
+
+  beforeEach(() => {
+    href = "";
+    vi.mocked(apiFetch).mockReset();
+    vi.mocked(supabase.auth.signOut).mockClear();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: {
+        ...originalLocation,
+        pathname: "/",
+        get href() {
+          return href;
+        },
+        set href(valor: string) {
+          href = valor;
+        },
+      },
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
+  });
+
+  const sesion = (extra: Record<string, unknown> = {}) =>
+    new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null, puede_ver_modulo_1: false, puede_ver_modulo_2: false, puede_ver_modulo_3: false, ...extra }));
+
+  const montar = () =>
+    render(
+      <AppShell>
+        <p>Contenido protegido</p>
+      </AppShell>,
+    );
+
+  it("«Inicio» reemplaza al ítem gris «Panel»: es un enlace habilitado a /inicio", async () => {
+    vi.mocked(apiFetch).mockImplementation(() => Promise.resolve(sesion({ puede_ver_modulo_1: true })));
+    montar();
+    await screen.findByText("Contenido protegido");
+    const inicio = screen.getByRole("link", { name: "Inicio" });
+    expect(inicio).toHaveAttribute("href", "/inicio");
+    expect(inicio).not.toHaveAttribute("aria-disabled");
+    expect(screen.queryByText("Panel")).not.toBeInTheDocument();
+  });
+
+  it("«Inicio» aparece también para quien no tiene ningún módulo, y los grupos de módulo se ocultan", async () => {
+    vi.mocked(apiFetch).mockImplementation(() => Promise.resolve(sesion()));
+    montar();
+    await screen.findByText("Contenido protegido");
+    expect(screen.getByRole("link", { name: "Inicio" })).toBeInTheDocument();
+    for (const nombre of [/personas y usuarios/i, /estructura organizacional/i, /^jornadas$/i, /^terminales$/i]) {
+      expect(screen.queryByRole("button", { name: nombre })).not.toBeInTheDocument();
+    }
+  });
+
+  it("una bandera de módulo ausente oculta el grupo (fail-closed con la sesión ya cargada)", async () => {
+    vi.mocked(apiFetch).mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null }))),
+    );
+    montar();
+    await screen.findByText("Contenido protegido");
+    expect(screen.queryByRole("button", { name: /personas y usuarios/i })).not.toBeInTheDocument();
+  });
+
+  it("5xx: reintenta solo 2 veces más (3 intentos) antes de mostrar el error", async () => {
+    vi.mocked(apiFetch).mockImplementation(() => Promise.resolve(new Response(null, { status: 500 })));
+    montar();
+    await screen.findByText("No pudimos verificar tu acceso");
+    expect(apiFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("un fallo puntual (500 y luego 200) se recupera solo sin mostrar el error", async () => {
+    vi.mocked(apiFetch)
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockImplementation(() => Promise.resolve(sesion({ puede_ver_modulo_1: true })));
+    montar();
+    await screen.findByText("Contenido protegido");
+    expect(screen.queryByText("No pudimos verificar tu acceso")).not.toBeInTheDocument();
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("error: «Reintentar» vuelve a pedir la sesión y, si responde, monta el contenido", async () => {
+    vi.mocked(apiFetch).mockImplementation(() => Promise.resolve(new Response(null, { status: 503 })));
+    montar();
+    await screen.findByText("No pudimos verificar tu acceso");
+    vi.mocked(apiFetch).mockImplementation(() => Promise.resolve(sesion({ puede_ver_modulo_1: true })));
+    await userEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByText("Contenido protegido")).toBeInTheDocument();
+    expect(screen.queryByText("No pudimos verificar tu acceso")).not.toBeInTheDocument();
+  });
+
+  it("401 (sin sesión): manda al login y no reintenta ni muestra el error", async () => {
+    vi.mocked(apiFetch).mockImplementation(() => Promise.resolve(new Response(null, { status: 401 })));
+    montar();
+    await waitFor(() => expect(href).toBe("/"));
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Contenido protegido")).not.toBeInTheDocument();
+    expect(screen.queryByText("No pudimos verificar tu acceso")).not.toBeInTheDocument();
+  });
+
+  it("403: error sin reintento automático (un 4xx no cambia solo)", async () => {
+    vi.mocked(apiFetch).mockImplementation(() => Promise.resolve(new Response(null, { status: 403 })));
+    montar();
+    await screen.findByText("No pudimos verificar tu acceso");
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("la suspensión conserva su flujo: signOut y /cuenta-suspendida con el motivo, sin montar el contenido", async () => {
+    vi.mocked(apiFetch).mockImplementation(() => Promise.resolve(sesion({ acceso_permitido: false, motivo_bloqueo: "suspension" })));
+    montar();
+    await waitFor(() => expect(href).toBe("/cuenta-suspendida?motivo=suspension"));
+    expect(supabase.auth.signOut).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Contenido protegido")).not.toBeInTheDocument();
+  });
+
+  // Último a propósito: deja /api/sesion colgado y la consulta se deduplica a nivel de módulo, así que
+  // cualquier prueba posterior de este archivo esperaría esa misma promesa.
+  it("cargando: «Verificando acceso…» y nada del contenido", async () => {
+    vi.mocked(apiFetch).mockImplementation(() => new Promise<Response>(() => {}));
+    montar();
+    expect(screen.getByText("Verificando acceso…")).toBeInTheDocument();
+    expect(screen.queryByText("Contenido protegido")).not.toBeInTheDocument();
+  });
+
 });

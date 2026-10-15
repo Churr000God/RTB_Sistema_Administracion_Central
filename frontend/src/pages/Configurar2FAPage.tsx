@@ -121,8 +121,8 @@ export function Configurar2FAPage() {
           <ShieldCheck size={16} aria-hidden="true" />
           Tu cuenta ya tiene la verificación en dos pasos activa.
         </p>
-        <Button href="/personas" icono={ArrowRight} tamanoIcono={14}>
-          Ir a Personas
+        <Button href="/inicio" icono={ArrowRight} tamanoIcono={14}>
+          Ir a Inicio
         </Button>
       </AuthLayout>
     );

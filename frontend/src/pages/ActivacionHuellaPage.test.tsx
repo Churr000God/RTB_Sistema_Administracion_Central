@@ -369,16 +369,16 @@ describe("ActivacionHuellaPage · huecos de mutación", () => {
     expect(screen.queryByRole("button", { name: /encender|renovar|apagar/i })).not.toBeInTheDocument();
   });
 
-  it("sin cargar la sesión (falla) no aparece el banner de permisos, aunque el estado ya cargó", async () => {
+  it("si la sesión no carga (falla), la pantalla no se monta: error con Reintentar, sin banner ni botones ni pedir el estado", async () => {
     vi.mocked(apiFetch).mockImplementation((path: string) => {
       if (path === "/api/sesion") return Promise.resolve(new Response(null, { status: 500 }));
-      if (path === RUTA) return Promise.resolve(new Response(JSON.stringify(ESTADO_ENCENDIDO)));
-      return Promise.resolve(new Response(JSON.stringify({ items: [] })));
+      return Promise.resolve(new Response(JSON.stringify(ESTADO_ENCENDIDO)));
     });
     render(<ActivacionHuellaPage />);
-    expect(await screen.findByText(/encendido hasta el/i)).toBeInTheDocument();
+    expect(await screen.findByText("No pudimos verificar tu acceso")).toBeInTheDocument();
     expect(screen.queryByText(/puedes consultar este ajuste|ves el estado del ajuste/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /encender|renovar|apagar/i })).not.toBeInTheDocument();
+    expect(vi.mocked(apiFetch).mock.calls.some(([p]) => p === RUTA)).toBe(false);
   });
 
   it("GET 403 de la pantalla => sin acceso, no «error»", async () => {

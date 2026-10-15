@@ -259,13 +259,14 @@ describe("ColaExcepcionesPage", () => {
       expect(screen.queryByRole("button", { name: /descartar marca tardía/i })).not.toBeInTheDocument();
     });
 
-    it("si /api/sesion falla, se trata como sin permiso (no ofrece descartar)", async () => {
+    it("si /api/sesion falla no abre la cola: error con Reintentar y nada que descartar", async () => {
       vi.mocked(apiFetch).mockImplementation((path: string) => {
         if (path === "/api/sesion") return Promise.resolve(new Response(null, { status: 500 }));
         return Promise.resolve(new Response(JSON.stringify([A_DESCARTAR])));
       });
       render(<ColaExcepcionesPage />);
-      expect(await screen.findByText(/sin permiso para descartar/i)).toBeInTheDocument();
+      expect(await screen.findByText("No pudimos verificar tu acceso")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /descartar/i })).not.toBeInTheDocument();
     });
 
     it("en la pestaña Todas una de día cerrado tampoco ofrece Corregir", async () => {

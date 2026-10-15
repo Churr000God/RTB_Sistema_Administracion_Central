@@ -74,7 +74,7 @@ describe("Configurar2FAPage", () => {
     expect(await screen.findByLabelText("Dígito 1 de 6")).toBeInTheDocument();
   });
 
-  it("si ya tiene un factor TOTP verificado, no vuelve a matricular y ofrece ir a Personas", async () => {
+  it("si ya tiene un factor TOTP verificado, no vuelve a matricular y ofrece ir a Inicio", async () => {
     vi.mocked(supabase.auth.mfa.listFactors).mockResolvedValue({
       data: { totp: [{ id: "factor-existente", status: "verified" }], phone: [], all: [] },
       error: null,
@@ -86,7 +86,7 @@ describe("Configurar2FAPage", () => {
       expect(screen.getByText(/ya tiene la verificación en dos pasos activa/i)).toBeInTheDocument()
     );
     expect(supabase.auth.mfa.enroll).not.toHaveBeenCalled();
-    expect(screen.getByRole("link", { name: /ir a personas/i })).toHaveAttribute("href", "/personas");
+    expect(screen.getByRole("link", { name: /ir a inicio/i })).toHaveAttribute("href", "/inicio");
   });
 
   it("si listFactors falla, muestra el error y no intenta matricular", async () => {

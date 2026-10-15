@@ -4,10 +4,11 @@ import {
   Building2,
   CalendarClock,
   ChevronDown,
+  AlertCircle,
   ChevronRight,
   Clock,
   Fingerprint,
-  LayoutGrid,
+  Home,
   LogOut,
   Settings,
   ShieldCheck,
@@ -18,9 +19,7 @@ import {
 
 import { supabase } from "../lib/supabaseClient";
 import { registrarErrorAuth } from "../lib/erroresAuth";
-import { consultarSesion, type SesionOut } from "../lib/sesion";
-
-type EstadoAcceso = "verificando" | "permitido";
+import { useSesion } from "../lib/useSesion";
 
 type NavItem = { label: string; href: string; disponible: boolean };
 
@@ -30,10 +29,18 @@ type NavItem = { label: string; href: string; disponible: boolean };
 // puesto acá abajo es sólo el default mientras la sesión no cargó o falló (fail-open). Los
 // items DENTRO de cada grupo siguen fijos: no hay granularidad más fina que "el módulo
 // completo" todavía.
-type NavGroup = { label: string; icono: LucideIcon; disponible: boolean; items: NavItem[] };
+type NavGroup = {
+  label: string;
+  icono: LucideIcon;
+  disponible: boolean;
+  items: NavItem[];
+  // Grupo de un solo enlace (sin subitems), p. ej. «Inicio».
+  href?: string;
+};
 
 const NAV_GROUPS: NavGroup[] = [
-  { label: "Panel", icono: LayoutGrid, disponible: false, items: [] },
+  // Siempre disponible para toda persona con sesión verificada: es el destino por defecto al entrar.
+  { label: "Inicio", icono: Home, disponible: true, items: [], href: "/inicio" },
   {
     label: "Personas y Usuarios",
     icono: Users,
@@ -116,8 +123,7 @@ type Props = { children: ReactNode };
 export function AppShell({ children }: Props) {
   const rutaActual = typeof window !== "undefined" ? window.location.pathname : "";
   const [correoUsuario, setCorreoUsuario] = useState<string | null>(null);
-  const [estadoAcceso, setEstadoAcceso] = useState<EstadoAcceso>("verificando");
-  const [sesion, setSesion] = useState<SesionOut | null>(null);
+  const { sesion, cargando, error, reintentar } = useSesion();
   const [gruposAbiertos, setGruposAbiertos] = useState<Set<string>>(
     () =>
       new Set(
@@ -145,54 +151,46 @@ export function AppShell({ children }: Props) {
     });
   }, []);
 
+  // Guard de sesión (tres estados: cargando / error / cargada). LoginPage ya chequea /api/sesion al
+  // loguearse, pero eso no cubre a alguien que ya tenía una sesión bloqueada y navega/recarga directo a una
+  // ruta interna (AppShell envuelve todas). YA NO es fail-open: si /api/sesion falla (red, 5xx, tiempo
+  // agotado, tras los reintentos automáticos) no se abre nada, se muestra un error con «Reintentar» y no se
+  // monta ninguna pantalla de módulo. La RLS de Postgres sigue siendo el control real; esto evita mostrar
+  // todo a una persona cuya sesión no se pudo verificar.
+  const sesionNoAutenticada = error?.status === 401;
+  const accesoDenegado = sesion !== null && !sesion.acceso_permitido;
+
   useEffect(() => {
-    // Guard de sesión: LoginPage ya chequea /api/sesion al loguearse, pero eso no cubre a
-    // alguien que ya tenía una sesión bloqueada y navega/recarga directo a una ruta interna
-    // (AppShell envuelve todas). Fail-open (mismo criterio que LoginPage, D8 del plan): si
-    // /api/sesion falla, no se bloquea — la RLS de Postgres sigue siendo el control real.
-    // consultarSesion() deduplica la petición a nivel de módulo — con StrictMode este efecto
-    // se monta dos veces en dev, y sin deduplicar cada montaje disparaba su propio
-    // GET /api/sesion; por timing entre apiFetch/getSession() y el doble montaje, uno de los
-    // dos podía salir sin token válido y entrar en fail-open de más, no por una falla real.
+    if (sesionNoAutenticada) {
+      // Sin sesión válida: al login.
+      window.location.href = "/";
+      return;
+    }
+    if (!sesion || sesion.acceso_permitido) return;
+    // Una vez confirmado que NO hay acceso el redirect tiene que pasar sí o sí: que signOut() falle no
+    // puede dejar a la persona en una ruta interna rota (signOut ya limpia localStorage).
     let vivo = true;
-
-    consultarSesion()
-      .then(async (sesion) => {
-        if (!vivo) return;
-        if (!sesion.acceso_permitido) {
-          // Una vez confirmado que NO hay acceso, el redirect tiene que pasar sí o sí — que
-          // signOut() falle (p. ej. un hiccup de red al llamar a GoTrue, después de que ya
-          // limpió la sesión local) no puede tirarnos al .catch() de más abajo y hacer
-          // fail-open: eso dejaría a la persona deslogueada en silencio y sin redirigir,
-          // viendo la ruta interna rota. El signOut ya limpia localStorage aunque la llamada
-          // de red falle, así que igual conviene mandarla a la pantalla de bloqueo.
-          try {
-            await supabase.auth.signOut();
-          } catch (errorSignOut) {
-            registrarErrorAuth("AppShell.signOut", errorSignOut);
-          }
-          window.location.href = `/cuenta-suspendida?motivo=${sesion.motivo_bloqueo ?? "suspension"}`;
-          return;
-        }
-        setSesion(sesion);
-        setEstadoAcceso("permitido");
-      })
-      .catch((error) => {
-        registrarErrorAuth("AppShell.sesion", error);
-        if (vivo) setEstadoAcceso("permitido");
-      });
-
+    (async () => {
+      try {
+        await supabase.auth.signOut();
+      } catch (errorSignOut) {
+        registrarErrorAuth("AppShell.signOut", errorSignOut);
+      }
+      if (vivo) window.location.href = `/cuenta-suspendida?motivo=${sesion.motivo_bloqueo ?? "suspension"}`;
+    })();
     return () => {
       vivo = false;
     };
-  }, []);
+  }, [sesion, sesionNoAutenticada]);
 
   async function cerrarSesion() {
     await supabase.auth.signOut();
     window.location.href = "/";
   }
 
-  if (estadoAcceso === "verificando") {
+  // Mientras no hay respuesta definitiva (o se está redirigiendo al login / a la cuenta suspendida) no se
+  // monta nada.
+  if ((cargando && !error) || sesionNoAutenticada || accesoDenegado) {
     return (
       <div className="app-shell-cargando">
         <p>Verificando acceso…</p>
@@ -200,15 +198,54 @@ export function AppShell({ children }: Props) {
     );
   }
 
-  // Gate real de los dos grupos con módulo: si la sesión no cargó (fail-open, mismo criterio
-  // que el guard de arriba) quedan visibles por default en vez de ocultarse por un error de
-  // red — la RLS del backend sigue siendo el control real, esto es sólo la UI del sidebar.
+  // La sesión no se pudo verificar (tras los reintentos automáticos): se muestra el marco SIN menú de
+  // módulos y sin montar la pantalla pedida.
+  if (error || !sesion) {
+    return (
+      <div className="app-shell">
+        <aside className="app-shell-aside">
+          <strong className="app-shell-wordmark">
+            <img src="/logo-rtb-compacto.png" alt="" aria-hidden="true" className="app-shell-logo" />
+            RTB
+          </strong>
+          <nav className="app-shell-nav" aria-label="Menú no disponible" />
+          <div className="app-shell-footer">
+            {correoUsuario && <p className="app-shell-correo">{correoUsuario}</p>}
+            <button type="button" onClick={cerrarSesion} className="boton-cerrar-sesion">
+              <LogOut size={16} aria-hidden="true" />
+              Cerrar sesión
+            </button>
+          </div>
+        </aside>
+        <main className="app-shell-main">
+          <div className="contenedor-pagina">
+            <div className="tarjeta-error" role="alert">
+              <strong>
+                <AlertCircle size={16} aria-hidden="true" />
+                No pudimos verificar tu acceso
+              </strong>
+              <p>
+                El servicio no respondió como se esperaba. Revisa tu conexión e inténtalo de nuevo; si sigue
+                fallando, avisa a Sistemas.
+              </p>
+              <button type="button" className="boton-con-icono" onClick={reintentar}>
+                Reintentar
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Gate de los grupos con módulo. Aquí la sesión ya está cargada y verificada: una bandera ausente o
+  // false oculta el grupo (fail-closed). La RLS del backend sigue siendo el control real; esto es UI.
   const gruposConGate = NAV_GROUPS.map((grupo) => {
     if (grupo.label === "Personas y Usuarios") {
-      return { ...grupo, disponible: sesion?.puede_ver_modulo_1 ?? true };
+      return { ...grupo, disponible: sesion.puede_ver_modulo_1 === true };
     }
     if (grupo.label === "Estructura organizacional") {
-      return { ...grupo, disponible: sesion?.puede_ver_modulo_2 ?? true };
+      return { ...grupo, disponible: sesion.puede_ver_modulo_2 === true };
     }
     if (
       grupo.label === "Jornadas" ||
@@ -220,16 +257,16 @@ export function AppShell({ children }: Props) {
       // Un solo permiso (ver_modulo_3) cubre las 5 — no hay ver_modulo_4/5 por separado,
       // el catálogo de permisos de Tiempo (33_*.sql) sólo define uno para todo el módulo. El
       // permiso fino de lectura (banco_de_horas_lectura) lo exige el endpoint, no el sidebar.
-      return { ...grupo, disponible: sesion?.puede_ver_modulo_3 ?? true };
+      return { ...grupo, disponible: sesion.puede_ver_modulo_3 === true };
     }
     if (grupo.label === "Terminales") {
       // puede_ver_terminales = terminal_usuario_lectura|edicion (terminal_config_edicion sola NO
-      // lo abre, decisión del usuario). Mismo fail-open que los demás grupos si la sesión no cargó.
-      return { ...grupo, disponible: sesion?.puede_ver_terminales ?? true };
+      // lo abre, decisión del usuario).
+      return { ...grupo, disponible: sesion.puede_ver_terminales === true };
     }
     return grupo;
   });
-  // Un grupo SIN items (Panel, Configuración, ...) con disponible:false se muestra atenuado
+  // Un grupo SIN items (Configuración, ...) con disponible:false se muestra atenuado
   // ("Próximamente" — todavía no existe). Un grupo CON items sin permiso de módulo se oculta
   // directo: no es "no construido todavía", es "no te corresponde verlo".
   const gruposVisibles = gruposConGate.filter((grupo) => grupo.items.length === 0 || grupo.disponible);
@@ -244,6 +281,21 @@ export function AppShell({ children }: Props) {
         <nav className="app-shell-nav">
           {gruposVisibles.map((grupo) => {
             const Icono = grupo.icono;
+
+            if (grupo.items.length === 0 && grupo.href) {
+              const activoInicio = rutaActual === grupo.href;
+              return (
+                <a
+                  key={grupo.label}
+                  href={grupo.href}
+                  className={`nav-item-plano nav-item-plano--enlace${activoInicio ? " nav-item-plano--activo" : ""}`}
+                  aria-current={activoInicio ? "page" : undefined}
+                >
+                  <Icono size={18} aria-hidden="true" />
+                  {grupo.label}
+                </a>
+              );
+            }
 
             if (grupo.items.length === 0) {
               return (

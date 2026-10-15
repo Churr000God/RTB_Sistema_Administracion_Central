@@ -41,16 +41,19 @@ describe("ProtegidaPorModulo", () => {
     expect(screen.getByRole("link", { name: /ir a inicio/i })).toHaveAttribute("href", "/inicio");
   });
 
-  it("si la sesión no se pudo leer, deja pasar (fail-open: la autoridad es backend/RLS)", async () => {
+  it("si la sesión no se pudo leer, NO monta la pantalla (error con Reintentar), ya no hay fail-open", async () => {
     vi.mocked(apiFetch).mockRejectedValue(new Error("sin red"));
     render(<ProtegidaPorModulo campo="puede_ver_modulo_1"><Hijo /></ProtegidaPorModulo>);
-    expect(await screen.findByText("Directorio de personas")).toBeInTheDocument();
+    expect(await screen.findByText("No pudimos verificar tu acceso")).toBeInTheDocument();
+    expect(screen.queryByText("Directorio de personas")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reintentar" })).toBeInTheDocument();
   });
 
-  it("una bandera ausente (backend anterior) deja pasar; sólo un false explícito bloquea", async () => {
+  it("una bandera ausente con la sesión cargada bloquea (fail-closed): sólo un true da paso", async () => {
     vi.mocked(apiFetch).mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ acceso_permitido: true }))));
     render(<ProtegidaPorModulo campo="puede_ver_modulo_1"><Hijo /></ProtegidaPorModulo>);
-    expect(await screen.findByText("Directorio de personas")).toBeInTheDocument();
+    expect(await screen.findByText(/no tienes acceso a esta sección/i)).toBeInTheDocument();
+    expect(screen.queryByText("Directorio de personas")).not.toBeInTheDocument();
   });
 
   // Último a propósito: deja /api/sesion colgado y consultarSesion() deduplica a nivel de módulo, así que
