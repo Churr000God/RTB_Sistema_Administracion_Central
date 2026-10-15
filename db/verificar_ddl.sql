@@ -1821,7 +1821,7 @@ SELECT nspname || '.' || proname || '(' || args || ')', 'EXECUTE para authentica
 FROM f WHERE has_function_privilege('authenticated', oid, 'EXECUTE') AND nspname IN ('personas', 'tiempo')
   AND (nspname || '.' || proname) NOT IN (
     'personas.fn_asignacion_cambiar_puesto', 'personas.fn_caller_activo', 'personas.fn_caller_es_administrador_generico', 'personas.fn_caller_persona_id',
-    'personas.fn_caller_tiene_permiso', 'personas.fn_persona_actualizar_datos', 'personas.fn_persona_crear',
+    'personas.fn_caller_puestos_en_rama', 'personas.fn_caller_tiene_permiso', 'personas.fn_caller_ve_estructura_permisos', 'personas.fn_caller_ve_padron', 'personas.fn_persona_actualizar_datos', 'personas.fn_persona_crear',
     'tiempo.fn_ausencia_resolver', 'tiempo.fn_dia_calcular_armado_tramos', 'tiempo.fn_dia_revisar', 'tiempo.fn_excepcion_dia_cerrado_descartar',
     'tiempo.fn_jornada_asignar_renovar', 'tiempo.fn_jornada_en_curso_mover_limite', 'tiempo.fn_jornada_futura_actualizar', 'tiempo.fn_jornada_futura_eliminar',
     'tiempo.fn_movimiento_de_saldo_manual_registrar', 'tiempo.fn_terminal_config_actualizar', 'tiempo.fn_terminal_consentimiento_publicar',
@@ -1846,3 +1846,22 @@ FROM personas.persona p
 WHERE NOT EXISTS (SELECT 1 FROM personas.expediente e WHERE e.persona_id = p.id)
 HAVING count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM personas.asignacion a JOIN personas.puesto pu ON pu.id = a.puesto_id
                                           WHERE a.persona_id = p.id AND a.vigente_hasta IS NULL AND pu.es_administrador_generico)) > 0;
+
+-- 73) Las 4 policies de SELECT del padrón (personas.persona, expediente, usuario, asignacion) ya NO son «solo persona activa» (108_): cada una debe seguir existiendo, ser de SELECT, y su expresión debe
+-- llamar a personas.fn_caller_ve_padron() (la regla «fila propia O permiso»). Una policy que vuelva a ser solo fn_caller_activo() reabre la lectura del padrón completo. Esperado: 0 filas DESPUÉS de aplicar 108_
+-- (antes de aplicarla devuelve las 4).
+SELECT e.tabla, e.policy, 'falta, no es SELECT o no usa fn_caller_ve_padron()' AS problema
+FROM (VALUES ('persona', 'persona_select_caller_activo'), ('expediente', 'expediente_select_caller_activo'),
+             ('usuario', 'usuario_select_caller_activo'), ('asignacion', 'asignacion_select_caller_activo')) AS e(tabla, policy)
+WHERE NOT EXISTS (SELECT 1 FROM pg_policies p
+                  WHERE p.schemaname = 'personas' AND p.tablename = e.tabla AND p.policyname = e.policy AND p.cmd = 'SELECT' AND p.qual LIKE '%fn_caller_ve_padron%');
+
+-- 74) Las 3 policies de SELECT de las bitácoras de personas y de puesto_permiso ya NO son «solo persona activa» (109_): deben existir, ser de SELECT y exigir un permiso (bitácora de persona: llama a
+-- fn_caller_tiene_permiso; bitácora de permisos y puesto_permiso: a fn_caller_ve_estructura_permisos, DEFINER, o a la rama propia). Una policy que vuelva a ser solo fn_caller_activo() reabre el historial de
+-- RH y de permisos a cualquier persona activa. Esperado: 0 filas DESPUÉS de aplicar 109_ (antes de aplicarla devuelve las 3).
+SELECT e.tabla, e.policy, 'falta, no es SELECT o no exige un permiso' AS problema
+FROM (VALUES ('bitacora_movimiento_persona', 'bitacora_select_caller_activo', '%fn_caller_tiene_permiso%'),
+             ('bitacora_movimiento_puesto_permiso', 'bitacora_puesto_permiso_select_caller_activo', '%fn_caller_ve_estructura_permisos%'),
+             ('puesto_permiso', 'puesto_permiso_select_caller_activo', '%fn_caller_ve_estructura_permisos%')) AS e(tabla, policy, patron)
+WHERE NOT EXISTS (SELECT 1 FROM pg_policies p
+                  WHERE p.schemaname = 'personas' AND p.tablename = e.tabla AND p.policyname = e.policy AND p.cmd = 'SELECT' AND p.qual LIKE e.patron);
