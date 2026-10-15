@@ -247,3 +247,52 @@ usuario las pide.
 - **Pendientes de esta compensación:** pasar `LimitDATA` al archivo de unidad en la próxima etiqueta (y un valor propio para
   `puente-respaldo.service` y las unidades de aviso); verificar en el equipo definitivo `grep memory
   /sys/fs/cgroup/cgroup.controllers` (LEEME §3). Reversa: renombrar el drop-in, `daemon-reload`, `restart`.
+
+## 12. Estado al 15 de octubre de 2026 (~14:10 UTC) para retomar tras compactar
+
+**Cómo retomar:** leer §0, §9, §10, §11 y esta sección; `ListAgents`; pedir a `Checador` el reporte de la revisión de la mañana
+(sigue sin llegar; su sesión `Checador [47f0d1]` es Remote Control y no confirma lectura: si no responde, el usuario corre
+`ssh -t dhguilleng@100.122.161.26 'sudo bash /home/dhguilleng/verificar-puente.sh'` y pega la salida). Los recordatorios
+programados (CronCreate, solo de sesión) ya dispararon todos; no queda ninguno.
+
+**Base de datos (todo aplicado por el usuario con su propio comando; `security` cerró cada corte):** DDL `00` a `106`
+(107 archivos), 76 policies, 81 funciones propias (33 `SECURITY DEFINER`, todas con `search_path` fijo), 53 permisos,
+`verificar_ddl.sql` 1–71 con la línea base de 10. Aplicados el 14-oct: `101_` (errores sin identidad), `102_` (personas),
+`103_` (UPDATE/DELETE inmutables, `anon` sin `personas.permiso`), `104_` (banco de horas: trigger `DEFINER` atómico y RPC
+`fn_movimiento_de_saldo_manual_registrar` como única vía de escritura), `105_` (EXECUTE de funciones de trigger y helpers de
+RLS) y `106_` (`search_path` de `fn_caller_tiene_permiso`). Reversas guardadas por `db` en su scratchpad (fuera del repo)
+durante una semana de uso normal (hasta ~21-oct). **Abierto:** el humo con login real del usuario en la app (todas las
+pantallas de lectura, incl. Banco de Horas; reenviar su salida a `security`); grupo E (UPDATE/DELETE de `service_role` en
+`tiempo`, sin OK ni prisa); diccionario SCJ-DIC-01 V1.6 completo (hoy V1.5 con nota); primer uso real del movimiento manual de
+saldo, supervisado, con sección 68 después. Excepciones documentadas: `public.rls_auto_enable`, `graphql_public.graphql`.
+
+**Puente (`checador-fisico`, `origin/main` = `f00c977`, etiqueta `puente-v0.1.1` = `ba4d825`):** instalado por el flujo verificado
+(R1 cumplida), credenciales rotadas, drop-in EPERM retirado (`.disabled` conservado como reversa), `enable` de servicio y timer
+hecho (ventana E), reinicio REAL del Pi probado (11/11 criterios: activo en 11 s, `NRestarts=0`, reloj sincronizado en ~39 s,
+respaldo de catch-up 0600). `LimitDATA=384M` aplicado el 14-oct 18:26Z (drop-in `20-limite-datos.conf`; hash de `systemctl
+cat` antes `b9b7e904…` → después `8212ca9f…`); `MemoryMax` NO se aplica (kernel con `cgroup_disable=memory`): residuo aceptado en
+el banco de pruebas, requisito previo para el equipo definitivo (LEEME §3). Último 401 real: 2026-10-12T19:53:47Z.
+**Ventana E, estado de cierre:** servidor sano (`raspi-pruebas`, 2487 latidos todos 200, terminal en contacto, 0 marcas, credencial
+id 2 en uso desde 100.122.161.26, id 1 revocada). **Matiz abierto:** 25 huecos de latido de 90–159 s en DOS ráfagas
+(01:01–02:04Z y 05:35–07:00Z del 15-oct; ninguno supera 300 s ni dispara la tarjeta 15). Hipótesis a confirmar por `Checador`:
+cargas periódicas de otras aplicaciones en ese Pi (hay carpetas de conciliación de pagos, dashboards, Nextcloud) o el timer de
+respaldo (00:10 CST en la 2.ª ráfaga). Faltan de `Checador`: guion de la mañana, `VmData`/`VmRSS`/`Threads` (comparar con
+~61 MiB y 5 hilos), respaldo de las 00:10 con 0600 y rotación 7/30, avisos del journal, `OnFailure`. E se da por cerrada con eso.
+
+**Notion / bóveda (sesión `Asistente`):** creó 39 tareas del piloto (madre P-124, 30 sub-tareas, abiertas sueltas P-125 a P-132)
+y cerró P-083, P-050 y P-051 (esta última con nota «por confirmar que ya no queda» la `service_role` key temporal en el Pi del
+puente: verificación de solo lectura de `.env` en `~/RTB-CRM-APP` del Pi del puente PENDIENTE). Se le pidió marcar hechas
+`101_` a `104_` y crear: humo con login real, primer uso del movimiento manual, EXECUTE, grupo E, V1.6, guardar reversas una
+semana. Espejo en `/home/diego/Nextcloud/Sistemas` (12-Pendientes y `Bitacora/2026-10-14_piloto_hikvision_tareas_notion.md`).
+
+**Piloto:** plan en `docs/07-procesos/PLAN_PILOTO_TERMINAL_HIKVISION.md` (un mes, personal avisado, base de pruebas, interruptor
+APAGADO, consentimiento provisional; casos P1–P15; al final se limpia el aparato salvo el usuario del dueño y se pasa a otra
+base). **Pendiente del usuario:** fecha de inicio y lista de participantes; que TI y RH estén en la primera alta; decidir qué
+hacer con su usuario previo en el aparato (vincular o dejar). No hay consentimiento definitivo (no se necesita para el piloto).
+
+**Commits de RTB-CRM-APP:** `origin/main` incluye todo hasta la nota del límite de memoria salvo los que se empujen al final de
+esta sección (ver `git log origin/main..main`). Reglas que se mantuvieron: nada se empuja sin revisión de `security` y OK del
+usuario; cada escritura en la base real la corre el USUARIO con su comando (el clasificador deniega aplicar a `db`); ninguna
+llave o contraseña pasa por el chat; `python3` está bloqueado (usar `uv run python`); los comandos con `!` corren en bash, la
+terminal normal del usuario es fish (`set -x VAR (cmd)`, sin heredoc); antes de dar un comando de aplicación, `db` guarda la
+reversa y la línea base.
