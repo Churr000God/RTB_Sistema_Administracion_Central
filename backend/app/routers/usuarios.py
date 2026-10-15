@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from postgrest.exceptions import APIError
 from supabase import Client
@@ -7,9 +9,17 @@ from app.config import Settings, get_settings, parse_frontend_urls
 from app.deps import get_caller_client, get_service_client
 from app.errores import manejar_violacion_unicidad
 from app.permisos import requiere_permiso
+from app.registro_seguro import resumen_de_cadena
 from app.schemas.usuarios import UsuarioCreate, UsuarioOut
 
 router = APIRouter(prefix="/api/usuarios", tags=["usuarios"])
+logger = logging.getLogger("app.usuarios")
+# Códigos de error de GoTrue que el log reconoce; cualquier otro (o con forma rara) se registra como `otro`: el log nunca copia texto libre.
+_CODIGOS_GOTRUE = frozenset({
+    "user_already_exists", "email_exists", "over_email_send_rate_limit", "over_request_rate_limit", "email_address_invalid", "email_address_not_authorized",
+    "validation_failed", "signup_disabled", "unexpected_failure", "no_authorization", "not_admin", "bad_jwt", "request_timeout", "conflict", "user_not_found",
+    "flow_state_not_found", "otp_expired", "weak_password", "email_provider_disabled", "hook_timeout", "hook_failure",
+})
 
 MENSAJE_USUARIO_DUPLICADO = "Esta persona ya tiene un usuario asociado."
 MENSAJE_INVITACION_DATOS_INVALIDOS = "El correo no es válido o ya tiene una cuenta de acceso."
@@ -17,6 +27,24 @@ MENSAJE_INVITACION_LIMITE_EXCEDIDO = (
     "Se alcanzó el límite de envíos de invitación de Supabase Auth -- reintentá en unos minutos."
 )
 MENSAJE_INVITACION_FALLIDA = "No se pudo enviar la invitación -- intentá de nuevo o contactá a Sistemas."
+
+
+def _registrar_causa_invitacion(error: AuthError, status_http: object) -> None:
+    """Deja en el log, SOLO como clases y enteros, de qué se trató el fallo de la invitación: la clase del error, su `status` (entero) y `code` (enumerado de GoTrue), y la cadena de
+    `__cause__`/`__context__` (hasta 5 niveles) con los códigos HTTP de las respuestas involucradas. NUNCA el mensaje, el correo, el cuerpo, la URL ni cabeceras (el mensaje de un error de
+    httpx o de GoTrue puede traer la URL o el correo). Sin esto la causa real de un 422 genérico no quedaba en ningún lado."""
+    codigo = getattr(error, "code", None)
+    resumen = resumen_de_cadena(error)
+    logger.warning(
+        "alta de usuario: la invitación falló [error=%s status=%s code=%s causas=%s contextos=%s original=%s http=%s]",
+        resumen["clase"],
+        status_http if isinstance(status_http, int) and not isinstance(status_http, bool) else None,
+        (codigo if codigo in _CODIGOS_GOTRUE else "otro") if codigo is not None else None,
+        ",".join(resumen["causas"]) or "-",
+        ",".join(resumen["contextos"]) or "-",
+        resumen["original"] or "-",
+        ",".join(str(c) for c in resumen["http"]) or "-",
+    )
 
 
 def _lanzar_error_invitacion(error: AuthError) -> None:
@@ -35,7 +63,14 @@ def _lanzar_error_invitacion(error: AuthError) -> None:
     sólo se captura para dar un 422 legible en vez de un 500 crudo, sin prometer una causa que no
     se puede afirmar desde acá. Los 422/429 sí son semántica HTTP estándar verificada, se
     mantienen distinguidos; todo lo demás (incluido este caso real) cae al catch-all genérico."""
-    status_http = getattr(error, "status", None)
+    try:
+        status_http = getattr(error, "status", None)
+    except Exception:  # noqa: BLE001 - un objeto raro no puede convertir el 422 controlado en un 500
+        status_http = None
+    try:
+        _registrar_causa_invitacion(error, status_http)
+    except Exception as fallo:  # noqa: BLE001 - el diagnóstico NUNCA convierte el 422 controlado en un 500
+        logger.debug("no se pudo registrar la causa de la invitación (%s)", type(fallo).__name__)
     if status_http == status.HTTP_422_UNPROCESSABLE_ENTITY:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_INVITACION_DATOS_INVALIDOS

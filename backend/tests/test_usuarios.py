@@ -322,3 +322,167 @@ def test_alta_usuario_sin_permiso_devuelve_403():
     app.dependency_overrides.clear()
     assert response.status_code == 403
     fake_client_service.auth.admin.invite_user_by_email.assert_not_called()
+
+
+# --- la causa de una invitación fallida queda en el log SOLO como clases y enteros ---------------------------------------------------------------------
+
+import logging  # noqa: E402
+
+import httpx  # noqa: E402
+from supabase_auth.errors import AuthRetryableError  # noqa: E402
+
+CORREO_SECRETO = "persona.secreta@example.com"
+TEXTO_SECRETO = "https://proyecto-secreto.supabase.co/auth/v1/invite?redirect_to=http://100.64.0.9:8080/completar-invitacion"
+
+
+def _invitar_con_error(error, caplog):
+    fake_client = _fake_client_sin_usuario_existente()
+    fake_client.auth.admin.invite_user_by_email.side_effect = error
+    app.dependency_overrides[get_service_client] = lambda: fake_client
+    _override_gate()
+    try:
+        with caplog.at_level(logging.WARNING, logger="app.usuarios"):
+            respuesta = TestClient(app).post(
+                "/api/usuarios",
+                json={"persona_id": PERSONA_ID, "correo": CORREO_SECRETO, "nombre_usuario": "persona.secreta"},
+                headers={"Authorization": "Bearer fake-token"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+    avisos = [r.getMessage() for r in caplog.records if r.name == "app.usuarios"]
+    return respuesta, avisos
+
+
+def _sin_datos_sensibles(avisos, respuesta):
+    texto = " ".join(avisos) + respuesta.text
+    for prohibido in (CORREO_SECRETO, "persona.secreta", "proyecto-secreto", "supabase.co", "redirect_to", "completar-invitacion", "100.64.0.9", "Forbidden", "mensaje con texto"):
+        assert prohibido not in texto, prohibido
+
+
+def test_invitacion_422_de_gotrue_registra_clase_estado_y_codigo_sin_correo_ni_texto(caplog):
+    respuesta, avisos = _invitar_con_error(AuthApiError(f"Unable to validate email address {CORREO_SECRETO} {TEXTO_SECRETO}", 422, "validation_failed"), caplog)
+    assert respuesta.status_code == 422 and "correo no es válido" in respuesta.json()["detail"]
+    assert len(avisos) == 1
+    assert "error=AuthApiError" in avisos[0] and "status=422" in avisos[0] and "code=validation_failed" in avisos[0]
+    _sin_datos_sensibles(avisos, respuesta)
+
+
+def test_invitacion_429_registra_clase_estado_y_codigo_sin_correo_ni_texto(caplog):
+    respuesta, avisos = _invitar_con_error(AuthApiError(f"Email rate limit exceeded for {CORREO_SECRETO}", 429, "over_email_send_rate_limit"), caplog)
+    assert respuesta.status_code == 422 and "límite" in respuesta.json()["detail"]
+    assert len(avisos) == 1 and "error=AuthApiError" in avisos[0] and "status=429" in avisos[0] and "code=over_email_send_rate_limit" in avisos[0]
+    _sin_datos_sensibles(avisos, respuesta)
+
+
+def _con_cadena_httpx():
+    """Un AuthUnknownError levantado dentro de la cadena que arma supabase-auth: ConnectError ← (gaierror) y un HTTPStatusError 403 en el contexto."""
+    import socket
+
+    try:
+        try:
+            try:
+                raise socket.gaierror(-2, f"Name or service not known {TEXTO_SECRETO}")
+            except OSError as raiz:
+                raise httpx.ConnectError(f"mensaje con texto {TEXTO_SECRETO} {CORREO_SECRETO}") from raiz
+        except httpx.ConnectError:
+            peticion = httpx.Request("POST", TEXTO_SECRETO)
+            raise httpx.HTTPStatusError("Client error '403 Forbidden' for url " + TEXTO_SECRETO, request=peticion, response=httpx.Response(403, request=peticion))
+    except httpx.HTTPStatusError as e:
+        try:
+            raise AuthUnknownError(f"mensaje con texto {TEXTO_SECRETO} {CORREO_SECRETO}", ValueError("cuerpo HTML"))
+        except AuthUnknownError as final:
+            final.__cause__ = None
+            return final, e
+
+
+def test_invitacion_catch_all_registra_la_cadena_de_causas_y_el_http_sin_texto(caplog):
+    error, _ = _con_cadena_httpx()
+    respuesta, avisos = _invitar_con_error(error, caplog)
+    assert respuesta.status_code == 422 and respuesta.json()["detail"] == "No se pudo enviar la invitación -- intentá de nuevo o contactá a Sistemas."
+    assert len(avisos) == 1
+    aviso = avisos[0]
+    assert "error=AuthUnknownError" in aviso and "status=None" in aviso and "code=None" in aviso
+    assert "HTTPStatusError" in aviso and "ConnectError" in aviso and "gaierror" in aviso            # la cadena de CLASES (por __context__ y __cause__)
+    assert "original=ValueError" in aviso and "http=403" in aviso
+    _sin_datos_sensibles(avisos, respuesta)
+
+
+def test_invitacion_runtimeerror_del_cliente_llega_como_authretryable_status_0(caplog):
+    """handle_exception de supabase-auth convierte un RuntimeError (p. ej. cliente cerrado) en AuthRetryableError con status 0: la prueba fija que se ve en el log."""
+    try:
+        try:
+            raise RuntimeError(f"Cannot send a request, as the client has been closed. {CORREO_SECRETO}")
+        except RuntimeError:
+            raise AuthRetryableError(f"mensaje con texto {CORREO_SECRETO}", 0)
+    except AuthRetryableError as error:
+        respuesta, avisos = _invitar_con_error(error, caplog)
+    assert respuesta.status_code == 422
+    assert "error=AuthRetryableError" in avisos[0] and "status=0" in avisos[0] and "contextos=RuntimeError" in avisos[0]
+    _sin_datos_sensibles(avisos, respuesta)
+
+
+def test_el_codigo_de_gotrue_solo_se_registra_si_es_un_identificador_enumerado(caplog):
+    respuesta, avisos = _invitar_con_error(AuthApiError("x", 500, f"codigo con espacios y {CORREO_SECRETO}"), caplog)
+    assert "code=otro" in avisos[0] and CORREO_SECRETO not in avisos[0] and "codigo con espacios" not in avisos[0]
+
+
+def test_resumen_de_cadena_acota_a_5_niveles_y_no_se_cicla():
+    from app.registro_seguro import resumen_de_cadena
+
+    raiz = ValueError("fin")
+    actual = raiz
+    for _ in range(10):
+        siguiente = RuntimeError("nivel")
+        siguiente.__cause__ = actual
+        actual = siguiente
+    assert len(resumen_de_cadena(actual)["causas"]) == 5
+    a, b = RuntimeError("a"), RuntimeError("b")
+    a.__context__, b.__context__ = b, a                                       # ciclo
+    assert resumen_de_cadena(a)["contextos"] == ["RuntimeError"]
+
+
+def test_un_codigo_conocido_de_gotrue_se_registra_tal_cual_y_uno_desconocido_como_otro(caplog):
+    _, conocido = _invitar_con_error(AuthApiError("x", 400, "email_address_invalid"), caplog)
+    assert "code=email_address_invalid" in conocido[0]
+    caplog.clear()
+    _, desconocido = _invitar_con_error(AuthApiError("x", 400, "un_codigo_que_gotrue_agrego_despues"), caplog)
+    assert "code=otro" in desconocido[0] and "un_codigo_que_gotrue" not in desconocido[0]
+
+
+class _ErrorQueLanzaAlLeerSusAtributos(AuthApiError):
+    """Un error «raro»: leer `code` o `status` lanza (un descriptor roto, un objeto a medio construir)."""
+
+    @property
+    def code(self):
+        raise RuntimeError(f"no se puede leer el código de {CORREO_SECRETO}")
+
+    @code.setter
+    def code(self, valor):
+        pass
+
+    @property
+    def status(self):
+        raise RuntimeError(f"no se puede leer el estado de {CORREO_SECRETO}")
+
+    @status.setter
+    def status(self, valor):
+        pass
+
+
+def test_si_leer_los_atributos_del_error_lanza_el_422_controlado_se_mantiene(caplog):
+    error = _ErrorQueLanzaAlLeerSusAtributos("mensaje con texto", 500, "otro")
+    respuesta, avisos = _invitar_con_error(error, caplog)
+    assert respuesta.status_code == 422 and respuesta.json()["detail"] == "No se pudo enviar la invitación -- intentá de nuevo o contactá a Sistemas."
+    _sin_datos_sensibles(avisos, respuesta)
+
+
+def test_si_el_formateo_del_resumen_lanza_el_422_controlado_se_mantiene(monkeypatch, caplog):
+    import app.routers.usuarios as modulo
+
+    def roto(*args, **kwargs):
+        raise ValueError(f"fallo de formateo con {CORREO_SECRETO}")
+
+    monkeypatch.setattr(modulo, "resumen_de_cadena", roto)
+    respuesta, avisos = _invitar_con_error(AuthApiError("x", 422, "validation_failed"), caplog)
+    assert respuesta.status_code == 422 and "correo no es válido" in respuesta.json()["detail"]      # la rama de estado sigue funcionando
+    assert not any(CORREO_SECRETO in a for a in avisos)
