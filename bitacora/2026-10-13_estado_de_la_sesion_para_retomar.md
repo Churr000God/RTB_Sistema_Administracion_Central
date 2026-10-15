@@ -340,3 +340,37 @@ condición abierta de `102_`–`106_`.
 de personal avisado. Con todo el personal: confirmar que el consentimiento provisional v1 y el aviso previo al personal
 cubren a todos, planear el enrolamiento por oleadas (cada alta caduca a las 168 h y exige TI y RH presentes), y no dar de alta
 a nadie sin la persona ya creada en el servidor.
+
+## 14. Primer alta real, brecha del padrón y arranque del piloto (15-oct-2026, tarde-noche)
+
+**Qué pasó.** RH se sentó con el usuario a dar de alta a una persona real (la propia RH) desde la app de pruebas.
+Cada paso destapó un defecto, todos cerrados y desplegados el mismo día (commits `b2834f3`, `8d465ba`, `f221743`,
+`4965542`, `b6a8d1d`, `46f53c9`, `9df0329`, `d0e65b4`, `b6ca894`, `aaad604`, `ea7882b`; DDL `107_`, `108_`, `109_`
+aplicados por el usuario):
+1. **Alta no atómica y errores 500** (`POST /api/personas`): RPC `fn_persona_crear` (`107_`) y mapeo 409/422.
+2. **Folio `documento_ref`:** la pantalla decía «RTB-__-__»; la base exige `RTB-RH-EIT-AAAA-N`. Corregido y validado en pantalla.
+3. **Invitación 422:** `AuthUnknownError` con `http=403` y cuerpo no JSON = WAF de Cloudflare por un `redirect_to` con
+   IP literal y `http`. Solución de configuración: `tailscale serve --https=8443` hacia la SPA y `FRONTEND_URL` con el
+   dominio con HTTPS primero; Redirect URLs y Site URL de Supabase actualizados. Registro seguro de la causa
+   (clase, estado, código de lista cerrada).
+4. **Padrón legible por cualquier persona activa** (descubierto porque la persona sin puesto vio todo): `108_`/`109_`.
+5. **`/api/sesion` con 500 puntual (57014)** y frontend fail-open: sesión en paralelo, un cliente por petición, 503
+   con `Retry-After`; frontend sin `?? true`, ítem «Inicio» y 2FA con emisor del proyecto.
+
+**Verificado en vivo (usuario y RH):** la persona sin puesto aterriza en Inicio, ve solo su fila y configuró su 2FA;
+el usuario base ve todo igual. `db` midió con `SET ROLE`: sin puesto 1/1/1/0/0/0/0 filas.
+
+**Línea base nueva de la base:** DDL `00`–`109`, 76 policies, 85 funciones propias (con las de `public`),
+`verificar_ddl.sql` 1–74, línea base de 10 conjuntos con filas.
+
+**Abierto antes del piloto con el equipo completo:**
+- `110_`: separar nombre de identidad (RLS no filtra columnas: quien tenga cualquier permiso de módulo lee CURP/RFC/NSS
+  por la API directa); `111_`: `fn_caller_tiene_permiso` a DEFINER (rendimiento de Tiempo).
+- Guarda de pantalla en `/estructura/*` y `/tiempo/*` (`RutaVerificada`), y `signOut` best-effort ante 401.
+- Rendimiento: `SyncPostgrestClient.schema()` crea un cliente httpx por llamada; solo se atacó `/api/sesion`.
+  Medir la latencia real de `/api/sesion` y vigilar 503 y «error transitorio… se reintenta» la primera semana.
+- Copia `~/RTB-CRM-APP/.env.bak-frontend-url-20261015` en el Pi de pruebas (secretos, 0600): borrar.
+- Plan del piloto: consentimiento provisional v1, aviso al personal, enrolamiento por oleadas (TI y RH presentes;
+  cada alta caduca a las 168 h), fecha de inicio. Guía base de la aplicación (alta de persona y usuario) en
+  elaboración con capturas de RH; las capturas no deben llevar CURP/RFC/NSS, enlace de invitación, QR ni clave de 2FA.
+- Diccionario SCJ-DIC-01 V1.6 (funciones nuevas y 7 policies) y README de ensayos 107–109.
