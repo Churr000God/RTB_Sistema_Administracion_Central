@@ -5,13 +5,14 @@ módulo, sigue el gate débil de sólo get_caller_client (RLS) a propósito. POS
 además requiere_permiso("alta_personas_usuarios") (app/permisos.py)."""
 
 from datetime import date
+from typing import NoReturn
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
 from app.deps import get_caller_client
-from app.errores import manejar_violacion_unicidad
+from app.errores import UNIQUE_VIOLATION, manejar_violacion_unicidad, rechazo_generico
 from app.permisos import requiere_permiso
 from app.schemas.personas import (
     PersonaActualizar,
@@ -29,6 +30,21 @@ MENSAJE_EXPEDIENTE_INCOMPLETO = (
     "Esta persona no tiene expediente todavía -- mandá tipo_contrato y documento_ref juntos."
 )
 CODIGO_VIOLACION_CHECK = "23514"
+# Mensajes del ALTA por campo (SIN revelar nada de la persona que ya tiene ese dato). El texto de la base nunca va al cliente: solo se lee el NOMBRE de la restricción
+# (o la columna) para elegir uno de estos mensajes fijos.
+MENSAJE_CURP_DUPLICADA = "Ya existe una persona registrada con esa CURP."
+MENSAJE_RFC_DUPLICADO = "Ya existe una persona registrada con ese RFC."
+MENSAJE_NSS_DUPLICADO = "Ya existe una persona registrada con ese NSS."
+MENSAJE_DOCUMENTO_REF_DUPLICADO = "Ese folio de expediente ya está en uso por otra persona."
+MENSAJE_EXPEDIENTE_PENDIENTE = (
+    " La persona quedó registrada sin expediente: corrígelo desde su ficha."
+)
+_UNICIDAD_POR_RESTRICCION = (
+    ("uq_persona_curp", "(curp)", MENSAJE_CURP_DUPLICADA),
+    ("uq_persona_rfc", "(rfc)", MENSAJE_RFC_DUPLICADO),
+    ("uq_persona_nss", "(nss)", MENSAJE_NSS_DUPLICADO),
+    ("uq_expediente_documento_ref", "(documento_ref)", MENSAJE_DOCUMENTO_REF_DUPLICADO),
+)
 MENSAJE_DOCUMENTO_REF_FORMATO = (
     "El folio del expediente debe tener el formato RTB-RH-EIT-<año>-<número> "
     "(ej. RTB-RH-EIT-2026-06)."
@@ -61,6 +77,74 @@ def _resolver_personas_con_jornada_vigente(db: Client, persona_ids: list[str]) -
     return {fila["persona_id"] for fila in filas}
 
 
+def _mensaje_de_unicidad(error: APIError) -> str:
+    """El mensaje fijo por campo de una violación 23505, leyendo SOLO el nombre de la restricción o la columna (nunca se reenvía el texto de la base)."""
+    mensaje_base, detalle = (error.message or "").lower(), (error.details or "").lower()
+    for restriccion, _columna, mensaje in _UNICIDAD_POR_RESTRICCION:        # primero el NOMBRE de la restricción (siempre viene en el mensaje de Postgres)
+        if restriccion in mensaje_base:
+            return mensaje
+    for _restriccion, columna, mensaje in _UNICIDAD_POR_RESTRICCION:        # y, si no, la columna del «Key (col)=(…)»
+        if f"key {columna}=" in detalle:
+            return mensaje
+    return MENSAJE_DUPLICADO
+
+
+def _traducir_error_alta(error: APIError, *, expediente_pendiente: bool = False) -> NoReturn:
+    """Espeja el mapeo del PATCH para el alta: 23505 → 409 con el mensaje del campo; el CHECK del folio → 422 con el formato real (71_*.sql: `RTB-RH-EIT-AAAA-N`); cualquier otro
+    CHECK → 422 genérico fijo (el texto real al log). Nada de la base llega al cliente. Si falló el EXPEDIENTE (ya existe la persona, mientras no haya `fn_persona_crear` transaccional)
+    el mensaje lo dice. Lo que no es de estas familias se relanza al manejador global (500 sin texto)."""
+    sufijo = MENSAJE_EXPEDIENTE_PENDIENTE if expediente_pendiente else ""
+    if error.code == UNIQUE_VIOLATION:
+        raise HTTPException(status.HTTP_409_CONFLICT, _mensaje_de_unicidad(error) + sufijo) from None
+    if error.code == CODIGO_VIOLACION_CHECK:
+        if "documento_ref_formato" in (error.message or ""):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_DOCUMENTO_REF_FORMATO + sufijo) from None
+        generico = rechazo_generico(error, "alta de persona")
+        raise HTTPException(generico.status_code, generico.detail + sufijo) from None
+    raise error
+
+
+def _crear_persona_con_expediente(db: Client, datos: PersonaCreate) -> dict:
+    """Hoy: dos inserts (persona y luego expediente, en ese orden por la FK). PENDIENTE (D7): cuando `db` entregue el RPC transaccional `fn_persona_crear` (mismo patrón que
+    `fn_persona_actualizar_datos`), el cuerpo de esta función pasa a UNA llamada `db.postgrest.schema("personas").rpc("fn_persona_crear", {...})` y deja de existir la persona
+    sin expediente; el mapeo de errores (`_traducir_error_alta`) se reutiliza tal cual."""
+    try:
+        persona = (
+            db.postgrest.schema("personas")
+            .table("persona")
+            .insert(
+                {
+                    "primer_nombre": datos.primer_nombre,
+                    "segundo_nombre": datos.segundo_nombre,
+                    "apellido_paterno": datos.apellido_paterno,
+                    "apellido_materno": datos.apellido_materno,
+                    "curp": datos.curp,
+                    "rfc": datos.rfc,
+                    "nss": datos.nss,
+                    "fecha_nacimiento": datos.fecha_nacimiento.isoformat(),
+                    "fecha_ingreso": datos.fecha_ingreso.isoformat(),
+                }
+            )
+            .execute()
+            .data[0]
+        )
+    except APIError as error:
+        _traducir_error_alta(error)
+
+    try:
+        db.postgrest.schema("personas").table("expediente").insert(
+            {
+                "persona_id": persona["id"],
+                "tipo_contrato": datos.tipo_contrato,
+                "documento_ref": datos.documento_ref,
+            }
+        ).execute()
+    except APIError as error:
+        _traducir_error_alta(error, expediente_pendiente=True)
+
+    return persona
+
+
 @router.post("", status_code=201, response_model=PersonaOut)
 def alta_persona(
     datos: PersonaCreate,
@@ -68,35 +152,7 @@ def alta_persona(
     _permiso: None = Depends(requiere_permiso("alta_personas_usuarios")),
 ) -> dict:
     """SCJ-PRO-01 paso A1: persona + expediente en una misma operación, en ese orden por la FK."""
-    persona = (
-        db.postgrest.schema("personas")
-        .table("persona")
-        .insert(
-            {
-                "primer_nombre": datos.primer_nombre,
-                "segundo_nombre": datos.segundo_nombre,
-                "apellido_paterno": datos.apellido_paterno,
-                "apellido_materno": datos.apellido_materno,
-                "curp": datos.curp,
-                "rfc": datos.rfc,
-                "nss": datos.nss,
-                "fecha_nacimiento": datos.fecha_nacimiento.isoformat(),
-                "fecha_ingreso": datos.fecha_ingreso.isoformat(),
-            }
-        )
-        .execute()
-        .data[0]
-    )
-
-    db.postgrest.schema("personas").table("expediente").insert(
-        {
-            "persona_id": persona["id"],
-            "tipo_contrato": datos.tipo_contrato,
-            "documento_ref": datos.documento_ref,
-        }
-    ).execute()
-
-    return persona
+    return _crear_persona_con_expediente(db, datos)
 
 
 @router.get("", response_model=list[PersonaOut])

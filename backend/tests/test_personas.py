@@ -834,3 +834,115 @@ def test_ficha_persona_sin_asignaciones_devuelve_puestos_vigentes_vacio():
     app.dependency_overrides.clear()
     assert response.status_code == 200
     assert response.json()["puestos_vigentes"] == []
+
+
+# --- alta: errores de la base mapeados (nada de 500 ni de texto crudo) ---------------------------------------------------------------------------------
+
+_CUERPO_ALTA = {
+    "primer_nombre": "Mariana",
+    "apellido_paterno": "Alcántara",
+    "curp": "AARM910427MDFLVR03",
+    "rfc": "AARM910427H8A",
+    "nss": "62119145338",
+    "fecha_nacimiento": "1991-04-27",
+    "fecha_ingreso": "2026-01-01",
+    "tipo_contrato": "indefinido",
+    "documento_ref": "RTB-RH-EIT-2026-06",
+}
+_TEXTO_CRUDO = "already exists. DETAIL interno de la base"
+
+
+def _alta_con_error(fallo_en: str, error: APIError):
+    """Intenta el alta con un error de la base en el insert de `fallo_en` ('persona' o 'expediente')."""
+    persona_ok = {"id": "11111111-1111-1111-1111-111111111111", **{k: _CUERPO_ALTA[k] for k in ("primer_nombre", "apellido_paterno", "curp", "rfc", "nss")},
+                  "segundo_nombre": None, "apellido_materno": None, "fecha_nacimiento": "1991-04-27", "fecha_ingreso": "2026-01-01", "estado": "activo"}
+
+    def tabla(nombre):
+        t = MagicMock()
+        if nombre in ("persona", "expediente"):
+            if nombre == fallo_en:
+                t.insert.return_value.execute.side_effect = error
+            else:
+                t.insert.return_value.execute.return_value.data = [persona_ok]
+            return t
+        return _tabla_gate(nombre)
+
+    fake_client = MagicMock()
+    fake_client.postgrest.schema.return_value.table.side_effect = tabla
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+    try:
+        return TestClient(app, raise_server_exceptions=False).post("/api/personas", json=_CUERPO_ALTA, headers={"Authorization": "Bearer fake-token"})
+    finally:
+        app.dependency_overrides.clear()
+
+
+def _unicidad(restriccion: str, columna: str) -> APIError:
+    return APIError({"code": "23505", "message": f'duplicate key value violates unique constraint "{restriccion}"', "details": f"Key ({columna})=(valor-real) {_TEXTO_CRUDO}"})
+
+
+def _sin_texto_crudo(respuesta):
+    texto = respuesta.text
+    assert "duplicate key" not in texto and "valor-real" not in texto and "DETAIL interno" not in texto and "AARM910427MDFLVR03" not in texto and "Error interno" not in texto
+
+
+def test_alta_curp_duplicada_devuelve_409_con_mensaje_de_curp():
+    r = _alta_con_error("persona", _unicidad("uq_persona_curp", "curp"))
+    assert r.status_code == 409 and "CURP" in r.json()["detail"]
+    _sin_texto_crudo(r)
+
+
+def test_alta_rfc_duplicado_devuelve_409_con_mensaje_de_rfc():
+    r = _alta_con_error("persona", _unicidad("uq_persona_rfc", "rfc"))
+    assert r.status_code == 409 and "RFC" in r.json()["detail"]
+    _sin_texto_crudo(r)
+
+
+def test_alta_nss_duplicado_devuelve_409_con_mensaje_de_nss():
+    r = _alta_con_error("persona", _unicidad("uq_persona_nss", "nss"))
+    assert r.status_code == 409 and "NSS" in r.json()["detail"]
+    _sin_texto_crudo(r)
+
+
+def test_alta_documento_ref_duplicado_devuelve_409_y_avisa_que_la_persona_quedo_sin_expediente():
+    r = _alta_con_error("expediente", _unicidad("uq_expediente_documento_ref", "documento_ref"))
+    assert r.status_code == 409 and "folio" in r.json()["detail"].lower() and "sin expediente" in r.json()["detail"]
+    _sin_texto_crudo(r)
+
+
+def test_alta_documento_ref_mal_formado_devuelve_422_con_el_formato_real():
+    error = APIError({"code": "23514", "message": 'new row for relation "expediente" violates check constraint "ck_expediente_documento_ref_formato"',
+                      "details": "Failing row contains (valor-real, carpeta-suelta)"})
+    r = _alta_con_error("expediente", error)
+    assert r.status_code == 422 and "RTB-RH-EIT-<año>-<número>" in r.json()["detail"] and "RTB-RH-EIT-2026-06" in r.json()["detail"]
+    _sin_texto_crudo(r)
+    assert "Failing row" not in r.text
+
+
+def test_alta_otro_check_devuelve_422_generico_sin_texto_de_la_base():
+    r = _alta_con_error("persona", APIError({"code": "23514", "message": 'violates check constraint "ck_persona_algo_futuro"', "details": "Failing row contains (valor-real)"}))
+    assert r.status_code == 422 and "ck_persona_algo_futuro" not in r.text
+    _sin_texto_crudo(r)
+
+
+def test_alta_unicidad_sin_restriccion_reconocible_devuelve_409_generico():
+    r = _alta_con_error("persona", APIError({"code": "23505", "message": "duplicate key value", "details": "otra cosa"}))
+    assert r.status_code == 409 and r.json()["detail"] == "CURP, RFC, NSS o número de documento ya está en uso por otra persona."
+    # y con solo la columna en el detalle (sin el nombre de la restricción) se reconoce el campo
+    r = _alta_con_error("persona", APIError({"code": "23505", "message": "duplicate key value", "details": "Key (rfc)=(X) already exists."}))
+    assert r.status_code == 409 and "RFC" in r.json()["detail"]
+    r = _alta_con_error("persona", APIError({"code": "23505", "message": "duplicate key value", "details": "otra cosa"}))
+    assert r.status_code == 409 and r.json()["detail"] == "CURP, RFC, NSS o número de documento ya está en uso por otra persona."
+
+
+def test_ningun_error_de_alta_conocido_devuelve_500():
+    casos = [("persona", _unicidad(r, c)) for r, c in (("uq_persona_curp", "curp"), ("uq_persona_rfc", "rfc"), ("uq_persona_nss", "nss"))]
+    casos += [("expediente", _unicidad("uq_expediente_documento_ref", "documento_ref")),
+              ("expediente", APIError({"code": "23514", "message": 'violates check constraint "ck_expediente_documento_ref_formato"'}))]
+    for donde, error in casos:
+        assert _alta_con_error(donde, error).status_code in (409, 422)
+
+
+def test_alta_un_error_inesperado_de_la_base_sigue_siendo_500_sin_texto():
+    r = _alta_con_error("persona", APIError({"code": "XX000", "message": "boom con texto interno"}))
+    assert r.status_code == 500 and "boom" not in r.text
