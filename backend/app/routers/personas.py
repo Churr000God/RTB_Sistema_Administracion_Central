@@ -13,12 +13,13 @@ from postgrest.exceptions import APIError
 from supabase import Client
 
 from app.deps import get_caller_client
-from app.errores import UNIQUE_VIOLATION, manejar_violacion_unicidad, rechazo_generico
+from app.errores import UNIQUE_VIOLATION, leer_con_reintento, manejar_violacion_unicidad, rechazo_generico
 from app.permisos import requiere_permiso
 from app.schemas.personas import (
     PersonaActualizar,
     PersonaConExpediente,
     PersonaCreate,
+    PersonaListadoOut,
     PersonaOut,
 )
 
@@ -153,11 +154,16 @@ def alta_persona(
     return _crear_persona_con_expediente(db, datos)
 
 
-@router.get("", response_model=list[PersonaOut])
+COLUMNAS_DE_NOMBRE = "id, primer_nombre, segundo_nombre, apellido_paterno, apellido_materno, estado, fecha_ingreso, fecha_baja"
+CAMPOS_DE_IDENTIDAD = ("curp", "rfc", "nss", "fecha_nacimiento", "tipo_contrato", "documento_ref", "fecha_firma")
+
+
+@router.get("", response_model=list[PersonaListadoOut])
 def listar_personas(db: Client = Depends(get_caller_client)) -> list[dict]:
     """tiene_jornada_vigente alimenta la pestaña de asignación de jornadas (SCJ-PRO-09) -- mismo
-    criterio que tiene_usuario en ficha_persona: un booleano derivado, no la jornada completa."""
-    personas = db.postgrest.schema("personas").table("persona").select("*").execute().data
+    criterio que tiene_usuario en ficha_persona: un booleano derivado, no la jornada completa.
+    SOLO columnas de nombre: la identidad (CURP/RFC/NSS/fecha de nacimiento) no sale en el listado."""
+    personas = db.postgrest.schema("personas").table("persona").select(COLUMNAS_DE_NOMBRE).execute().data
     con_jornada_vigente = _resolver_personas_con_jornada_vigente(
         db, [persona["id"] for persona in personas]
     )
@@ -167,19 +173,44 @@ def listar_personas(db: Client = Depends(get_caller_client)) -> list[dict]:
     ]
 
 
+def _leer_identidad(db: Client, persona_id: str) -> dict | None:
+    """La identidad y el expediente de la persona por `personas.fn_persona_identidad` (SECURITY DEFINER con compuerta interna: devuelve TABLE(curp, rfc, nss, fecha_nacimiento,
+    tipo_contrato, documento_ref, fecha_firma), 0 filas si la persona no existe). Se llama con el cliente del CALLER, no con service_role: la compuerta usa `auth.uid()` y con service_role
+    (sin `auth.uid()`) daría 42501. Quien no cumple la regla estricta ni es la propia persona recibe 42501 con mensaje fijo: la ficha sale SIN identidad (None), no falla. Devuelve el dict
+    de esas columnas o None si no hay identidad visible. Compatible con la base antes y después de quitar el SELECT de tabla a `authenticated`."""
+    try:
+        datos = leer_con_reintento(
+            lambda: db.postgrest.schema("personas").rpc("fn_persona_identidad", {"p_persona_id": persona_id}).execute().data,
+            contexto="GET /api/personas/{id}",
+        )
+    except APIError as error:
+        if error.code == CODIGO_PERMISO_DENEGADO:
+            return None
+        raise
+    fila = datos[0] if isinstance(datos, list) and datos else datos if isinstance(datos, dict) else None
+    if not isinstance(fila, dict):
+        return None
+    return {campo: fila.get(campo) for campo in CAMPOS_DE_IDENTIDAD}
+
+
 def _construir_ficha_persona(db: Client, persona_id: str) -> dict:
-    fila = (
-        db.postgrest.schema("personas")
-        .table("persona")
-        .select("*, expediente(tipo_contrato, documento_ref)")
-        .eq("id", persona_id)
-        .single()
-        .execute()
-        .data
-    )
-    # Persona insertada sin pasar por POST /api/personas (ej. datos de prueba por SQL directo)
-    # puede no tener fila en expediente — el embed de PostgREST devuelve null, no {}.
-    expediente = fila.pop("expediente") or {}
+    try:
+        fila = (
+            db.postgrest.schema("personas")
+            .table("persona")
+            .select(COLUMNAS_DE_NOMBRE)
+            .eq("id", persona_id)
+            .single()
+            .execute()
+            .data
+        )
+    except APIError as error:
+        if error.code == "PGRST116":          # .single() sin fila: la persona no existe (o RLS no la deja ver)
+            raise HTTPException(status.HTTP_404_NOT_FOUND, MENSAJE_PERSONA_NO_ENCONTRADA) from None
+        raise
+    identidad = _leer_identidad(db, persona_id)
+    fila.update(identidad if identidad is not None else {campo: None for campo in CAMPOS_DE_IDENTIDAD})
+    fila["identidad_visible"] = identidad is not None
 
     tiene_usuario = bool(
         db.postgrest.schema("personas")
@@ -217,7 +248,6 @@ def _construir_ficha_persona(db: Client, persona_id: str) -> dict:
 
     return {
         **fila,
-        **expediente,
         "tiene_usuario": tiene_usuario,
         "tiene_jornada_vigente": tiene_jornada_vigente,
         "puestos_vigentes": puestos_vigentes,

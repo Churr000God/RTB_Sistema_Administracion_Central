@@ -331,10 +331,30 @@ PERSONA_ID = "11111111-1111-1111-1111-111111111111"
 AUTH_USER_ID = "22222222-2222-2222-2222-222222222222"
 
 
+_CAMPOS_IDENTIDAD = ("curp", "rfc", "nss", "fecha_nacimiento")
+_SIN_DEFINIR = object()
+
+
 def _fake_db_ficha(
-    fila_persona, filas_usuario=None, filas_asignacion=None, filas_jornada_asignada=None
+    fila_persona, filas_usuario=None, filas_asignacion=None, filas_jornada_asignada=None, identidad=_SIN_DEFINIR
 ):
+    """`fila_persona` conserva la forma de siempre (con curp/rfc/nss/fecha_nacimiento y `expediente`): se reparte como la base DESPUÉS de 111_ —el select de la persona lleva solo
+    columnas de nombre y la identidad y el expediente salen del RPC `fn_persona_identidad`—. `identidad`: por omisión se deriva de `fila_persona`; una lista (p. ej. `[]` = 0 filas)
+    o una excepción (APIError 42501) sustituyen la respuesta del RPC."""
+    from _mocks_supabase import Resultado, rpc_con_firma_real
+
+    fila_persona = dict(fila_persona)
+    expediente = fila_persona.pop("expediente", None) or {}
+    derivada = {campo: fila_persona.pop(campo, None) for campo in _CAMPOS_IDENTIDAD}
+    derivada.update({"tipo_contrato": expediente.get("tipo_contrato"), "documento_ref": expediente.get("documento_ref"), "fecha_firma": expediente.get("fecha_firma")})
     fake_client = MagicMock()
+    rpc = rpc_con_firma_real()
+    if isinstance(identidad, BaseException):
+        rpc.return_value.execute.side_effect = identidad
+    else:
+        rpc.return_value.execute.return_value = Resultado([derivada] if identidad is _SIN_DEFINIR else identidad)
+    fake_client.postgrest.schema.return_value.rpc = rpc
+    fake_client.rpc_identidad = rpc
     tabla_mock = fake_client.postgrest.schema.return_value.table
 
     def side_effect(nombre_tabla):
@@ -647,8 +667,9 @@ def test_actualizar_persona_expediente_incompleto_con_expediente_previo_no_bloqu
 
     app.dependency_overrides.clear()
     assert response.status_code == 200
-    fake_client.postgrest.schema.return_value.rpc.assert_called_once()
-    argumentos = fake_client.postgrest.schema.return_value.rpc.call_args.args[1]
+    llamadas_rpc = fake_client.postgrest.schema.return_value.rpc.call_args_list
+    assert [c.args[0] for c in llamadas_rpc] == ["fn_persona_actualizar_datos", "fn_persona_identidad"]       # actualizar y luego la ficha
+    argumentos = llamadas_rpc[0].args[1]
     assert argumentos["p_documento_ref"] == "RTB-2026-002"
     assert "p_tipo_contrato" not in argumentos
 
@@ -785,7 +806,7 @@ def test_actualizar_persona_normaliza_curp_a_mayusculas_y_devuelve_ficha_actuali
 
     app.dependency_overrides.clear()
     assert response.status_code == 200
-    argumentos = fake_client.postgrest.schema.return_value.rpc.call_args.args[1]
+    argumentos = fake_client.postgrest.schema.return_value.rpc.call_args_list[0].args[1]
     assert argumentos["p_curp"] == "AARM910427MDFLVR03"
     assert "p_rfc" not in argumentos
     assert response.json()["id"] == PERSONA_ID
@@ -986,3 +1007,150 @@ def test_alta_42501_deja_un_warning_con_sqlstate_y_ruta_pero_nunca_el_mensaje_de
     assert len(avisos) == 1 and "42501" in avisos[0] and "POST /api/personas" in avisos[0] and "fn_persona_crear" in avisos[0]
     assert "texto interno" not in avisos[0] and "detalle interno" not in avisos[0] and "permission denied" not in avisos[0]
     assert "permission denied" not in r.text and "texto interno" not in r.text
+
+
+# --- separar nombre de identidad (110_/111_): listado sin identidad y ficha por fn_persona_identidad -------------------------------------------------------
+
+_FILA_NOMBRE = {
+    "id": PERSONA_ID, "primer_nombre": "Mariana", "segundo_nombre": None, "apellido_paterno": "Alcántara", "apellido_materno": None,
+    "fecha_ingreso": "2026-01-01", "fecha_baja": None, "estado": "activo",
+}
+_IDENTIDAD = {"curp": "AARM910427MDFLVR03", "rfc": "AARM910427H8A", "nss": "62119145338", "fecha_nacimiento": "1991-04-27",
+              "tipo_contrato": "indefinido", "documento_ref": "RTB-RH-EIT-2026-06", "fecha_firma": "2026-01-02"}
+_VALORES_DE_IDENTIDAD = ("AARM910427MDFLVR03", "AARM910427H8A", "62119145338", "1991-04-27", "RTB-RH-EIT-2026-06")
+
+
+def _get_ficha(fake_client, persona_id=PERSONA_ID):
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    try:
+        return TestClient(app, raise_server_exceptions=False).get(f"/api/personas/{persona_id}", headers={"Authorization": "Bearer fake-token"})
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_listado_pide_solo_columnas_de_nombre_y_no_devuelve_identidad_aunque_la_base_la_mande():
+    fake_client = MagicMock()
+    tabla = fake_client.postgrest.schema.return_value.table.return_value
+    tabla.select.return_value.execute.return_value.data = [{**_FILA_NOMBRE, "curp": "AARM910427MDFLVR03", "rfc": "AARM910427H8A", "nss": "62119145338", "fecha_nacimiento": "1991-04-27"}]
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    try:
+        r = TestClient(app).get("/api/personas", headers={"Authorization": "Bearer fake-token"})
+    finally:
+        app.dependency_overrides.clear()
+    assert r.status_code == 200
+    columnas = fake_client.postgrest.schema.return_value.table.return_value.select.call_args_list[0].args[0]
+    assert columnas != "*" and "curp" not in columnas and "rfc" not in columnas and "nss" not in columnas and "fecha_nacimiento" not in columnas
+    assert "primer_nombre" in columnas and "apellido_paterno" in columnas and "estado" in columnas
+    cuerpo = r.json()[0]
+    assert set(cuerpo) == {"id", "primer_nombre", "segundo_nombre", "apellido_paterno", "apellido_materno", "fecha_ingreso", "fecha_baja", "estado", "tiene_jornada_vigente"}
+    assert not any(v in r.text for v in _VALORES_DE_IDENTIDAD)
+
+
+def test_ficha_con_permiso_estricto_trae_identidad_y_expediente_del_rpc():
+    fake_client = _fake_db_ficha(fila_persona={**_FILA_NOMBRE}, identidad=[_IDENTIDAD])
+    r = _get_ficha(fake_client)
+    assert r.status_code == 200
+    cuerpo = r.json()
+    assert cuerpo["identidad_visible"] is True
+    assert (cuerpo["curp"], cuerpo["rfc"], cuerpo["nss"], cuerpo["fecha_nacimiento"]) == ("AARM910427MDFLVR03", "AARM910427H8A", "62119145338", "1991-04-27")
+    assert (cuerpo["tipo_contrato"], cuerpo["documento_ref"], cuerpo["fecha_firma"]) == ("indefinido", "RTB-RH-EIT-2026-06", "2026-01-02")
+    nombre, argumentos = fake_client.rpc_identidad.call_args.args
+    assert nombre == "fn_persona_identidad" and argumentos == {"p_persona_id": PERSONA_ID}
+    assert len([c for c in fake_client.postgrest.schema.return_value.table.call_args_list if c.args[0] == "persona"]) == 1       # una sola lectura de la persona (nombres)
+
+
+def test_ficha_sin_permiso_estricto_rpc_42501_sale_sin_identidad_y_no_falla():
+    fake_client = _fake_db_ficha(fila_persona={**_FILA_NOMBRE}, identidad=APIError({"code": "42501", "message": "permission denied for function fn_persona_identidad TEXTO INTERNO"}))
+    r = _get_ficha(fake_client)
+    assert r.status_code == 200
+    cuerpo = r.json()
+    assert cuerpo["identidad_visible"] is False and cuerpo["primer_nombre"] == "Mariana"
+    for campo in ("curp", "rfc", "nss", "fecha_nacimiento", "tipo_contrato", "documento_ref", "fecha_firma"):
+        assert cuerpo[campo] is None, campo
+    assert "TEXTO INTERNO" not in r.text and not any(v in r.text for v in _VALORES_DE_IDENTIDAD)
+
+
+def test_ficha_con_el_rpc_sin_filas_sale_sin_identidad():
+    fake_client = _fake_db_ficha(fila_persona={**_FILA_NOMBRE}, identidad=[])
+    r = _get_ficha(fake_client)
+    assert r.status_code == 200 and r.json()["identidad_visible"] is False and r.json()["curp"] is None
+
+
+def test_ficha_de_persona_inexistente_es_404_y_no_llama_al_rpc():
+    fake_client = _fake_db_ficha(fila_persona={**_FILA_NOMBRE})
+    fake_client.postgrest.schema.return_value.table.side_effect = lambda n: _tabla_persona_inexistente() if n == "persona" else MagicMock()
+    r = _get_ficha(fake_client)
+    assert r.status_code == 404 and r.json()["detail"] == "Persona no encontrada."
+    fake_client.rpc_identidad.assert_not_called()
+
+
+def _tabla_persona_inexistente():
+    t = MagicMock()
+    t.select.return_value.eq.return_value.single.return_value.execute.side_effect = APIError(
+        {"code": "PGRST116", "message": "JSON object requested, multiple (or no) rows returned", "details": "The result contains 0 rows"}
+    )
+    return t
+
+
+def test_ficha_un_timeout_transitorio_del_rpc_se_reintenta_una_vez():
+    fake_client = _fake_db_ficha(fila_persona={**_FILA_NOMBRE}, identidad=[_IDENTIDAD])
+    rpc = fake_client.rpc_identidad
+    resultado = rpc.return_value.execute.return_value
+    rpc.return_value.execute.side_effect = [APIError({"code": "57014", "message": "statement timeout"}), resultado]
+    r = _get_ficha(fake_client)
+    assert r.status_code == 200 and r.json()["identidad_visible"] is True and rpc.return_value.execute.call_count == 2
+
+
+def test_ficha_si_el_rpc_sigue_fallando_es_503_con_retry_after_y_no_una_ficha_sin_identidad():
+    fake_client = _fake_db_ficha(fila_persona={**_FILA_NOMBRE}, identidad=APIError({"code": "57014", "message": "statement timeout"}))
+    r = _get_ficha(fake_client)
+    assert r.status_code == 503 and r.headers["Retry-After"] == "2" and "curp" not in r.text
+
+
+def test_ficha_un_error_no_transitorio_del_rpc_distinto_de_42501_se_propaga_sin_texto():
+    fake_client = _fake_db_ficha(fila_persona={**_FILA_NOMBRE}, identidad=APIError({"code": "42883", "message": "function personas.fn_persona_identidad does not exist TEXTO INTERNO"}))
+    r = _get_ficha(fake_client)
+    assert r.status_code in (500, 503) and "TEXTO INTERNO" not in r.text and not any(v in r.text for v in _VALORES_DE_IDENTIDAD)
+
+
+def test_patch_sigue_devolviendo_la_ficha_con_identidad_por_el_rpc(monkeypatch):
+    from app import permisos
+
+    monkeypatch.setattr(permisos, "resolver_persona_id", lambda db, caller: "persona-gate")
+    monkeypatch.setattr(permisos, "tiene_alguno", lambda db, persona_id, *codigos: True)
+    fake_client = _fake_db_ficha(fila_persona={**_FILA_NOMBRE}, identidad=[{**_IDENTIDAD, "curp": "BBBB910427MDFLVR03"}])
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+    try:
+        r = TestClient(app, raise_server_exceptions=False).patch(
+            f"/api/personas/{PERSONA_ID}", json={"curp": "bbbb910427mdflvr03"}, headers={"Authorization": "Bearer fake-token"})
+    finally:
+        app.dependency_overrides.clear()
+    assert r.status_code == 200, r.text
+    assert r.json()["curp"] == "BBBB910427MDFLVR03" and r.json()["identidad_visible"] is True
+    assert [c.args[0] for c in fake_client.postgrest.schema.return_value.rpc.call_args_list] == ["fn_persona_actualizar_datos", "fn_persona_identidad"]
+
+
+def test_el_mapeo_de_errores_del_alta_y_del_patch_sigue_intacto():
+    r = _alta_con_error(_unicidad("uq_persona_curp", "curp"))
+    assert r.status_code == 409 and "CURP" in r.json()["detail"]
+
+
+def test_23505_del_alta_devuelve_un_mensaje_fijo_por_campo_sin_el_detail_de_la_base():
+    """El DETAIL de Postgres trae el VALOR duplicado (`Key (curp)=(…) already exists.`): nunca llega al cliente; el mensaje es fijo por campo."""
+    casos = [
+        ("uq_persona_curp", "curp", "AARM910427MDFLVR03", "Ya existe una persona registrada con esa CURP."),
+        ("uq_persona_rfc", "rfc", "AARM910427H8A", "Ya existe una persona registrada con ese RFC."),
+        ("uq_persona_nss", "nss", "62119145338", "Ya existe una persona registrada con ese NSS."),
+        ("uq_expediente_documento_ref", "documento_ref", "RTB-RH-EIT-2026-06", "Ese folio de expediente ya está en uso por otra persona."),
+    ]
+    for restriccion, columna, valor, esperado in casos:
+        error = APIError({
+            "code": "23505",
+            "message": f'duplicate key value violates unique constraint "{restriccion}"',
+            "details": f"Key ({columna})=({valor}) already exists.",
+            "hint": None,
+        })
+        r = _alta_con_error(error)
+        assert r.status_code == 409 and r.json()["detail"] == esperado, restriccion
+        assert valor not in r.text and "already exists" not in r.text and "duplicate key" not in r.text and restriccion not in r.text

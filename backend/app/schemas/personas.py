@@ -74,8 +74,40 @@ class PuestoVigente(BaseModel):
     nombre_area: str
 
 
-class PersonaConExpediente(PersonaOut):
+class PersonaListadoOut(BaseModel):
+    """El listado NO lleva identidad (CURP/RFC/NSS/fecha de nacimiento): solo lo necesario para directorios y selectores. La identidad sale por la ficha, con su regla estricta."""
+
+    id: str
+    primer_nombre: str
+    segundo_nombre: str | None = None
+    apellido_paterno: str
+    apellido_materno: str | None = None
+    fecha_ingreso: date
+    fecha_baja: date | None = None
+    estado: str
+    tiene_jornada_vigente: bool = False
+
+
+class PersonaConExpediente(BaseModel):
+    """La ficha. La identidad (curp, rfc, nss, fecha_nacimiento) y el expediente (tipo_contrato, documento_ref, fecha_firma) salen del RPC `fn_persona_identidad`: quien no cumple la regla
+    estricta (o la fila propia) recibe `None` en todos ellos y `identidad_visible=False`."""
+
+    id: str
+    primer_nombre: str
+    segundo_nombre: str | None = None
+    apellido_paterno: str
+    apellido_materno: str | None = None
+    curp: str | None = None
+    rfc: str | None = None
+    nss: str | None = None
+    fecha_nacimiento: date | None = None
+    fecha_ingreso: date
+    fecha_baja: date | None = None
+    estado: str
+    tiene_jornada_vigente: bool = False
     tipo_contrato: str | None = None
     documento_ref: str | None = None
+    fecha_firma: date | None = None
+    identidad_visible: bool = True
     tiene_usuario: bool = False
     puestos_vigentes: list[PuestoVigente] = []
