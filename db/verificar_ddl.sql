@@ -1833,3 +1833,16 @@ SELECT p.proname::text AS funcion, COALESCE(array_to_string(p.proconfig, ';'), '
 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
 WHERE n.nspname = 'personas' AND p.proname IN ('fn_caller_tiene_permiso', 'fn_persona_de_usuario', 'fn_usuario_es_administrador_generico')
   AND p.proconfig IS DISTINCT FROM ARRAY['search_path=personas, pg_temp'];
+
+-- 72) Personas sin expediente que NO son la persona del usuario base de bootstrap. Tras 107_ (fn_persona_crear) el alta por la API ya no deja personas sin expediente; la persona del usuario base de bootstrap
+-- (scripts/bootstrap_usuario_base.py la crea sin expediente a propósito, con puesto de administrador genérico) es la ÚNICA excepción conocida y no se marca. Cualquier otra persona sin expediente es un
+-- alta incompleta o un alta por SQL directo: devuelve UNA fila con los conteos (sin datos personales). Esperado: 0 filas.
+SELECT count(*) AS personas_sin_expediente,
+       count(*) FILTER (WHERE EXISTS (SELECT 1 FROM personas.asignacion a JOIN personas.puesto pu ON pu.id = a.puesto_id
+                                      WHERE a.persona_id = p.id AND a.vigente_hasta IS NULL AND pu.es_administrador_generico)) AS de_ellas_admin_generico_bootstrap,
+       count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM personas.asignacion a JOIN personas.puesto pu ON pu.id = a.puesto_id
+                                          WHERE a.persona_id = p.id AND a.vigente_hasta IS NULL AND pu.es_administrador_generico)) AS de_ellas_otras
+FROM personas.persona p
+WHERE NOT EXISTS (SELECT 1 FROM personas.expediente e WHERE e.persona_id = p.id)
+HAVING count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM personas.asignacion a JOIN personas.puesto pu ON pu.id = a.puesto_id
+                                          WHERE a.persona_id = p.id AND a.vigente_hasta IS NULL AND pu.es_administrador_generico)) > 0;
