@@ -4,30 +4,37 @@ import { ArrowRight, Briefcase, Folder, User } from "lucide-react";
 import { apiFetch } from "../lib/apiClient";
 import { AppShell } from "../layouts/AppShell";
 import { Button } from "../components/Button";
+import {
+  AYUDA_DOCUMENTO_REF,
+  EJEMPLO_DOCUMENTO_REF,
+  MENSAJE_DOCUMENTO_REF_INVALIDO,
+  documentoRefValido,
+  errorDePersona,
+} from "../lib/documentoRef";
 
 function aMayusculas(evento: ChangeEvent<HTMLInputElement>) {
   evento.currentTarget.value = evento.currentTarget.value.toUpperCase();
 }
 
-async function mensajeDeError(respuesta: Response, generico: string): Promise<string> {
-  try {
-    const cuerpo = await respuesta.json();
-    if (typeof cuerpo?.detail === "string") return cuerpo.detail;
-  } catch {
-    // cuerpo no era JSON legible — cae al genérico
-  }
-  return generico;
-}
-
 export function AltaPersonaPage() {
   const [error, setError] = useState<string | null>(null);
+  const [errorDocumento, setErrorDocumento] = useState<string | null>(null);
+  const [personaYaCreada, setPersonaYaCreada] = useState(false);
   const [enviando, setEnviando] = useState(false);
 
   async function handleSubmit(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     setError(null);
-    setEnviando(true);
+    setErrorDocumento(null);
+    setPersonaYaCreada(false);
     const f = new FormData(evento.currentTarget);
+    const documentoRef = String(f.get("documento_ref") ?? "").trim();
+    // Misma expresión que la base: un folio mal formado se avisa aquí, antes de enviar.
+    if (!documentoRefValido(documentoRef)) {
+      setErrorDocumento(MENSAJE_DOCUMENTO_REF_INVALIDO);
+      return;
+    }
+    setEnviando(true);
     const respuesta = await apiFetch("/api/personas", {
       method: "POST",
       body: JSON.stringify({
@@ -41,11 +48,14 @@ export function AltaPersonaPage() {
         fecha_nacimiento: f.get("fecha_nacimiento"),
         fecha_ingreso: f.get("fecha_ingreso"),
         tipo_contrato: f.get("tipo_contrato"),
-        documento_ref: f.get("documento_ref"),
+        documento_ref: documentoRef,
       }),
     });
     if (!respuesta.ok) {
-      setError(await mensajeDeError(respuesta, "No se pudo registrar el alta."));
+      const fallo = await errorDePersona(respuesta, "No se pudo registrar el alta.");
+      if (fallo.campoDocumentoRef) setErrorDocumento(fallo.texto);
+      else setError(fallo.texto);
+      setPersonaYaCreada(fallo.personaYaCreada);
       setEnviando(false);
       return;
     }
@@ -182,23 +192,36 @@ export function AltaPersonaPage() {
             </span>
             Referencia de expediente
           </legend>
-          <div className="campo">
+          <div className={errorDocumento ? "campo campo-error" : "campo"}>
             <label htmlFor="documento_ref">documento_ref</label>
             <input
               id="documento_ref"
               name="documento_ref"
-              placeholder="RTB-__-__"
+              placeholder={EJEMPLO_DOCUMENTO_REF}
               required
               className="campo-identificador"
-              aria-describedby="documento_ref-ayuda"
+              aria-invalid={errorDocumento ? true : undefined}
+              aria-describedby={errorDocumento ? "documento_ref-error documento_ref-ayuda" : "documento_ref-ayuda"}
+              onChange={() => errorDocumento && setErrorDocumento(null)}
             />
+            {errorDocumento && (
+              <p className="mensaje-campo" id="documento_ref-error" role="alert">
+                {errorDocumento}
+              </p>
+            )}
             <small className="ayuda-campo" id="documento_ref-ayuda">
-              Formato RTB-__-__ · folio del expediente físico
+              {AYUDA_DOCUMENTO_REF}
             </small>
           </div>
         </fieldset>
 
         {error && <p role="alert">{error}</p>}
+        {personaYaCreada && (
+          <p className="ayuda-campo">
+            No vuelvas a enviar este formulario: la persona ya existe y repetirlo duplicaría su CURP.{" "}
+            <a href="/personas">Ir a Personas →</a>
+          </p>
+        )}
         <div className="botonera">
           <a href="/personas">Cancelar</a>
           <Button type="submit" icono={ArrowRight} cargando={enviando} textoCargando="Registrando…">

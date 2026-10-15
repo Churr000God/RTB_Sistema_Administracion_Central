@@ -96,3 +96,14 @@ describe("AltaUsuarioPage", () => {
     window.history.pushState({}, "", "/");
   });
 });
+
+describe("AltaUsuarioPage · texto del enlace de activación", () => {
+  it("no promete un plazo concreto (la expiración vive en Supabase y no está versionada)", async () => {
+    mockApiFetch(new Response(JSON.stringify(PERSONAS)));
+    render(<AltaUsuarioPage />);
+    await waitFor(() => expect(screen.getByLabelText(/persona/i)).toBeInTheDocument());
+    expect(screen.getByText(/a esta dirección llega el enlace de activación, que tiene una vigencia limitada/i)).toBeInTheDocument();
+    expect(screen.queryByText(/72 horas/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\b\d+\s*horas\b/i)).not.toBeInTheDocument();
+  });
+});

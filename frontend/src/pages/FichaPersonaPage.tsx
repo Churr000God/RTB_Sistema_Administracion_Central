@@ -20,19 +20,10 @@ import { Input } from "../components/Input";
 import { SeccionTerminalPersona } from "../components/SeccionTerminalPersona";
 import { DetalleJornadaAsignada, type JornadaVigente } from "../components/DetalleJornadaAsignada";
 import { derivarTransiciones, type Estado, type Movimiento } from "../lib/movimientos";
+import { AYUDA_DOCUMENTO_REF, EJEMPLO_DOCUMENTO_REF, MENSAJE_DOCUMENTO_REF_INVALIDO, documentoRefValido, errorDePersona } from "../lib/documentoRef";
 
 function aMayusculas(evento: ChangeEvent<HTMLInputElement>) {
   evento.currentTarget.value = evento.currentTarget.value.toUpperCase();
-}
-
-async function mensajeDeError(respuesta: Response, generico: string): Promise<string> {
-  try {
-    const cuerpo = await respuesta.json();
-    if (typeof cuerpo?.detail === "string") return cuerpo.detail;
-  } catch {
-    // cuerpo no era JSON legible — cae al genérico
-  }
-  return generico;
 }
 
 type PuestoVigente = {
@@ -258,6 +249,12 @@ export function FichaPersonaPage() {
     if (tipoContrato !== persona.tipo_contrato) cambios.tipo_contrato = tipoContrato;
     if (documentoRef !== persona.documento_ref) cambios.documento_ref = documentoRef;
 
+    // Mismo formato que la base: un folio mal formado se avisa antes de enviar.
+    if (typeof cambios.documento_ref === "string" && !documentoRefValido(cambios.documento_ref)) {
+      setErrorEdicion(MENSAJE_DOCUMENTO_REF_INVALIDO);
+      return;
+    }
+
     if (Object.keys(cambios).length === 0) {
       setErrorEdicion("No modificaste ningún campo.");
       return;
@@ -274,7 +271,7 @@ export function FichaPersonaPage() {
       } else if (respuesta.status === 404) {
         setErrorEdicion("Esta persona ya no existe.");
       } else {
-        setErrorEdicion(await mensajeDeError(respuesta, "No se pudo guardar el cambio."));
+        setErrorEdicion((await errorDePersona(respuesta, "No se pudo guardar el cambio.")).texto);
       }
       setGuardando(false);
       return;
@@ -457,10 +454,10 @@ export function FichaPersonaPage() {
               id="documento_ref"
               name="documento_ref"
               label="Referencia de documento (documento_ref)"
-              placeholder="RTB-__-__"
+              placeholder={EJEMPLO_DOCUMENTO_REF}
               className="campo-identificador"
               defaultValue={persona.documento_ref ?? ""}
-              ayuda="Formato RTB-__-__ · referencia única del expediente físico. Sólo se almacena esta referencia — no existe catálogo de documentos individuales por persona."
+              ayuda={`${AYUDA_DOCUMENTO_REF}. Sólo se almacena esta referencia — no existe catálogo de documentos individuales por persona.`}
             />
             <div className="campo" style={{ marginTop: "1rem" }}>
               <label>Tipo de contrato</label>
@@ -556,8 +553,8 @@ export function FichaPersonaPage() {
                   <p>Sin expediente asignado.</p>
                 )}
                 <small className="ayuda-campo">
-                  Formato RTB-__-__ · referencia única del expediente físico. Sólo se almacena esta
-                  referencia — no existe catálogo de documentos individuales por persona.
+                  {AYUDA_DOCUMENTO_REF}. Sólo se almacena esta referencia — no existe catálogo de documentos
+                  individuales por persona.
                 </small>
               </div>
               <div className="rejilla-datos" style={{ marginTop: "1rem" }}>

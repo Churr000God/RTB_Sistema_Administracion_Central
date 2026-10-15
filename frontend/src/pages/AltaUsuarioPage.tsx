@@ -141,7 +141,7 @@ export function AltaUsuarioPage() {
                 <input id="correo" name="correo" type="email" required aria-describedby="correo-ayuda" />
               </div>
               <small className="ayuda-campo" id="correo-ayuda">
-                A esta dirección llega el enlace de activación. Vigencia de 72 horas.
+                A esta dirección llega el enlace de activación, que tiene una vigencia limitada.
               </small>
               <label htmlFor="nombre_usuario">Nombre de usuario</label>
               <input id="nombre_usuario" name="nombre_usuario" required />

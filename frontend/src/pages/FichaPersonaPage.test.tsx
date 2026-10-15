@@ -531,6 +531,30 @@ describe("FichaPersonaPage", () => {
   });
 
   describe("edición in-place de Datos personales/Expediente", () => {
+    it("el folio de expediente muestra el formato real (RTB-RH-EIT) en lectura y en edición; no «RTB-__-__»", async () => {
+      mockApiFetch();
+      renderPagina();
+      await waitFor(() => expect(screen.getAllByText("Mariana Guadalupe Alcántara Ruvalcaba").length).toBeGreaterThan(0));
+      expect(screen.getByText(/formato RTB-RH-EIT-<año>-<número>, por ejemplo RTB-RH-EIT-2026-06/i)).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: /^editar$/i }));
+      expect(screen.getByLabelText(/referencia de documento/i)).toHaveAttribute("placeholder", "RTB-RH-EIT-2026-06");
+      expect(screen.queryByText(/RTB-__-__/)).not.toBeInTheDocument();
+    });
+
+    it("un folio nuevo mal formado se avisa antes de enviar y no hace PATCH", async () => {
+      mockApiFetch();
+      renderPagina();
+      await waitFor(() => expect(screen.getAllByText("Mariana Guadalupe Alcántara Ruvalcaba").length).toBeGreaterThan(0));
+      await userEvent.click(screen.getByRole("button", { name: /^editar$/i }));
+      const campo = screen.getByLabelText(/referencia de documento/i);
+      await userEvent.clear(campo);
+      await userEvent.type(campo, "RTB-2026-002");
+      const antes = vi.mocked(apiFetch).mock.calls.length;
+      await userEvent.click(screen.getByRole("button", { name: /^guardar$/i }));
+      expect(await screen.findByText(/el folio debe tener el formato RTB-RH-EIT-<año de 4 dígitos>-<número>/i)).toBeInTheDocument();
+      expect(vi.mocked(apiFetch).mock.calls.length).toBe(antes);
+    });
+
     it("al hacer click en Editar precarga los inputs con los valores actuales, sin GET nuevo", async () => {
       mockApiFetch();
       renderPagina();
