@@ -1821,7 +1821,7 @@ SELECT nspname || '.' || proname || '(' || args || ')', 'EXECUTE para authentica
 FROM f WHERE has_function_privilege('authenticated', oid, 'EXECUTE') AND nspname IN ('personas', 'tiempo')
   AND (nspname || '.' || proname) NOT IN (
     'personas.fn_asignacion_cambiar_puesto', 'personas.fn_caller_activo', 'personas.fn_caller_es_administrador_generico', 'personas.fn_caller_persona_id',
-    'personas.fn_caller_tiene_permiso', 'personas.fn_persona_actualizar_datos',
+    'personas.fn_caller_tiene_permiso', 'personas.fn_persona_actualizar_datos', 'personas.fn_persona_crear',
     'tiempo.fn_ausencia_resolver', 'tiempo.fn_dia_calcular_armado_tramos', 'tiempo.fn_dia_revisar', 'tiempo.fn_excepcion_dia_cerrado_descartar',
     'tiempo.fn_jornada_asignar_renovar', 'tiempo.fn_jornada_en_curso_mover_limite', 'tiempo.fn_jornada_futura_actualizar', 'tiempo.fn_jornada_futura_eliminar',
     'tiempo.fn_movimiento_de_saldo_manual_registrar', 'tiempo.fn_terminal_config_actualizar', 'tiempo.fn_terminal_consentimiento_publicar',
