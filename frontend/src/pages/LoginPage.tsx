@@ -5,7 +5,8 @@ import { supabase } from "../lib/supabaseClient";
 import { AuthLayout } from "../layouts/AuthLayout";
 import { Button } from "../components/Button";
 import { registrarErrorAuth } from "../lib/erroresAuth";
-import { consultarSesion } from "../lib/sesion";
+import { destinoInicial } from "../lib/destinoInicial";
+import { consultarSesion, type SesionOut } from "../lib/sesion";
 import { CONTACTOS } from "../lib/contactos";
 
 const INTENTOS_INICIALES = 5;
@@ -54,8 +55,10 @@ export function LoginPage() {
     // consultarSesion() deduplica la petición a nivel de módulo (mismo mecanismo que
     // AppShell) — evita la carrera de StrictMode que hacía aterrizar a la misma cuenta a
     // veces en /configurar-2fa y a veces en /cuenta-suspendida según qué fetch ganaba.
+    let sesionLogin: SesionOut | null = null;
     try {
       const sesion = await consultarSesion();
+      sesionLogin = sesion;
       if (!sesion.acceso_permitido) {
         try {
           await supabase.auth.signOut();
@@ -75,7 +78,7 @@ export function LoginPage() {
     } else if (aal?.nextLevel === "aal1") {
       window.location.href = "/configurar-2fa";
     } else {
-      window.location.href = "/personas";
+      window.location.href = destinoInicial(sesionLogin);
     }
   }
 

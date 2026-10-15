@@ -6,6 +6,8 @@ import { Button } from "../components/Button";
 import { supabase } from "../lib/supabaseClient";
 import { verificarTotp } from "../lib/mfa";
 import { registrarErrorAuth } from "../lib/erroresAuth";
+import { destinoInicial } from "../lib/destinoInicial";
+import { consultarSesion } from "../lib/sesion";
 import { CasilleroCodigo } from "../components/CasilleroCodigo";
 import { TemporizadorTotp } from "../components/TemporizadorTotp";
 
@@ -74,7 +76,14 @@ export function VerificarTotpPage({
       setIntento((n) => n + 1);
       return;
     }
-    window.location.href = "/personas";
+    // A dónde aterrizar depende de los módulos que la persona puede ver; si la sesión no responde, /personas.
+    let destino = "/personas";
+    try {
+      destino = destinoInicial(await consultarSesion());
+    } catch (errorSesion) {
+      registrarErrorAuth("VerificarTotpPage.sesion", errorSesion);
+    }
+    window.location.href = destino;
   }
 
   return (

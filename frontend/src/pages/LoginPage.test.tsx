@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiFetch } from "../lib/apiClient";
 import { supabase } from "../lib/supabaseClient";
@@ -133,5 +133,74 @@ describe("LoginPage", () => {
       "href",
       expect.stringMatching(/^mailto:.+@/)
     );
+  });
+});
+
+describe("LoginPage · destino tras iniciar sesión", () => {
+  const originalLocation = window.location;
+  let href = "";
+
+  beforeEach(() => {
+    href = "";
+    vi.mocked(supabase.auth.signInWithPassword).mockReset();
+    vi.mocked(supabase.auth.signInWithPassword).mockResolvedValue({
+      data: { user: { id: "u1" }, session: { access_token: "tok" } },
+      error: null,
+    } as never);
+    vi.mocked(supabase.auth.mfa.getAuthenticatorAssuranceLevel).mockResolvedValue({ data: { currentLevel: "aal2", nextLevel: "aal2" } } as never);
+    vi.mocked(apiFetch).mockReset();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: {
+        ...originalLocation,
+        get href() {
+          return href;
+        },
+        set href(valor: string) {
+          href = valor;
+        },
+      },
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
+  });
+
+  async function iniciarSesionCon(sesion: Record<string, unknown> | null) {
+    vi.mocked(apiFetch).mockImplementation(() =>
+      sesion ? Promise.resolve(new Response(JSON.stringify({ acceso_permitido: true, ...sesion }))) : Promise.reject(new Error("sin red")),
+    );
+    render(<LoginPage />);
+    await userEvent.type(screen.getByLabelText(/correo/i), "mariana@example.com");
+    await userEvent.type(screen.getByLabelText("Contraseña"), "buenacontrasena");
+    await userEvent.click(screen.getByRole("button", { name: /iniciar sesión/i }));
+    await waitFor(() => expect(href).not.toBe(""));
+  }
+
+  it("con módulo 1: /personas (comportamiento actual)", async () => {
+    await iniciarSesionCon({ puede_ver_modulo_1: true, puede_ver_modulo_2: false, puede_ver_modulo_3: false });
+    expect(href).toBe("/personas");
+  });
+
+  it("sin módulo 1 pero con Tiempo: va al primer módulo que sí ve", async () => {
+    await iniciarSesionCon({ puede_ver_modulo_1: false, puede_ver_modulo_2: false, puede_ver_modulo_3: true });
+    expect(href).toBe("/tiempo/asignacion-jornada");
+  });
+
+  it("sin ningún módulo: /inicio", async () => {
+    await iniciarSesionCon({ puede_ver_modulo_1: false, puede_ver_modulo_2: false, puede_ver_modulo_3: false });
+    expect(href).toBe("/inicio");
+  });
+
+  it("si /api/sesion falla (fail-open): /personas como hasta ahora", async () => {
+    await iniciarSesionCon(null);
+    expect(href).toBe("/personas");
+  });
+
+  it("la bifurcación de 2FA no cambia: nivel aal1 -> /configurar-2fa aunque no tenga módulos", async () => {
+    vi.mocked(supabase.auth.mfa.getAuthenticatorAssuranceLevel).mockResolvedValue({ data: { currentLevel: "aal1", nextLevel: "aal1" } } as never);
+    await iniciarSesionCon({ puede_ver_modulo_1: false, puede_ver_modulo_2: false, puede_ver_modulo_3: false });
+    expect(href).toBe("/configurar-2fa");
   });
 });

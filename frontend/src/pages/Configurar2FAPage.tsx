@@ -9,6 +9,10 @@ import { VerificarTotpPage } from "./VerificarTotpPage";
 
 const INSIGNIA_PASO = { icono: ShieldCheck, texto: "Paso 2 de 3 · Seguridad" };
 
+// Nombre con el que la app autenticadora muestra la cuenta (en lugar de la dirección del proyecto). Versión
+// corta, sin «:» (el esquema otpauth lo usa de separador) ni símbolos raros, para que no la trunquen.
+const EMISOR_TOTP = "RTB Administración Central";
+
 const PASOS = [
   {
     titulo: "Descarga una app autenticadora",
@@ -33,6 +37,43 @@ export function Configurar2FAPage() {
   const [error, setError] = useState<string | null>(null);
   const yaEjecutado = useRef(false);
 
+  // Un enrolamiento previo sin verificar (la persona cerró la pestaña antes de escanear) deja un factor
+  // «unverified» con el MISMO friendlyName, y Supabase exige nombres únicos por factor: sin limpiarlo,
+  // enroll() respondería mfa_factor_name_conflict. Se desmatriculan sólo los TOTP sin verificar (el
+  // verificado se atendió arriba y nunca se toca). Un fallo al limpiar no bloquea: enroll() dirá si hubo
+  // conflicto de verdad.
+  async function enrolar(factores: Array<{ id: string; factor_type: string; status: string }>) {
+    for (const factor of factores) {
+      if (factor.factor_type === "totp" && factor.status === "unverified") {
+        const { error: errorLimpieza } = await supabase.auth.mfa.unenroll({ factorId: factor.id });
+        if (errorLimpieza) registrarErrorAuth("Configurar2FAPage.unenroll", errorLimpieza);
+      }
+    }
+    // En la app autenticadora debe verse «RTB Administración Central» y la cuenta, no la dirección del proyecto de
+    // Supabase. El friendlyName es el correo de la sesión (estable y único por persona); no se imprime
+    // en pantalla ni se registra en logs.
+    let nombreCuenta = "Cuenta RTB";
+    try {
+      const { data: sesion } = await supabase.auth.getSession();
+      nombreCuenta = sesion?.session?.user.email ?? nombreCuenta;
+    } catch {
+      // sin sesión legible: queda el nombre estable por omisión
+    }
+    const { data: enrolado, error: errorEnroll } = await supabase.auth.mfa.enroll({
+      factorType: "totp",
+      issuer: EMISOR_TOTP,
+      friendlyName: nombreCuenta,
+    });
+    if (errorEnroll || !enrolado) {
+      registrarErrorAuth("Configurar2FAPage.enroll", errorEnroll);
+      setError("No se pudo generar el código. Intenta de nuevo.");
+      return;
+    }
+    setQr(enrolado.totp.qr_code);
+    setClaveManual(enrolado.totp.secret);
+    setFactorId(enrolado.id);
+  }
+
   useEffect(() => {
     // Guard contra el doble-montaje de efectos de React.StrictMode en dev: enroll() no es
     // idempotente (crea un factor TOTP nuevo cada vez) — sin este guard, el segundo montaje
@@ -54,16 +95,7 @@ export function Configurar2FAPage() {
         setYaConfigurado(true);
         return;
       }
-      supabase.auth.mfa.enroll({ factorType: "totp" }).then(({ data: enrolado, error: errorEnroll }) => {
-        if (errorEnroll || !enrolado) {
-          registrarErrorAuth("Configurar2FAPage.enroll", errorEnroll);
-          setError("No se pudo generar el código. Intenta de nuevo.");
-          return;
-        }
-        setQr(enrolado.totp.qr_code);
-        setClaveManual(enrolado.totp.secret);
-        setFactorId(enrolado.id);
-      });
+      void enrolar(data?.all ?? []);
     });
   }, []);
 

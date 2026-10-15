@@ -29,6 +29,8 @@ import { DiasPage } from "./pages/DiasPage";
 import { DirectorioAreasPage } from "./pages/DirectorioAreasPage";
 import { DirectorioDepartamentosPage } from "./pages/DirectorioDepartamentosPage";
 import { DirectorioPersonasPage } from "./pages/DirectorioPersonasPage";
+import { InicioPage } from "./pages/InicioPage";
+import { ProtegidaPorModulo } from "./components/ProtegidaPorModulo";
 import { DirectorioPuestosPage } from "./pages/DirectorioPuestosPage";
 import { FichaAreaPage } from "./pages/FichaAreaPage";
 import { FichaDepartamentoPage } from "./pages/FichaDepartamentoPage";
@@ -59,7 +61,15 @@ export const router = createBrowserRouter([
   { path: "/olvide-contrasena", element: <OlvideContrasenaPage /> },
   { path: "/restablecer-contrasena", element: <RestablecerContrasenaPage /> },
   { path: "/completar-invitacion", element: <CompletarInvitacionPage /> },
-  { path: "/personas", element: <DirectorioPersonasPage /> },
+  { path: "/inicio", element: <InicioPage /> },
+  {
+    path: "/personas",
+    element: (
+      <ProtegidaPorModulo campo="puede_ver_modulo_1">
+        <DirectorioPersonasPage />
+      </ProtegidaPorModulo>
+    ),
+  },
   { path: "/personas/nueva", element: <AltaPersonaPage /> },
   { path: "/personas/:id", element: <FichaPersonaPage /> },
   { path: "/personas/:id/movimiento", element: <CambiarEstadoPage /> },
