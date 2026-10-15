@@ -4,6 +4,7 @@ Gate de permisos: GET (listado, ficha) sin cambio -- no existe código de lectur
 módulo, sigue el gate débil de sólo get_caller_client (RLS) a propósito. POST (alta) exige
 además requiere_permiso("alta_personas_usuarios") (app/permisos.py)."""
 
+import logging
 from datetime import date
 from typing import NoReturn
 
@@ -22,6 +23,7 @@ from app.schemas.personas import (
 )
 
 router = APIRouter(prefix="/api/personas", tags=["personas"])
+logger = logging.getLogger("app.personas")
 
 CODIGO_PERSONA_NO_ENCONTRADA = "SCJ10"
 MENSAJE_PERSONA_NO_ENCONTRADA = "Persona no encontrada."
@@ -36,9 +38,9 @@ MENSAJE_CURP_DUPLICADA = "Ya existe una persona registrada con esa CURP."
 MENSAJE_RFC_DUPLICADO = "Ya existe una persona registrada con ese RFC."
 MENSAJE_NSS_DUPLICADO = "Ya existe una persona registrada con ese NSS."
 MENSAJE_DOCUMENTO_REF_DUPLICADO = "Ese folio de expediente ya está en uso por otra persona."
-MENSAJE_EXPEDIENTE_PENDIENTE = (
-    " La persona quedó registrada sin expediente: corrígelo desde su ficha."
-)
+MENSAJE_RESPUESTA_INESPERADA = "El servicio no respondió como se esperaba; intenta de nuevo o avisa a Sistemas."
+MENSAJE_SIN_PERMISO = "No tienes permiso para dar de alta personas."
+CODIGO_PERMISO_DENEGADO = "42501"
 _UNICIDAD_POR_RESTRICCION = (
     ("uq_persona_curp", "(curp)", MENSAJE_CURP_DUPLICADA),
     ("uq_persona_rfc", "(rfc)", MENSAJE_RFC_DUPLICADO),
@@ -89,59 +91,55 @@ def _mensaje_de_unicidad(error: APIError) -> str:
     return MENSAJE_DUPLICADO
 
 
-def _traducir_error_alta(error: APIError, *, expediente_pendiente: bool = False) -> NoReturn:
+def _traducir_error_alta(error: APIError) -> NoReturn:
     """Espeja el mapeo del PATCH para el alta: 23505 → 409 con el mensaje del campo; el CHECK del folio → 422 con el formato real (71_*.sql: `RTB-RH-EIT-AAAA-N`); cualquier otro
-    CHECK → 422 genérico fijo (el texto real al log). Nada de la base llega al cliente. Si falló el EXPEDIENTE (ya existe la persona, mientras no haya `fn_persona_crear` transaccional)
-    el mensaje lo dice. Lo que no es de estas familias se relanza al manejador global (500 sin texto)."""
-    sufijo = MENSAJE_EXPEDIENTE_PENDIENTE if expediente_pendiente else ""
+    CHECK → 422 genérico fijo (el texto real al log); 42501 (la RLS del RPC INVOKER) → 403. Nada de la base llega al cliente. Lo que no es de estas familias se relanza al manejador
+    global (500 sin texto)."""
     if error.code == UNIQUE_VIOLATION:
-        raise HTTPException(status.HTTP_409_CONFLICT, _mensaje_de_unicidad(error) + sufijo) from None
+        raise HTTPException(status.HTTP_409_CONFLICT, _mensaje_de_unicidad(error)) from None
     if error.code == CODIGO_VIOLACION_CHECK:
         if "documento_ref_formato" in (error.message or ""):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_DOCUMENTO_REF_FORMATO + sufijo) from None
-        generico = rechazo_generico(error, "alta de persona")
-        raise HTTPException(generico.status_code, generico.detail + sufijo) from None
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_DOCUMENTO_REF_FORMATO) from None
+        raise rechazo_generico(error, "alta de persona") from None
+    if error.code == CODIGO_PERMISO_DENEGADO:
+        # requiere_permiso ya filtró al usuario sin permiso: un 42501 que llega aquí es, probablemente, una regresión de privilegios (EXECUTE revocado, policy rota). Se registra el
+        # SQLSTATE y la ruta -NUNCA el mensaje de la base-; al cliente le llega lo mismo de siempre.
+        logger.warning("POST /api/personas: la base respondió %s al RPC fn_persona_crear (revisar EXECUTE/policies si el usuario sí tiene alta_personas_usuarios)", error.code)
+        raise HTTPException(status.HTTP_403_FORBIDDEN, MENSAJE_SIN_PERMISO) from None
     raise error
 
 
 def _crear_persona_con_expediente(db: Client, datos: PersonaCreate) -> dict:
-    """Hoy: dos inserts (persona y luego expediente, en ese orden por la FK). PENDIENTE (D7): cuando `db` entregue el RPC transaccional `fn_persona_crear` (mismo patrón que
-    `fn_persona_actualizar_datos`), el cuerpo de esta función pasa a UNA llamada `db.postgrest.schema("personas").rpc("fn_persona_crear", {...})` y deja de existir la persona
-    sin expediente; el mapeo de errores (`_traducir_error_alta`) se reutiliza tal cual."""
+    """Persona + expediente en UNA transacción: `personas.fn_persona_crear` (db/ddl/107_*.sql, SECURITY INVOKER: corre con los privilegios y la RLS del caller). Si algo falla no queda
+    nada (ni persona ni expediente). Devuelve la fila COMPLETA de personas.persona como un solo objeto; el router la proyecta a PersonaOut. Argumentos por NOMBRE."""
     try:
-        persona = (
+        resultado = (
             db.postgrest.schema("personas")
-            .table("persona")
-            .insert(
+            .rpc(
+                "fn_persona_crear",
                 {
-                    "primer_nombre": datos.primer_nombre,
-                    "segundo_nombre": datos.segundo_nombre,
-                    "apellido_paterno": datos.apellido_paterno,
-                    "apellido_materno": datos.apellido_materno,
-                    "curp": datos.curp,
-                    "rfc": datos.rfc,
-                    "nss": datos.nss,
-                    "fecha_nacimiento": datos.fecha_nacimiento.isoformat(),
-                    "fecha_ingreso": datos.fecha_ingreso.isoformat(),
-                }
+                    "p_primer_nombre": datos.primer_nombre,
+                    "p_apellido_paterno": datos.apellido_paterno,
+                    "p_curp": datos.curp,
+                    "p_rfc": datos.rfc,
+                    "p_nss": datos.nss,
+                    "p_fecha_nacimiento": datos.fecha_nacimiento.isoformat(),
+                    "p_fecha_ingreso": datos.fecha_ingreso.isoformat(),
+                    "p_tipo_contrato": datos.tipo_contrato,
+                    "p_documento_ref": datos.documento_ref,
+                    "p_segundo_nombre": datos.segundo_nombre,
+                    "p_apellido_materno": datos.apellido_materno,
+                },
             )
             .execute()
-            .data[0]
         )
     except APIError as error:
         _traducir_error_alta(error)
-
-    try:
-        db.postgrest.schema("personas").table("expediente").insert(
-            {
-                "persona_id": persona["id"],
-                "tipo_contrato": datos.tipo_contrato,
-                "documento_ref": datos.documento_ref,
-            }
-        ).execute()
-    except APIError as error:
-        _traducir_error_alta(error, expediente_pendiente=True)
-
+    persona = resultado.data
+    if isinstance(persona, list):          # tolerancia de versiones de PostgREST: un RPC que devuelve una fila puede llegar envuelto en una lista de un elemento
+        persona = persona[0] if persona else None
+    if not isinstance(persona, dict) or "id" not in persona:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, MENSAJE_RESPUESTA_INESPERADA)
     return persona
 
 

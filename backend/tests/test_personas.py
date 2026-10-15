@@ -37,153 +37,138 @@ def _override_identidad():
     app.dependency_overrides[get_caller_identity] = lambda: GATE_IDENTITY
 
 
-def test_alta_persona_inserta_persona_y_expediente():
-    tabla_pe = MagicMock()
-    tabla_pe.insert.return_value.execute.return_value.data = [
-        {
-            "id": "11111111-1111-1111-1111-111111111111",
-            "primer_nombre": "Mariana",
-            "segundo_nombre": None,
-            "apellido_paterno": "Alcántara",
-            "apellido_materno": None,
-            "curp": "AARM910427MDFLVR03",
-            "rfc": "AARM910427H8A",
-            "nss": "62119145338",
-            "fecha_nacimiento": "1991-04-27",
-            "fecha_ingreso": "2026-01-01",
-            "estado": "activo",
-        }
-    ]
-    llamadas_tabla = []
+_PERSONA_FILA = {
+    "id": "11111111-1111-1111-1111-111111111111",
+    "primer_nombre": "Mariana",
+    "segundo_nombre": None,
+    "apellido_paterno": "Alcántara",
+    "apellido_materno": None,
+    "curp": "AARM910427MDFLVR03",
+    "rfc": "AARM910427H8A",
+    "nss": "62119145338",
+    "fecha_nacimiento": "1991-04-27",
+    "fecha_ingreso": "2026-01-01",
+    "fecha_baja": None,
+    "estado": "activo",
+    "campo_interno_que_no_debe_salir": "x",
+}
 
-    def side_effect(nombre):
-        llamadas_tabla.append(nombre)
-        return tabla_pe if nombre in ("persona", "expediente") else _tabla_gate(nombre)
+
+def _cliente_alta(resultado=None, error=None):
+    """Gate (tablas) + RPC con la FIRMA REAL de postgrest-py (`rpc(func, params, ...)`)."""
+    from _mocks_supabase import Resultado, rpc_con_firma_real
 
     fake_client = MagicMock()
-    fake_client.postgrest.schema.return_value.table.side_effect = side_effect
+    fake_client.postgrest.schema.return_value.table.side_effect = _tabla_gate
+    rpc = rpc_con_firma_real()
+    if error is not None:
+        rpc.return_value.execute.side_effect = error
+    else:
+        rpc.return_value.execute.return_value = Resultado(resultado if resultado is not None else _PERSONA_FILA)
+    fake_client.postgrest.schema.return_value.rpc = rpc
+    return fake_client, rpc
+
+
+def _post_alta(fake_client, **cambios):
     app.dependency_overrides[get_caller_client] = lambda: fake_client
     _override_identidad()
+    try:
+        return TestClient(app, raise_server_exceptions=False).post(
+            "/api/personas", json={**_CUERPO_ALTA, **cambios}, headers={"Authorization": "Bearer fake-token"}
+        )
+    finally:
+        app.dependency_overrides.clear()
 
-    client = TestClient(app)
-    response = client.post(
-        "/api/personas",
-        json={
-            "primer_nombre": "Mariana",
-            "apellido_paterno": "Alcántara",
-            "curp": "AARM910427MDFLVR03",
-            "rfc": "AARM910427H8A",
-            "nss": "62119145338",
-            "fecha_nacimiento": "1991-04-27",
-            "fecha_ingreso": "2026-01-01",
-            "tipo_contrato": "indefinido",
-            "documento_ref": "RTB-2026-001",
-        },
-        headers={"Authorization": "Bearer fake-token"},
-    )
 
-    app.dependency_overrides.clear()
+def test_alta_persona_llama_una_sola_vez_al_rpc_transaccional_con_argumentos_por_nombre():
+    fake_client, rpc = _cliente_alta()
+    response = _post_alta(fake_client, segundo_nombre="Lucía")
     assert response.status_code == 201
-    assert response.json()["curp"] == "AARM910427MDFLVR03"
-    llamadas_negocio = [n for n in llamadas_tabla if n in ("persona", "expediente")]
-    assert llamadas_negocio == ["persona", "expediente"]
+    assert rpc.call_count == 1
+    nombre, argumentos = rpc.call_args.args
+    assert nombre == "fn_persona_crear"
+    assert argumentos == {
+        "p_primer_nombre": "Mariana", "p_apellido_paterno": "Alcántara", "p_curp": "AARM910427MDFLVR03", "p_rfc": "AARM910427H8A", "p_nss": "62119145338",
+        "p_fecha_nacimiento": "1991-04-27", "p_fecha_ingreso": "2026-01-01", "p_tipo_contrato": "indefinido", "p_documento_ref": "RTB-RH-EIT-2026-06",
+        "p_segundo_nombre": "Lucía", "p_apellido_materno": None,
+    }
+    fake_client.postgrest.schema.assert_any_call("personas")                       # esquema personas (Content-Profile)
+    cuerpo = response.json()
+    assert cuerpo["curp"] == "AARM910427MDFLVR03" and cuerpo["id"] == _PERSONA_FILA["id"]
+    assert "campo_interno_que_no_debe_salir" not in cuerpo                          # se proyecta a PersonaOut, no se reenvía el objeto crudo
+
+
+def test_alta_persona_ya_no_hace_inserts_sueltos():
+    fake_client, _rpc = _cliente_alta()
+    llamadas = []
+    original = fake_client.postgrest.schema.return_value.table.side_effect
+
+    def espia(nombre):
+        llamadas.append(nombre)
+        return original(nombre)
+
+    fake_client.postgrest.schema.return_value.table.side_effect = espia
+    assert _post_alta(fake_client).status_code == 201
+    assert "persona" not in llamadas and "expediente" not in llamadas
 
 
 def test_alta_persona_normaliza_curp_rfc_a_mayusculas():
-    tabla_pe = MagicMock()
-    insert_mock = tabla_pe.insert
-    insert_mock.return_value.execute.return_value.data = [
-        {
-            "id": "11111111-1111-1111-1111-111111111111",
-            "primer_nombre": "Mariana",
-            "segundo_nombre": None,
-            "apellido_paterno": "Alcántara",
-            "apellido_materno": None,
-            "curp": "AARM910427MDFLVR03",
-            "rfc": "AARM910427H8A",
-            "nss": "62119145338",
-            "fecha_nacimiento": "1991-04-27",
-            "fecha_ingreso": "2026-01-01",
-            "estado": "activo",
-        }
-    ]
-    fake_client = MagicMock()
-    fake_client.postgrest.schema.return_value.table.side_effect = (
-        lambda nombre: tabla_pe if nombre in ("persona", "expediente") else _tabla_gate(nombre)
-    )
-    app.dependency_overrides[get_caller_client] = lambda: fake_client
-    _override_identidad()
-
-    client = TestClient(app)
-    response = client.post(
-        "/api/personas",
-        json={
-            "primer_nombre": "Mariana",
-            "apellido_paterno": "Alcántara",
-            "curp": "aarm910427mdflvr03",
-            "rfc": "aarm910427h8a",
-            "nss": "62119145338",
-            "fecha_nacimiento": "1991-04-27",
-            "fecha_ingreso": "2026-01-01",
-            "tipo_contrato": "indefinido",
-            "documento_ref": "RTB-2026-001",
-        },
-        headers={"Authorization": "Bearer fake-token"},
-    )
-
-    app.dependency_overrides.clear()
+    fake_client, rpc = _cliente_alta()
+    response = _post_alta(fake_client, curp="aarm910427mdflvr03", rfc="aarm910427h8a")
     assert response.status_code == 201
-    datos_insertados = insert_mock.call_args_list[0].args[0]
-    assert datos_insertados["curp"] == "AARM910427MDFLVR03"
-    assert datos_insertados["rfc"] == "AARM910427H8A"
+    argumentos = rpc.call_args.args[1]
+    assert argumentos["p_curp"] == "AARM910427MDFLVR03" and argumentos["p_rfc"] == "AARM910427H8A"
+
+
+_DETALLE_RESPUESTA_INESPERADA = "El servicio no respondió como se esperaba; intenta de nuevo o avisa a Sistemas."
+
+
+def test_respuesta_del_rpc_como_objeto_es_201():
+    fake_client, _ = _cliente_alta(resultado=_PERSONA_FILA)
+    r = _post_alta(fake_client)
+    assert r.status_code == 201 and r.json()["id"] == _PERSONA_FILA["id"]
+
+
+def test_respuesta_del_rpc_como_lista_de_un_elemento_es_201():
+    fake_client, _ = _cliente_alta(resultado=[_PERSONA_FILA])
+    r = _post_alta(fake_client)
+    assert r.status_code == 201 and r.json()["id"] == _PERSONA_FILA["id"]
+
+
+def test_respuesta_del_rpc_como_lista_vacia_es_502_con_mensaje_fijo():
+    fake_client, _ = _cliente_alta(resultado=[])
+    r = _post_alta(fake_client)
+    assert r.status_code == 502 and r.json()["detail"] == _DETALLE_RESPUESTA_INESPERADA
+
+
+def test_respuesta_del_rpc_sin_id_nula_o_de_otro_tipo_es_502_con_mensaje_fijo():
+    for malo in (None, {"sin_id": 1}, "texto", 7, [{"sin_id": 1}]):
+        fake_client, _ = _cliente_alta(resultado=[])
+        fake_client.postgrest.schema.return_value.rpc.return_value.execute.return_value.data = malo
+        r = _post_alta(fake_client)
+        assert r.status_code == 502 and r.json()["detail"] == _DETALLE_RESPUESTA_INESPERADA, malo
 
 
 def test_alta_persona_sin_permiso_devuelve_403():
-    """Caller autenticado y activo, pero sin alta_personas_usuarios -- el gate debe rechazar
-    antes de insertar persona/expediente."""
+    """Caller autenticado y activo, pero sin alta_personas_usuarios -- el gate debe rechazar antes de llamar al RPC."""
     fake_client = MagicMock()
 
     def side_effect(nombre_tabla):
         tabla = MagicMock()
         if nombre_tabla == "usuario":
-            tabla.select.return_value.eq.return_value.execute.return_value.data = [
-                {"persona_id": GATE_PERSONA_ID}
-            ]
+            tabla.select.return_value.eq.return_value.execute.return_value.data = [{"persona_id": GATE_PERSONA_ID}]
         elif nombre_tabla == "asignacion":
-            tabla.select.return_value.eq.return_value.is_.return_value.execute.return_value.data = [
-                {"puesto_id": GATE_PUESTO_ID}
-            ]
+            tabla.select.return_value.eq.return_value.is_.return_value.execute.return_value.data = [{"puesto_id": GATE_PUESTO_ID}]
         elif nombre_tabla == "puesto_permiso":
             tabla.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = []
         elif nombre_tabla == "permiso":
-            tabla.select.return_value.eq.return_value.execute.return_value.data = [
-                {"heredable": False}
-            ]
+            tabla.select.return_value.eq.return_value.execute.return_value.data = [{"heredable": False}]
         return tabla
 
     fake_client.postgrest.schema.return_value.table.side_effect = side_effect
-    app.dependency_overrides[get_caller_client] = lambda: fake_client
-    _override_identidad()
-
-    client = TestClient(app)
-    response = client.post(
-        "/api/personas",
-        json={
-            "primer_nombre": "Mariana",
-            "apellido_paterno": "Alcántara",
-            "curp": "AARM910427MDFLVR03",
-            "rfc": "AARM910427H8A",
-            "nss": "62119145338",
-            "fecha_nacimiento": "1991-04-27",
-            "fecha_ingreso": "2026-01-01",
-            "tipo_contrato": "indefinido",
-            "documento_ref": "RTB-2026-001",
-        },
-        headers={"Authorization": "Bearer fake-token"},
-    )
-
-    app.dependency_overrides.clear()
+    response = _post_alta(fake_client)
     assert response.status_code == 403
+    fake_client.postgrest.schema.return_value.rpc.assert_not_called()
 
 
 def test_listar_personas():
@@ -852,29 +837,10 @@ _CUERPO_ALTA = {
 _TEXTO_CRUDO = "already exists. DETAIL interno de la base"
 
 
-def _alta_con_error(fallo_en: str, error: APIError):
-    """Intenta el alta con un error de la base en el insert de `fallo_en` ('persona' o 'expediente')."""
-    persona_ok = {"id": "11111111-1111-1111-1111-111111111111", **{k: _CUERPO_ALTA[k] for k in ("primer_nombre", "apellido_paterno", "curp", "rfc", "nss")},
-                  "segundo_nombre": None, "apellido_materno": None, "fecha_nacimiento": "1991-04-27", "fecha_ingreso": "2026-01-01", "estado": "activo"}
-
-    def tabla(nombre):
-        t = MagicMock()
-        if nombre in ("persona", "expediente"):
-            if nombre == fallo_en:
-                t.insert.return_value.execute.side_effect = error
-            else:
-                t.insert.return_value.execute.return_value.data = [persona_ok]
-            return t
-        return _tabla_gate(nombre)
-
-    fake_client = MagicMock()
-    fake_client.postgrest.schema.return_value.table.side_effect = tabla
-    app.dependency_overrides[get_caller_client] = lambda: fake_client
-    _override_identidad()
-    try:
-        return TestClient(app, raise_server_exceptions=False).post("/api/personas", json=_CUERPO_ALTA, headers={"Authorization": "Bearer fake-token"})
-    finally:
-        app.dependency_overrides.clear()
+def _alta_con_error(error: APIError):
+    """El RPC transaccional lanza `error`."""
+    fake_client, _ = _cliente_alta(error=error)
+    return _post_alta(fake_client)
 
 
 def _unicidad(restriccion: str, columna: str) -> APIError:
@@ -887,62 +853,136 @@ def _sin_texto_crudo(respuesta):
 
 
 def test_alta_curp_duplicada_devuelve_409_con_mensaje_de_curp():
-    r = _alta_con_error("persona", _unicidad("uq_persona_curp", "curp"))
+    r = _alta_con_error(_unicidad("uq_persona_curp", "curp"))
     assert r.status_code == 409 and "CURP" in r.json()["detail"]
     _sin_texto_crudo(r)
 
 
 def test_alta_rfc_duplicado_devuelve_409_con_mensaje_de_rfc():
-    r = _alta_con_error("persona", _unicidad("uq_persona_rfc", "rfc"))
+    r = _alta_con_error(_unicidad("uq_persona_rfc", "rfc"))
     assert r.status_code == 409 and "RFC" in r.json()["detail"]
     _sin_texto_crudo(r)
 
 
 def test_alta_nss_duplicado_devuelve_409_con_mensaje_de_nss():
-    r = _alta_con_error("persona", _unicidad("uq_persona_nss", "nss"))
+    r = _alta_con_error(_unicidad("uq_persona_nss", "nss"))
     assert r.status_code == 409 and "NSS" in r.json()["detail"]
     _sin_texto_crudo(r)
 
 
-def test_alta_documento_ref_duplicado_devuelve_409_y_avisa_que_la_persona_quedo_sin_expediente():
-    r = _alta_con_error("expediente", _unicidad("uq_expediente_documento_ref", "documento_ref"))
-    assert r.status_code == 409 and "folio" in r.json()["detail"].lower() and "sin expediente" in r.json()["detail"]
+def test_alta_documento_ref_duplicado_devuelve_409_con_mensaje_del_folio():
+    r = _alta_con_error(_unicidad("uq_expediente_documento_ref", "documento_ref"))
+    assert r.status_code == 409 and "folio" in r.json()["detail"].lower() and "sin expediente" not in r.json()["detail"]
     _sin_texto_crudo(r)
 
 
 def test_alta_documento_ref_mal_formado_devuelve_422_con_el_formato_real():
     error = APIError({"code": "23514", "message": 'new row for relation "expediente" violates check constraint "ck_expediente_documento_ref_formato"',
                       "details": "Failing row contains (valor-real, carpeta-suelta)"})
-    r = _alta_con_error("expediente", error)
+    r = _alta_con_error(error)
     assert r.status_code == 422 and "RTB-RH-EIT-<año>-<número>" in r.json()["detail"] and "RTB-RH-EIT-2026-06" in r.json()["detail"]
     _sin_texto_crudo(r)
     assert "Failing row" not in r.text
 
 
 def test_alta_otro_check_devuelve_422_generico_sin_texto_de_la_base():
-    r = _alta_con_error("persona", APIError({"code": "23514", "message": 'violates check constraint "ck_persona_algo_futuro"', "details": "Failing row contains (valor-real)"}))
+    r = _alta_con_error(APIError({"code": "23514", "message": 'violates check constraint "ck_persona_algo_futuro"', "details": "Failing row contains (valor-real)"}))
     assert r.status_code == 422 and "ck_persona_algo_futuro" not in r.text
     _sin_texto_crudo(r)
 
 
 def test_alta_unicidad_sin_restriccion_reconocible_devuelve_409_generico():
-    r = _alta_con_error("persona", APIError({"code": "23505", "message": "duplicate key value", "details": "otra cosa"}))
+    r = _alta_con_error(APIError({"code": "23505", "message": "duplicate key value", "details": "otra cosa"}))
     assert r.status_code == 409 and r.json()["detail"] == "CURP, RFC, NSS o número de documento ya está en uso por otra persona."
     # y con solo la columna en el detalle (sin el nombre de la restricción) se reconoce el campo
-    r = _alta_con_error("persona", APIError({"code": "23505", "message": "duplicate key value", "details": "Key (rfc)=(X) already exists."}))
+    r = _alta_con_error(APIError({"code": "23505", "message": "duplicate key value", "details": "Key (rfc)=(X) already exists."}))
     assert r.status_code == 409 and "RFC" in r.json()["detail"]
-    r = _alta_con_error("persona", APIError({"code": "23505", "message": "duplicate key value", "details": "otra cosa"}))
+    r = _alta_con_error(APIError({"code": "23505", "message": "duplicate key value", "details": "otra cosa"}))
     assert r.status_code == 409 and r.json()["detail"] == "CURP, RFC, NSS o número de documento ya está en uso por otra persona."
 
 
 def test_ningun_error_de_alta_conocido_devuelve_500():
-    casos = [("persona", _unicidad(r, c)) for r, c in (("uq_persona_curp", "curp"), ("uq_persona_rfc", "rfc"), ("uq_persona_nss", "nss"))]
-    casos += [("expediente", _unicidad("uq_expediente_documento_ref", "documento_ref")),
-              ("expediente", APIError({"code": "23514", "message": 'violates check constraint "ck_expediente_documento_ref_formato"'}))]
-    for donde, error in casos:
-        assert _alta_con_error(donde, error).status_code in (409, 422)
+    casos = [_unicidad(r, c) for r, c in (("uq_persona_curp", "curp"), ("uq_persona_rfc", "rfc"), ("uq_persona_nss", "nss"))]
+    casos += [_unicidad("uq_expediente_documento_ref", "documento_ref"),
+              APIError({"code": "23514", "message": 'violates check constraint "ck_expediente_documento_ref_formato"'})]
+    for error in casos:
+        assert _alta_con_error(error).status_code in (409, 422)
 
 
 def test_alta_un_error_inesperado_de_la_base_sigue_siendo_500_sin_texto():
-    r = _alta_con_error("persona", APIError({"code": "XX000", "message": "boom con texto interno"}))
+    r = _alta_con_error(APIError({"code": "XX000", "message": "boom con texto interno"}))
     assert r.status_code == 500 and "boom" not in r.text
+
+
+def test_alta_tipo_contrato_invalido_devuelve_422_generico():
+    r = _alta_con_error(APIError({"code": "23514", "message": 'new row for relation "expediente" violates check constraint "ck_expediente_tipo_contrato"',
+                                          "details": "Failing row contains (valor-real, bizarro)"}))
+    assert r.status_code == 422 and "ck_expediente_tipo_contrato" not in r.text and "Failing row" not in r.text
+    assert "RTB-RH-EIT" not in r.json()["detail"]                                   # no es el mensaje del folio
+
+
+def test_alta_42501_de_la_rls_devuelve_403_sin_texto_de_la_base():
+    r = _alta_con_error(APIError({"code": "42501", "message": 'new row violates row-level security policy for table "persona"', "details": None}))
+    assert r.status_code == 403 and "row-level" not in r.text and "persona\"" not in r.text
+
+
+def test_alta_el_mapeo_funciona_con_el_error_real_que_arma_postgrest_py_para_un_rpc():
+    """No un APIError armado a mano: la librería real recibe la respuesta HTTP de PostgREST (409 + JSON code/message/details/hint) de `POST /rpc/fn_persona_crear` y es ELLA quien
+    levanta el APIError; el router lo traduce. También verifica el camino, el esquema (Content-Profile) y los argumentos por nombre en la petición real."""
+    import httpx
+    from postgrest import SyncPostgrestClient
+
+    peticiones = []
+
+    def servidor(request: httpx.Request) -> httpx.Response:
+        peticiones.append(request)
+        return httpx.Response(409, json={"code": "23505", "details": "Key (curp)=(AARM910427MDFLVR03) already exists.", "hint": None,
+                                         "message": 'duplicate key value violates unique constraint "uq_persona_curp"'})
+
+    http = httpx.Client(transport=httpx.MockTransport(servidor), base_url="https://scj.ejemplo.test/rest/v1")
+    real = SyncPostgrestClient("https://scj.ejemplo.test/rest/v1", schema="personas", http_client=http)
+    esquema = MagicMock()
+    esquema.table.side_effect = _tabla_gate
+    esquema.rpc = real.rpc                                                         # el RPC real de la librería, con transporte simulado
+    fake_client = MagicMock()
+    fake_client.postgrest.schema.return_value = esquema
+    r = _post_alta(fake_client)
+    assert r.status_code == 409 and "CURP" in r.json()["detail"]
+    _sin_texto_crudo(r)
+    assert len(peticiones) == 1
+    p = peticiones[0]
+    assert p.method == "POST" and p.url.path.endswith("/rpc/fn_persona_crear") and p.headers.get("content-profile") == "personas"
+    import json as _json
+
+    assert _json.loads(p.content)["p_curp"] == "AARM910427MDFLVR03" and _json.loads(p.content)["p_documento_ref"] == "RTB-RH-EIT-2026-06"
+
+
+def test_alta_el_error_real_de_check_del_folio_con_postgrest_py():
+    import httpx
+    from postgrest import SyncPostgrestClient
+
+    def servidor(request):
+        return httpx.Response(400, json={"code": "23514", "details": "Failing row contains (valor-real).", "hint": None,
+                                         "message": 'new row for relation "expediente" violates check constraint "ck_expediente_documento_ref_formato"'})
+
+    http = httpx.Client(transport=httpx.MockTransport(servidor), base_url="https://scj.ejemplo.test/rest/v1")
+    esquema = MagicMock()
+    esquema.table.side_effect = _tabla_gate
+    esquema.rpc = SyncPostgrestClient("https://scj.ejemplo.test/rest/v1", schema="personas", http_client=http).rpc
+    fake_client = MagicMock()
+    fake_client.postgrest.schema.return_value = esquema
+    r = _post_alta(fake_client, documento_ref="carpeta-suelta")
+    assert r.status_code == 422 and "RTB-RH-EIT-<año>-<número>" in r.json()["detail"] and "Failing row" not in r.text
+
+
+def test_alta_42501_deja_un_warning_con_sqlstate_y_ruta_pero_nunca_el_mensaje_de_la_base(caplog):
+    import logging
+
+    texto_base = 'permission denied for function fn_persona_crear (texto interno de la base)'
+    with caplog.at_level(logging.WARNING, logger="app.personas"):
+        r = _alta_con_error(APIError({"code": "42501", "message": texto_base, "details": "detalle interno"}))
+    assert r.status_code == 403 and r.json()["detail"] == "No tienes permiso para dar de alta personas."      # al cliente le llega lo de siempre
+    avisos = [x.getMessage() for x in caplog.records if x.name == "app.personas"]
+    assert len(avisos) == 1 and "42501" in avisos[0] and "POST /api/personas" in avisos[0] and "fn_persona_crear" in avisos[0]
+    assert "texto interno" not in avisos[0] and "detalle interno" not in avisos[0] and "permission denied" not in avisos[0]
+    assert "permission denied" not in r.text and "texto interno" not in r.text
