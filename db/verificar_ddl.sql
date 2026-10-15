@@ -1821,7 +1821,7 @@ SELECT nspname || '.' || proname || '(' || args || ')', 'EXECUTE para authentica
 FROM f WHERE has_function_privilege('authenticated', oid, 'EXECUTE') AND nspname IN ('personas', 'tiempo')
   AND (nspname || '.' || proname) NOT IN (
     'personas.fn_asignacion_cambiar_puesto', 'personas.fn_caller_activo', 'personas.fn_caller_es_administrador_generico', 'personas.fn_caller_persona_id',
-    'personas.fn_caller_puestos_en_rama', 'personas.fn_caller_tiene_permiso', 'personas.fn_caller_ve_estructura_permisos', 'personas.fn_caller_ve_padron', 'personas.fn_persona_actualizar_datos', 'personas.fn_persona_crear',
+    'personas.fn_caller_puestos_en_rama', 'personas.fn_caller_ve_identidad', 'personas.fn_persona_identidad', 'personas.fn_caller_tiene_permiso', 'personas.fn_caller_ve_estructura_permisos', 'personas.fn_caller_ve_padron', 'personas.fn_persona_actualizar_datos', 'personas.fn_persona_crear',
     'tiempo.fn_ausencia_resolver', 'tiempo.fn_dia_calcular_armado_tramos', 'tiempo.fn_dia_revisar', 'tiempo.fn_excepcion_dia_cerrado_descartar',
     'tiempo.fn_jornada_asignar_renovar', 'tiempo.fn_jornada_en_curso_mover_limite', 'tiempo.fn_jornada_futura_actualizar', 'tiempo.fn_jornada_futura_eliminar',
     'tiempo.fn_movimiento_de_saldo_manual_registrar', 'tiempo.fn_terminal_config_actualizar', 'tiempo.fn_terminal_consentimiento_publicar',
@@ -1848,13 +1848,13 @@ HAVING count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM personas.asignacion a JO
                                           WHERE a.persona_id = p.id AND a.vigente_hasta IS NULL AND pu.es_administrador_generico)) > 0;
 
 -- 73) Las 4 policies de SELECT del padrón (personas.persona, expediente, usuario, asignacion) ya NO son «solo persona activa» (108_): cada una debe seguir existiendo, ser de SELECT, y su expresión debe
--- llamar a personas.fn_caller_ve_padron() (la regla «fila propia O permiso»). Una policy que vuelva a ser solo fn_caller_activo() reabre la lectura del padrón completo. Esperado: 0 filas DESPUÉS de aplicar 108_
+-- llamar a personas.fn_caller_ve_padron() o, en expediente desde 110_, a fn_caller_ve_identidad() (la regla «fila propia O permiso»). Una policy que vuelva a ser solo fn_caller_activo() reabre la lectura del padrón completo. Esperado: 0 filas DESPUÉS de aplicar 108_
 -- (antes de aplicarla devuelve las 4).
 SELECT e.tabla, e.policy, 'falta, no es SELECT o no usa fn_caller_ve_padron()' AS problema
 FROM (VALUES ('persona', 'persona_select_caller_activo'), ('expediente', 'expediente_select_caller_activo'),
              ('usuario', 'usuario_select_caller_activo'), ('asignacion', 'asignacion_select_caller_activo')) AS e(tabla, policy)
 WHERE NOT EXISTS (SELECT 1 FROM pg_policies p
-                  WHERE p.schemaname = 'personas' AND p.tablename = e.tabla AND p.policyname = e.policy AND p.cmd = 'SELECT' AND p.qual LIKE '%fn_caller_ve_padron%');
+                  WHERE p.schemaname = 'personas' AND p.tablename = e.tabla AND p.policyname = e.policy AND p.cmd = 'SELECT' AND (p.qual LIKE '%fn_caller_ve_padron%' OR p.qual LIKE '%fn_caller_ve_identidad%'));
 
 -- 74) Las 3 policies de SELECT de las bitácoras de personas y de puesto_permiso ya NO son «solo persona activa» (109_): deben existir, ser de SELECT y exigir un permiso (bitácora de persona: llama a
 -- fn_caller_tiene_permiso; bitácora de permisos y puesto_permiso: a fn_caller_ve_estructura_permisos, DEFINER, o a la rama propia). Una policy que vuelva a ser solo fn_caller_activo() reabre el historial de
@@ -1865,3 +1865,20 @@ FROM (VALUES ('bitacora_movimiento_persona', 'bitacora_select_caller_activo', '%
              ('puesto_permiso', 'puesto_permiso_select_caller_activo', '%fn_caller_ve_estructura_permisos%')) AS e(tabla, policy, patron)
 WHERE NOT EXISTS (SELECT 1 FROM pg_policies p
                   WHERE p.schemaname = 'personas' AND p.tablename = e.tabla AND p.policyname = e.policy AND p.cmd = 'SELECT' AND p.qual LIKE e.patron);
+
+-- 75) Separación nombre/identidad, paso aditivo (110_): (a) la policy de SELECT de personas.expediente debe seguir existiendo y exigir fn_caller_ve_identidad() (no volver a fn_caller_ve_padron());
+-- (b) fn_persona_crear NO usa RETURNING * y fn_persona_actualizar_datos NO lee identidad con COALESCE(p_x, columna) ni arma SQL con format()/%I; (c) fn_persona_identidad es SECURITY DEFINER con search_path
+-- exacto. Solo violaciones. Esperado: 0 filas DESPUÉS de aplicar 110_ (antes de aplicarla devuelve 3).
+SELECT 'expediente_select_caller_activo' AS objeto, 'no exige fn_caller_ve_identidad() o sigue usando fn_caller_ve_padron()' AS problema
+WHERE NOT EXISTS (SELECT 1 FROM pg_policies p WHERE p.schemaname = 'personas' AND p.tablename = 'expediente' AND p.cmd = 'SELECT'
+                  AND p.qual LIKE '%fn_caller_ve_identidad%' AND p.qual NOT LIKE '%fn_caller_ve_padron%')
+UNION ALL
+SELECT p.proname::text, 'usa RETURNING * o lee columnas de identidad / arma SQL con format'
+FROM pg_proc p
+WHERE p.pronamespace = 'personas'::regnamespace
+  AND ((p.proname = 'fn_persona_crear' AND p.prosrc ~* 'RETURNING \*')
+       OR (p.proname = 'fn_persona_actualizar_datos' AND (p.prosrc ~* 'COALESCE\(p_(curp|rfc|nss|fecha_nacimiento)' OR p.prosrc ~* 'format\(' OR p.prosrc ~ '%I')))
+UNION ALL
+SELECT 'fn_persona_identidad', 'no es SECURITY DEFINER con search_path = personas, pg_temp'
+WHERE NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'personas'::regnamespace AND p.proname = 'fn_persona_identidad'
+                  AND p.prosecdef AND p.proconfig = ARRAY['search_path=personas, pg_temp']);
