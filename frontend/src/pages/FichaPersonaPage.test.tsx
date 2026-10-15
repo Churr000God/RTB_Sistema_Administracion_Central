@@ -817,3 +817,145 @@ describe("FichaPersonaPage", () => {
     });
   });
 });
+
+describe("FichaPersonaPage · identidad con acceso restringido (110_/111_)", () => {
+  const SIN_IDENTIDAD = {
+    ...PERSONA,
+    curp: null,
+    rfc: null,
+    nss: null,
+    fecha_nacimiento: null,
+    tipo_contrato: null,
+    documento_ref: null,
+  };
+
+  function mockPersona(persona: Record<string, unknown>, extra?: (path: string, init?: RequestInit) => Response | undefined) {
+    vi.mocked(apiFetch).mockReset();
+    vi.mocked(apiFetch).mockImplementation((path: string, init?: RequestInit) => {
+      const r = extra?.(path, init);
+      if (r) return Promise.resolve(r);
+      if (path === "/api/sesion") {
+        return Promise.resolve(
+          new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null, persona_id: PERSONA.id })),
+        );
+      }
+      if (path.endsWith("/movimientos")) return Promise.resolve(new Response(JSON.stringify(MOVIMIENTOS)));
+      if (path === "/api/asignaciones") return Promise.resolve(new Response("[]"));
+      return Promise.resolve(new Response(JSON.stringify(persona)));
+    });
+  }
+
+  const nombre = "Mariana Guadalupe Alcántara Ruvalcaba";
+  const esperarFicha = () => waitFor(() => expect(screen.getAllByText(nombre).length).toBeGreaterThan(0));
+
+  it("con todos los campos (acceso estricto o la propia persona): muestra CURP, RFC, NSS, nacimiento y expediente", async () => {
+    mockPersona(PERSONA);
+    renderPagina();
+    await esperarFicha();
+    expect(screen.getByText(PERSONA.curp, { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText(PERSONA.rfc, { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText(PERSONA.nss, { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText("27 abr 1991")).toBeInTheDocument();
+    expect(screen.getByText(PERSONA.documento_ref)).toBeInTheDocument();
+  });
+
+  it("sin identidad (nulos): muestra «—», sin inventar un error ni un mensaje de acceso", async () => {
+    mockPersona(SIN_IDENTIDAD);
+    const { container } = render(
+      <MemoryRouter initialEntries={[`/personas/${PERSONA.id}`]}>
+        <Routes>
+          <Route path="/personas/:id" element={<FichaPersonaPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await esperarFicha();
+    const datos = container.querySelectorAll(".rejilla-datos .dato");
+    const valorDe = (etiqueta: string) =>
+      Array.from(datos).find((d) => d.querySelector("span")?.textContent === etiqueta)?.querySelector("strong")?.textContent;
+    expect(valorDe("CURP")).toBe("—");
+    expect(valorDe("RFC")).toBe("—");
+    expect(valorDe("NSS")).toBe("—");
+    expect(valorDe("Fecha de nacimiento")).toBe("—");
+    expect(screen.getByText("Sin expediente asignado.")).toBeInTheDocument();
+    expect(screen.queryByText(/null|undefined/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/sin acceso a este dato/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/no se pudo cargar la ficha/i)).not.toBeInTheDocument();
+  });
+
+  it("sin identidad: el formulario de edición no ofrece los campos de identidad (ni como vacíos)", async () => {
+    mockPersona(SIN_IDENTIDAD);
+    renderPagina();
+    await esperarFicha();
+    await userEvent.click(screen.getByRole("button", { name: /^editar$/i }));
+    expect(screen.queryByLabelText(/^curp$/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^rfc$/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^nss$/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/fecha de nacimiento/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/primer nombre/i)).toHaveValue(PERSONA.primer_nombre);
+    expect(screen.getByText(/no se muestran con tu acceso, por eso no se editan aquí/i)).toBeInTheDocument();
+  });
+
+  it("sin identidad: guardar sin tocar nada NO manda nulos ni vacíos (corta con «No modificaste ningún campo.»)", async () => {
+    mockPersona(SIN_IDENTIDAD);
+    renderPagina();
+    await esperarFicha();
+    await userEvent.click(screen.getByRole("button", { name: /^editar$/i }));
+    const antes = vi.mocked(apiFetch).mock.calls.length;
+    await userEvent.click(screen.getByRole("button", { name: /^guardar$/i }));
+    expect(await screen.findByText("No modificaste ningún campo.")).toBeInTheDocument();
+    expect(vi.mocked(apiFetch).mock.calls.length).toBe(antes);
+  });
+
+  it("sin identidad: un cambio de nombre manda sólo ese campo, sin curp/rfc/nss/fecha_nacimiento/tipo_contrato/documento_ref", async () => {
+    let cuerpo: Record<string, unknown> | null = null;
+    mockPersona(SIN_IDENTIDAD, (path, init) => {
+      if (path === `/api/personas/${PERSONA.id}` && init?.method === "PATCH") {
+        cuerpo = JSON.parse(String(init.body));
+        return new Response(JSON.stringify({ ...SIN_IDENTIDAD, primer_nombre: "Marianela" }));
+      }
+      return undefined;
+    });
+    renderPagina();
+    await esperarFicha();
+    await userEvent.click(screen.getByRole("button", { name: /^editar$/i }));
+    const campo = screen.getByLabelText(/primer nombre/i);
+    await userEvent.clear(campo);
+    await userEvent.type(campo, "Marianela");
+    await userEvent.click(screen.getByRole("button", { name: /^guardar$/i }));
+    await waitFor(() => expect(cuerpo).not.toBeNull());
+    expect(cuerpo).toEqual({ primer_nombre: "Marianela" });
+  });
+
+  it("identidad parcial: sólo se ofrecen para editar los campos que llegaron", async () => {
+    mockPersona({ ...PERSONA, curp: null, rfc: null });
+    renderPagina();
+    await esperarFicha();
+    await userEvent.click(screen.getByRole("button", { name: /^editar$/i }));
+    expect(screen.queryByLabelText(/^curp$/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^rfc$/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^nss$/i)).toHaveValue(PERSONA.nss);
+    expect(screen.getByLabelText(/fecha de nacimiento/i)).toHaveValue(PERSONA.fecha_nacimiento);
+  });
+
+  it("con identidad completa el formulario sí ofrece los cuatro campos y los manda si cambian", async () => {
+    let cuerpo: Record<string, unknown> | null = null;
+    mockPersona(PERSONA, (path, init) => {
+      if (path === `/api/personas/${PERSONA.id}` && init?.method === "PATCH") {
+        cuerpo = JSON.parse(String(init.body));
+        return new Response(JSON.stringify({ ...PERSONA, nss: "62119145339" }));
+      }
+      return undefined;
+    });
+    renderPagina();
+    await esperarFicha();
+    await userEvent.click(screen.getByRole("button", { name: /^editar$/i }));
+    for (const etiqueta of [/^curp$/i, /^rfc$/i, /^nss$/i, /fecha de nacimiento/i]) {
+      expect(screen.getByLabelText(etiqueta)).toBeInTheDocument();
+    }
+    const nss = screen.getByLabelText(/^nss$/i);
+    await userEvent.clear(nss);
+    await userEvent.type(nss, "62119145339");
+    await userEvent.click(screen.getByRole("button", { name: /^guardar$/i }));
+    await waitFor(() => expect(cuerpo).toEqual({ nss: "62119145339" }));
+  });
+});

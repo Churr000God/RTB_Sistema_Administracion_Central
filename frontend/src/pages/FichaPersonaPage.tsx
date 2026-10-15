@@ -40,10 +40,13 @@ type Persona = {
   segundo_nombre: string | null;
   apellido_paterno: string;
   apellido_materno: string | null;
-  curp: string;
-  rfc: string;
-  nss: string;
-  fecha_nacimiento: string;
+  // Identidad: el backend manda null si quien consulta no es del conjunto estricto ni es la propia persona
+  // (y también tipo_contrato/documento_ref del expediente). Null NO es un error ni un dato vacío: se
+  // muestra «—» y nunca se edita ni se envía como cambio.
+  curp: string | null;
+  rfc: string | null;
+  nss: string | null;
+  fecha_nacimiento: string | null;
   fecha_ingreso: string;
   estado: string;
   tipo_contrato: string | null;
@@ -241,10 +244,14 @@ export function FichaPersonaPage() {
     if (segundoNombre !== persona.segundo_nombre) cambios.segundo_nombre = segundoNombre;
     if (apellidoPaterno !== persona.apellido_paterno) cambios.apellido_paterno = apellidoPaterno;
     if (apellidoMaterno !== persona.apellido_materno) cambios.apellido_materno = apellidoMaterno;
-    if (curp !== persona.curp) cambios.curp = curp;
-    if (rfc !== persona.rfc) cambios.rfc = rfc;
-    if (nss !== persona.nss) cambios.nss = nss;
-    if (fechaNacimiento !== persona.fecha_nacimiento) cambios.fecha_nacimiento = fechaNacimiento;
+    // Un campo de identidad que llegó null no se ofrece en el formulario y NUNCA se manda: «» o null no son un
+    // cambio, serían un borrado.
+    if (persona.curp !== null && curp !== persona.curp) cambios.curp = curp;
+    if (persona.rfc !== null && rfc !== persona.rfc) cambios.rfc = rfc;
+    if (persona.nss !== null && nss !== persona.nss) cambios.nss = nss;
+    if (persona.fecha_nacimiento !== null && fechaNacimiento !== persona.fecha_nacimiento) {
+      cambios.fecha_nacimiento = fechaNacimiento;
+    }
     if (fechaIngreso !== persona.fecha_ingreso) cambios.fecha_ingreso = fechaIngreso;
     if (tipoContrato !== persona.tipo_contrato) cambios.tipo_contrato = tipoContrato;
     if (documentoRef !== persona.documento_ref) cambios.documento_ref = documentoRef;
@@ -397,6 +404,13 @@ export function FichaPersonaPage() {
                 label="Apellido materno"
                 defaultValue={persona.apellido_materno ?? ""}
               />
+              {persona.curp === null && persona.rfc === null && persona.nss === null && persona.fecha_nacimiento === null && (
+                <p className="ayuda-campo">
+                  Los datos de identidad (CURP, RFC, NSS y fecha de nacimiento) no se muestran con tu acceso, por eso
+                  no se editan aquí.
+                </p>
+              )}
+              {persona.curp !== null && (
               <Input
                 id="curp"
                 name="curp"
@@ -406,9 +420,11 @@ export function FichaPersonaPage() {
                 className="campo-identificador"
                 style={{ textTransform: "uppercase" }}
                 onChange={aMayusculas}
-                defaultValue={persona.curp}
+                defaultValue={persona.curp ?? ""}
                 ayuda="18 caracteres"
               />
+              )}
+              {persona.rfc !== null && (
               <Input
                 id="rfc"
                 name="rfc"
@@ -418,9 +434,11 @@ export function FichaPersonaPage() {
                 className="campo-identificador"
                 style={{ textTransform: "uppercase" }}
                 onChange={aMayusculas}
-                defaultValue={persona.rfc}
+                defaultValue={persona.rfc ?? ""}
                 ayuda="13 caracteres con homoclave"
               />
+              )}
+              {persona.nss !== null && (
               <Input
                 id="nss"
                 name="nss"
@@ -428,17 +446,20 @@ export function FichaPersonaPage() {
                 required
                 maxLength={11}
                 className="campo-identificador"
-                defaultValue={persona.nss}
+                defaultValue={persona.nss ?? ""}
                 ayuda="11 dígitos"
               />
+              )}
+              {persona.fecha_nacimiento !== null && (
               <Input
                 id="fecha_nacimiento"
                 name="fecha_nacimiento"
                 label="Fecha de nacimiento"
                 type="date"
                 required
-                defaultValue={persona.fecha_nacimiento}
+                defaultValue={persona.fecha_nacimiento ?? ""}
               />
+              )}
               <Input
                 id="fecha_ingreso"
                 name="fecha_ingreso"
@@ -524,15 +545,15 @@ export function FichaPersonaPage() {
                 </div>
                 <div className="dato">
                   <span>CURP</span>
-                  <strong className="campo-identificador">{persona.curp}</strong>
+                  <strong className="campo-identificador">{persona.curp ?? "—"}</strong>
                 </div>
                 <div className="dato">
                   <span>RFC</span>
-                  <strong className="campo-identificador">{persona.rfc}</strong>
+                  <strong className="campo-identificador">{persona.rfc ?? "—"}</strong>
                 </div>
                 <div className="dato">
                   <span>NSS</span>
-                  <strong className="campo-identificador">{persona.nss}</strong>
+                  <strong className="campo-identificador">{persona.nss ?? "—"}</strong>
                 </div>
                 <div className="dato">
                   <span>Fecha de nacimiento</span>
