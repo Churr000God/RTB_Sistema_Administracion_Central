@@ -296,3 +296,47 @@ usuario; cada escritura en la base real la corre el USUARIO con su comando (el c
 llave o contraseña pasa por el chat; `python3` está bloqueado (usar `uv run python`); los comandos con `!` corren en bash, la
 terminal normal del usuario es fish (`set -x VAR (cmd)`, sin heredoc); antes de dar un comando de aplicación, `db` guarda la
 reversa y la línea base.
+
+## 13. Cierre del desarrollo y arranque del piloto (15-oct-2026, tarde)
+
+**Decisión del usuario:** el desarrollo del checador (terminal + puente) y de los módulos 1 y 2 se da por CERRADO. El piloto
+arranca el **16-oct-2026 con el equipo completo de RTB**. Siguiente paso: sentarse con RH para que vea la interfaz de
+retroalimentación y empezar el manual/guía base de la aplicación. `orchestrator` ayuda a generar esa guía base.
+
+**Ventana E: CERRADA y ratificada por `security`.** Servicio sin reinicios espontáneos, recuperación sola tras reinicio real del
+Pi, cola en 0, reloj y freno sanos, servidor con 2487 latidos 200. Hallazgo de proceso: `verificar-puente.sh` era ciego a los
+logs de la app (sin `--namespace=puente` y filtrando por prioridad: el puente imprime `WARNING` como texto por stdout, journald
+lo guarda como info). Corregido en el Pi (copia `verificar-puente.sh.20261015T151737Z.bak`): namespace puente, filtro por texto
+`WARNING|ERROR|CRITICAL`, conteo por tipo, primer y último aviso, VmData/VmRSS/VmHWM/Threads, conteo de respaldos.
+
+**25 huecos de latido (90–159 s):** causa = red transitoria entre los dos equipos, ya identificada; no son defecto del puente.
+113 latidos fallidos con `ErrorTransitorio` (106 en las dos ráfagas), ~430 `context canceled` en el proxy de `tailscale serve`
+del servidor solo en esas horas, cambios de DERP home. Descartados con evidencia: E/S de la SD, subtensión/térmica
+(`throttled=0x0`), respaldo (1 s), caída del servidor. Hoy la ruta entre los dos Pi es directa por LAN. Barridos de
+reconciliación: 128 en ~23 h (uno cada ~11 min, todos inválidos por `mapa_vacio`/`turno_ocupado`/`servidor_no_disponible`,
+lo esperado con el servidor sin altas).
+
+**Telemetría de causa del fallo transitorio (`backend`, ratificada por `security`, SIN commit ni etiqueta):** en
+`checador-fisico/puente`, 2587 pruebas. Causas por CLASE (`ReadTimeout`, `ConnectTimeout`, `tls`, `dns`, `rechazada`,
+`http_429`, `http_5xx`, `otra`…), racimos con duración y causa dominante, `operador estado` con contadores de 24 h, WARNING
+deduplicado e INFO «latido recuperado». Condiciones para empaquetar: versión NUEVA (no 0.1.1: esa etiqueta ya existe y no se
+mueve; `pyproject.toml` dice 0.1.0), flujo verificado completo (etiqueta firmada, commit esperado dictado por el usuario,
+segunda construcción en CI y en la máquina del usuario, hashes en el acta, ventana de instalación) e incluir en el mismo corte
+`LimitDATA` en el archivo de unidad y `limite_memoria=` en `estado`. Banner «ENLACE CON EL SERVIDOR» y CRITICAL periódico para
+causas persistentes: propuesta de `security`, NO decidida (futuro).
+
+**Terminal reinstalada en su lugar definitivo (15-oct, ~16:00Z):** ingesta sana (`fallos_seguidos=0`), freno limpio, reloj
+sincronizado (+0.8 s / -1.2 s), cursor 184 (subió de 175 por 9 eventos propios de la terminal, sin marcas). El servicio
+arrancó de nuevo ~15:42Z: causa por confirmar con el usuario (¿reinicio o corte del Pi al moverla?).
+
+**Observaciones abiertas para el piloto (no bloquean):** (1) `VmData` 61 → 69.3 MiB en ~18 h (~0.5 MiB/h; tope 384 MiB):
+medir de nuevo a las 24 y 48 h con el guion corregido; si es lineal es hallazgo; (2) rotación de respaldos 7/30 observable
+recién el día 8–9 (~22–23-oct); (3) eventos `major=2` (`minor` 39, 1029, 1030, 1031) sin significado confirmado (el puente
+solo los cuenta; hipótesis `minor=39` = caída de red de la terminal, NO verificada; falta catálogo ISAPI o TI); (4) guion
+a contar racimos y no líneas cuando entre la versión nueva; (5) el humo con login real en la app sigue siendo la única
+condición abierta de `102_`–`106_`.
+
+**Aviso para el piloto con equipo completo:** el plan (`PLAN_PILOTO_TERMINAL_HIKVISION.md`) se pensó para un grupo reducido
+de personal avisado. Con todo el personal: confirmar que el consentimiento provisional v1 y el aviso previo al personal
+cubren a todos, planear el enrolamiento por oleadas (cada alta caduca a las 168 h y exige TI y RH presentes), y no dar de alta
+a nadie sin la persona ya creada en el servidor.

@@ -478,7 +478,7 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   rueda `b48c6d79…`) firmado y reconstruido de forma independiente en CI (R1), instalado por el flujo verificado;
   credenciales rotadas (llave `scjt_` id 2, contraseña de la terminal cambiada en su menú local); drop-in EPERM
   retirado tras comparar las 122 syscalls usadas con el filtro efectivo de systemd 257.9 (356; diferencia vacía);
-  producción continua sin incidentes en las ventanas A–D; ventana E (`enable` + reinicio real del Pi) en curso.
+  producción continua sin incidentes en las ventanas A–D; ventana E (`enable` + reinicio real del Pi) CERRADA y ratificada por `security` el 15 de octubre (huecos de latido = red transitoria; telemetría de causa del fallo escrita y ratificada, sin etiqueta todavía). El usuario dio por cerrado el desarrollo del checador y de los módulos 1 y 2; el piloto arranca el 16 de octubre con el equipo completo (ver §13 de la bitácora).
   Plan del piloto de un mes con personal avisado: `docs/07-procesos/PLAN_PILOTO_TERMINAL_HIKVISION.md`. Estado completo:
   `bitacora/2026-10-13_estado_de_la_sesion_para_retomar.md` (secciones 9 y 10).
 - **`78_*.sql` nunca se había aplicado y su fix era evadible; cerrado con `86_*.sql` (7 de octubre
