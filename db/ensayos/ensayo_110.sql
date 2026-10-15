@@ -156,6 +156,7 @@ BEGIN
   PERFORM pg_temp.corre(p_fase, 'U01 solo nombre', s7, base || ', p_primer_nombre => ''Editado'')', obj::uuid);
   PERFORM pg_temp.corre(p_fase, 'U02 curp en minúsculas (sin normalizar en SQL: igual que antes)', s7, base || ', p_curp => ''xexx010101hnexxv30'')', obj::uuid);
   PERFORM pg_temp.corre(p_fase, 'U03 rfc + nss + fecha_nacimiento + fecha_ingreso', s7, base || ', p_rfc => ''XEXV01010099'', p_nss => ''99999700099'', p_fecha_nacimiento => DATE ''1990-05-05'', p_fecha_ingreso => DATE ''2020-01-01'')', obj::uuid);
+  PERFORM pg_temp.corre(p_fase, 'U15 solo fecha_ingreso', s7, base || ', p_fecha_ingreso => DATE ''2021-03-03'')', obj::uuid);
   PERFORM pg_temp.corre(p_fase, 'U04 todos nulos (solo actualizado_en)', s7, base || ')', obj::uuid);
   PERFORM pg_temp.corre(p_fase, 'U05 tipo_contrato + documento_ref', s11, base || ', p_tipo_contrato => ''por_proyecto'', p_documento_ref => ''RTB-RH-EIT-2026-931'')', obj::uuid);
   PERFORM pg_temp.corre(p_fase, 'U06 solo documento_ref con formato inválido (23514)', s11, base || ', p_documento_ref => ''mal'')', obj::uuid);
@@ -198,8 +199,8 @@ SELECT pg_temp.verifica('A0 (documenta el hueco) ANTES de 110_: una persona SIN 
 
 \ir ../ddl/110_personas_identidad_separada_del_nombre.sql
 SELECT pg_temp.bateria('despues');
-SELECT pg_temp.verifica('E0 la batería de crear/actualizar da el MISMO resultado (SQLSTATE y huella de la fila) antes y después de 110_: 21 casos',
-  $$SELECT count(*) = 21 AND bool_and(a.resultado = d.resultado)
+SELECT pg_temp.verifica('E0 la batería de crear/actualizar da el MISMO resultado (SQLSTATE y huella de la fila) antes y después de 110_: 22 casos',
+  $$SELECT count(*) = 22 AND bool_and(a.resultado = d.resultado)
     FROM _bat a JOIN _bat d ON d.caso = a.caso AND d.fase = 'despues' WHERE a.fase = 'antes'$$);
 
 -- ============================================================================
@@ -338,8 +339,8 @@ ALTER FUNCTION personas.fn_persona_actualizar_datos(uuid, varchar, varchar, varc
 DROP FUNCTION personas.fn_persona_identidad(uuid);
 DROP FUNCTION personas.fn_caller_ve_identidad();
 SELECT pg_temp.bateria('reversa');
-SELECT pg_temp.verifica('D1 la batería de crear/actualizar da el MISMO resultado (SQLSTATE y huella de la fila) antes de 110_ y tras la reversa: 21 casos',
-  $$SELECT count(*) = 21 AND bool_and(a.resultado = d.resultado)
+SELECT pg_temp.verifica('D1 la batería de crear/actualizar da el MISMO resultado (SQLSTATE y huella de la fila) antes de 110_ y tras la reversa: 22 casos',
+  $$SELECT count(*) = 22 AND bool_and(a.resultado = d.resultado)
     FROM _bat a JOIN _bat d ON d.caso = a.caso AND d.fase = 'reversa' WHERE a.fase = 'antes'$$);
 SELECT pg_temp.verifica('D2 tras la reversa: las 2 funciones nuevas no existen',
   $$SELECT NOT EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace = 'personas'::regnamespace AND proname IN ('fn_persona_identidad', 'fn_caller_ve_identidad'))$$);
