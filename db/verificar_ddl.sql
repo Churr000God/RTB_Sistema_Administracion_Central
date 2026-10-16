@@ -1915,7 +1915,7 @@ WHERE p.pronamespace = 'personas'::regnamespace AND p.proname = 'fn_caller_tiene
            AND NOT EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE'));
 
 -- 78) Reglas de personas.asignacion tras 113_ (autoasignación y vigencia futura): debe existir el trigger trg_asignacion_valida_reglas (BEFORE, INSERT y UPDATE, por fila, habilitado) cuya lista de columnas sea
--- exactamente persona_id, puesto_id y vigente_desde, apuntando a personas.fn_asignacion_valida_reglas(); esa función debe ser de trigger, SECURITY INVOKER con search_path exacto, sin EXECUTE para nadie de la API,
+-- exactamente persona_id, puesto_id y vigente_desde (o esas más vigente_hasta tras 114_, que vigila la sección 79), apuntando a personas.fn_asignacion_valida_reglas(); esa función debe ser de trigger, SECURITY INVOKER con search_path exacto, sin EXECUTE para nadie de la API,
 -- y conservar los dos ERRCODE (SCJ19, SCJ20) y la fecha de México (fn_hoy_mexico, nunca CURRENT_DATE); y personas.fn_hoy_mexico debe seguir con search_path exacto. Solo violaciones. Esperado: 0 filas DESPUÉS
 -- de aplicar 113_ (antes de aplicarla devuelve 1).
 SELECT 'trg_asignacion_valida_reglas' AS objeto, 'falta el trigger, o no es BEFORE INSERT OR UPDATE OF persona_id, puesto_id, vigente_desde por fila, o está deshabilitado, o la función perdió una regla' AS problema
@@ -1925,7 +1925,7 @@ WHERE NOT EXISTS (
   JOIN pg_proc f ON f.oid = t.tgfoid AND f.pronamespace = 'personas'::regnamespace AND f.proname = 'fn_asignacion_valida_reglas'
   WHERE t.tgrelid = 'personas.asignacion'::regclass AND t.tgname = 'trg_asignacion_valida_reglas' AND NOT t.tgisinternal
     AND (t.tgtype & 1) = 1 AND (t.tgtype & 2) = 2 AND (t.tgtype & 4) = 4 AND (t.tgtype & 16) = 16 AND t.tgenabled = 'O'
-    AND (SELECT array_agg(a.attname::text ORDER BY a.attname) FROM pg_attribute a WHERE a.attrelid = t.tgrelid AND a.attnum = ANY (t.tgattr::int2[])) = ARRAY['persona_id', 'puesto_id', 'vigente_desde']
+    AND (SELECT array_agg(a.attname::text ORDER BY a.attname) FROM pg_attribute a WHERE a.attrelid = t.tgrelid AND a.attnum = ANY (t.tgattr::int2[])) IN (ARRAY['persona_id', 'puesto_id', 'vigente_desde'], ARRAY['persona_id', 'puesto_id', 'vigente_desde', 'vigente_hasta'])
     AND f.prorettype = 'trigger'::regtype AND NOT f.prosecdef AND f.proconfig = ARRAY['search_path=personas, pg_temp']
     AND f.prosrc LIKE '%SCJ19%' AND f.prosrc LIKE '%SCJ20%' AND f.prosrc LIKE '%fn_hoy_mexico(now())%' AND f.prosrc !~* 'CURRENT_DATE'
     AND NOT has_function_privilege('anon', f.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', f.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', f.oid, 'EXECUTE')
@@ -1934,3 +1934,34 @@ UNION ALL
 SELECT 'fn_hoy_mexico', 'sin search_path exacto o sin devolver la fecha de America/Mexico_City'
 WHERE NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'personas'::regnamespace AND p.proname = 'fn_hoy_mexico'
                   AND p.proconfig = ARRAY['search_path=personas, pg_temp'] AND p.prosrc LIKE '%America/Mexico_City%');
+
+-- 79) Reapertura de la asignación propia tras 114_: el trigger trg_asignacion_valida_reglas debe incluir `vigente_hasta` en su lista UPDATE OF (persona_id, puesto_id, vigente_desde, vigente_hasta) y la función
+-- debe conservar la regla de reapertura (OLD.vigente_hasta IS NOT NULL y NEW.vigente_hasta IS NULL sobre la fila propia => SCJ19), seguir INVOKER con search_path exacto y sin EXECUTE para nadie. Solo violaciones.
+-- Esperado: 0 filas DESPUÉS de aplicar 114_ (antes de aplicarla devuelve 1; requiere 113_).
+SELECT 'trg_asignacion_valida_reglas' AS objeto, 'no incluye vigente_hasta en UPDATE OF, o la función perdió la regla de reapertura / dejó de ser INVOKER con search_path exacto' AS problema
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM pg_trigger t
+  JOIN pg_proc f ON f.oid = t.tgfoid AND f.pronamespace = 'personas'::regnamespace AND f.proname = 'fn_asignacion_valida_reglas'
+  WHERE t.tgrelid = 'personas.asignacion'::regclass AND t.tgname = 'trg_asignacion_valida_reglas' AND t.tgenabled = 'O'
+    AND (SELECT array_agg(a.attname::text ORDER BY a.attname) FROM pg_attribute a WHERE a.attrelid = t.tgrelid AND a.attnum = ANY (t.tgattr::int2[])) = ARRAY['persona_id', 'puesto_id', 'vigente_desde', 'vigente_hasta']
+    AND f.prosrc LIKE '%OLD.vigente_hasta IS NOT NULL AND NEW.vigente_hasta IS NULL%' AND f.prosrc LIKE '%SCJ19%'
+    AND NOT f.prosecdef AND f.proconfig = ARRAY['search_path=personas, pg_temp']
+    AND NOT has_function_privilege('anon', f.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', f.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', f.oid, 'EXECUTE')
+);
+
+-- 80) Límite de plazas en la base tras 115_: debe existir trg_asignacion_valida_plazas (BEFORE INSERT OR UPDATE OF puesto_id, vigente_hasta, por fila, habilitado) cuya función sea SECURITY DEFINER con search_path
+-- exacto, dueño postgres, no LEAKPROOF, sin EXECUTE para nadie de la API, con la guarda de inicio (activo y asignacion_edicion), el candado consultivo por puesto, el conteo que excluye a la propia fila y el ERRCODE SCJ21. Solo violaciones.
+-- Esperado: 0 filas DESPUÉS de aplicar 115_ (antes de aplicarla devuelve 1).
+SELECT 'trg_asignacion_valida_plazas' AS objeto, 'falta el trigger, o no es BEFORE INSERT OR UPDATE OF puesto_id, vigente_hasta por fila, o la función perdió el candado / el conteo / SCJ21 / su configuración DEFINER' AS problema
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM pg_trigger t
+  JOIN pg_proc f ON f.oid = t.tgfoid AND f.pronamespace = 'personas'::regnamespace AND f.proname = 'fn_asignacion_valida_plazas'
+  WHERE t.tgrelid = 'personas.asignacion'::regclass AND t.tgname = 'trg_asignacion_valida_plazas' AND t.tgenabled = 'O'
+    AND (t.tgtype & 1) = 1 AND (t.tgtype & 2) = 2 AND (t.tgtype & 4) = 4 AND (t.tgtype & 16) = 16
+    AND (SELECT array_agg(a.attname::text ORDER BY a.attname) FROM pg_attribute a WHERE a.attrelid = t.tgrelid AND a.attnum = ANY (t.tgattr::int2[])) = ARRAY['puesto_id', 'vigente_hasta']
+    AND f.prosecdef AND f.proconfig = ARRAY['search_path=personas, pg_temp'] AND pg_get_userbyid(f.proowner) = 'postgres' AND NOT f.proleakproof AND f.prorettype = 'trigger'::regtype
+    AND f.prosrc LIKE '%pg_advisory_xact_lock%' AND f.prosrc LIKE '%a.id <> NEW.id%' AND f.prosrc LIKE '%SCJ21%' AND f.prosrc LIKE '%fn_caller_tiene_permiso(''asignacion_edicion'')%'
+    AND NOT has_function_privilege('anon', f.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', f.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', f.oid, 'EXECUTE')
+);
