@@ -450,7 +450,7 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
 - **Interruptor de la activación por huella, puente instalado y causa raíz del 401 (10–13 de octubre de 2026):**
   `94_` a `99_` aplicados en la base real (huella «sin conteo» B+C; `97_`/`98_` interruptor apagado de fábrica,
   solo `fn_terminal_inferir_huella_cambiar` lo enciende y exige consentimiento DEFINITIVO publicado; `99_` agrega
-  `tiempo.terminal.ingesta_detenida` y `fn_terminal_latido` de 7 argumentos). `100_` a `109_` también están aplicados
+  `tiempo.terminal.ingesta_detenida` y `fn_terminal_latido` de 7 argumentos). `100_` a `111_` también están aplicados
   (ver el bullet siguiente). Backend: router
   `routers/interruptor_huella.py` (contrato en `docs/07-procesos/CONTRATO_API_INTERRUPTOR_INFERIR_HUELLA.md`), tarjetas 14 y
   15 del tablero, `registro_seguro.py` (ninguna excepción registra su texto), y HTTPS del backend de pruebas por
@@ -471,8 +471,8 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   (reproducido en el ensayo: saldo 10, ledger 7); ahora es `DEFINER` con un solo `UPDATE` atómico, y
   `fn_movimiento_de_saldo_manual_registrar` es `DEFINER` y la ÚNICA vía de escritura manual (se eliminó la policy de
   INSERT y el `INSERT` de `authenticated`, porque con el trigger corregido esa policy habría movido saldo sin las
-  validaciones del RPC). Estado final de la base: DDL `00` a `109` (110 archivos), 76 policies, 85 funciones propias contando las de `public` (36 `SECURITY DEFINER`, todas con `search_path` fijo), 53 permisos,
-  `verificar_ddl.sql` 1–74 con la línea base de 10 (`108_`/`109_`: lectura del padrón y de las bitácoras por permiso, secciones 73 y 74) (`107_`: `personas.fn_persona_crear`, alta de persona y expediente en una sola transacción; la sección 72 avisa de personas sin expediente salvo la del usuario base) (`105_`: 13 funciones de trigger sin EXECUTE y las dos helpers de RLS sin PUBLIC/anon; `106_`: `search_path` de `fn_caller_tiene_permiso`; regla: toda función nueva hace su `REVOKE EXECUTE … FROM PUBLIC` y la lista cerrada de la sección 70 se amplía en el mismo commit). Lección: **al arreglar un trigger que antes era no-op, revisar qué
+  validaciones del RPC). Estado final de la base: DDL `00` a `111` (112 archivos), 76 policies, 87 funciones propias contando las de `public` (38 `SECURITY DEFINER`, todas con `search_path` fijo), 53 permisos,
+  `verificar_ddl.sql` 1–76 con la línea base de 10 (`108_`/`109_`: lectura del padrón y de las bitácoras por permiso, secciones 73 y 74; `110_`/`111_`: identidad separada del nombre, secciones 75 y 76) (`107_`: `personas.fn_persona_crear`, alta de persona y expediente en una sola transacción; la sección 72 avisa de personas sin expediente salvo la del usuario base) (`105_`: 13 funciones de trigger sin EXECUTE y las dos helpers de RLS sin PUBLIC/anon; `106_`: `search_path` de `fn_caller_tiene_permiso`; regla: toda función nueva hace su `REVOKE EXECUTE … FROM PUBLIC` y la lista cerrada de la sección 70 se amplía en el mismo commit). Lección: **al arreglar un trigger que antes era no-op, revisar qué
   caminos de escritura quedan ahora con efecto real**. Pendiente de `db`: grupo E (UPDATE/DELETE de `service_role` en
   `tiempo`, leer cada RPC INVOKER/DEFINER) y el diccionario V1.6 completo; excepciones documentadas: `public.rls_auto_enable` y `graphql_public.graphql` (de Supabase). Puente: paquete `puente-v0.1.1` (commit `ba4d825`,
   rueda `b48c6d79…`) firmado y reconstruido de forma independiente en CI (R1), instalado por el flujo verificado;
@@ -493,11 +493,16 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   directorio. `108_` (función DEFINER `fn_caller_ve_padron()`: fila propia o alguno de 27 permisos, una
   sola CTE, sin recursión de RLS) y `109_` (bitácora de movimientos de personas, bitácora de permisos
   por puesto y `puesto_permiso` con regla de estructura o rama propia). Verificado con `SET ROLE`:
-  persona sin puesto 1/1/1/0/0/0/0 filas, usuario base todo. **Residual conocido:** RLS filtra filas, no
-  columnas; quien pase la regla (cualquier permiso de módulo) lee CURP/RFC/NSS por la API directa. Segunda
-  fase planeada: `110_` (nombre separado de identidad con REVOKE por columna; los resolvers de nombres
-  pasan a servicio tras el gate) y `111_` (`fn_caller_tiene_permiso` a DEFINER: Tiempo pasó de ~10 a
-  ~57 ms con 108_). (3) **`/api/sesion` robusta:** un 57014 puntual (timeout de la base) dejaba
+  persona sin puesto 1/1/1/0/0/0/0 filas, usuario base todo. **Residual cerrado el 16-oct:** RLS filtra
+  filas, no columnas, así que `110_` (aditiva: `fn_caller_ve_identidad`, `fn_persona_identidad` DEFINER que
+  da CURP/RFC/NSS/nacimiento y expediente solo a la propia persona o a ver_modulo_1/alta_personas_usuarios/
+  persona_edicion/cambio_estado_persona; `fn_persona_crear` sin `RETURNING *`; `fn_persona_actualizar_datos`
+  con UPDATE de fragmentos fijos) y `111_` (`REVOKE SELECT` de tabla en `personas.persona` a `authenticated`
+  y `GRANT SELECT` de 9 columnas de nombre) sacan la identidad de la API directa; solo `service_role` y el
+  dueño la leen, así que un lint de CI (`test_sin_select_estrella_en_persona.py`) prohíbe `select("*")` sobre
+  `persona`. **Regla:** toda columna NUEVA de `personas.persona` necesita su `GRANT SELECT` de columna a
+  `authenticated` o declararse de identidad (sección 76 del verificador la reporta). Pendiente aparte: `112_`
+  (`fn_caller_tiene_permiso` a DEFINER: Tiempo pasó de ~10 a ~57 ms con 108_). (3) **`/api/sesion` robusta:** un 57014 puntual (timeout de la base) dejaba
   sin sesión a la persona y el frontend, fail-open, abrió todo. Ahora usuario + estado en una consulta,
   las 4 lecturas de permisos en paralelo con la misma regla de herencia, reintento único de transitorios
   y 503 con `Retry-After`; el frontend dejó el `?? true` (cargando / error con Reintentar / cargada) y solo
@@ -590,7 +595,7 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   `http://localhost:5173` fijo a mano — esa configuración no vive en este repositorio. Al pasar a
   producción (`docker compose … prod`, frontend en `:8080`) hay que actualizarla ahí también, o
   los links de invitación/recuperación de contraseña no aterrizan en la app.
-- El DDL llega hasta `db/ddl/109_*.sql` (110 archivos, `00` a `109`; 76 policies tras `104_`) y TODO está aplicado en la base real; el resto de este renglón conserva el detalle histórico hasta `93_` (`88_`-`92_` aplicados el 8 de octubre de 2026 tras ensayos `BEGIN…ROLLBACK` 143/143, 60/60, 21/21, 22/22 y 38/38; `93_` aplicado el 9 de octubre de 2026 tras ensayo `BEGIN…ROLLBACK` 19/19 y revisión de `security`; `verificar_ddl.sql` completo en 0 filas, 72 funciones, 76 policies, 53 permisos; única excepción: 1 huérfano de `auth.users`, `prueba-diagnostico-local@example.com`, ajeno al DDL, aceptado por el usuario el 9 de octubre de 2026 — se deja). `92_` ata autor y hora de `personas.bitacora_movimiento_persona` (el INSERT en `personas.usuario` debe hacerse siempre con `service_role`). `personas.permiso`
+- El DDL llega hasta `db/ddl/111_*.sql` (112 archivos, `00` a `111`; 76 policies tras `104_`) y TODO está aplicado en la base real; el resto de este renglón conserva el detalle histórico hasta `93_` (`88_`-`92_` aplicados el 8 de octubre de 2026 tras ensayos `BEGIN…ROLLBACK` 143/143, 60/60, 21/21, 22/22 y 38/38; `93_` aplicado el 9 de octubre de 2026 tras ensayo `BEGIN…ROLLBACK` 19/19 y revisión de `security`; `verificar_ddl.sql` completo en 0 filas, 72 funciones, 76 policies, 53 permisos; única excepción: 1 huérfano de `auth.users`, `prueba-diagnostico-local@example.com`, ajeno al DDL, aceptado por el usuario el 9 de octubre de 2026 — se deja). `92_` ata autor y hora de `personas.bitacora_movimiento_persona` (el INSERT en `personas.usuario` debe hacerse siempre con `service_role`). `personas.permiso`
   es la única tabla del proyecto con clave natural (`codigo varchar PRIMARY KEY`) en vez de `uuid`
   — decisión deliberada, fiel a la redacción literal de `SCJ-PRO-05`, no un descuido a corregir.
 - Las tablas de bitácora inmutables (`bitacora_movimiento_persona`,

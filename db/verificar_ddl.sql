@@ -1882,3 +1882,22 @@ UNION ALL
 SELECT 'fn_persona_identidad', 'no es SECURITY DEFINER con search_path = personas, pg_temp'
 WHERE NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'personas'::regnamespace AND p.proname = 'fn_persona_identidad'
                   AND p.prosecdef AND p.proconfig = ARRAY['search_path=personas, pg_temp']);
+
+-- 76) Privilegios de columna de personas.persona tras 111_ (separación nombre/identidad). Solo violaciones. (a) authenticated NO puede leer curp, rfc, nss ni fecha_nacimiento (ni por SELECT de tabla ni de
+-- columna) y anon tampoco; (b) toda columna de persona que no es de identidad y que authenticated NO puede leer se reporta (columna nueva sin GRANT: el listado la perdería en silencio; hay que
+-- conceder el SELECT de columna o declararla de identidad en esta lista). Esperado: 0 filas DESPUÉS de aplicar 111_ (antes de aplicarla devuelve 5: tabla + 4 columnas).
+SELECT 'authenticated' AS rol, c.column_name::text AS objeto, 'puede leer identidad' AS problema
+FROM (VALUES ('curp'), ('rfc'), ('nss'), ('fecha_nacimiento')) AS c(column_name)
+WHERE has_column_privilege('authenticated', 'personas.persona', c.column_name, 'SELECT')
+UNION ALL
+SELECT 'authenticated', 'personas.persona', 'conserva SELECT de TABLA' WHERE has_table_privilege('authenticated', 'personas.persona', 'SELECT')
+UNION ALL
+SELECT 'anon', c.column_name::text, 'puede leer identidad'
+FROM (VALUES ('curp'), ('rfc'), ('nss'), ('fecha_nacimiento')) AS c(column_name)
+WHERE has_column_privilege('anon', 'personas.persona', c.column_name, 'SELECT')
+UNION ALL
+SELECT 'authenticated', a.attname::text, 'columna nueva sin GRANT de SELECT (conceder o declarar de identidad)'
+FROM pg_attribute a
+WHERE a.attrelid = 'personas.persona'::regclass AND a.attnum > 0 AND NOT a.attisdropped
+  AND a.attname NOT IN ('curp', 'rfc', 'nss', 'fecha_nacimiento')
+  AND NOT has_column_privilege('authenticated', 'personas.persona', a.attname, 'SELECT');

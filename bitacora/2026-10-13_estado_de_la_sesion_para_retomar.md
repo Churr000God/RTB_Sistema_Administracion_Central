@@ -374,3 +374,20 @@ el usuario base ve todo igual. `db` midió con `SET ROLE`: sin puesto 1/1/1/0/0/
   cada alta caduca a las 168 h), fecha de inicio. Guía base de la aplicación (alta de persona y usuario) en
   elaboración con capturas de RH; las capturas no deben llevar CURP/RFC/NSS, enlace de invitación, QR ni clave de 2FA.
 - Diccionario SCJ-DIC-01 V1.6 (funciones nuevas y 7 policies) y README de ensayos 107–109.
+
+## 15. Cierre de la identidad y estado para el piloto (16-oct-2026, madrugada UTC)
+
+`110_` (aditiva) y `111_` (cierre) aplicadas por el usuario, ambas con ensayo `BEGIN…ROLLBACK` (17/17 y 28/28, batería de
+equivalencia de 22 casos de crear/actualizar idéntica antes y después) y revisión de `security`. Desde `111_`,
+`authenticated` solo lee 9 columnas de `personas.persona` (id, nombres, apellidos, estado, fecha_ingreso, fecha_baja,
+actualizado_en); CURP/RFC/NSS/fecha de nacimiento solo salen por `personas.fn_persona_identidad` (propia persona o
+conjunto estricto) y por `service_role`/dueño. Backend `ee21e8d` y frontend desplegados antes de aplicar `111_`.
+Verificador 1–76, línea base de 10, 87 funciones propias (con las de `public`), 76 policies. Regla nueva: toda columna
+nueva de `persona` necesita su `GRANT SELECT` de columna o declararse de identidad (sección 76).
+
+**Vigilancia:** 42501 «permission denied for table persona» en logs del backend (reversa instantánea
+`GRANT SELECT ON personas.persona TO authenticated;`) y, al día siguiente, que los jobs programados (cierre de día,
+corte, de confianza) no lo hayan registrado. **Pendiente:** `112_` (`fn_caller_tiene_permiso` a DEFINER, rendimiento de
+Tiempo), guarda de pantalla en `/estructura/*` y `/tiempo/*`, rendimiento de `schema()` de postgrest-py en el resto de
+endpoints, medir la latencia de `/api/sesion`, borrar `.env.bak-frontend-url-20261015` del Pi de pruebas, diccionario
+V1.6, y del piloto: consentimiento provisional v1, aviso al personal, enrolamiento por oleadas y fecha.
