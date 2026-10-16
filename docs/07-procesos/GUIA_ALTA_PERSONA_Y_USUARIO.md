@@ -85,7 +85,9 @@ para que entre al sistema. La huella en la terminal de checado es **otra guía**
 
 3. **Verificación en dos pasos.** El sistema pide configurar una app autenticadora (Google Authenticator, Microsoft Authenticator o
    Authy): se escanea el código QR y se escribe el código de 6 dígitos. En la app aparecerá como **«RTB Administración Central»**.
-   **El código QR y la clave manual son secretos: nunca los fotografíes ni los compartas.**
+   **El código QR y la clave manual son secretos: nunca los fotografíes ni los compartas** (en esta captura están tapados a propósito).
+
+   ![Configurar la verificación en dos pasos (QR y clave tapados)](guia_alta/alta_07c_configurar_2fa.png)
 4. Al **iniciar sesión**, además de su correo y contraseña, el sistema le pide el **código de 6 dígitos** de su app autenticadora:
 
    ![Verificación en dos pasos al iniciar sesión](guia_alta/alta_10_verificacion_dos_pasos_inicio_sesion.png)
@@ -120,5 +122,4 @@ para que entre al sistema. La huella en la terminal de checado es **otra guía**
 - No inventes un folio: pide el consecutivo al responsable del expediente físico.
 
 ---
-*Pendiente de completar en esta guía:* captura de «Invitación enviada.» (no se tomó en la primera alta; se toma en la siguiente) y la pantalla de
-configurar el 2FA sin código QR ni clave manual.
+*Pendiente de completar en esta guía:* captura de «Invitación enviada.» (no se tomó en la primera alta; se toma en la siguiente).
