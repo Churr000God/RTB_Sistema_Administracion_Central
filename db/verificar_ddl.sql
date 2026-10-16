@@ -1901,3 +1901,14 @@ FROM pg_attribute a
 WHERE a.attrelid = 'personas.persona'::regclass AND a.attnum > 0 AND NOT a.attisdropped
   AND a.attname NOT IN ('curp', 'rfc', 'nss', 'fecha_nacimiento')
   AND NOT has_column_privilege('authenticated', 'personas.persona', a.attname, 'SELECT');
+
+-- 77) personas.fn_caller_tiene_permiso tras 112_: SECURITY DEFINER con search_path exacto, dueño postgres, EXECUTE solo authenticated y service_role (ni PUBLIC ni anon), un único parámetro (el código: no recibe
+-- identidad ajena) y su cuerpo conserva la guarda de persona activa (personas.fn_caller_activo()) y usa auth.uid(). Una vuelta atrás silenciosa a INVOKER, un parámetro de identidad añadido o la pérdida de la
+-- guarda (que haría que una persona suspendida recupere permisos) aparecen aquí. Solo violaciones. Esperado: 0 filas DESPUÉS de aplicar 112_ (antes de aplicarla devuelve 1).
+SELECT p.proname::text AS funcion, 'no es SECURITY DEFINER con search_path exacto, o recibe más de un parámetro, o pierde la guarda fn_caller_activo()/auth.uid(), o su EXECUTE no es solo authenticated+service_role' AS problema
+FROM pg_proc p
+WHERE p.pronamespace = 'personas'::regnamespace AND p.proname = 'fn_caller_tiene_permiso'
+  AND NOT (p.prosecdef AND p.proconfig = ARRAY['search_path=personas, pg_temp'] AND pg_get_userbyid(p.proowner) = 'postgres'
+           AND p.pronargs = 1 AND p.prosrc LIKE '%personas.fn_caller_activo()%' AND p.prosrc LIKE '%auth.uid()%'
+           AND has_function_privilege('authenticated', p.oid, 'EXECUTE') AND has_function_privilege('service_role', p.oid, 'EXECUTE') AND NOT has_function_privilege('anon', p.oid, 'EXECUTE')
+           AND NOT EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE'));
