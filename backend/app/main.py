@@ -14,6 +14,7 @@ from postgrest.exceptions import APIError
 from app.config import parse_frontend_urls
 from app.errores import CODIGOS_MIGRACION_FALTANTE, MENSAJE_DATOS_INVALIDOS
 from app.registro_seguro import PAQUETES_CON_MENSAJE_SENSIBLE, tiene_mensaje_registrable, traza_sin_mensaje  # noqa: F401
+from app.latencia import MedirLatencia, configurar_registro_de_latencia
 from app.interruptor_huella import PREFIJO as PREFIJO_INTERRUPTOR_HUELLA, SinCacheInterruptor, codigo_de_validacion
 from app.respuestas_error import ErrorConCampos, manejar_error_con_campos
 from app.scheduler import lifespan
@@ -41,6 +42,8 @@ app.add_middleware(
 app.add_middleware(SinCacheInterruptor)  # Cache-Control: no-store en todo el prefijo del interruptor (nombres y notas de texto libre)
 app.add_middleware(LimiteCuerpoTerminal)
 app.add_middleware(CabecerasTerminal)  # el más externo: cubre también el 413 y las respuestas de los handlers
+configurar_registro_de_latencia()
+app.add_middleware(MedirLatencia)  # UNA línea INFO por petición (método, plantilla, status, ms) en `app.latencia`; ver app/latencia.py
 
 # Avisos de despliegue (FORWARDED_ALLOW_IPS='*', proxies /0): sólo WARNING, no falla el arranque.
 advertir_despliegue(os.environ)
