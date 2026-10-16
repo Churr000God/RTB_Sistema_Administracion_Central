@@ -41,7 +41,7 @@ MENSAJE_ADMINISTRADOR_SIN_ACCESO = (
     "No se puede hacer esto: dejaría al puesto administrador sin acceso."
 )
 MENSAJE_TERMINO_ANTERIOR_AL_INICIO = "La fecha de término no puede ser anterior al inicio de la asignación."
-MENSAJE_AUTOASIGNACION = "No puedes asignarte ni cambiarte de puesto a ti mismo; lo hace otra persona con permiso."
+MENSAJE_AUTOASIGNACION = "No puedes asignarte, cambiarte ni reabrirte una asignación a ti mismo; lo hace otra persona con permiso."
 MENSAJE_INICIO_FUTURO = "La fecha de inicio no puede ser futura."
 
 CODIGO_VIOLACION_CHECK = "23514"
@@ -53,14 +53,19 @@ CODIGO_AUTOASIGNACION = "SCJ19"
 HINT_AUTOASIGNACION = "autoasignacion_no_permitida"
 CODIGO_INICIO_FUTURO = "SCJ20"
 HINT_INICIO_FUTURO = "vigencia_futura_no_permitida"
+# 115_: el trigger de plazas es la RED DE SEGURIDAD de la carrera (dos altas casi simultáneas al último lugar); la comprobación previa en Python (`_validar_puesto_con_plazas_libres`) se conserva.
+CODIGO_PLAZAS_LLENAS = "SCJ21"
+HINT_PLAZAS_LLENAS = "plazas_llenas"
 
 
 def _traducir_error_de_113(error: APIError) -> HTTPException | None:
-    """422 con mensaje FIJO (sin texto de la base) para los dos rechazos nuevos de 113_; None si el error no es de esa familia."""
+    """422 con mensaje FIJO (sin texto de la base) para los rechazos de 113_/114_/115_ (autoasignación o reapertura propia, inicio futuro, plazas llenas por carrera); None si el error no es de esa familia."""
     if error.code == CODIGO_AUTOASIGNACION and (error.hint or "") == HINT_AUTOASIGNACION:
         return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_AUTOASIGNACION)
     if error.code == CODIGO_INICIO_FUTURO and (error.hint or "") == HINT_INICIO_FUTURO:
         return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_INICIO_FUTURO)
+    if error.code == CODIGO_PLAZAS_LLENAS and (error.hint or "") == HINT_PLAZAS_LLENAS:
+        return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_PLAZAS_LLENAS)
     return None
 
 

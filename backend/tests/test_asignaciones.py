@@ -758,6 +758,7 @@ def test_requiere_permiso_sin_mensaje_conserva_el_texto_historico_de_los_demas_r
 
 def test_los_codigos_de_113_son_los_reales():
     c = router_asignaciones
+    assert (c.CODIGO_PLAZAS_LLENAS, c.HINT_PLAZAS_LLENAS) == ("SCJ21", "plazas_llenas")
     assert (c.CODIGO_AUTOASIGNACION, c.HINT_AUTOASIGNACION) == ("SCJ19", "autoasignacion_no_permitida")
     assert (c.CODIGO_INICIO_FUTURO, c.HINT_INICIO_FUTURO) == ("SCJ20", "vigencia_futura_no_permitida")
 
@@ -802,8 +803,9 @@ def _respuesta_113(codigo, hint):
 
 
 @pytest.mark.parametrize("codigo,hint,esperado", [
-    ("SCJ19", "autoasignacion_no_permitida", "No puedes asignarte ni cambiarte de puesto a ti mismo; lo hace otra persona con permiso."),
+    ("SCJ19", "autoasignacion_no_permitida", "No puedes asignarte, cambiarte ni reabrirte una asignación a ti mismo; lo hace otra persona con permiso."),
     ("SCJ20", "vigencia_futura_no_permitida", "La fecha de inicio no puede ser futura."),
+    ("SCJ21", "plazas_llenas", "El puesto no tiene plazas libres."),
 ])
 def test_alta_con_el_apierror_real_de_postgrest_py_para_scj19_y_scj20(codigo, hint, esperado):
     previo = _entradas_gate() + [
@@ -825,8 +827,9 @@ def test_alta_con_el_apierror_real_de_postgrest_py_para_scj19_y_scj20(codigo, hi
 
 
 @pytest.mark.parametrize("codigo,hint,esperado", [
-    ("SCJ19", "autoasignacion_no_permitida", "No puedes asignarte ni cambiarte de puesto a ti mismo; lo hace otra persona con permiso."),
+    ("SCJ19", "autoasignacion_no_permitida", "No puedes asignarte, cambiarte ni reabrirte una asignación a ti mismo; lo hace otra persona con permiso."),
     ("SCJ20", "vigencia_futura_no_permitida", "La fecha de inicio no puede ser futura."),
+    ("SCJ21", "plazas_llenas", "El puesto no tiene plazas libres."),
 ])
 def test_cambiar_puesto_con_el_apierror_real_de_postgrest_py_para_scj19_y_scj20(codigo, hint, esperado):
     previo = _entradas_gate() + [
@@ -845,3 +848,56 @@ def test_cambiar_puesto_con_el_apierror_real_de_postgrest_py_para_scj19_y_scj20(
     assert r.status_code == 422 and r.json()["detail"] == esperado
     assert "TEXTO INTERNO" not in r.text and "detalle interno" not in r.text
     assert len(peticiones) == 1 and peticiones[0].url.path.endswith("/rpc/fn_asignacion_cambiar_puesto")
+
+
+def test_el_mensaje_de_scj19_cubre_asignar_cambiar_y_reabrir():
+    m = router_asignaciones.MENSAJE_AUTOASIGNACION
+    assert m == "No puedes asignarte, cambiarte ni reabrirte una asignación a ti mismo; lo hace otra persona con permiso."
+    assert "asignarte" in m and "cambiarte" in m and "reabrirte" in m
+
+
+@pytest.mark.parametrize("codigo,hint", [
+    ("SCJ21", "otro_hint"), ("SCJ21", None), ("SCJ19", "plazas_llenas"), ("SCJ20", "plazas_llenas"), ("P0001", "plazas_llenas"), ("23505", "plazas_llenas"),
+])
+def test_un_error_de_otro_codigo_o_hint_no_se_confunde_con_plazas_llenas(codigo, hint):
+    error = APIError({"code": codigo, "message": "x", "hint": hint})
+    traduccion = router_asignaciones._traducir_error_de_113(error)
+    assert traduccion is None or traduccion.detail != router_asignaciones.MENSAJE_PLAZAS_LLENAS
+
+
+def test_scj21_con_otro_hint_en_el_alta_no_se_traduce_a_plazas_llenas_y_se_propaga_sin_texto():
+    previo = _entradas_gate() + [
+        ("persona", _tabla_select_simple([{"id": PERSONA_ID, "estado": "activo"}])),
+        ("puesto", _tabla_select_simple([{"id": PUESTO_ID, "activo": True, "plazas_totales": 2}])),
+        ("asignacion", _tabla_select_eq_is([])),
+    ]
+    fake_client, _ = _cliente_con_postgrest_real(previo, _respuesta_113("SCJ21", "hint_de_otra_cosa"), "insert")
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+    try:
+        r = TestClient(app, raise_server_exceptions=False).post("/api/asignaciones", json=_cuerpo_alta(), headers={"Authorization": "Bearer fake-token"})
+    finally:
+        app.dependency_overrides.clear()
+    assert r.status_code == 500 and "plazas" not in r.text and "TEXTO INTERNO" not in r.text
+
+
+def test_la_comprobacion_previa_de_plazas_en_python_se_conserva():
+    """El trigger de 115_ es la red de seguridad de la carrera; el caso normal (puesto lleno) sigue dando el mismo 422 ANTES de insertar."""
+    insercion = MagicMock()
+    fake_client = _fake_client_secuencia(
+        _entradas_gate()
+        + [
+            ("persona", _tabla_select_simple([{"id": PERSONA_ID, "estado": "activo"}])),
+            ("puesto", _tabla_select_simple([{"id": PUESTO_ID, "activo": True, "plazas_totales": 1}])),
+            ("asignacion", _tabla_select_eq_is([{"id": "ocupada"}])),
+            ("asignacion", insercion),
+        ]
+    )
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+    try:
+        r = TestClient(app, raise_server_exceptions=False).post("/api/asignaciones", json=_cuerpo_alta(), headers={"Authorization": "Bearer fake-token"})
+    finally:
+        app.dependency_overrides.clear()
+    assert r.status_code == 422 and r.json()["detail"] == "El puesto no tiene plazas libres."
+    insercion.insert.assert_not_called()
