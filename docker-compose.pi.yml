@@ -1,0 +1,37 @@
+# Pi de pruebas (raspberrypi-serverpruebas) — ajustes que solo aplican a esa máquina.
+# Override de docker-compose.yml + docker-compose.prod.yml, se suma como TERCER archivo:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.pi.yml up -d --no-deps backend
+#   (o DESPLEGAR_PERFIL=pi ./scripts/desplegar.sh prod <accion>)
+#
+# Versionado el 16 de octubre de 2026: hasta entonces estas tres cosas vivían solo editadas a mano en el
+# docker-compose.prod.yml local del Pi y se habrían perdido al reconstruirlo desde git. Detalle de lo demás que
+# también vive solo en el Pi (tailscale serve, .env): docs/07-procesos/ARRANQUE_PI_DE_PRUEBAS.md.
+
+services:
+  backend:
+    # El puerto solo escucha en el propio Pi: lo expone `tailscale serve` por HTTPS (443 → 127.0.0.1:8000).
+    # `!override` sustituye la lista del prod (sin él se SUMARÍA y el 8000 quedaría abierto en todas las interfaces).
+    ports: !override
+      - "127.0.0.1:8000:8000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Subred fija: el gateway 172.19.0.1 es la IP que ve el backend para el tráfico que entra por
+# 127.0.0.1:8000 (TERMINAL_PROXIES_CONFIANZA=172.19.0.1 en el .env del Pi); no debe cambiar al recrear la red.
+# Las otras redes del Pi usan 172.18, 172.20 y 172.21.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.19.0.0/16

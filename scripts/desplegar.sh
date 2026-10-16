@@ -112,6 +112,10 @@ validar_configuracion() {
 ARCHIVOS_COMPOSE=(-f docker-compose.yml)
 if [[ "$ENTORNO" == "prod" ]]; then
   ARCHIVOS_COMPOSE+=(-f docker-compose.prod.yml)
+  # Perfil opt-in del Pi de pruebas (bind 127.0.0.1:8000, subred fija y límite de logs): DESPLEGAR_PERFIL=pi
+  if [[ "${DESPLEGAR_PERFIL:-}" == "pi" ]]; then
+    ARCHIVOS_COMPOSE+=(-f docker-compose.pi.yml)
+  fi
 fi
 
 compose() {
