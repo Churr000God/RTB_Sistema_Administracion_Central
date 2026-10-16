@@ -424,3 +424,27 @@ Supabase); de `db`: diccionario V1.6, README de ensayos 107–112 y el «grupo E
 campo de sesión `puede_editar_persona` para ocultar el botón «Editar»; guarda de pantalla en la ficha y la bitácora de
 asignaciones; `identidad_visible` en la ficha; nombre completo en `/inicio`; texto de «Restablece tu contraseña» en la
 pantalla de invitación («Crea tu contraseña»); banner «enlace con el servidor» del puente (propuesta de `security`).
+
+## 18. Reglas de las asignaciones de puesto (`113_`–`115_`, 16-oct-2026)
+
+Hallazgo de `testing` al preparar la guía de «asignar puesto», verificado por `security`: no existía regla de auto-asignación para
+asignaciones de puesto (quien tenía `asignacion_edicion` podía terminar la asignación ajena de un puesto con más permisos y
+asignarse a sí mismo, sin pasar por `otorgar_permiso`; la policy se usa por PostgREST directo, así que Python no bastaba), una
+asignación con `vigente_desde` futuro daba permisos YA, el límite de plazas solo estaba en Python y se podía reabrir la propia
+asignación cerrada. Cuatro cierres, uno por ventana, todos aplicados por el usuario y verificados por `db` (ensayos 33/33, 40/40,
+27/27, humo con `SET ROLE` y usuario base real):
+
+| Migración | Regla | Error |
+|---|---|---|
+| `113_` | no autoasignarse ni recolocarse; sin `vigente_desde` posterior a hoy en hora de México (`fn_hoy_mexico`, nunca `CURRENT_DATE`) | `SCJ19` / `SCJ20` |
+| `114_` | no reabrir la propia asignación cerrada (las reglas de `113_` se evalúan sobre el cambio real) | `SCJ19` |
+| `115_` | un puesto no supera sus `plazas_totales` (DEFINER, `pg_advisory_xact_lock`, depende de READ COMMITTED; guarda de `asignacion_edicion`) | `SCJ21` |
+
+Excepción deliberada: `auth.uid()` nulo (dueño/`service_role`: bootstrap del usuario base) salta las reglas; un lint de CI
+(`test_asignacion_solo_con_cliente_de_caller.py`) impide que un router escriba asignaciones con el cliente de servicio.
+Backend (`a3ae3f1`) mapea los tres errores a 422 con mensajes fijos y el frontend limita la fecha de inicio a hoy en México.
+**Dato real:** el puesto administrador tiene 2 vigentes con 1 plaza (la persona real de TI desde el 10-sep y el usuario base de
+bootstrap desde el 23-sep, insertado por `26_` sin mirar plazas): no es un defecto; regularizar con `plazas_totales = 2` por la UI.
+**Cifras finales:** DDL `00`–`115` (116 archivos), 76 policies, 90 funciones propias (40 DEFINER), verificador 1–80 con línea
+base de 10, ERRCODE propios hasta `SCJ21`. **Pendiente:** terminar con fecha previa devolvía 500 (corregido a 422), plazas de TI,
+`114_`-reapertura con hint propio (mejora futura) y pasar `26_` y los scripts de bootstrap a `fn_hoy_mexico()`.

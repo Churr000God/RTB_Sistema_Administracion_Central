@@ -201,6 +201,12 @@ CREATE FUNCTION pg_temp.ins(p_persona text, p_puesto text) RETURNS text AS $$
 $$ LANGUAGE sql;
 CREATE FUNCTION pg_temp.hoy() RETURNS date AS $$ SELECT (now() AT TIME ZONE 'America/Mexico_City')::date $$ LANGUAGE sql;
 
+-- Reejecutable tras aplicar 115_ en la base real: si ya existe, se retira DENTRO del ensayo (se revierte con el ROLLBACK) para reproducir el estado «antes»
+SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_asignacion_valida_plazas' AND tgrelid = 'personas.asignacion'::regclass) AS ya115 \gset
+\if :ya115
+DROP TRIGGER trg_asignacion_valida_plazas ON personas.asignacion;
+DROP FUNCTION personas.fn_asignacion_valida_plazas();
+\endif
 -- ANTES de 115_: el hueco (doble alta en un puesto de 1 plaza por la API directa)
 SELECT pg_temp.caso2('A0 (documenta el hueco) ANTES de 115_: DOS altas vigentes en un puesto de 1 plaza PASAN por la API directa', (SELECT v FROM _ens WHERE k = 'auth_R'),
   pg_temp.ins('OBJ', 'p1') || '; ' || pg_temp.ins('S1', 'p1'), 'ok');
@@ -271,30 +277,53 @@ SELECT pg_temp.caso2('C5 sin asignacion_edicion (S1) sigue siendo 42501 por RLS 
 SELECT pg_temp.verifica('C6 datos reales: el puesto administrador conserva sus vigentes (el trigger no toca filas existentes) y no hay otro puesto real sobre su límite salvo el ya conocido',
   $$SELECT (SELECT count(*) FROM personas.puesto p WHERE p.nombre_puesto NOT LIKE 'ENS11%' AND (SELECT count(*) FROM personas.asignacion a WHERE a.puesto_id = p.id AND a.vigente_hasta IS NULL AND a.persona_id IN (SELECT id FROM personas.persona WHERE primer_nombre NOT LIKE 'Sintetica11%' AND primer_nombre NOT LIKE 'Objetivo11%')) > p.plazas_totales) <= 1$$);
 
--- C7 guarda de inicio: persona ACTIVA sin asignacion_edicion sobre un puesto LLENO => recibe el 42501 de la RLS (no SCJ21: no se revela la ocupación) y NO toma el candado consultivo
-DO $$
-DECLARE v_estado text := 'ok'; v_locks int;
+-- C7 guarda de inicio: persona ACTIVA sin asignacion_edicion sobre un puesto LLENO => recibe el 42501 de la RLS (no SCJ21: no se revela la ocupación) y el trigger de plazas NO toma el candado consultivo.
+-- Medir pg_locks DESPUÉS del error no sirve (el candado tomado en una subtransacción abortada se libera con ella), así que se usa una SONDA: un trigger de prueba temporal, alfabéticamente DESPUÉS del de plazas
+-- (trg_asignacion_zz_sonda), que anota en una secuencia (no transaccional: sobrevive al rollback de la subtransacción) cuántos candados consultivos tiene la sesión en ese momento. Se descarta con el ROLLBACK.
+CREATE SEQUENCE pg_temp.sonda_candados;
+GRANT USAGE, UPDATE ON SEQUENCE pg_temp.sonda_candados TO PUBLIC;
+CREATE FUNCTION pg_temp.sonda_fn() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER AS $f$
 BEGIN
+  PERFORM setval('pg_temp.sonda_candados', (SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid()) + 1, false);
+  RETURN NEW;
+END $f$;
+CREATE TRIGGER trg_asignacion_zz_sonda BEFORE INSERT ON personas.asignacion FOR EACH ROW EXECUTE FUNCTION pg_temp.sonda_fn();
+DO $$
+DECLARE v_estado text := 'ok'; v_sonda bigint; v_ctrl bigint;
+BEGIN
+  -- CONTROL: un actor con asignacion_edicion en un puesto LIBRE sí llega a la sonda con el candado tomado (>= 1 candado => valor >= 2)
   BEGIN
-    -- el puesto de 1 plaza se llena como dueño (sin auth.uid(): el trigger no actúa); todo se descarta al final del bloque
+    PERFORM setval('pg_temp.sonda_candados', 999, false);
+    PERFORM set_config('request.jwt.claims', json_build_object('sub', (SELECT v FROM _ens WHERE k = 'auth_R'), 'role', 'authenticated')::text, true);
+    SET LOCAL ROLE authenticated;
+    EXECUTE pg_temp.ins('S1', 'plibre');
+    RESET ROLE;
+    SELECT last_value INTO v_ctrl FROM pg_temp.sonda_candados;
+    RAISE EXCEPTION 'rollback' USING ERRCODE = 'SCJZZ';
+  EXCEPTION WHEN SQLSTATE 'SCJZZ' THEN NULL;
+  END;
+  RESET ROLE;
+  -- PRUEBA: persona activa SIN asignacion_edicion, puesto de 1 plaza LLENO
+  BEGIN
     EXECUTE format($f$INSERT INTO personas.asignacion (persona_id, puesto_id, vigente_desde) VALUES (%L::uuid, %L::uuid, CURRENT_DATE)$f$, (SELECT v FROM _ens WHERE k = 'OBJ'), (SELECT v FROM _ens WHERE k = 'p1'));
+    PERFORM setval('pg_temp.sonda_candados', 999, false);
     PERFORM set_config('request.jwt.claims', json_build_object('sub', (SELECT v FROM _ens WHERE k = 'auth_S1'), 'role', 'authenticated')::text, true);
     SET LOCAL ROLE authenticated;
     BEGIN
-      EXECUTE pg_temp.ins('S1', 'p1');
+      EXECUTE pg_temp.ins('OTRA', 'p1');   -- a OTRA persona (no a sí misma: eso lo rechazaría 113_ antes de llegar a la sonda)
       v_estado := 'ok';
-    EXCEPTION WHEN OTHERS THEN
-      v_estado := SQLSTATE;
-      RESET ROLE;
-      SELECT count(*) INTO v_locks FROM pg_locks WHERE locktype = 'advisory' AND pid = pg_backend_pid();
+    EXCEPTION WHEN OTHERS THEN v_estado := SQLSTATE;
     END;
     RESET ROLE;
+    SELECT last_value INTO v_sonda FROM pg_temp.sonda_candados;
     RAISE EXCEPTION 'rollback' USING ERRCODE = 'SCJZZ';
   EXCEPTION WHEN SQLSTATE 'SCJZZ' THEN NULL;
   END;
   RESET ROLE; PERFORM set_config('request.jwt.claims', '', true);
-  INSERT INTO _res (caso, ok, detalle) VALUES ('C7 guarda de inicio: persona activa SIN asignacion_edicion sobre un puesto lleno => 42501 de la RLS (no SCJ21) y NO toma el candado consultivo', v_estado = '42501' AND COALESCE(v_locks, -1) = 0, format('estado=%s candados_advisory=%s', v_estado, COALESCE(v_locks::text, '?')));
+  INSERT INTO _res (caso, ok, detalle) VALUES ('C7 guarda de inicio: persona activa SIN asignacion_edicion sobre un puesto lleno => 42501 de la RLS (no SCJ21) y el trigger de plazas NO toma el candado (la sonda posterior ve 0 candados; el control con permiso ve >= 1)',
+    v_estado = '42501' AND v_sonda = 1 AND v_ctrl >= 2, format('estado=%s sonda_sin_permiso=%s (1 = 0 candados; 999 = no llegó) control_con_permiso=%s', v_estado, v_sonda, v_ctrl));
 END $$;
+DROP TRIGGER trg_asignacion_zz_sonda ON personas.asignacion;
 SELECT pg_temp.verifica('C7b la guarda está en el cuerpo, justo después de la excepción de auth.uid() nulo y antes del candado',
   $$SELECT position('fn_caller_tiene_permiso(''asignacion_edicion'')' IN prosrc) > position('auth.uid() IS NULL' IN prosrc) AND position('fn_caller_tiene_permiso(''asignacion_edicion'')' IN prosrc) < position('pg_advisory_xact_lock' IN prosrc)
     FROM pg_proc WHERE pronamespace = 'personas'::regnamespace AND proname = 'fn_asignacion_valida_plazas'$$);
