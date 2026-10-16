@@ -1797,7 +1797,8 @@ WHERE n.nspname = 'tiempo' AND p.proname = 'fn_movimiento_de_saldo_manual_regist
 -- 70) EXECUTE de funciones propias tras 105_ (esquemas personas, tiempo y public; sin funciones de extensiones): (a) toda función de TRIGGER sin EXECUTE para PUBLIC, anon, authenticated ni
 -- service_role; (b) ninguna función con EXECUTE para PUBLIC ni para anon (excepción documentada: public.rls_auto_enable, helper de Supabase); (c) toda SECURITY DEFINER con search_path fijo, dueño
 -- postgres y no LEAKPROOF; (d) lista CERRADA de funciones con EXECUTE para authenticated: cualquier otra es violación. Regla del proyecto que esta sección hace cumplir: toda migración que cree una
--- función hace su REVOKE EXECUTE … FROM PUBLIC y concede lo mínimo (ALTER DEFAULT PRIVILEGES … IN SCHEMA no quita el EXECUTE de PUBLIC). Esperado: 0 filas DESPUÉS de aplicar 105_.
+-- función hace su REVOKE EXECUTE … FROM PUBLIC y concede lo mínimo (ALTER DEFAULT PRIVILEGES … IN SCHEMA no quita el EXECUTE de PUBLIC). Esperado: 0 filas DESPUÉS de aplicar 105_. La lista es por NOMBRE (no hay un número que ajustar): fn_caller_tiene_permiso ya figuraba y cambiar de INVOKER a DEFINER (112_) no la altera; la parte (c) la
+-- cubre ahora como DEFINER. Cifras de referencia tras 112_: 87 funciones propias (personas, tiempo, public), 39 SECURITY DEFINER (33 + 108_ 1 + 109_ 2 + 110_ 2 + 112_ 1) y 48 INVOKER.
 WITH f AS (
   SELECT p.oid, n.nspname, p.proname, p.prosecdef, p.proleakproof, p.proconfig, p.proowner, p.prorettype,
          pg_get_function_identity_arguments(p.oid) AS args,

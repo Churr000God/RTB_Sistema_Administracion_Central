@@ -352,12 +352,12 @@ SELECT pg_temp.verifica('D1 ninguna consulta empeora (ms después <= ms antes x 
   $$SELECT bool_and(despues_ms <= antes_ms * 1.5 + 2) AND (SELECT despues_ms * 2 <= antes_ms FROM _med WHERE consulta = 'tiempo ausencias con nombres') FROM _med$$);
 
 -- ============================================================================
--- E) Reversa (la definición exacta guardada antes de aplicar) y reaplicación
+-- E) Reversa (ALTER FUNCTION … SECURITY INVOKER: conserva search_path y ACL; la guarda de persona activa queda y es inocua como INVOKER) y reaplicación
 -- ============================================================================
-DO $$ BEGIN EXECUTE (SELECT v FROM _ens WHERE k = 'def_antes'); END $$;
-SELECT pg_temp.verifica('E0 tras la reversa: vuelve a ser SECURITY INVOKER con search_path y sin guarda', $$SELECT NOT prosecdef AND proconfig = ARRAY['search_path=personas, pg_temp'] AND prosrc NOT LIKE '%fn_caller_activo%' FROM pg_proc WHERE oid = 'personas.fn_caller_tiene_permiso(text)'::regprocedure$$);
+ALTER FUNCTION personas.fn_caller_tiene_permiso(text) SECURITY INVOKER;
+SELECT pg_temp.verifica('E0 tras la reversa (ALTER … SECURITY INVOKER): vuelve a ser INVOKER, conserva search_path exacto y la ACL idéntica a la de antes de 112_ (md5 de acl+config)', $$SELECT NOT prosecdef AND proconfig = ARRAY['search_path=personas, pg_temp'] AND md5(COALESCE(proacl::text, '') || COALESCE(proconfig::text, '')) = '3537c7d00d77bf5e40f8a127dafedaae' FROM pg_proc WHERE oid = 'personas.fn_caller_tiene_permiso(text)'::regprocedure$$);
 SELECT pg_temp.snap('reversa');
-SELECT pg_temp.verifica('E1 tras la reversa: los valores de TODOS los códigos y personas vuelven a ser idénticos a los de antes',
+SELECT pg_temp.verifica('E1 tras la reversa (INVOKER con la guarda inocua): los valores de TODOS los códigos y personas, incluidas la suspendida y la de baja, son idénticos a los de antes',
   $$SELECT count(*) = (SELECT count(*) FROM _f WHERE fase = 'antes') AND bool_and(a.valor = d.valor) FROM _f a JOIN _f d ON d.clave = a.clave AND d.quien = a.quien AND d.fase = 'reversa' WHERE a.fase = 'antes'$$);
 SELECT pg_temp.verifica('E2 la ACL tras la reversa es la misma (CREATE OR REPLACE conserva grants): authenticated y service_role, sin PUBLIC ni anon',
   $$SELECT has_function_privilege('authenticated', oid, 'EXECUTE') AND has_function_privilege('service_role', oid, 'EXECUTE') AND NOT has_function_privilege('anon', oid, 'EXECUTE') FROM pg_proc WHERE oid = 'personas.fn_caller_tiene_permiso(text)'::regprocedure$$);
