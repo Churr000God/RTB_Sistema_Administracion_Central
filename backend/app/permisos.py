@@ -110,12 +110,16 @@ def tiene_alguno(db: Client, persona_id: str, *codigos: str) -> bool:
     return any(tiene_permiso(db, persona_id, codigo) for codigo in codigos)
 
 
-def requiere_permiso(*codigos: str):
+MENSAJE_SIN_PERMISO_GENERICO = "No tienes permiso para esta acción."
+
+
+def requiere_permiso(*codigos: str, mensaje: str | None = None):
     """Factory de dependencia FastAPI: Depends(requiere_permiso("area_edicion")). Se agrega
     ADEMÁS de get_caller_client (RLS), no en su lugar -- éste valida la lógica de negocio de
     permisos, RLS sigue siendo la última línea de defensa real. Varios códigos son OR (basta
     uno) -- para lectura-o-edición. Para exigir TODOS los códigos (AND), usar
-    requiere_todos_los_permisos."""
+    requiere_todos_los_permisos. `mensaje` (opcional) sustituye el texto del 403 por uno FIJO sin el
+    código de permiso (los routers que ya lo unificaron); sin él se conserva el texto histórico."""
 
     def dependencia(
         db: Client = Depends(get_caller_client),
@@ -125,7 +129,7 @@ def requiere_permiso(*codigos: str):
         if not tiene_alguno(db, persona_id, *codigos):
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
-                f"No tenés el permiso necesario ({' o '.join(codigos)}) para esta acción.",
+                mensaje or f"No tenés el permiso necesario ({' o '.join(codigos)}) para esta acción.",
             )
 
     return dependencia

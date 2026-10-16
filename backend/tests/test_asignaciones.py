@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
@@ -599,3 +600,248 @@ def test_alta_asignacion_sin_token():
     response = client.post("/api/asignaciones", json=_cuerpo_alta())
 
     assert response.status_code in (401, 422)
+
+
+# --- terminar con fecha anterior al inicio, errores nuevos de 113_ y mensaje del 403 -----------------------------------------------------------------
+
+from app.routers import asignaciones as router_asignaciones  # noqa: E402
+
+
+def _terminar(secuencia, fecha="2026-05-01"):
+    fake_client = _fake_client_secuencia(_entradas_gate() + secuencia)
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+    try:
+        r = TestClient(app, raise_server_exceptions=False).patch(
+            f"/api/asignaciones/{ASIGNACION_ID}/terminar", json={"vigente_hasta": fecha}, headers={"Authorization": "Bearer fake-token"})
+    finally:
+        app.dependency_overrides.clear()
+    return r, fake_client
+
+
+def _previo_terminar(vigente_desde="2026-06-01"):
+    return [
+        ("asignacion", _tabla_select_simple([{"puesto_id": PUESTO_ID, "vigente_hasta": None, "vigente_desde": vigente_desde}])),
+        ("puesto", _tabla_select_simple([{"es_administrador_generico": False}])),
+    ]
+
+
+def test_terminar_con_fecha_anterior_al_inicio_es_422_claro_y_no_escribe():
+    escritura = MagicMock()
+    r, _ = _terminar(_previo_terminar() + [("asignacion", escritura)])
+    assert r.status_code == 422 and r.json()["detail"] == "La fecha de término no puede ser anterior al inicio de la asignación."
+    escritura.update.assert_not_called()                                           # se valida en Python ANTES de escribir
+
+
+def test_terminar_el_mismo_dia_del_inicio_si_se_permite():
+    r, _ = _terminar(_previo_terminar("2026-05-01") + [("asignacion", _tabla_update([_fila_asignacion_plana(vigente_hasta="2026-05-01")]))])
+    assert r.status_code == 200
+
+
+def test_terminar_si_el_check_de_la_base_salta_igual_es_el_mismo_422_fijo():
+    error = APIError({"code": "23514", "message": 'new row for relation "asignacion" violates check constraint "ck_asignacion_vigencia"', "details": "Failing row contains (valor-real)"})
+    tabla = MagicMock()
+    tabla.update.return_value.eq.return_value.execute.side_effect = error
+    r, _ = _terminar(_previo_terminar("2026-04-01") + [("asignacion", tabla)])
+    assert r.status_code == 422 and r.json()["detail"] == router_asignaciones.MENSAJE_TERMINO_ANTERIOR_AL_INICIO
+    assert "ck_asignacion_vigencia" not in r.text and "Failing row" not in r.text
+
+
+def test_terminar_otro_check_es_422_generico_y_otro_error_se_propaga():
+    tabla = MagicMock()
+    tabla.update.return_value.eq.return_value.execute.side_effect = APIError({"code": "23514", "message": 'violates check constraint "ck_otro"', "details": "x"})
+    r, _ = _terminar(_previo_terminar("2026-04-01") + [("asignacion", tabla)])
+    assert r.status_code == 422 and "ck_otro" not in r.text
+    tabla2 = MagicMock()
+    tabla2.update.return_value.eq.return_value.execute.side_effect = APIError({"code": "XX000", "message": "boom"})
+    r2, _ = _terminar(_previo_terminar("2026-04-01") + [("asignacion", tabla2)])
+    assert r2.status_code == 500 and "boom" not in r2.text
+
+
+def _error_113(tipo):
+    c = router_asignaciones
+    codigo, hint = (c.CODIGO_AUTOASIGNACION, c.HINT_AUTOASIGNACION) if tipo == "auto" else (c.CODIGO_INICIO_FUTURO, c.HINT_INICIO_FUTURO)
+    return APIError({"code": codigo, "message": "TEXTO INTERNO de la base con ids", "hint": hint, "details": "detalle interno"})
+
+
+ESPERADO_113 = {"auto": router_asignaciones.MENSAJE_AUTOASIGNACION, "futuro": router_asignaciones.MENSAJE_INICIO_FUTURO}
+
+
+@pytest.mark.parametrize("tipo", ["auto", "futuro"])
+def test_alta_mapea_los_rechazos_de_113_a_422_fijo_sin_texto_de_la_base(tipo):
+    fake_client = _fake_client_secuencia(
+        _entradas_gate()
+        + [
+            ("persona", _tabla_select_simple([{"id": PERSONA_ID, "estado": "activo"}])),
+            ("puesto", _tabla_select_simple([{"id": PUESTO_ID, "activo": True, "plazas_totales": 2}])),
+            ("asignacion", _tabla_select_eq_is([])),
+            ("asignacion", _tabla_insert_error(_error_113(tipo))),
+        ]
+    )
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+    try:
+        r = TestClient(app, raise_server_exceptions=False).post("/api/asignaciones", json=_cuerpo_alta(), headers={"Authorization": "Bearer fake-token"})
+    finally:
+        app.dependency_overrides.clear()
+    assert r.status_code == 422 and r.json()["detail"] == ESPERADO_113[tipo]
+    assert "TEXTO INTERNO" not in r.text and "detalle interno" not in r.text
+
+
+@pytest.mark.parametrize("tipo", ["auto", "futuro"])
+def test_cambiar_puesto_mapea_los_rechazos_de_113_a_422_fijo_sin_texto_de_la_base(tipo):
+    fake_client = _fake_client_secuencia(
+        _entradas_gate()
+        + [
+            ("puesto", _tabla_select_simple([{"id": PUESTO_NUEVO_ID, "activo": True, "plazas_totales": 2}])),
+            ("asignacion", _tabla_select_eq_is([])),
+            ("asignacion", _tabla_select_simple([])),
+        ]
+    )
+    fake_client.postgrest.schema.return_value.rpc.return_value.execute.side_effect = _error_113(tipo)
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+    try:
+        r = TestClient(app, raise_server_exceptions=False).post(
+            f"/api/asignaciones/{ASIGNACION_ID}/cambiar-puesto", json=_cuerpo_cambiar_puesto(), headers={"Authorization": "Bearer fake-token"})
+    finally:
+        app.dependency_overrides.clear()
+    assert r.status_code == 422 and r.json()["detail"] == ESPERADO_113[tipo]
+    assert "TEXTO INTERNO" not in r.text
+
+
+def test_un_codigo_parecido_pero_con_otro_hint_no_se_confunde_con_los_de_113():
+    parecido = APIError({"code": router_asignaciones.CODIGO_AUTOASIGNACION, "message": "x", "hint": "otro_hint"})
+    assert router_asignaciones._traducir_error_de_113(parecido) is None
+    assert router_asignaciones._traducir_error_de_113(APIError({"code": "P0001", "message": "x"})) is None
+
+
+def test_el_403_de_las_asignaciones_es_tuteo_y_sin_el_codigo_de_permiso():
+    fake_client = MagicMock()
+
+    def tabla(nombre):
+        t = MagicMock()
+        if nombre == "usuario":
+            t.select.return_value.eq.return_value.execute.return_value.data = [{"persona_id": GATE_PERSONA_ID}]
+        elif nombre == "asignacion":
+            t.select.return_value.eq.return_value.is_.return_value.execute.return_value.data = [{"puesto_id": GATE_PUESTO_ID}]
+        elif nombre == "puesto_permiso":
+            t.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = []
+        elif nombre == "permiso":
+            t.select.return_value.eq.return_value.execute.return_value.data = [{"heredable": False}]
+        return t
+
+    fake_client.postgrest.schema.return_value.table.side_effect = tabla
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+    try:
+        cliente = TestClient(app)
+        respuestas = [
+            cliente.get("/api/asignaciones", headers={"Authorization": "Bearer t"}),
+            cliente.get(f"/api/asignaciones/{ASIGNACION_ID}", headers={"Authorization": "Bearer t"}),
+            cliente.post("/api/asignaciones", json=_cuerpo_alta(), headers={"Authorization": "Bearer t"}),
+            cliente.patch(f"/api/asignaciones/{ASIGNACION_ID}/terminar", json={"vigente_hasta": "2026-07-01"}, headers={"Authorization": "Bearer t"}),
+            cliente.post(f"/api/asignaciones/{ASIGNACION_ID}/cambiar-puesto", json=_cuerpo_cambiar_puesto(), headers={"Authorization": "Bearer t"}),
+        ]
+    finally:
+        app.dependency_overrides.clear()
+    for r in respuestas:
+        assert r.status_code == 403 and r.json()["detail"] == "No tienes permiso para esta acción."
+        assert "asignacion_edicion" not in r.text and "asignacion_lectura" not in r.text and "tenés" not in r.text
+
+
+def test_requiere_permiso_sin_mensaje_conserva_el_texto_historico_de_los_demas_routers():
+    from app.permisos import requiere_permiso
+
+    assert requiere_permiso("area_edicion") is not None and requiere_permiso("area_edicion", mensaje="x") is not None
+
+
+def test_los_codigos_de_113_son_los_reales():
+    c = router_asignaciones
+    assert (c.CODIGO_AUTOASIGNACION, c.HINT_AUTOASIGNACION) == ("SCJ19", "autoasignacion_no_permitida")
+    assert (c.CODIGO_INICIO_FUTURO, c.HINT_INICIO_FUTURO) == ("SCJ20", "vigencia_futura_no_permitida")
+
+
+def _cliente_con_postgrest_real(secuencia_previa, respuesta_http, final: str):
+    """Gate/validaciones con mocks y la ÚLTIMA operación (insert en `asignacion` o el RPC) con la librería postgrest-py REAL sobre un transporte httpx simulado: el APIError que ve el
+    router es el que arma la librería a partir de la respuesta de PostgREST, no uno armado a mano."""
+    import httpx
+    from postgrest import SyncPostgrestClient
+
+    peticiones = []
+
+    def servidor(request: httpx.Request) -> httpx.Response:
+        peticiones.append(request)
+        return respuesta_http
+
+    http = httpx.Client(transport=httpx.MockTransport(servidor), base_url="https://scj.ejemplo.test/rest/v1")
+    real = SyncPostgrestClient("https://scj.ejemplo.test/rest/v1", schema="personas", http_client=http)
+    iterador = iter(secuencia_previa)
+    esquema = MagicMock()
+
+    def tabla(nombre):
+        try:
+            esperado, mock_tabla = next(iterador)
+        except StopIteration:
+            assert final == "insert" and nombre == "asignacion"
+            return real.table("asignacion")
+        assert nombre == esperado
+        return mock_tabla
+
+    esquema.table.side_effect = tabla
+    esquema.rpc = real.rpc
+    fake_client = MagicMock()
+    fake_client.postgrest.schema.return_value = esquema
+    return fake_client, peticiones
+
+
+def _respuesta_113(codigo, hint):
+    import httpx
+
+    return httpx.Response(400, json={"code": codigo, "details": "detalle interno con ids", "hint": hint, "message": "TEXTO INTERNO de la base con ids"})
+
+
+@pytest.mark.parametrize("codigo,hint,esperado", [
+    ("SCJ19", "autoasignacion_no_permitida", "No puedes asignarte ni cambiarte de puesto a ti mismo; lo hace otra persona con permiso."),
+    ("SCJ20", "vigencia_futura_no_permitida", "La fecha de inicio no puede ser futura."),
+])
+def test_alta_con_el_apierror_real_de_postgrest_py_para_scj19_y_scj20(codigo, hint, esperado):
+    previo = _entradas_gate() + [
+        ("persona", _tabla_select_simple([{"id": PERSONA_ID, "estado": "activo"}])),
+        ("puesto", _tabla_select_simple([{"id": PUESTO_ID, "activo": True, "plazas_totales": 2}])),
+        ("asignacion", _tabla_select_eq_is([])),
+    ]
+    fake_client, peticiones = _cliente_con_postgrest_real(previo, _respuesta_113(codigo, hint), "insert")
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+    try:
+        r = TestClient(app, raise_server_exceptions=False).post("/api/asignaciones", json=_cuerpo_alta(), headers={"Authorization": "Bearer fake-token"})
+    finally:
+        app.dependency_overrides.clear()
+    assert r.status_code == 422 and r.json()["detail"] == esperado
+    assert "TEXTO INTERNO" not in r.text and "detalle interno" not in r.text
+    assert len(peticiones) == 1 and peticiones[0].method == "POST" and peticiones[0].url.path.endswith("/asignacion")
+    assert peticiones[0].headers.get("content-profile") == "personas"
+
+
+@pytest.mark.parametrize("codigo,hint,esperado", [
+    ("SCJ19", "autoasignacion_no_permitida", "No puedes asignarte ni cambiarte de puesto a ti mismo; lo hace otra persona con permiso."),
+    ("SCJ20", "vigencia_futura_no_permitida", "La fecha de inicio no puede ser futura."),
+])
+def test_cambiar_puesto_con_el_apierror_real_de_postgrest_py_para_scj19_y_scj20(codigo, hint, esperado):
+    previo = _entradas_gate() + [
+        ("puesto", _tabla_select_simple([{"id": PUESTO_NUEVO_ID, "activo": True, "plazas_totales": 2}])),
+        ("asignacion", _tabla_select_eq_is([])),
+        ("asignacion", _tabla_select_simple([])),
+    ]
+    fake_client, peticiones = _cliente_con_postgrest_real(previo, _respuesta_113(codigo, hint), "rpc")
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+    try:
+        r = TestClient(app, raise_server_exceptions=False).post(
+            f"/api/asignaciones/{ASIGNACION_ID}/cambiar-puesto", json=_cuerpo_cambiar_puesto(), headers={"Authorization": "Bearer fake-token"})
+    finally:
+        app.dependency_overrides.clear()
+    assert r.status_code == 422 and r.json()["detail"] == esperado
+    assert "TEXTO INTERNO" not in r.text and "detalle interno" not in r.text
+    assert len(peticiones) == 1 and peticiones[0].url.path.endswith("/rpc/fn_asignacion_cambiar_puesto")
