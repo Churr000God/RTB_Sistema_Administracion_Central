@@ -119,3 +119,17 @@ export function formatearFechaCorta(fechaISO: string | null | undefined): string
   if (Number.isNaN(valor.getTime())) return null;
   return valor.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
 }
+
+/**
+ * «Hoy» en HORA DE MÉXICO como "YYYY-MM-DD". No usar `new Date().toISOString().slice(0, 10)` ni `hoyISO()`
+ * para comparar con reglas del negocio: entre las 18:00 y las 24:00 de México la fecha UTC ya es mañana, y
+ * `hoyISO()` depende del huso del navegador. La base compara contra el «hoy» de México (113_, SCJ20).
+ */
+export function hoyMexicoISO(ahora: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIME_ZONE_NEGOCIO,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(ahora);
+}

@@ -6,6 +6,7 @@ import { apiFetch } from "../lib/apiClient";
 import { AppShell } from "../layouts/AppShell";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
+import { hoyMexicoISO } from "../lib/calendario";
 
 type Asignacion = {
   id: string;
@@ -44,6 +45,7 @@ export function CambiarPuestoAsignacionPage() {
   const [asignaciones, setAsignaciones] = useState<AsignacionResumen[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [errorFecha, setErrorFecha] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch(`/api/asignaciones/${id}`)
@@ -70,8 +72,15 @@ export function CambiarPuestoAsignacionPage() {
   async function handleSubmit(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     setError(null);
-    setEnviando(true);
     const f = new FormData(evento.currentTarget);
+    // La fecha del cambio es también el inicio del puesto nuevo: la base (SCJ20) no acepta un inicio posterior
+    // a hoy en hora de México.
+    if (String(f.get("fecha") ?? "") > hoyMexicoISO()) {
+      setErrorFecha("La fecha del cambio no puede ser futura: es también la fecha de inicio del puesto nuevo.");
+      return;
+    }
+    setErrorFecha(null);
+    setEnviando(true);
     const respuesta = await apiFetch(`/api/asignaciones/${id}/cambiar-puesto`, {
       method: "POST",
       body: JSON.stringify({
@@ -141,7 +150,10 @@ export function CambiarPuestoAsignacionPage() {
             label="Fecha del cambio"
             type="date"
             required
-            ayuda="Se usa como fecha de término del puesto actual y de inicio del nuevo."
+            max={hoyMexicoISO()}
+            error={errorFecha ?? undefined}
+            ayuda="Se usa como fecha de término del puesto actual y de inicio del nuevo. No puede ser posterior a hoy (hora de México)."
+            onChange={() => errorFecha && setErrorFecha(null)}
           />
         </fieldset>
 

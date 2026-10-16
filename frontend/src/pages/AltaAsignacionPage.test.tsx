@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiFetch } from "../lib/apiClient";
 import { AltaAsignacionPage } from "./AltaAsignacionPage";
@@ -170,5 +170,77 @@ describe("AltaAsignacionPage", () => {
     await userEvent.selectOptions(await screen.findByLabelText(/^puesto$/i), "puesto-ficticio-1");
 
     await waitFor(() => expect(screen.getByText(/sin plazas libres/i)).toBeInTheDocument());
+  });
+});
+
+describe("AltaAsignacionPage · fecha de inicio y hora de México (113_, SCJ20)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // 19:00 del 15 de octubre en México; la fecha UTC ya es el 16.
+    vi.setSystemTime(new Date("2026-10-16T01:00:00Z"));
+    vi.mocked(apiFetch).mockReset();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const form = () => document.querySelector("form") as HTMLFormElement;
+  const postsAAsignaciones = () => vi.mocked(apiFetch).mock.calls.filter(([p, i]) => p === "/api/asignaciones" && i?.method === "POST");
+
+  async function llenar(fecha: string) {
+    render(<AltaAsignacionPage />);
+    await userEvent.selectOptions(await screen.findByLabelText(/^persona$/i), "persona-ficticia-1");
+    await userEvent.selectOptions(screen.getByLabelText(/^puesto$/i), "puesto-ficticio-1");
+    fireEvent.change(screen.getByLabelText(/vigente desde/i), { target: { value: fecha } });
+  }
+
+  it("el max del campo es HOY en México (15 oct), no la fecha UTC (16 oct)", async () => {
+    mockApiFetch({});
+    render(<AltaAsignacionPage />);
+    expect(await screen.findByLabelText(/vigente desde/i)).toHaveAttribute("max", "2026-10-15");
+  });
+
+  it("la fecha de mañana en México (la de hoy en UTC) se rechaza antes de enviar con un mensaje claro", async () => {
+    mockApiFetch({});
+    await llenar("2026-10-16");
+    fireEvent.submit(form());
+    expect(await screen.findByText("La fecha de inicio no puede ser futura.")).toBeInTheDocument();
+    expect(postsAAsignaciones()).toHaveLength(0);
+    expect(screen.getByLabelText(/vigente desde/i)).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("hoy en México (15 oct) sí se envía, aunque en UTC ya sea 16", async () => {
+    mockApiFetch({});
+    await llenar("2026-10-15");
+    fireEvent.submit(form());
+    await waitFor(() => expect(postsAAsignaciones()).toHaveLength(1));
+    expect(JSON.parse(postsAAsignaciones()[0][1]!.body as string).vigente_desde).toBe("2026-10-15");
+  });
+
+  it("una fecha pasada se envía", async () => {
+    mockApiFetch({});
+    await llenar("2026-01-05");
+    fireEvent.submit(form());
+    await waitFor(() => expect(postsAAsignaciones()).toHaveLength(1));
+  });
+
+  it("corregir el campo limpia el error", async () => {
+    mockApiFetch({});
+    await llenar("2026-10-16");
+    fireEvent.submit(form());
+    await screen.findByText("La fecha de inicio no puede ser futura.");
+    fireEvent.change(screen.getByLabelText(/vigente desde/i), { target: { value: "2026-10-15" } });
+    expect(screen.queryByText("La fecha de inicio no puede ser futura.")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["No puedes asignarte ni cambiarte de puesto a ti mismo; lo hace otra persona con permiso."],
+    ["La fecha de inicio no puede ser futura."],
+  ])("422 del backend: muestra el detail fijo «%s»", async (detail) => {
+    mockApiFetch({ post: new Response(JSON.stringify({ detail }), { status: 422 }) });
+    await llenar("2026-10-15");
+    fireEvent.submit(form());
+    expect(await screen.findByRole("alert")).toHaveTextContent(detail);
+    expect(screen.getByRole("button", { name: /registrar/i })).toBeEnabled();
   });
 });

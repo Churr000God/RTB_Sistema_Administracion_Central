@@ -1,7 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiFetch } from "../lib/apiClient";
 import { CambiarPuestoAsignacionPage } from "./CambiarPuestoAsignacionPage";
@@ -136,5 +136,56 @@ describe("CambiarPuestoAsignacionPage", () => {
         screen.getByText("La asignación no existe o ya está cerrada.")
       ).toBeInTheDocument()
     );
+  });
+});
+
+describe("CambiarPuestoAsignacionPage · fecha del cambio y hora de México (113_, SCJ20)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    // 19:00 del 15 de octubre en México; la fecha UTC ya es el 16.
+    vi.setSystemTime(new Date("2026-10-16T01:00:00Z"));
+    vi.mocked(apiFetch).mockReset();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const posts = () => vi.mocked(apiFetch).mock.calls.filter(([p, i]) => String(p).endsWith("/cambiar-puesto") && i?.method === "POST");
+
+  async function preparar(fecha: string) {
+    renderPagina();
+    await waitFor(() => expect(screen.getByText("Persona Ficticia Uno")).toBeInTheDocument());
+    await userEvent.selectOptions(screen.getByLabelText(/puesto nuevo/i), "puesto-ficticio-destino");
+    fireEvent.change(screen.getByLabelText(/fecha del cambio/i), { target: { value: fecha } });
+    fireEvent.submit(document.querySelector("form")!);
+  }
+
+  it("el max es hoy en México (15 oct), no la fecha UTC (16 oct)", async () => {
+    mockApiFetch({});
+    renderPagina();
+    expect(await screen.findByLabelText(/fecha del cambio/i)).toHaveAttribute("max", "2026-10-15");
+  });
+
+  it("una fecha futura en México se rechaza antes de enviar", async () => {
+    mockApiFetch({});
+    await preparar("2026-10-16");
+    expect(await screen.findByText(/la fecha del cambio no puede ser futura/i)).toBeInTheDocument();
+    expect(posts()).toHaveLength(0);
+  });
+
+  it("hoy en México sí se envía", async () => {
+    mockApiFetch({});
+    await preparar("2026-10-15");
+    await waitFor(() => expect(posts()).toHaveLength(1));
+    expect(JSON.parse(posts()[0][1]!.body as string).fecha).toBe("2026-10-15");
+  });
+
+  it.each([
+    ["No puedes asignarte ni cambiarte de puesto a ti mismo; lo hace otra persona con permiso."],
+    ["La fecha de inicio no puede ser futura."],
+  ])("422 del backend: muestra el detail fijo «%s»", async (detail) => {
+    mockApiFetch({ post: () => new Response(JSON.stringify({ detail }), { status: 422 }) });
+    await preparar("2026-10-15");
+    expect(await screen.findByRole("alert")).toHaveTextContent(detail);
   });
 });

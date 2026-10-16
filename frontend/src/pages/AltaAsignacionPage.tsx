@@ -5,6 +5,9 @@ import { apiFetch } from "../lib/apiClient";
 import { AppShell } from "../layouts/AppShell";
 import { Button } from "../components/Button";
 import { Input } from "../components/Input";
+import { hoyMexicoISO } from "../lib/calendario";
+
+export const MENSAJE_INICIO_FUTURO = "La fecha de inicio no puede ser futura.";
 
 type Persona = {
   id: string;
@@ -46,6 +49,7 @@ export function AltaAsignacionPage() {
   const [puestoSeleccionado, setPuestoSeleccionado] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [errorFecha, setErrorFecha] = useState<string | null>(null);
   // Deep-link desde "Nueva asignación" en la ficha de persona (?persona_id=...) — precarga la
   // selección así no hay que volver a buscar a la misma persona de la que se vino.
   const [personaId, setPersonaId] = useState(
@@ -92,8 +96,15 @@ export function AltaAsignacionPage() {
   async function handleSubmit(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     setError(null);
-    setEnviando(true);
     const f = new FormData(evento.currentTarget);
+    // La base rechaza (SCJ20) una asignación que empieza DESPUÉS de hoy en hora de México: se avisa antes de enviar.
+    const desde = String(f.get("vigente_desde") ?? "");
+    if (desde > hoyMexicoISO()) {
+      setErrorFecha(MENSAJE_INICIO_FUTURO);
+      return;
+    }
+    setErrorFecha(null);
+    setEnviando(true);
     const respuesta = await apiFetch("/api/asignaciones", {
       method: "POST",
       body: JSON.stringify({
@@ -202,7 +213,17 @@ export function AltaAsignacionPage() {
             )}
           </div>
 
-          <Input id="vigente_desde" name="vigente_desde" label="Vigente desde" type="date" required />
+          <Input
+            id="vigente_desde"
+            name="vigente_desde"
+            label="Vigente desde"
+            type="date"
+            required
+            max={hoyMexicoISO()}
+            error={errorFecha ?? undefined}
+            ayuda="No puede ser posterior a hoy (hora de México)."
+            onChange={() => errorFecha && setErrorFecha(null)}
+          />
         </fieldset>
 
         {error && <p role="alert">{error}</p>}

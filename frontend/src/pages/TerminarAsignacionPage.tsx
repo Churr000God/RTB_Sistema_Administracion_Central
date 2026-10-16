@@ -12,7 +12,11 @@ type Asignacion = {
   persona_nombre: string;
   nombre_puesto: string;
   nombre_departamento: string;
+  // Inicio de la asignación: la fecha de término no puede ser anterior (si el servidor lo manda).
+  vigente_desde?: string | null;
 };
+
+export const MENSAJE_TERMINO_ANTERIOR = "La fecha de término no puede ser anterior al inicio de la asignación.";
 
 async function mensajeDeError(respuesta: Response, generico: string): Promise<string> {
   try {
@@ -29,6 +33,7 @@ export function TerminarAsignacionPage() {
   const [asignacion, setAsignacion] = useState<Asignacion | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [errorFecha, setErrorFecha] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch(`/api/asignaciones/${id}`)
@@ -40,8 +45,14 @@ export function TerminarAsignacionPage() {
   async function handleSubmit(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     setError(null);
-    setEnviando(true);
     const f = new FormData(evento.currentTarget);
+    const hasta = String(f.get("vigente_hasta") ?? "");
+    if (asignacion?.vigente_desde && hasta < asignacion.vigente_desde) {
+      setErrorFecha(MENSAJE_TERMINO_ANTERIOR);
+      return;
+    }
+    setErrorFecha(null);
+    setEnviando(true);
     const respuesta = await apiFetch(`/api/asignaciones/${id}/terminar`, {
       method: "PATCH",
       body: JSON.stringify({
@@ -99,7 +110,16 @@ export function TerminarAsignacionPage() {
 
         <fieldset className="fieldset-formulario">
           <legend className="encabezado-fieldset">Fecha de término</legend>
-          <Input id="vigente_hasta" name="vigente_hasta" label="Vigente hasta" type="date" required />
+          <Input
+            id="vigente_hasta"
+            name="vigente_hasta"
+            label="Vigente hasta"
+            type="date"
+            required
+            min={asignacion?.vigente_desde ?? undefined}
+            error={errorFecha ?? undefined}
+            onChange={() => errorFecha && setErrorFecha(null)}
+          />
         </fieldset>
 
         {error && <p role="alert">{error}</p>}

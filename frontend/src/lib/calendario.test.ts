@@ -7,6 +7,7 @@ import {
   formatearHoraMexico,
   grillaDelMes,
   hoyISO,
+  hoyMexicoISO,
   semanaDeDias,
   sumarDiasISO,
 } from "./calendario";
@@ -228,5 +229,30 @@ describe("formatearHoraMexico", () => {
     });
     expect(resultado).toContain("07 sep 2026");
     expect(resultado).toContain("02:30");
+  });
+});
+
+describe("hoyMexicoISO", () => {
+  it("19:00 en México con la fecha UTC ya en el día siguiente: sigue siendo el día de México", () => {
+    const ahora = new Date("2026-10-16T01:00:00Z"); // 19:00 del 15 de octubre en México
+    expect(ahora.toISOString().slice(0, 10)).toBe("2026-10-16");
+    expect(hoyMexicoISO(ahora)).toBe("2026-10-15");
+  });
+
+  it("el borde: 23:59 en México todavía es el día; 00:00 ya es el siguiente", () => {
+    expect(hoyMexicoISO(new Date("2026-10-16T05:59:59Z"))).toBe("2026-10-15");
+    expect(hoyMexicoISO(new Date("2026-10-16T06:00:00Z"))).toBe("2026-10-16");
+  });
+
+  it("de madrugada en México coincide con la fecha UTC", () => {
+    expect(hoyMexicoISO(new Date("2026-10-16T12:00:00Z"))).toBe("2026-10-16");
+  });
+
+  it("cruza fin de año y no depende del huso del navegador", () => {
+    expect(hoyMexicoISO(new Date("2027-01-01T03:00:00Z"))).toBe("2026-12-31");
+  });
+
+  it("sin argumento usa el reloj actual", () => {
+    expect(hoyMexicoISO()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });

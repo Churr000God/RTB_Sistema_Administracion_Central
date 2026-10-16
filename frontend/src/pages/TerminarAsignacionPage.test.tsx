@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -105,5 +105,48 @@ describe("TerminarAsignacionPage", () => {
     await waitFor(() =>
       expect(screen.getByText("Esta asignación ya está cerrada.")).toBeInTheDocument()
     );
+  });
+});
+
+describe("TerminarAsignacionPage · fecha de término no anterior al inicio", () => {
+  const CON_INICIO = { ...ASIGNACION, vigente_desde: "2026-03-10" };
+  const patches = () => vi.mocked(apiFetch).mock.calls.filter(([, i]) => (i as RequestInit | undefined)?.method === "PATCH");
+
+  it("si el servidor manda el inicio, el campo lo usa como mínimo", async () => {
+    mockApiFetch({ get: new Response(JSON.stringify(CON_INICIO)) });
+    renderPagina();
+    await waitFor(() => expect(screen.getByLabelText(/vigente hasta/i)).toHaveAttribute("min", "2026-03-10"));
+  });
+
+  it("una fecha anterior al inicio se rechaza antes de enviar, con el mensaje del backend", async () => {
+    vi.mocked(apiFetch).mockReset();
+    mockApiFetch({ get: new Response(JSON.stringify(CON_INICIO)) });
+    renderPagina();
+    await waitFor(() => expect(screen.getByLabelText(/vigente hasta/i)).toHaveAttribute("min", "2026-03-10"));
+    fireEvent.change(screen.getByLabelText(/vigente hasta/i), { target: { value: "2026-03-09" } });
+    fireEvent.submit(document.querySelector("form")!);
+    expect(await screen.findByText("La fecha de término no puede ser anterior al inicio de la asignación.")).toBeInTheDocument();
+    expect(patches()).toHaveLength(0);
+  });
+
+  it("el mismo día del inicio sí se envía", async () => {
+    vi.mocked(apiFetch).mockReset();
+    mockApiFetch({ get: new Response(JSON.stringify(CON_INICIO)) });
+    renderPagina();
+    await waitFor(() => expect(screen.getByLabelText(/vigente hasta/i)).toHaveAttribute("min", "2026-03-10"));
+    fireEvent.change(screen.getByLabelText(/vigente hasta/i), { target: { value: "2026-03-10" } });
+    fireEvent.submit(document.querySelector("form")!);
+    await waitFor(() => expect(patches()).toHaveLength(1));
+  });
+
+  it("sin el inicio conocido, el 422 del backend se muestra tal cual", async () => {
+    vi.mocked(apiFetch).mockReset();
+    const detail = "La fecha de término no puede ser anterior al inicio de la asignación.";
+    mockApiFetch({ patch: () => new Response(JSON.stringify({ detail }), { status: 422 }) });
+    renderPagina();
+    await waitFor(() => expect(screen.getByText("Persona Ficticia Uno")).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText(/vigente hasta/i), { target: { value: "2026-01-01" } });
+    fireEvent.submit(document.querySelector("form")!);
+    expect(await screen.findByRole("alert")).toHaveTextContent(detail);
   });
 });
