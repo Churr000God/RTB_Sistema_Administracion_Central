@@ -30,7 +30,7 @@ import { DirectorioAreasPage } from "./pages/DirectorioAreasPage";
 import { DirectorioDepartamentosPage } from "./pages/DirectorioDepartamentosPage";
 import { DirectorioPersonasPage } from "./pages/DirectorioPersonasPage";
 import { InicioPage } from "./pages/InicioPage";
-import { ProtegidaPorModulo } from "./components/ProtegidaPorModulo";
+import { RutaVerificada } from "./components/RutaVerificada";
 import { DirectorioPuestosPage } from "./pages/DirectorioPuestosPage";
 import { FichaAreaPage } from "./pages/FichaAreaPage";
 import { FichaDepartamentoPage } from "./pages/FichaDepartamentoPage";
@@ -62,54 +62,75 @@ export const router = createBrowserRouter([
   { path: "/restablecer-contrasena", element: <RestablecerContrasenaPage /> },
   { path: "/completar-invitacion", element: <CompletarInvitacionPage /> },
   { path: "/inicio", element: <InicioPage /> },
+  // Personas y Usuarios (módulo 1): Directorio, alta de persona, alta de usuario, cambio de estado y bitácora de
+  // movimientos (la bitácora está limitada por RLS a ver_modulo_1, cambio_estado_persona, persona_edicion y
+  // alta_personas_usuarios: sin la bandera la pantalla se vería vacía).
   {
-    path: "/personas",
-    element: (
-      <ProtegidaPorModulo campo="puede_ver_modulo_1">
-        <DirectorioPersonasPage />
-      </ProtegidaPorModulo>
-    ),
+    element: <RutaVerificada campo="puede_ver_modulo_1" />,
+    children: [
+      { path: "/personas", element: <DirectorioPersonasPage /> },
+      { path: "/personas/nueva", element: <AltaPersonaPage /> },
+      { path: "/personas/:id/movimiento", element: <CambiarEstadoPage /> },
+      { path: "/personas/:id/bitacora", element: <BitacoraMovimientosPage /> },
+      { path: "/usuarios/nuevo", element: <AltaUsuarioPage /> },
+    ],
   },
-  { path: "/personas/nueva", element: <AltaPersonaPage /> },
+  // SIN guarda de módulo, a propósito: la ficha se enlaza desde otros módulos y su identidad ya degrada a «—»;
+  // la bitácora de asignaciones se enlaza desde Estructura/Asignaciones. La autoridad es backend/RLS.
   { path: "/personas/:id", element: <FichaPersonaPage /> },
-  { path: "/personas/:id/movimiento", element: <CambiarEstadoPage /> },
-  { path: "/personas/:id/bitacora", element: <BitacoraMovimientosPage /> },
   { path: "/personas/:id/bitacora-asignaciones", element: <BitacoraAsignacionesPersonaPage /> },
-  { path: "/usuarios/nuevo", element: <AltaUsuarioPage /> },
-  { path: "/estructura/areas", element: <DirectorioAreasPage /> },
-  { path: "/estructura/areas/nueva", element: <AltaAreaPage /> },
-  { path: "/estructura/areas/:id", element: <FichaAreaPage /> },
-  { path: "/estructura/departamentos", element: <DirectorioDepartamentosPage /> },
-  { path: "/estructura/departamentos/nueva", element: <AltaDepartamentoPage /> },
-  { path: "/estructura/departamentos/:id", element: <FichaDepartamentoPage /> },
-  { path: "/estructura/puestos", element: <DirectorioPuestosPage /> },
-  { path: "/estructura/puestos/nueva", element: <AltaPuestoPage /> },
-  { path: "/estructura/puestos/:id", element: <FichaPuestoPage /> },
-  { path: "/estructura/asignaciones", element: <AsignacionesPage /> },
-  { path: "/estructura/asignaciones/nueva", element: <AltaAsignacionPage /> },
-  { path: "/estructura/asignaciones/:id/terminar", element: <TerminarAsignacionPage /> },
-  { path: "/estructura/asignaciones/:id/cambiar-puesto", element: <CambiarPuestoAsignacionPage /> },
-  { path: "/estructura/permisos", element: <PermisosPage /> },
-  { path: "/estructura/permisos/otorgar", element: <OtorgarPermisoPage /> },
-  { path: "/estructura/permisos/:id/revocar", element: <RevocarPermisoPage /> },
-  { path: "/tiempo/asignacion-jornada", element: <AsignarJornadaPage /> },
-  { path: "/tiempo/corridas-batch", element: <PanelCorridasBatchPage /> },
-  { path: "/tiempo/captura-manual", element: <CapturaManualMarcaPage /> },
-  { path: "/tiempo/marcas", element: <RegistroMarcasPage /> },
-  { path: "/tiempo/excepciones", element: <ColaExcepcionesPage /> },
-  { path: "/tiempo/tramos", element: <TramosPage /> },
-  { path: "/tiempo/dias", element: <DiasPage /> },
-  { path: "/tiempo/excepciones/:id/corregir", element: <CorregirMarcaPage /> },
-  { path: "/tiempo/ausencias", element: <BandejaAusenciasPage /> },
-  { path: "/tiempo/banco-de-horas", element: <BancoDeHorasPage /> },
-  { path: "/tiempo/alertas-retardo", element: <AlertasDeRetardoPage /> },
-  { path: "/tiempo/parametros/tope-legal", element: <ParametrosTopeLegalPage /> },
-  { path: "/tiempo/parametros/dias-festivos", element: <DiasFestivosPage /> },
-  { path: "/tiempo/parametros/sistema", element: <ParametrosSistemaPage /> },
-  { path: "/tiempo/terminales", element: <TerminalesPage /> },
-  { path: "/tiempo/terminales/:id/usuarios", element: <UsuariosTerminalPage /> },
-  { path: "/tiempo/terminales/anomalias", element: <AnomaliasTerminalesPage /> },
-  { path: "/tiempo/terminales/configuracion", element: <ConsentimientoTerminalesPage /> },
-  { path: "/tiempo/terminales/configuracion/variables", element: <VariablesTerminalesPage /> },
-  { path: "/tiempo/terminales/configuracion/activacion-por-huella", element: <ActivacionHuellaPage /> },
+  // Estructura organizacional: no se monta ninguna pantalla sin la sesión verificada y puede_ver_modulo_2 en true.
+  {
+    element: <RutaVerificada campo="puede_ver_modulo_2" />,
+    children: [
+      { path: "/estructura/areas", element: <DirectorioAreasPage /> },
+      { path: "/estructura/areas/nueva", element: <AltaAreaPage /> },
+      { path: "/estructura/areas/:id", element: <FichaAreaPage /> },
+      { path: "/estructura/departamentos", element: <DirectorioDepartamentosPage /> },
+      { path: "/estructura/departamentos/nueva", element: <AltaDepartamentoPage /> },
+      { path: "/estructura/departamentos/:id", element: <FichaDepartamentoPage /> },
+      { path: "/estructura/puestos", element: <DirectorioPuestosPage /> },
+      { path: "/estructura/puestos/nueva", element: <AltaPuestoPage /> },
+      { path: "/estructura/puestos/:id", element: <FichaPuestoPage /> },
+      { path: "/estructura/asignaciones", element: <AsignacionesPage /> },
+      { path: "/estructura/asignaciones/nueva", element: <AltaAsignacionPage /> },
+      { path: "/estructura/asignaciones/:id/terminar", element: <TerminarAsignacionPage /> },
+      { path: "/estructura/asignaciones/:id/cambiar-puesto", element: <CambiarPuestoAsignacionPage /> },
+      { path: "/estructura/permisos", element: <PermisosPage /> },
+      { path: "/estructura/permisos/otorgar", element: <OtorgarPermisoPage /> },
+      { path: "/estructura/permisos/:id/revocar", element: <RevocarPermisoPage /> },
+    ],
+  },
+  // Tiempo (todo menos Terminales): puede_ver_modulo_3.
+  {
+    element: <RutaVerificada campo="puede_ver_modulo_3" />,
+    children: [
+      { path: "/tiempo/asignacion-jornada", element: <AsignarJornadaPage /> },
+      { path: "/tiempo/corridas-batch", element: <PanelCorridasBatchPage /> },
+      { path: "/tiempo/captura-manual", element: <CapturaManualMarcaPage /> },
+      { path: "/tiempo/marcas", element: <RegistroMarcasPage /> },
+      { path: "/tiempo/excepciones", element: <ColaExcepcionesPage /> },
+      { path: "/tiempo/tramos", element: <TramosPage /> },
+      { path: "/tiempo/dias", element: <DiasPage /> },
+      { path: "/tiempo/excepciones/:id/corregir", element: <CorregirMarcaPage /> },
+      { path: "/tiempo/ausencias", element: <BandejaAusenciasPage /> },
+      { path: "/tiempo/banco-de-horas", element: <BancoDeHorasPage /> },
+      { path: "/tiempo/alertas-retardo", element: <AlertasDeRetardoPage /> },
+      { path: "/tiempo/parametros/tope-legal", element: <ParametrosTopeLegalPage /> },
+      { path: "/tiempo/parametros/dias-festivos", element: <DiasFestivosPage /> },
+      { path: "/tiempo/parametros/sistema", element: <ParametrosSistemaPage /> },
+    ],
+  },
+  // Terminales (y sus subrutas): puede_ver_terminales. La edición de configuración se sigue exigiendo dentro de cada pantalla.
+  {
+    element: <RutaVerificada campo="puede_ver_terminales" />,
+    children: [
+      { path: "/tiempo/terminales", element: <TerminalesPage /> },
+      { path: "/tiempo/terminales/:id/usuarios", element: <UsuariosTerminalPage /> },
+      { path: "/tiempo/terminales/anomalias", element: <AnomaliasTerminalesPage /> },
+      { path: "/tiempo/terminales/configuracion", element: <ConsentimientoTerminalesPage /> },
+      { path: "/tiempo/terminales/configuracion/variables", element: <VariablesTerminalesPage /> },
+      { path: "/tiempo/terminales/configuracion/activacion-por-huella", element: <ActivacionHuellaPage /> },
+    ],
+  },
 ]);

@@ -162,9 +162,23 @@ export function AppShell({ children }: Props) {
 
   useEffect(() => {
     if (sesionNoAutenticada) {
-      // Sin sesión válida: al login.
-      window.location.href = "/";
-      return;
+      // Sin sesión válida: se limpia la sesión local (signOut best-effort, con tope de tiempo para no
+      // bloquear) y se va al login. Un signOut que falla o se cuelga NO impide el redirect.
+      let vivo401 = true;
+      (async () => {
+        try {
+          await Promise.race([
+            Promise.resolve(supabase.auth.signOut()),
+            new Promise((resolver) => setTimeout(resolver, 1500)),
+          ]);
+        } catch (errorSignOut) {
+          registrarErrorAuth("AppShell.signOut401", errorSignOut);
+        }
+        if (vivo401) window.location.href = "/";
+      })();
+      return () => {
+        vivo401 = false;
+      };
     }
     if (!sesion || sesion.acceso_permitido) return;
     // Una vez confirmado que NO hay acceso el redirect tiene que pasar sí o sí: que signOut() falle no

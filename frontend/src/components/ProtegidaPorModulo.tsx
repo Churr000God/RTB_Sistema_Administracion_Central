@@ -5,9 +5,14 @@ import { AppShell } from "../layouts/AppShell";
 import { useSesion } from "../lib/useSesion";
 import type { SesionOut } from "../lib/sesion";
 
+export type CampoDeModulo = keyof Pick<
+  SesionOut,
+  "puede_ver_modulo_1" | "puede_ver_modulo_2" | "puede_ver_modulo_3" | "puede_ver_terminales"
+>;
+
 type Props = {
   // Bandera de /api/sesion que da acceso a la pantalla (p. ej. puede_ver_modulo_1).
-  campo: keyof Pick<SesionOut, "puede_ver_modulo_1" | "puede_ver_modulo_2" | "puede_ver_modulo_3">;
+  campo: CampoDeModulo;
   children: ReactNode;
 };
 
