@@ -1822,7 +1822,7 @@ SELECT nspname || '.' || proname || '(' || args || ')', 'EXECUTE para authentica
 FROM f WHERE has_function_privilege('authenticated', oid, 'EXECUTE') AND nspname IN ('personas', 'tiempo')
   AND (nspname || '.' || proname) NOT IN (
     'personas.fn_asignacion_cambiar_puesto', 'personas.fn_caller_activo', 'personas.fn_caller_es_administrador_generico', 'personas.fn_caller_persona_id',
-    'personas.fn_caller_puestos_en_rama', 'personas.fn_caller_ve_identidad', 'personas.fn_persona_identidad', 'personas.fn_caller_tiene_permiso', 'personas.fn_caller_ve_estructura_permisos', 'personas.fn_caller_ve_padron', 'personas.fn_persona_actualizar_datos', 'personas.fn_persona_crear',
+    'personas.fn_caller_puestos_en_rama', 'personas.fn_hoy_mexico', 'personas.fn_caller_ve_identidad', 'personas.fn_persona_identidad', 'personas.fn_caller_tiene_permiso', 'personas.fn_caller_ve_estructura_permisos', 'personas.fn_caller_ve_padron', 'personas.fn_persona_actualizar_datos', 'personas.fn_persona_crear',
     'tiempo.fn_ausencia_resolver', 'tiempo.fn_dia_calcular_armado_tramos', 'tiempo.fn_dia_revisar', 'tiempo.fn_excepcion_dia_cerrado_descartar',
     'tiempo.fn_jornada_asignar_renovar', 'tiempo.fn_jornada_en_curso_mover_limite', 'tiempo.fn_jornada_futura_actualizar', 'tiempo.fn_jornada_futura_eliminar',
     'tiempo.fn_movimiento_de_saldo_manual_registrar', 'tiempo.fn_terminal_config_actualizar', 'tiempo.fn_terminal_consentimiento_publicar',
@@ -1913,3 +1913,24 @@ WHERE p.pronamespace = 'personas'::regnamespace AND p.proname = 'fn_caller_tiene
            AND p.pronargs = 1 AND p.prosrc LIKE '%personas.fn_caller_activo()%' AND p.prosrc LIKE '%auth.uid()%'
            AND has_function_privilege('authenticated', p.oid, 'EXECUTE') AND has_function_privilege('service_role', p.oid, 'EXECUTE') AND NOT has_function_privilege('anon', p.oid, 'EXECUTE')
            AND NOT EXISTS (SELECT 1 FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE'));
+
+-- 78) Reglas de personas.asignacion tras 113_ (autoasignación y vigencia futura): debe existir el trigger trg_asignacion_valida_reglas (BEFORE, INSERT y UPDATE, por fila, habilitado) cuya lista de columnas sea
+-- exactamente persona_id, puesto_id y vigente_desde, apuntando a personas.fn_asignacion_valida_reglas(); esa función debe ser de trigger, SECURITY INVOKER con search_path exacto, sin EXECUTE para nadie de la API,
+-- y conservar los dos ERRCODE (SCJ19, SCJ20) y la fecha de México (fn_hoy_mexico, nunca CURRENT_DATE); y personas.fn_hoy_mexico debe seguir con search_path exacto. Solo violaciones. Esperado: 0 filas DESPUÉS
+-- de aplicar 113_ (antes de aplicarla devuelve 1).
+SELECT 'trg_asignacion_valida_reglas' AS objeto, 'falta el trigger, o no es BEFORE INSERT OR UPDATE OF persona_id, puesto_id, vigente_desde por fila, o está deshabilitado, o la función perdió una regla' AS problema
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM pg_trigger t
+  JOIN pg_proc f ON f.oid = t.tgfoid AND f.pronamespace = 'personas'::regnamespace AND f.proname = 'fn_asignacion_valida_reglas'
+  WHERE t.tgrelid = 'personas.asignacion'::regclass AND t.tgname = 'trg_asignacion_valida_reglas' AND NOT t.tgisinternal
+    AND (t.tgtype & 1) = 1 AND (t.tgtype & 2) = 2 AND (t.tgtype & 4) = 4 AND (t.tgtype & 16) = 16 AND t.tgenabled = 'O'
+    AND (SELECT array_agg(a.attname::text ORDER BY a.attname) FROM pg_attribute a WHERE a.attrelid = t.tgrelid AND a.attnum = ANY (t.tgattr::int2[])) = ARRAY['persona_id', 'puesto_id', 'vigente_desde']
+    AND f.prorettype = 'trigger'::regtype AND NOT f.prosecdef AND f.proconfig = ARRAY['search_path=personas, pg_temp']
+    AND f.prosrc LIKE '%SCJ19%' AND f.prosrc LIKE '%SCJ20%' AND f.prosrc LIKE '%fn_hoy_mexico(now())%' AND f.prosrc !~* 'CURRENT_DATE'
+    AND NOT has_function_privilege('anon', f.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', f.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', f.oid, 'EXECUTE')
+)
+UNION ALL
+SELECT 'fn_hoy_mexico', 'sin search_path exacto o sin devolver la fecha de America/Mexico_City'
+WHERE NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'personas'::regnamespace AND p.proname = 'fn_hoy_mexico'
+                  AND p.proconfig = ARRAY['search_path=personas, pg_temp'] AND p.prosrc LIKE '%America/Mexico_City%');
