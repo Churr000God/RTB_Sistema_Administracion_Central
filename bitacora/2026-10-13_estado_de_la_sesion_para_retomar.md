@@ -391,3 +391,22 @@ corte, de confianza) no lo hayan registrado. **Pendiente:** `112_` (`fn_caller_t
 Tiempo), guarda de pantalla en `/estructura/*` y `/tiempo/*`, rendimiento de `schema()` de postgrest-py en el resto de
 endpoints, medir la latencia de `/api/sesion`, borrar `.env.bak-frontend-url-20261015` del Pi de pruebas, diccionario
 V1.6, y del piloto: consentimiento provisional v1, aviso al personal, enrolamiento por oleadas y fecha.
+
+## 16. Guarda de pantalla, latencia medida y `112_` (16-oct-2026)
+
+Desplegados y verificados en el Pi de pruebas (`d324db2`): guarda de ruta `RutaVerificada` (Personas → ver_modulo_1,
+Estructura → ver_modulo_2, Tiempo → ver_modulo_3, Terminales → puede_ver_terminales; sin guarda a propósito:
+autenticación, `/inicio`, ficha y bitácora de asignaciones; una prueba fija la lista), `signOut` best-effort ante 401,
+registro de latencia (`app.latencia`, una línea por petición con plantilla de ruta, status y ms; excluye `/salud` y
+`/api/terminal/*`) y límite de logs de Docker (10 MB × 3) en backend y frontend. `.env` del CRM en el Pi: copia con
+secretos destruida (`shred -u`) y permisos 600. `112_` aplicada por el usuario y verificada por `db`.
+
+**Latencia medida (Pi de pruebas → Supabase):** `/api/sesion` mediana 1.1 s (1.03–1.96); `/api/personas` ~0.9–1.0 s;
+ficha 2.4 s, jornada vigente 2.5 s, terminales 2.0 s, asignaciones 2.0 s, áreas 2.0 s, alertas de retardo 4.1 s. Piso
+de ~1 s por consulta a Supabase; los endpoints no optimizados pagan varias, cada una con handshake nuevo
+(`SyncPostgrestClient.schema()`). Reintentos transitorios (`RemoteProtocolError`) en la primera carga tras inactividad.
+**Siguiente entrega propuesta:** un cliente por petición y lecturas en paralelo en los endpoints más usados.
+
+**Pendiente:** versionar en `docker-compose.pi.yml` el bind `127.0.0.1:8000`, la subred 172.19.0.0/16 y el límite de logs
+(hoy solo existen en el Pi); diccionario V1.6, README de ensayos 107–112, grupo E; guías de uso del sistema y piloto
+(consentimiento provisional v1, aviso, oleadas, fecha).
