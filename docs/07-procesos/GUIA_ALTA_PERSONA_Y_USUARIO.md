@@ -23,6 +23,8 @@ para que entre al sistema. La huella en la terminal de checado es **otra guía**
 
 2. Se abre **«Alta de persona»**. Llena los tres bloques:
 
+   ![Formulario de alta de persona, vacío](guia_alta/alta_02a_formulario_vacio.png)
+
    | Bloque | Campo | Obligatorio | Nota |
    |---|---|---|---|
    | Datos personales | Primer nombre, Apellido paterno | Sí | El segundo nombre y el apellido materno son opcionales |
@@ -34,8 +36,16 @@ para que entre al sistema. La huella en la terminal de checado es **otra guía**
    | | Tipo de contrato | Sí | Indefinido, Prestación de servicios o Por proyecto |
    | Referencia de expediente | Folio (`documento_ref`) | Sí | Formato `RTB-RH-EIT-AAAA-N` |
 
+   Así se ve ya lleno (en la guía los datos están difuminados). Fíjate en que el sistema pone la CURP y el RFC en mayúsculas y que el
+   folio sigue el formato `RTB-RH-EIT-AAAA-N`:
+
+   ![Formulario lleno, datos difuminados](guia_alta/alta_02b_formulario_lleno.png)
+
 3. Pulsa **«Registrar alta»** **una sola vez** y espera. Si todo sale bien, el sistema te lleva a la **ficha** de la persona. No hay
-   mensaje de «guardado»: llegar a la ficha es la confirmación.
+   mensaje de «guardado»: llegar a la ficha es la confirmación. Verás sus datos, su expediente y el botón **«Crear acceso al sistema»**
+   (el siguiente paso).
+
+   ![Ficha de la persona, datos difuminados](guia_alta/alta_03_ficha_persona_recien_creada.png)
 
 > **Si algo no cuadra**, el sistema te lo dice en rojo debajo del formulario y no crea nada:
 > - «Ya existe una persona registrada con esa CURP / ese RFC / ese NSS.» → la persona ya está registrada; búscala en el Directorio.
@@ -76,7 +86,11 @@ para que entre al sistema. La huella en la terminal de checado es **otra guía**
 3. **Verificación en dos pasos.** El sistema pide configurar una app autenticadora (Google Authenticator, Microsoft Authenticator o
    Authy): se escanea el código QR y se escribe el código de 6 dígitos. En la app aparecerá como **«RTB Administración Central»**.
    **El código QR y la clave manual son secretos: nunca los fotografíes ni los compartas.**
-4. Inicia sesión. Si todavía **no tiene un puesto asignado**, aterriza en **Inicio** y ve solo su nombre, su estado y el mensaje
+4. Al **iniciar sesión**, además de su correo y contraseña, el sistema le pide el **código de 6 dígitos** de su app autenticadora:
+
+   ![Verificación en dos pasos al iniciar sesión](guia_alta/alta_10_verificacion_dos_pasos_inicio_sesion.png)
+
+   Si todavía **no tiene un puesto asignado**, aterriza en **Inicio** y ve solo su nombre, su estado y el mensaje
    «Tu acceso está en configuración. Avisa a Recursos Humanos para que te asignen un puesto.» **No ve la información de otras personas.**
 
    ![Inicio de una persona sin puesto](guia_alta/alta_09_inicio_sin_puesto.png)
@@ -106,5 +120,5 @@ para que entre al sistema. La huella en la terminal de checado es **otra guía**
 - No inventes un folio: pide el consecutivo al responsable del expediente físico.
 
 ---
-*Pendiente de completar en esta guía:* capturas del formulario de alta de persona (vacío y lleno con datos de ejemplo o difuminados), de la
-ficha recién creada y de «Invitación enviada.», y la pantalla de configurar el 2FA sin código QR ni clave.
+*Pendiente de completar en esta guía:* captura de «Invitación enviada.» (no se tomó en la primera alta; se toma en la siguiente) y la pantalla de
+configurar el 2FA sin código QR ni clave manual.
