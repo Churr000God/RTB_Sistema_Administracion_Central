@@ -410,3 +410,17 @@ de ~1 s por consulta a Supabase; los endpoints no optimizados pagan varias, cada
 **Pendiente:** versionar en `docker-compose.pi.yml` el bind `127.0.0.1:8000`, la subred 172.19.0.0/16 y el límite de logs
 (hoy solo existen en el Pi); diccionario V1.6, README de ensayos 107–112, grupo E; guías de uso del sistema y piloto
 (consentimiento provisional v1, aviso, oleadas, fecha).
+
+## 17. Configuración del Pi versionada y futuras implementaciones (16-oct-2026)
+
+`docker-compose.pi.yml` (bind `127.0.0.1:8000`, subred fija `172.19.0.0/16`, límite de logs 10 MB × 3), perfil opt-in
+`DESPLEGAR_PERFIL=pi` en `scripts/desplegar.sh` y `docs/07-procesos/ARRANQUE_PI_DE_PRUEBAS.md` (reglas de `tailscale serve`,
+claves del `.env` sin secretos, Redirect URLs de Supabase). Verificado en el Pi: `docker compose config` con los tres
+archivos idéntico al anterior, `docker-compose.prod.yml` restaurado al del repo, nada recreado.
+
+**Posibles implementaciones futuras (decididas por el usuario el 16-oct, no son pendientes):** optimizar los demás endpoints
+(un cliente por petición y lecturas en paralelo; ficha ~2.4 s, alertas de retardo ~4.1 s, piso ~1 s por consulta a
+Supabase); de `db`: diccionario V1.6, README de ensayos 107–112 y el «grupo E» (UPDATE/DELETE de `service_role` en `tiempo`);
+campo de sesión `puede_editar_persona` para ocultar el botón «Editar»; guarda de pantalla en la ficha y la bitácora de
+asignaciones; `identidad_visible` en la ficha; nombre completo en `/inicio`; texto de «Restablece tu contraseña» en la
+pantalla de invitación («Crea tu contraseña»); banner «enlace con el servidor» del puente (propuesta de `security`).
