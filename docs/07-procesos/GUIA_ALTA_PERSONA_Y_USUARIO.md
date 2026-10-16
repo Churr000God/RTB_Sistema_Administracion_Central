@@ -50,6 +50,8 @@ para que entre al sistema. La huella en la terminal de checado es **otra guía**
 2. Se abre **«Alta de usuario»** con la persona ya seleccionada. Escribe:
    - **Correo:** a esa dirección llegará el enlace de activación (con vigencia limitada).
    - **Nombre de usuario:** el que usará en el sistema.
+   ![Alta de usuario (datos difuminados)](guia_alta/alta_04b_formulario_alta_usuario.png)
+
 3. Pulsa **«Enviar invitación»** **una sola vez**. Debe aparecer **«Invitación enviada.»**
 
 > **Si falla:** «Esta persona ya tiene un usuario asociado.» (ya tenía acceso), «El correo no es válido o ya tiene una cuenta de acceso.»,
@@ -104,6 +106,5 @@ para que entre al sistema. La huella en la terminal de checado es **otra guía**
 - No inventes un folio: pide el consecutivo al responsable del expediente físico.
 
 ---
-*Pendiente de completar en esta guía:* capturas del formulario de alta (vacío y lleno con datos de ejemplo), de la ficha recién creada, del
-formulario «Alta de usuario» y de «Invitación enviada.» (todas con datos de ejemplo o difuminadas), y la pantalla de configurar el 2FA sin
-código QR ni clave.
+*Pendiente de completar en esta guía:* capturas del formulario de alta de persona (vacío y lleno con datos de ejemplo o difuminados), de la
+ficha recién creada y de «Invitación enviada.», y la pantalla de configurar el 2FA sin código QR ni clave.
