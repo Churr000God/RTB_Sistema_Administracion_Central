@@ -92,8 +92,9 @@ para que entre al sistema. La huella en la terminal de checado es **otra guía**
 
    ![Verificación en dos pasos al iniciar sesión](guia_alta/alta_10_verificacion_dos_pasos_inicio_sesion.png)
 
-   Si todavía **no tiene un puesto asignado**, aterriza en **Inicio** y ve solo su nombre, su estado y el mensaje
-   «Tu acceso está en configuración. Avisa a Recursos Humanos para que te asignen un puesto.» **No ve la información de otras personas.**
+   Si todavía **no tiene ningún módulo habilitado** (por ejemplo, porque aún no tiene un puesto con permisos), aterriza en **Inicio** y ve
+   solo su nombre, su estado y el mensaje «Tu acceso está en configuración. Avisa a Recursos Humanos para que te asignen un puesto.»
+   **No ve la información de otras personas.**
 
    ![Inicio de una persona sin puesto](guia_alta/alta_09_inicio_sin_puesto.png)
 
