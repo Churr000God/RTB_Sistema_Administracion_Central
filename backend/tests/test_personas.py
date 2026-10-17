@@ -1154,3 +1154,41 @@ def test_23505_del_alta_devuelve_un_mensaje_fijo_por_campo_sin_el_detail_de_la_b
         r = _alta_con_error(error)
         assert r.status_code == 409 and r.json()["detail"] == esperado, restriccion
         assert valor not in r.text and "already exists" not in r.text and "duplicate key" not in r.text and restriccion not in r.text
+
+
+def _patch_con_error_de_rpc(error: APIError):
+    fake_client = _fake_client_patch_gate(rpc_side_effect=error)
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+    try:
+        return TestClient(app).patch(
+            f"/api/personas/{PERSONA_ID}", json={"tipo_contrato": "indefinido", "documento_ref": "RTB-RH-EIT-2026-07"}, headers={"Authorization": "Bearer fake-token"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_actualizar_persona_scj22_expediente_incompleto_devuelve_422_con_mensaje_fijo():
+    response = _patch_con_error_de_rpc(APIError({"code": "SCJ22", "message": "texto interno con RTB-RH-EIT-2026-07", "hint": "expediente_incompleto"}))
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Esta persona no tiene expediente todavía -- manda tipo_contrato y documento_ref juntos."
+    assert "texto interno" not in response.text and "RTB-RH" not in response.text
+
+
+def test_actualizar_persona_scj22_con_otro_hint_no_se_confunde():
+    response = _patch_con_error_de_rpc(APIError({"code": "SCJ22", "message": "x", "hint": "otra_cosa"}))
+    assert response.status_code == 500
+
+
+def test_actualizar_persona_carrera_de_dos_altas_de_expediente_devuelve_409_generico():
+    response = _patch_con_error_de_rpc(APIError({
+        "code": "23505", "message": 'duplicate key value violates unique constraint "uq_expediente_persona"', "details": "Key (persona_id)=(valor-real) already exists.",
+    }))
+    assert response.status_code == 409
+    assert response.json()["detail"] == "El expediente de esta persona ya fue creado por otra solicitud; recarga la ficha e intenta de nuevo."
+    assert "valor-real" not in response.text and "CURP" not in response.text
+
+
+def test_actualizar_persona_otra_unicidad_sigue_con_el_mensaje_de_duplicado():
+    response = _patch_con_error_de_rpc(APIError({"code": "23505", "message": 'duplicate key value violates unique constraint "uq_persona_curp"'}))
+    assert response.status_code == 409 and "CURP, RFC, NSS" in response.json()["detail"]

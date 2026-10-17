@@ -33,6 +33,9 @@ MENSAJE_EXPEDIENTE_INCOMPLETO = (
     "Esta persona no tiene expediente todavía -- manda tipo_contrato y documento_ref juntos."
 )
 CODIGO_VIOLACION_CHECK = "23514"
+CODIGO_EXPEDIENTE_INCOMPLETO = "SCJ22"      # db/ddl/116_: crear el expediente de una persona que no tiene exige tipo_contrato Y documento_ref
+HINT_EXPEDIENTE_INCOMPLETO = "expediente_incompleto"
+MENSAJE_EXPEDIENTE_YA_CREADO = "El expediente de esta persona ya fue creado por otra solicitud; recarga la ficha e intenta de nuevo."
 # Mensajes del ALTA por campo (SIN revelar nada de la persona que ya tiene ese dato). El texto de la base nunca va al cliente: solo se lee el NOMBRE de la restricción
 # (o la columna) para elegir uno de estos mensajes fijos.
 MENSAJE_CURP_DUPLICADA = "Ya existe una persona registrada con esa CURP."
@@ -308,10 +311,16 @@ def actualizar_persona(
     except APIError as error:
         if error.code == CODIGO_PERSONA_NO_ENCONTRADA:
             raise HTTPException(status.HTTP_404_NOT_FOUND, MENSAJE_PERSONA_NO_ENCONTRADA) from error
+        if error.code == CODIGO_EXPEDIENTE_INCOMPLETO and error.hint == HINT_EXPEDIENTE_INCOMPLETO:
+            # la carrera con otra edición que borró/no creó el expediente: el RPC lo detecta en la base. Mensaje fijo, nada del texto de la base.
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_EXPEDIENTE_INCOMPLETO) from None
         if error.code == CODIGO_VIOLACION_CHECK and "documento_ref_formato" in (error.message or ""):
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_DOCUMENTO_REF_FORMATO
             ) from error
+        if error.code == UNIQUE_VIOLATION and "uq_expediente_persona" in (error.message or "").lower():
+            # dos solicitudes crearon el expediente de la misma persona a la vez: no es un dato duplicado de CURP/RFC/NSS/folio
+            raise HTTPException(status.HTTP_409_CONFLICT, MENSAJE_EXPEDIENTE_YA_CREADO) from None
         manejar_violacion_unicidad(error, MENSAJE_DUPLICADO)
 
     return _construir_ficha_persona(db, persona_id)

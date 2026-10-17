@@ -415,6 +415,9 @@ SQLSTATE_TRANSITORIOS_BASE = frozenset({
     "PGRST000", "PGRST001", "PGRST002", "PGRST003",   # PostgREST: conexión/pool de la base
 })
 MENSAJE_BASE_NO_DISPONIBLE = "El servicio no está disponible un momento; reintenta."
+MENSAJE_TOKEN_INVALIDO = "Token inválido o expirado."
+# PostgREST: JWT inválido / vencido (PGRST301), sin rol (PGRST302), claims rechazados (PGRST303). Con get_caller_client el token solo lo valida PostgREST al primer uso.
+CODIGOS_JWT_INVALIDO = frozenset({"PGRST301", "PGRST302", "PGRST303"})
 REINTENTAR_DESPUES_S = 2
 PAUSA_REINTENTO_S = 0.25
 

@@ -429,9 +429,14 @@ def test_los_get_client_fabrican_un_objeto_nuevo_en_cada_llamada_nunca_un_single
 
     monkeypatch.setattr(deps, "create_client", lambda *a, **k: MagicMock())
     ajustes = Settings(supabase_url="http://supabase.invalido", supabase_anon_key="anon-ficticia", supabase_service_role_key="service-ficticia")
-    assert deps.get_service_client(ajustes) is not deps.get_service_client(ajustes)
-    assert deps.get_caller_client("Bearer token-a", ajustes) is not deps.get_caller_client("Bearer token-a", ajustes)
-    assert deps.get_caller_client("Bearer token-a", ajustes) is not deps.get_caller_client("Bearer token-b", ajustes)
+    from starlette.requests import Request
+
+    def peticion():
+        return Request({"type": "http", "method": "GET", "path": "/", "headers": [], "query_string": b""})
+
+    assert deps.get_service_client(peticion(), ajustes) is not deps.get_service_client(peticion(), ajustes)
+    assert deps.get_caller_client(peticion(), "Bearer aaa.bbb.ccc", ajustes) is not deps.get_caller_client(peticion(), "Bearer aaa.bbb.ccc", ajustes)
+    assert deps.get_caller_client(peticion(), "Bearer aaa.bbb.ccc", ajustes) is not deps.get_caller_client(peticion(), "Bearer ddd.eee.fff", ajustes)
 
 
 # --- lecturas de permisos: fallos permanentes y no transitorios -----------------------------------------------------------------------------------------

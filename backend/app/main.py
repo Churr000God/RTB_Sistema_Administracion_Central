@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from postgrest.exceptions import APIError
 
 from app.config import parse_frontend_urls
-from app.errores import CODIGOS_MIGRACION_FALTANTE, MENSAJE_DATOS_INVALIDOS
+from app.errores import CODIGOS_JWT_INVALIDO, CODIGOS_MIGRACION_FALTANTE, MENSAJE_DATOS_INVALIDOS, MENSAJE_TOKEN_INVALIDO
 from app.registro_seguro import PAQUETES_CON_MENSAJE_SENSIBLE, tiene_mensaje_registrable, traza_sin_mensaje  # noqa: F401
 from app.latencia import MedirLatencia, configurar_registro_de_latencia
 from app.interruptor_huella import PREFIJO as PREFIJO_INTERRUPTOR_HUELLA, SinCacheInterruptor, codigo_de_validacion
@@ -137,7 +137,26 @@ async def manejador_excepciones_no_capturadas(request: Request, exc: Exception) 
 
 async def manejador_error_postgrest(request: Request, exc: APIError) -> JSONResponse:
     """Si la base no tiene el objeto que el código espera (migración sin aplicar) se responde 503 con mensaje fijo y
-    ERROR en el log (sin el texto de la base); cualquier otro APIError no anticipado sigue siendo el 500 genérico."""
+    ERROR en el log (sin el texto de la base); un JWT que PostgREST rechaza (get_caller_client no lo valida antes) es 401 con mensaje fijo; cualquier otro APIError no anticipado
+    sigue siendo el 500 genérico."""
+    if exc.code in CODIGOS_JWT_INVALIDO:
+        usa_caller = getattr(request.state, "usa_cliente_caller", False)
+        usa_servicio = getattr(request.state, "usa_cliente_servicio", False)
+        # Con las DOS marcas (el gate corre con el caller y los datos con servicio) un PGRST301 «expired» es el token del usuario vencido a mitad de sesión: el mensaje de PostgREST se usa SOLO
+        # para clasificar, jamás se emite ni se registra. Firma inválida/claims con las dos marcas sigue siendo ambiguo (500 + ERROR); sin el caller, nunca se culpa al usuario.
+        vencido = usa_caller and usa_servicio and exc.code == "PGRST301" and "expired" in (exc.message or "").lower()
+        if (usa_caller and not usa_servicio) or vencido:
+            # El ÚNICO cliente de la petición lleva el token del usuario: PostgREST lo rechazó. Se registra (código, método, plantilla; nunca texto ni token).
+            logger.warning("JWT del usuario rechazado por PostgREST (%s) en %s %s; 401", exc.code, request.method, ruta_para_log(request))
+            respuesta = JSONResponse(status_code=401, content={"detail": MENSAJE_TOKEN_INVALIDO}, headers={"WWW-Authenticate": "Bearer"})
+            origen = request.headers.get("origin")
+            if origen in ORIGENES_PERMITIDOS:
+                respuesta.headers["Access-Control-Allow-Origin"] = origen
+                respuesta.headers["Vary"] = "Origin"
+            return respuesta
+        # Con un cliente de SERVICIO de por medio (secreto rotado o mal pegado) —o sin saber cuál— NO se culpa al token del usuario (el frontend lo desloguearía): 500 con ERROR en el log.
+        logger.error("PostgREST rechazó un JWT (%s) en %s %s con cliente de servicio o desconocido (¿secreto rotado o mal pegado?)", exc.code, request.method, ruta_para_log(request))
+        return await manejador_excepciones_no_capturadas(request, exc)
     if exc.code in CODIGOS_MIGRACION_FALTANTE:
         logger.error("falta una migración en la base (PostgREST %s) en %s %s", exc.code, request.method, ruta_para_log(request))
         respuesta = JSONResponse(status_code=503, content={"detail": MENSAJE_SERVICIO_NO_DISPONIBLE})
