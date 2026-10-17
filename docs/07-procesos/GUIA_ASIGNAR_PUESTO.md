@@ -46,7 +46,11 @@ Va después de la guía de alta (`GUIA_ALTA_PERSONA_Y_USUARIO.md`): la persona y
 
    ![La asignación nueva en el listado (nombre difuminado)](guia_asignar/asig_02c_listado_con_nueva.png)
 
-4. La persona verá los módulos de su puesto **la próxima vez que cargue el sistema** (que recargue la página o vuelva a entrar).
+4. La persona verá los módulos de su puesto **la próxima vez que cargue el sistema** (que recargue la página o vuelva a entrar). En
+   **Inicio** ya no aparece «Tu acceso está en configuración», sino **«Estos son tus accesos:»** con los módulos que le da su
+   puesto, y el menú lateral los muestra habilitados:
+
+   ![Inicio de una persona con puesto asignado (nombre y correo difuminados)](guia_asignar/asig_06_inicio_con_modulos.png)
 
 > **Si algo no cuadra**, el sistema lo dice en rojo debajo del formulario y no registra nada:
 > - «El puesto no tiene plazas libres.» → termina otra asignación de ese puesto o pide que amplíen sus plazas.
@@ -118,5 +122,4 @@ Se usa cuando la persona **deja el puesto sin pasar a otro** (baja, fin de proye
 - No asignes un puesto «de prueba» a una persona real: queda en su historial.
 
 ---
-*Pendiente de completar en esta guía:* la vista de Inicio de la
-persona ya con módulos (la toma RH con su propia cuenta) y confirmar si basta con recargar.
+*Pendiente de completar en esta guía:* revisar los textos con RH tras su primer uso real.
