@@ -142,6 +142,11 @@ export function AsignarJornadaPage() {
   // formulario o cierre lo incrementa, y la respuesta tardía de una selección anterior se
   // descarta (si no, sembraría el patrón de A con la persona B ya elegida).
   const precargaVersion = useRef(0);
+  const [cargandoPrecarga, setCargandoPrecarga] = useState(false);
+  function invalidarPrecarga() {
+    precargaVersion.current += 1;
+    setCargandoPrecarga(false);
+  }
   const [busquedaCobertura, setBusquedaCobertura] = useState("");
   // El formulario arranca cerrado (SCJ-PRA-01, mockup B elegido) — un clic en "Asignar"/"Renovar"
   // de una fila, o en la cabecera, lo abre. Mismo patrón crudo de AppShell.tsx (aria-expanded +
@@ -201,7 +206,7 @@ export function AsignarJornadaPage() {
   }
 
   function limpiarFormulario() {
-    precargaVersion.current += 1;
+    invalidarPrecarga();
     setPersonaId("");
     setDiasSeleccionados(new Set());
     setVigenteDesdeCampo("");
@@ -366,7 +371,7 @@ export function AsignarJornadaPage() {
   }
 
   async function seleccionarParaAsignar(id: string) {
-    precargaVersion.current += 1;
+    invalidarPrecarga();
     const version = precargaVersion.current;
     setPersonaId(id);
     setExito(null);
@@ -380,17 +385,21 @@ export function AsignarJornadaPage() {
     if (!persona?.tiene_jornada_vigente) return;
     // Renovar: precarga tipo y patrón de la jornada vigente (vigente_desde queda vacío, lo
     // captura RH). Si la cadena no carga, el formulario queda vacío como antes.
-    let cadena = cadenaCache[id]?.cadena;
+    let cadena: JornadaEnCadena[] | null = cadenaCache[id]?.cadena ?? null;
     if (!cadena || cadena.length === 0) {
+      // Mientras la cadena viaja: aviso visible y "Registrar" deshabilitado (ver invalidarPrecarga:
+      // cualquier cambio de selección, edición o cierre lo quita sin esperar la respuesta).
+      setCargandoPrecarga(true);
       try {
         const r = await apiFetch(`/api/personas/${id}/jornadas`);
-        if (!r.ok) return;
-        cadena = (await r.json()) as JornadaEnCadena[];
+        cadena = r.ok ? ((await r.json()) as JornadaEnCadena[]) : null;
       } catch {
-        return;
+        cadena = null;
       }
+      if (precargaVersion.current !== version) return;
+      setCargandoPrecarga(false);
     }
-    if (precargaVersion.current !== version) return;
+    if (!cadena) return;
     const vigente = cadena.find((j) => j.estado_vigencia === "en_curso");
     if (!vigente) return;
     setDiasSeleccionados(new Set(vigente.patron_semanal.map((p) => p.dia_semana)));
@@ -424,7 +433,7 @@ export function AsignarJornadaPage() {
   }
 
   function iniciarEdicionJornada(personaIdEditado: string, fila: JornadaEnCadena, cadena: JornadaEnCadena[]) {
-    precargaVersion.current += 1;
+    invalidarPrecarga();
     setError(null);
     setExito(null);
     setPersonaId(personaIdEditado);
@@ -764,7 +773,12 @@ export function AsignarJornadaPage() {
         )}
 
       {formAbierto && (
-      <form key={formKey} onSubmit={handleSubmit} onChange={() => { precargaVersion.current += 1; }}>
+      <form key={formKey} onSubmit={handleSubmit} onChange={invalidarPrecarga}>
+        {cargandoPrecarga && (
+          <p role="status" className="ayuda-campo">
+            Cargando jornada vigente…
+          </p>
+        )}
         {precargadoDeVigente && (
           <p role="status" className="ayuda-campo">
             Precargado de la jornada vigente. Ajusta lo que cambie e indica desde cuándo aplica.
@@ -961,7 +975,7 @@ export function AsignarJornadaPage() {
           <Button
             type="submit"
             icono={modoEdicion ? undefined : ArrowRight}
-            disabled={formularioDeshabilitado || !!payloadPendiente}
+            disabled={formularioDeshabilitado || !!payloadPendiente || cargandoPrecarga}
             cargando={enviando && !payloadPendiente}
             textoCargando={modoEdicion ? "Guardando…" : "Registrando…"}
           >

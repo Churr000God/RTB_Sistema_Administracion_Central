@@ -890,6 +890,114 @@ describe("AsignarJornadaPage", () => {
       expect(screen.queryByText(/precargado de la jornada vigente/i)).not.toBeInTheDocument();
     });
 
+    describe("aviso de carga de la precarga", () => {
+      const AVISO = /cargando jornada vigente/i;
+      const registrar = () => screen.getByRole("button", { name: /registrar/i });
+
+      it("en vuelo: aviso visible y «Registrar» deshabilitado; al resolver se quitan y se precarga", async () => {
+        let resolver!: (r: Response) => void;
+        mockAna(() => new Promise<Response>((res) => { resolver = res; }));
+        render(<AsignarJornadaPage />);
+        await pulsarRenovar();
+
+        expect(screen.getByText(AVISO)).toBeInTheDocument();
+        expect(registrar()).toBeDisabled();
+
+        resolver(new Response(JSON.stringify(EN_CURSO)));
+        expect(await screen.findByText(/precargado de la jornada vigente/i)).toBeInTheDocument();
+        expect(screen.queryByText(AVISO)).not.toBeInTheDocument();
+        expect(registrar()).toBeEnabled();
+      });
+
+      it("al fallar (500): se quitan el aviso y el bloqueo, formulario vacío y habilitado", async () => {
+        let resolver!: (r: Response) => void;
+        mockAna(() => new Promise<Response>((res) => { resolver = res; }));
+        render(<AsignarJornadaPage />);
+        await pulsarRenovar();
+        expect(screen.getByText(AVISO)).toBeInTheDocument();
+
+        resolver(new Response(null, { status: 500 }));
+        await waitFor(() => expect(screen.queryByText(AVISO)).not.toBeInTheDocument());
+        expect(registrar()).toBeEnabled();
+        expect(screen.queryByText(/precargado de la jornada vigente/i)).not.toBeInTheDocument();
+      });
+
+      it("al lanzar apiFetch: se quitan el aviso y el bloqueo", async () => {
+        let rechazar!: (e: Error) => void;
+        mockAna(() => new Promise<Response>((_, rej) => { rechazar = rej; }));
+        render(<AsignarJornadaPage />);
+        await pulsarRenovar();
+        expect(screen.getByText(AVISO)).toBeInTheDocument();
+
+        rechazar(new Error("red caída"));
+        await waitFor(() => expect(screen.queryByText(AVISO)).not.toBeInTheDocument());
+        expect(registrar()).toBeEnabled();
+      });
+
+      it("Cancelar en vuelo: el aviso no queda pegado (ni al reabrir el formulario)", async () => {
+        mockAna(() => new Promise<Response>(() => { /* nunca responde */ }));
+        render(<AsignarJornadaPage />);
+        await pulsarRenovar();
+        expect(screen.getByText(AVISO)).toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole("button", { name: /^cancelar$/i }));
+        expect(screen.queryByText(AVISO)).not.toBeInTheDocument();
+
+        // al reabrir sin jornada vigente no reaparece
+        await userEvent.click(within(screen.getByRole("table")).getByRole("button", { name: /renovar/i }));
+        // (Ana tiene jornada: reabre y vuelve a cargar -- el aviso es legítimo aquí)
+        expect(screen.getByText(AVISO)).toBeInTheDocument();
+      });
+
+      it("cambiar de persona en vuelo (B sin jornada): el aviso de A se quita y no bloquea", async () => {
+        const personas = [
+          { id: "persona-1", primer_nombre: "Ana", apellido_paterno: "Con Jornada", estado: "activo", tiene_jornada_vigente: true },
+          { id: "persona-2", primer_nombre: "Beto", apellido_paterno: "Sin Jornada", estado: "activo", tiene_jornada_vigente: false },
+        ];
+        vi.mocked(apiFetch).mockImplementation((path: string) => {
+          if (path === "/api/sesion") {
+            return Promise.resolve(new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null })));
+          }
+          if (path === "/api/personas") return Promise.resolve(new Response(JSON.stringify(personas)));
+          if (path === "/api/personas/persona-1/jornadas") return new Promise<Response>(() => {});
+          return Promise.reject(new Error(`ruta no mockeada: ${path}`));
+        });
+        render(<AsignarJornadaPage />);
+        const tabla = await screen.findByRole("table");
+        await userEvent.click(within(tabla).getByRole("button", { name: /renovar/i }));
+        expect(screen.getByText(AVISO)).toBeInTheDocument();
+
+        await userEvent.click(within(tabla).getByRole("button", { name: /^asignar$/i }));
+
+        expect(screen.queryByText(AVISO)).not.toBeInTheDocument();
+        expect(registrar()).toBeEnabled();
+      });
+
+      it("Editar una jornada futura en vuelo: el aviso se quita", async () => {
+        // la cadena llega por la expansión de fila (cacheada) mientras la precarga sigue pendiente
+        const cadenaResp = [
+          () => new Promise<Response>(() => {}), // 1ª llamada: la precarga, nunca responde
+        ];
+        let llamada = 0;
+        mockAna(() => {
+          llamada += 1;
+          return llamada === 1
+            ? cadenaResp[0]()
+            : Promise.resolve(new Response(JSON.stringify(CADENA_TRES_JORNADAS)));
+        });
+        render(<AsignarJornadaPage />);
+        await pulsarRenovar();
+        expect(screen.getByText(AVISO)).toBeInTheDocument();
+
+        const tabla = screen.getByRole("table");
+        await userEvent.click(within(tabla).getByText("Ana Con Jornada").closest("tr")!);
+        await userEvent.click(await screen.findByRole("button", { name: /^editar$/i }));
+
+        expect(screen.queryByText(AVISO)).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: /guardar cambios/i })).toBeEnabled();
+      });
+    });
+
     it("tras guardar muestra «Puedes asignar otra desde aquí mismo.»", async () => {
       mockApiFetch({});
       render(<AsignarJornadaPage />);
