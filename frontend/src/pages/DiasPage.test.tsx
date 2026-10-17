@@ -569,7 +569,7 @@ describe("DiasPage", () => {
   it("409 por carrera (SCJ09, marca agregada entre calcular y confirmar) muestra el mensaje sin cerrar", async () => {
     mockApiFetch({
       revisar: new Response(
-        JSON.stringify({ detail: "Se agregó una marca nueva -- volvé a calcular." }),
+        JSON.stringify({ detail: "Se agregó una marca nueva -- vuelve a calcular." }),
         { status: 409 },
       ),
     });
@@ -579,7 +579,7 @@ describe("DiasPage", () => {
     await abrirYCalcular();
     await userEvent.click(screen.getByRole("button", { name: /^confirmar$/i }));
 
-    await waitFor(() => expect(screen.getByText(/volvé a calcular/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/vuelve a calcular/i)).toBeInTheDocument());
     expect(screen.getByText(/¿marcar como revisado el día de/i)).toBeInTheDocument();
   });
 

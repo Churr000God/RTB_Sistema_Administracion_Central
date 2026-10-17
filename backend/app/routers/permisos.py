@@ -34,9 +34,9 @@ CODIGO_PUESTO_PERMISO_EDICION = "puesto_permiso_edicion"
 
 MENSAJE_PUESTO_INVALIDO = "El puesto no existe o está inactivo."
 MENSAJE_PERMISO_INVALIDO = "El permiso no existe o está inactivo."
-MENSAJE_AUTOOTORGAMIENTO_DIRECTO = "No podés otorgarte este permiso a vos mismo."
+MENSAJE_AUTOOTORGAMIENTO_DIRECTO = "No puedes otorgarte este permiso a ti mismo."
 MENSAJE_AUTOOTORGAMIENTO_POR_HERENCIA = (
-    "No podés otorgar este permiso: terminarías heredándolo por el rodeo del organigrama."
+    "No puedes otorgar este permiso: terminarías heredándolo por el rodeo del organigrama."
 )
 MENSAJE_PUESTO_PERMISO_NO_ENCONTRADO = "puesto_permiso no encontrado."
 MENSAJE_ULTIMA_FILA_EDICION = (

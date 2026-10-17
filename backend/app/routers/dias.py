@@ -58,7 +58,7 @@ MENSAJE_DIA_NO_BLOQUEADO = (
 MENSAJE_HORAS_INVALIDAS = "Horas trabajadas inválidas -- debe estar entre 0 y 24."
 MENSAJE_DIA_NO_REVISADO_GENERICO = "No se pudo revisar el día."
 MENSAJE_HUERFANA_SIN_PAREJA = (
-    "Este día tiene una marca sin pareja -- corregí la marca faltante o usá captura manual antes "
+    "Este día tiene una marca sin pareja -- corrige la marca faltante o usa captura manual antes "
     "de revisar."
 )
 
@@ -341,7 +341,7 @@ def previsualizar_tramos(
 ) -> dict:
     """Sólo lectura -- tiempo.fn_dia_calcular_armado_tramos no escribe nada, simula cómo
     quedarían los tramos si se revisara el día ahora mismo (db/ddl/65_*.sql). Mismo gate que
-    revisar_dia: si no podés revisar, tampoco tiene sentido que veas la previsualización.
+    revisar_dia: si no puedes revisar, tampoco tiene sentido que veas la previsualización.
 
     A diferencia de revisar_dia, esta función no declara ningún ERRCODE propio (nunca señala "el
     día no existe", ver comentario de 65_*.sql) -- cualquier APIError que llegue acá es un error

@@ -73,7 +73,7 @@ export function VerificarTotpRoute() {
             <AlertCircle size={16} aria-hidden="true" />
             No se pudo comprobar tu verificación
           </strong>
-          <p>Ocurrió un problema de conexión. Intentá de nuevo en unos segundos.</p>
+          <p>Ocurrió un problema de conexión. Inténtalo de nuevo en unos segundos.</p>
         </div>
       </AuthLayout>
     );

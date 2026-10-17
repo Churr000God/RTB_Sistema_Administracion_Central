@@ -313,7 +313,7 @@ def test_otorgar_autootorgamiento_directo_devuelve_422():
 
     app.dependency_overrides.clear()
     assert response.status_code == 422
-    assert "vos mismo" in response.json()["detail"]
+    assert "ti mismo" in response.json()["detail"]
 
 
 def test_otorgar_autootorgamiento_por_herencia_en_subarbol_devuelve_422():

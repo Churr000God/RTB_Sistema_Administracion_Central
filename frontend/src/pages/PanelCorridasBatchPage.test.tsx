@@ -144,7 +144,7 @@ describe("PanelCorridasBatchPage", () => {
   it("muestra un error legible cuando el backend rechaza el disparo manual", async () => {
     mockApiFetch({
       disparar: new Response(
-        JSON.stringify({ detail: "No tenés el permiso necesario (corrida_batch_edicion)." }),
+        JSON.stringify({ detail: "No tienes el permiso necesario (corrida_batch_edicion)." }),
         { status: 403 },
       ),
     });
@@ -158,7 +158,7 @@ describe("PanelCorridasBatchPage", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText("No tenés el permiso necesario (corrida_batch_edicion)."),
+        screen.getByText("No tienes el permiso necesario (corrida_batch_edicion)."),
       ).toBeInTheDocument(),
     );
   });

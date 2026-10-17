@@ -1,4 +1,4 @@
-import { Fragment, type FormEvent, useEffect, useMemo, useState } from "react";
+import { Fragment, type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, CalendarClock, CheckCircle2, ChevronDown, ChevronRight, Clock, Search, Trash2 } from "lucide-react";
 
 import { apiFetch } from "../lib/apiClient";
@@ -137,6 +137,11 @@ export function AsignarJornadaPage() {
   // patrón semanal), que un simple setState no resetea.
   const [exito, setExito] = useState<{ mensaje: string } | null>(null);
   const [formKey, setFormKey] = useState(0);
+  const [precargadoDeVigente, setPrecargadoDeVigente] = useState(false);
+  // Contador de la precarga en vuelo de "Renovar": cualquier cambio de selección, edición del
+  // formulario o cierre lo incrementa, y la respuesta tardía de una selección anterior se
+  // descarta (si no, sembraría el patrón de A con la persona B ya elegida).
+  const precargaVersion = useRef(0);
   const [busquedaCobertura, setBusquedaCobertura] = useState("");
   // El formulario arranca cerrado (SCJ-PRA-01, mockup B elegido) — un clic en "Asignar"/"Renovar"
   // de una fila, o en la cabecera, lo abre. Mismo patrón crudo de AppShell.tsx (aria-expanded +
@@ -196,12 +201,14 @@ export function AsignarJornadaPage() {
   }
 
   function limpiarFormulario() {
+    precargaVersion.current += 1;
     setPersonaId("");
     setDiasSeleccionados(new Set());
     setVigenteDesdeCampo("");
     setPayloadPendiente(null);
     setModoEdicion(null);
     setValoresIniciales(null);
+    setPrecargadoDeVigente(false);
     setFormKey((anterior) => anterior + 1);
     setFormAbierto(false);
   }
@@ -219,7 +226,7 @@ export function AsignarJornadaPage() {
         // siguiente hay que volver a abrirlo desde el "Asignar"/"Renovar" de una fila.
         const persona = personas.find((p) => p.id === payload.persona_id);
         setExito({
-          mensaje: `Jornada asignada a ${persona ? `${persona.primer_nombre} ${persona.apellido_paterno}` : "la persona"}. Podés asignar otra desde acá mismo.`,
+          mensaje: `Jornada asignada a ${persona ? `${persona.primer_nombre} ${persona.apellido_paterno}` : "la persona"}. Puedes asignar otra desde aquí mismo.`,
         });
         limpiarFormulario();
         cargarPersonas(); // refresca la cobertura de abajo: esta persona ya cuenta como "con jornada"
@@ -346,10 +353,50 @@ export function AsignarJornadaPage() {
       });
   }, [personas, busquedaCobertura]);
 
-  function seleccionarParaAsignar(id: string) {
+  function valoresDeJornada(fila: JornadaEnCadena, vigenteDesde: string): ValoresFormulario {
+    const patronPorDia: ValoresFormulario["patronPorDia"] = {};
+    for (const p of fila.patron_semanal) {
+      patronPorDia[p.dia_semana] = {
+        hora_entrada: p.hora_entrada.slice(0, 5),
+        hora_salida: p.hora_salida.slice(0, 5),
+        minutos_comida: p.minutos_comida,
+      };
+    }
+    return { tipoJornada: fila.tipo_jornada, vigenteDesde, patronPorDia };
+  }
+
+  async function seleccionarParaAsignar(id: string) {
+    precargaVersion.current += 1;
+    const version = precargaVersion.current;
     setPersonaId(id);
     setExito(null);
     setFormAbierto(true);
+    // Formulario limpio para la nueva selección: no arrastra el patrón precargado de otra fila.
+    setPrecargadoDeVigente(false);
+    setValoresIniciales(null);
+    setDiasSeleccionados(new Set());
+    setFormKey((anterior) => anterior + 1);
+    const persona = personas.find((p) => p.id === id);
+    if (!persona?.tiene_jornada_vigente) return;
+    // Renovar: precarga tipo y patrón de la jornada vigente (vigente_desde queda vacío, lo
+    // captura RH). Si la cadena no carga, el formulario queda vacío como antes.
+    let cadena = cadenaCache[id]?.cadena;
+    if (!cadena || cadena.length === 0) {
+      try {
+        const r = await apiFetch(`/api/personas/${id}/jornadas`);
+        if (!r.ok) return;
+        cadena = (await r.json()) as JornadaEnCadena[];
+      } catch {
+        return;
+      }
+    }
+    if (precargaVersion.current !== version) return;
+    const vigente = cadena.find((j) => j.estado_vigencia === "en_curso");
+    if (!vigente) return;
+    setDiasSeleccionados(new Set(vigente.patron_semanal.map((p) => p.dia_semana)));
+    setValoresIniciales(valoresDeJornada(vigente, ""));
+    setPrecargadoDeVigente(true);
+    setFormKey((anterior) => anterior + 1);
   }
 
   async function cargarCadenaDePersona(id: string) {
@@ -377,20 +424,14 @@ export function AsignarJornadaPage() {
   }
 
   function iniciarEdicionJornada(personaIdEditado: string, fila: JornadaEnCadena, cadena: JornadaEnCadena[]) {
+    precargaVersion.current += 1;
     setError(null);
     setExito(null);
     setPersonaId(personaIdEditado);
     setDiasSeleccionados(new Set(fila.patron_semanal.map((p) => p.dia_semana)));
     setVigenteDesdeCampo(fila.vigente_desde);
-    const patronPorDia: ValoresFormulario["patronPorDia"] = {};
-    for (const p of fila.patron_semanal) {
-      patronPorDia[p.dia_semana] = {
-        hora_entrada: p.hora_entrada.slice(0, 5),
-        hora_salida: p.hora_salida.slice(0, 5),
-        minutos_comida: p.minutos_comida,
-      };
-    }
-    setValoresIniciales({ tipoJornada: fila.tipo_jornada, vigenteDesde: fila.vigente_desde, patronPorDia });
+    setPrecargadoDeVigente(false);
+    setValoresIniciales(valoresDeJornada(fila, fila.vigente_desde));
     const tienePredecesora = cadena.some((j) => j.vigente_desde < fila.vigente_desde);
     setModoEdicion({ jornadaId: fila.id, personaId: personaIdEditado, tienePredecesora });
     setFormKey((anterior) => anterior + 1);
@@ -723,7 +764,12 @@ export function AsignarJornadaPage() {
         )}
 
       {formAbierto && (
-      <form key={formKey} onSubmit={handleSubmit}>
+      <form key={formKey} onSubmit={handleSubmit} onChange={() => { precargaVersion.current += 1; }}>
+        {precargadoDeVigente && (
+          <p role="status" className="ayuda-campo">
+            Precargado de la jornada vigente. Ajusta lo que cambie e indica desde cuándo aplica.
+          </p>
+        )}
         <fieldset className="fieldset-formulario">
           <legend className="encabezado-fieldset">
             <span className="icono-seccion">
@@ -886,8 +932,9 @@ export function AsignarJornadaPage() {
         {payloadPendiente && (
           <Card>
             <p role="alert">
-              Esta persona ya tiene una jornada vigente. ¿Cerrarla y dejar vigente la nueva a partir
-              del día anterior a {payloadPendiente.vigente_desde}?
+              Esta persona ya tiene una jornada vigente. La jornada actual terminará el{" "}
+              {formatearFecha(sumarDiasISO(payloadPendiente.vigente_desde, -1))} y la nueva comenzará
+              el {formatearFecha(payloadPendiente.vigente_desde)}. ¿Continuar?
             </p>
             <div className="botonera">
               <Button type="button" onClick={handleCancelarCierre}>

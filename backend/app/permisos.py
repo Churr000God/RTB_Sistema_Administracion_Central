@@ -129,7 +129,7 @@ def requiere_permiso(*codigos: str, mensaje: str | None = None):
         if not tiene_alguno(db, persona_id, *codigos):
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
-                mensaje or f"No tenés el permiso necesario ({' o '.join(codigos)}) para esta acción.",
+                mensaje or f"No tienes el permiso necesario ({' o '.join(codigos)}) para esta acción.",
             )
 
     return dependencia
@@ -150,7 +150,7 @@ def requiere_todos_los_permisos(*codigos: str):
         if faltantes:
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
-                f"No tenés los permisos necesarios ({', '.join(faltantes)}) para esta acción.",
+                f"No tienes los permisos necesarios ({', '.join(faltantes)}) para esta acción.",
             )
 
     return dependencia

@@ -674,8 +674,8 @@ export function DiasPage() {
                             )}
                             {faseConfirmacion === "bloqueada" && (
                               <p role="alert">
-                                Este día tiene una marca sin pareja — corregí la marca faltante o
-                                usá captura manual antes de poder revisar.
+                                Este día tiene una marca sin pareja — corrige la marca faltante o
+                                usa captura manual antes de poder revisar.
                               </p>
                             )}
                             {faseConfirmacion === "editable" && (

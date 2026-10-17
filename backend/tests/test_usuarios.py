@@ -194,7 +194,7 @@ def test_alta_usuario_invitacion_bloqueo_cloudflare_devuelve_422_catch_all():
     app.dependency_overrides.clear()
     assert response.status_code == 422, response.text
     assert response.json()["detail"] == (
-        "No se pudo enviar la invitación -- intentá de nuevo o contactá a Sistemas."
+        "No se pudo enviar la invitación -- intenta de nuevo o contacta a Sistemas."
     )
     fake_client.postgrest.schema.return_value.table.return_value.insert.assert_not_called()
 
@@ -274,7 +274,7 @@ def test_alta_usuario_invitacion_error_desconocido_devuelve_422_catch_all():
     app.dependency_overrides.clear()
     assert response.status_code == 422, response.text
     assert response.json()["detail"] == (
-        "No se pudo enviar la invitación -- intentá de nuevo o contactá a Sistemas."
+        "No se pudo enviar la invitación -- intenta de nuevo o contacta a Sistemas."
     )
 
 
@@ -398,7 +398,7 @@ def _con_cadena_httpx():
 def test_invitacion_catch_all_registra_la_cadena_de_causas_y_el_http_sin_texto(caplog):
     error, _ = _con_cadena_httpx()
     respuesta, avisos = _invitar_con_error(error, caplog)
-    assert respuesta.status_code == 422 and respuesta.json()["detail"] == "No se pudo enviar la invitación -- intentá de nuevo o contactá a Sistemas."
+    assert respuesta.status_code == 422 and respuesta.json()["detail"] == "No se pudo enviar la invitación -- intenta de nuevo o contacta a Sistemas."
     assert len(avisos) == 1
     aviso = avisos[0]
     assert "error=AuthUnknownError" in aviso and "status=None" in aviso and "code=None" in aviso
@@ -472,7 +472,7 @@ class _ErrorQueLanzaAlLeerSusAtributos(AuthApiError):
 def test_si_leer_los_atributos_del_error_lanza_el_422_controlado_se_mantiene(caplog):
     error = _ErrorQueLanzaAlLeerSusAtributos("mensaje con texto", 500, "otro")
     respuesta, avisos = _invitar_con_error(error, caplog)
-    assert respuesta.status_code == 422 and respuesta.json()["detail"] == "No se pudo enviar la invitación -- intentá de nuevo o contactá a Sistemas."
+    assert respuesta.status_code == 422 and respuesta.json()["detail"] == "No se pudo enviar la invitación -- intenta de nuevo o contacta a Sistemas."
     _sin_datos_sensibles(avisos, respuesta)
 
 

@@ -42,7 +42,7 @@ describe("OlvideContrasenaPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /enviar enlace/i }));
 
     await waitFor(() =>
-      expect(screen.getByText(/esperá unos segundos antes de pedir otro/i)).toBeInTheDocument()
+      expect(screen.getByText(/espera unos segundos antes de pedir otro/i)).toBeInTheDocument()
     );
     expect(screen.queryByText(/revisa tu correo/i)).not.toBeInTheDocument();
   });

@@ -4,16 +4,16 @@ type ErrorAuthInfo = { name?: string; code?: string; status?: number; message?: 
 // @supabase/auth-js 2.114.0 (versión realmente instalada — el package.json pide ^2.45.0).
 const MENSAJES: Record<string, string> = {
   insufficient_aal:
-    "Por seguridad, confirmá el código de tu app autenticadora antes de cambiar la contraseña.",
+    "Por seguridad, confirma el código de tu app autenticadora antes de cambiar la contraseña.",
   same_password: "La contraseña nueva tiene que ser distinta de la actual.",
   weak_password: "La contraseña es demasiado débil para las políticas del proyecto.",
-  session_expired: "Tu enlace expiró o la sesión se cerró. Pedí uno nuevo.",
-  session_not_found: "Tu enlace expiró o la sesión se cerró. Pedí uno nuevo.",
-  otp_expired: "Este enlace venció. Solicitá uno nuevo.",
+  session_expired: "Tu enlace expiró o la sesión se cerró. Pide uno nuevo.",
+  session_not_found: "Tu enlace expiró o la sesión se cerró. Pide uno nuevo.",
+  otp_expired: "Este enlace venció. Solicita uno nuevo.",
   reauthentication_needed: "Supabase pide reautenticación para este cambio.",
-  over_request_rate_limit: "Demasiados intentos. Esperá unos minutos.",
+  over_request_rate_limit: "Demasiados intentos. Espera unos minutos.",
   over_email_send_rate_limit:
-    "Ya te enviamos un enlace hace un momento. Esperá unos segundos antes de pedir otro.",
+    "Ya te enviamos un enlace hace un momento. Espera unos segundos antes de pedir otro.",
 };
 
 /**

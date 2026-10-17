@@ -30,7 +30,7 @@ CODIGO_PERSONA_NO_ENCONTRADA = "SCJ10"
 MENSAJE_PERSONA_NO_ENCONTRADA = "Persona no encontrada."
 MENSAJE_DUPLICADO = "CURP, RFC, NSS o número de documento ya está en uso por otra persona."
 MENSAJE_EXPEDIENTE_INCOMPLETO = (
-    "Esta persona no tiene expediente todavía -- mandá tipo_contrato y documento_ref juntos."
+    "Esta persona no tiene expediente todavía -- manda tipo_contrato y documento_ref juntos."
 )
 CODIGO_VIOLACION_CHECK = "23514"
 # Mensajes del ALTA por campo (SIN revelar nada de la persona que ya tiene ese dato). El texto de la base nunca va al cliente: solo se lee el NOMBRE de la restricción

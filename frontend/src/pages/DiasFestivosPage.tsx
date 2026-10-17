@@ -426,12 +426,12 @@ export function DiasFestivosPage() {
                                 disabled={esPasadoOhoy}
                                 title={
                                   esPasadoOhoy
-                                    ? "No podés eliminar un día festivo de hoy o del pasado."
+                                    ? "No puedes eliminar un día festivo de hoy o del pasado."
                                     : undefined
                                 }
                                 aria-label={
                                   esPasadoOhoy
-                                    ? `No podés eliminar ${festivo.nombre}: es de hoy o del pasado`
+                                    ? `No puedes eliminar ${festivo.nombre}: es de hoy o del pasado`
                                     : `Eliminar ${festivo.nombre}`
                                 }
                                 onClick={() => solicitarEliminar(festivo.id)}

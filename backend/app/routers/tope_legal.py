@@ -31,7 +31,7 @@ CODIGO_VIGENCIA_ACTIVA_SIN_CONFIRMAR = "SCJ01"
 LUNES = 0  # date.weekday(): lunes=0 ... domingo=6
 
 MENSAJE_VIGENCIA_ACTIVA_SIN_CONFIRMAR = (
-    "Ya existe un tope legal vigente. Confirmá para cerrarlo y crear el nuevo."
+    "Ya existe un tope legal vigente. Confirma para cerrarlo y crear el nuevo."
 )
 MENSAJE_SEMANA_NO_ES_LUNES = "semana_de debe ser un lunes."
 

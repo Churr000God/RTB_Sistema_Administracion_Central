@@ -58,7 +58,7 @@ MENSAJE_SIN_PERMISO_REAPERTURA = (
     "(exclusivo de TI)."
 )
 MENSAJE_SIN_PERMISO_CORRECCION = (
-    "No tenés el permiso necesario (correccion_edicion) para esta acción."
+    "No tienes el permiso necesario (correccion_edicion) para esta acción."
 )
 MENSAJE_DIA_YA_CERRADO = (
     "Este día ya está cerrado: la corrección no se refleja en las horas. Revisa el día."

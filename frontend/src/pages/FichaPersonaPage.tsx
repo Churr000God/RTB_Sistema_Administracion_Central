@@ -274,7 +274,7 @@ export function FichaPersonaPage() {
     });
     if (!respuesta.ok) {
       if (respuesta.status === 403) {
-        setErrorEdicion("No tenés permiso para editar esta persona.");
+        setErrorEdicion("No tienes permiso para editar esta persona.");
       } else if (respuesta.status === 404) {
         setErrorEdicion("Esta persona ya no existe.");
       } else {

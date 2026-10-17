@@ -172,10 +172,10 @@ describe("DiasFestivosPage", () => {
 
     expect(screen.getByRole("button", { name: /^eliminar festivo futuro$/i })).toBeEnabled();
     expect(
-      screen.getByRole("button", { name: /no podés eliminar festivo de hoy/i }),
+      screen.getByRole("button", { name: /no puedes eliminar festivo de hoy/i }),
     ).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: /no podés eliminar festivo pasado/i }),
+      screen.getByRole("button", { name: /no puedes eliminar festivo pasado/i }),
     ).toBeDisabled();
   });
 

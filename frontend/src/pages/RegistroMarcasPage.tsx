@@ -333,7 +333,7 @@ export function RegistroMarcasPage() {
             </div>
             <p className="pie-tabla">
               Mostrando {marcas.length} de {total} marcas
-              {total > marcas.length && " · afiná los filtros para ver el resto"}
+              {total > marcas.length && " · afina los filtros para ver el resto"}
             </p>
           </>
         )}

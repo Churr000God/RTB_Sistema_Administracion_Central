@@ -18,7 +18,7 @@ export function OlvideContrasenaPage() {
     });
     if (errorEnvio) {
       registrarErrorAuth("OlvideContrasenaPage.resetPasswordForEmail", errorEnvio);
-      setError(mensajeDeErrorAuth(errorEnvio, "No se pudo enviar el enlace. Intentá de nuevo."));
+      setError(mensajeDeErrorAuth(errorEnvio, "No se pudo enviar el enlace. Inténtalo de nuevo."));
       return;
     }
     setError(null);

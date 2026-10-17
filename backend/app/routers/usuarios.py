@@ -24,9 +24,9 @@ _CODIGOS_GOTRUE = frozenset({
 MENSAJE_USUARIO_DUPLICADO = "Esta persona ya tiene un usuario asociado."
 MENSAJE_INVITACION_DATOS_INVALIDOS = "El correo no es válido o ya tiene una cuenta de acceso."
 MENSAJE_INVITACION_LIMITE_EXCEDIDO = (
-    "Se alcanzó el límite de envíos de invitación de Supabase Auth -- reintentá en unos minutos."
+    "Se alcanzó el límite de envíos de invitación de Supabase Auth -- reintenta en unos minutos."
 )
-MENSAJE_INVITACION_FALLIDA = "No se pudo enviar la invitación -- intentá de nuevo o contactá a Sistemas."
+MENSAJE_INVITACION_FALLIDA = "No se pudo enviar la invitación -- intenta de nuevo o contacta a Sistemas."
 
 
 def _registrar_causa_invitacion(error: AuthError, status_http: object) -> None:

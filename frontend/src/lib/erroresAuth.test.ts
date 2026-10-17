@@ -5,7 +5,7 @@ import { esInsuficienteAal, mensajeDeErrorAuth, registrarErrorAuth } from "./err
 describe("mensajeDeErrorAuth", () => {
   it("mapea insufficient_aal al mensaje que dispara el paso TOTP", () => {
     expect(mensajeDeErrorAuth({ code: "insufficient_aal" }, "por defecto")).toMatch(
-      /confirmá el código de tu app autenticadora/i
+      /confirma el código de tu app autenticadora/i
     );
   });
 

@@ -26,10 +26,10 @@ function leerErrorDelEnlace(): string | null {
   const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
   const codigo = hash.get("error_code");
   if (codigo === "otp_expired") {
-    return "Este enlace venció. Solicitá uno nuevo.";
+    return "Este enlace venció. Solicita uno nuevo.";
   }
   if (hash.get("error")) {
-    return "Este enlace ya no es válido. Solicitá uno nuevo.";
+    return "Este enlace ya no es válido. Solicita uno nuevo.";
   }
   return null;
 }
@@ -233,7 +233,7 @@ export function RestablecerContrasenaPage({ modo = "restablecer" }: Props) {
       {estado === "necesita-totp" && (
         <>
           <h2>Verificación en dos pasos</h2>
-          <p>Antes de {modo === "invitacion" ? "crear" : "cambiar"} tu contraseña, confirmá el código de tu app autenticadora.</p>
+          <p>Antes de {modo === "invitacion" ? "crear" : "cambiar"} tu contraseña, confirma el código de tu app autenticadora.</p>
           <form onSubmit={handleSubmitTotp}>
             <CasilleroCodigo
               key={intentoTotp}

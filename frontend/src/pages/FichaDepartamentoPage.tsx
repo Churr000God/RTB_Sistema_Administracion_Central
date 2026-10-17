@@ -405,7 +405,7 @@ export function FichaDepartamentoPage() {
 
         {/* Misma sección ancha de arriba, no un contenedor angosto aparte: 3 tarjetas chicas
             centradas en 720px quedaban descolgadas y desalineadas contra el borde izquierdo
-            de "Personas del departamento" — puestas en fila acá comparten el mismo borde y
+            de "Personas del departamento" — puestas en fila aquí comparten el mismo borde y
             usan el ancho sobrante en vez de dejarlo vacío alrededor. */}
         <div className="rejilla-tarjetas">
           <Card>

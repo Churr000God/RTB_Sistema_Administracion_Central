@@ -98,7 +98,7 @@ describe("AltaAsignacionPage", () => {
     mockApiFetch({
       post: new Response(
         JSON.stringify({
-          detail: "No tenés el permiso necesario (asignacion_edicion) para esta acción.",
+          detail: "No tienes el permiso necesario (asignacion_edicion) para esta acción.",
         }),
         { status: 403 }
       ),
@@ -112,7 +112,7 @@ describe("AltaAsignacionPage", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText("No tenés el permiso necesario (asignacion_edicion) para esta acción.")
+        screen.getByText("No tienes el permiso necesario (asignacion_edicion) para esta acción.")
       ).toBeInTheDocument()
     );
   });

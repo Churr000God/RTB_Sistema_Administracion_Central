@@ -42,7 +42,7 @@ CODIGO_VIGENCIA_DESDE_INVALIDA = "SCJ02"
 MENSAJE_PERSONA_INVALIDA = "La persona no existe."
 MENSAJE_SIN_JORNADA_VIGENTE = "La persona no tiene jornada vigente."
 MENSAJE_VIGENCIA_ACTIVA_SIN_CONFIRMAR = (
-    "Esta persona ya tiene una jornada vigente. Confirmá para cerrarla y asignar la nueva."
+    "Esta persona ya tiene una jornada vigente. Confirma para cerrarla y asignar la nueva."
 )
 MENSAJE_VIGENCIA_DESDE_INVALIDA = (
     "La nueva vigencia debe comenzar después de que empezó la jornada actual."
@@ -377,7 +377,7 @@ ERRORES_MOVER_LIMITE = {
     ),
     "SCJ05": (
         status.HTTP_422_UNPROCESSABLE_ENTITY,
-        "Hay más de un tramo planeado después -- eliminá los tramos futuros desde el final "
+        "Hay más de un tramo planeado después -- elimina los tramos futuros desde el final "
         "primero.",
     ),
     "SCJ06": (status.HTTP_422_UNPROCESSABLE_ENTITY, "La cadena de jornadas quedó inconsistente."),

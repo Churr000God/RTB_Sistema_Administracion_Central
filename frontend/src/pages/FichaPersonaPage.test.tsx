@@ -638,7 +638,7 @@ describe("FichaPersonaPage", () => {
       expect(screen.queryByRole("button", { name: /^guardar$/i })).not.toBeInTheDocument();
     });
 
-    it("403 al guardar muestra 'No tenés permiso para editar esta persona.' y mantiene el formulario abierto", async () => {
+    it("403 al guardar muestra 'No tienes permiso para editar esta persona.' y mantiene el formulario abierto", async () => {
       vi.mocked(apiFetch).mockImplementation((path: string, opciones?: RequestInit) => {
         if (path === "/api/sesion") {
           return Promise.resolve(
@@ -668,7 +668,7 @@ describe("FichaPersonaPage", () => {
       await userEvent.click(screen.getByRole("button", { name: /^guardar$/i }));
 
       await waitFor(() =>
-        expect(screen.getByText("No tenés permiso para editar esta persona.")).toBeInTheDocument()
+        expect(screen.getByText("No tienes permiso para editar esta persona.")).toBeInTheDocument()
       );
       expect(screen.getByLabelText(/primer nombre/i)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /^guardar$/i })).toBeInTheDocument();

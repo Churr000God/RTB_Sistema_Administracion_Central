@@ -70,7 +70,7 @@ describe("OtorgarPermisoPage", () => {
   it("muestra el detail real del backend en 422 (auto-otorgamiento directo o por herencia)", async () => {
     mockApiFetch({
       post: new Response(
-        JSON.stringify({ detail: "No podés otorgarte este permiso a vos mismo." }),
+        JSON.stringify({ detail: "No puedes otorgarte este permiso a ti mismo." }),
         { status: 422 }
       ),
     });
@@ -81,7 +81,7 @@ describe("OtorgarPermisoPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /^otorgar$/i }));
 
     await waitFor(() =>
-      expect(screen.getByText("No podés otorgarte este permiso a vos mismo.")).toBeInTheDocument()
+      expect(screen.getByText("No puedes otorgarte este permiso a ti mismo.")).toBeInTheDocument()
     );
   });
 
@@ -89,7 +89,7 @@ describe("OtorgarPermisoPage", () => {
     mockApiFetch({
       post: new Response(
         JSON.stringify({
-          detail: "No tenés el permiso necesario (puesto_permiso_edicion) para esta acción.",
+          detail: "No tienes el permiso necesario (puesto_permiso_edicion) para esta acción.",
         }),
         { status: 403 }
       ),
@@ -102,7 +102,7 @@ describe("OtorgarPermisoPage", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText("No tenés el permiso necesario (puesto_permiso_edicion) para esta acción.")
+        screen.getByText("No tienes el permiso necesario (puesto_permiso_edicion) para esta acción.")
       ).toBeInTheDocument()
     );
   });

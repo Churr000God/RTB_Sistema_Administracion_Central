@@ -78,7 +78,7 @@ export function RevocarPermisoPage() {
         </nav>
         <h1>Revocar permiso</h1>
         <p className="subtitulo-pagina">
-          El puesto deja de tener este permiso de inmediato. Podés volver a otorgárselo cuando
+          El puesto deja de tener este permiso de inmediato. Puedes volver a otorgárselo cuando
           quieras.
         </p>
 

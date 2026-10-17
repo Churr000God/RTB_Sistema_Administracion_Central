@@ -26,15 +26,15 @@ function mensajeErrorTotp(error: unknown): string {
   const codigo = (error as { code?: string } | null)?.code;
   const status = (error as { status?: number } | null)?.status;
   if (codigo === "mfa_challenge_expired") {
-    return "El código expiró antes de verificarse. Ingresá uno nuevo.";
+    return "El código expiró antes de verificarse. Ingresa uno nuevo.";
   }
   if (status === 429 || codigo === "over_request_rate_limit") {
-    return "Demasiados intentos. Esperá unos minutos antes de volver a intentar.";
+    return "Demasiados intentos. Espera unos minutos antes de volver a intentar.";
   }
   if (codigo === "mfa_verification_failed") {
-    return "El código no coincide. Verificá los 6 dígitos e intentá de nuevo.";
+    return "El código no coincide. Verifica los 6 dígitos e inténtalo de nuevo.";
   }
-  return "No se pudo verificar el código. Intentá de nuevo.";
+  return "No se pudo verificar el código. Inténtalo de nuevo.";
 }
 
 export function VerificarTotpPage({

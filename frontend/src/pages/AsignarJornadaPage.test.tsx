@@ -220,6 +220,11 @@ describe("AsignarJornadaPage", () => {
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(/ya tiene una jornada vigente/i),
     );
+    // vigente_desde del formulario básico = 2026-01-01: la anterior termina el 31 dic 2025.
+    const alerta = screen.getByRole("alert");
+    expect(alerta).toHaveTextContent(/terminará el 31 dic 2025/i);
+    expect(alerta).toHaveTextContent(/comenzará el 01 ene 2026/i);
+    expect(alerta).not.toHaveTextContent(/2026-01-01/);
 
     await userEvent.click(screen.getByRole("button", { name: /sí, cerrar la anterior y asignar/i }));
 
@@ -543,6 +548,364 @@ describe("AsignarJornadaPage", () => {
     );
     // La confirmación sigue abierta -- el botón "Sí, eliminar" sigue presente.
     expect(screen.getByRole("button", { name: /sí, eliminar/i })).toBeInTheDocument();
+  });
+
+  it("Renovar precarga tipo y patrón de la jornada vigente, con vigente_desde vacío y nota", async () => {
+    mockApiFetch({
+      personas: PERSONA_CON_CADENA,
+      cadena: new Response(JSON.stringify(CADENA_TRES_JORNADAS)),
+    });
+
+    render(<AsignarJornadaPage />);
+    const tabla = await screen.findByRole("table");
+    await userEvent.click(within(tabla).getByRole("button", { name: /renovar/i }));
+
+    // la en curso del fixture es la id 2: normal, lunes 09:00-18:00, 60 min de comida
+    expect(await screen.findByText(/precargado de la jornada vigente/i)).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /normal/i })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /lunes/i })).toBeChecked();
+    expect(screen.getByLabelText(/hora de entrada/i)).toHaveValue("09:00");
+    expect(screen.getByLabelText(/hora de salida/i)).toHaveValue("18:00");
+    expect(screen.getByLabelText(/vigente desde/i)).toHaveValue("");
+  });
+
+  it("dos Renovar seguidos con respuestas en orden invertido: queda B, nunca el patrón de A", async () => {
+    const personas = [
+      { id: "persona-a", primer_nombre: "Ana", apellido_paterno: "Alfa", estado: "activo", tiene_jornada_vigente: true },
+      { id: "persona-b", primer_nombre: "Beto", apellido_paterno: "Beta", estado: "activo", tiene_jornada_vigente: true },
+    ];
+    const jornadaDe = (dia: string, entrada: string, tipo: string) => [
+      {
+        id: 1,
+        tipo_jornada: tipo,
+        vigente_desde: "2026-01-01",
+        vigente_hasta: null,
+        horas_semanales_calculadas: null,
+        patron_semanal: [{ dia_semana: dia, hora_entrada: `${entrada}:00`, hora_salida: "18:00:00", minutos_comida: 60 }],
+        estado_vigencia: "en_curso",
+        es_ultima_de_cadena: true,
+        puede_editarse: false,
+        puede_eliminarse: false,
+        puede_mover_limite: false,
+      },
+    ];
+    let resolverA!: (r: Response) => void;
+    let resolverB!: (r: Response) => void;
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === "/api/sesion") {
+        return Promise.resolve(new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null })));
+      }
+      if (path === "/api/personas") return Promise.resolve(new Response(JSON.stringify(personas)));
+      if (path === "/api/personas/persona-a/jornadas") {
+        return new Promise<Response>((res) => { resolverA = res; });
+      }
+      if (path === "/api/personas/persona-b/jornadas") {
+        return new Promise<Response>((res) => { resolverB = res; });
+      }
+      return Promise.reject(new Error(`ruta no mockeada: ${path}`));
+    });
+
+    render(<AsignarJornadaPage />);
+    const tabla = await screen.findByRole("table");
+    const botones = within(tabla).getAllByRole("button", { name: /renovar/i });
+    await userEvent.click(botones[0]); // A
+    await userEvent.click(botones[1]); // B, antes de que responda A
+    await waitFor(() => expect(typeof resolverA === "function" && typeof resolverB === "function").toBe(true));
+
+    // B responde primero, después la respuesta tardía de A
+    resolverB(new Response(JSON.stringify(jornadaDe("martes", "10:00", "flexible"))));
+    expect(await screen.findByText(/precargado de la jornada vigente/i)).toBeInTheDocument();
+    resolverA(new Response(JSON.stringify(jornadaDe("lunes", "08:00", "normal"))));
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(screen.getByLabelText(/^persona$/i)).toHaveValue("persona-b");
+    expect(screen.getByRole("checkbox", { name: /martes/i })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /lunes/i })).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: /flexible/i })).toBeChecked();
+    expect(screen.getByLabelText(/hora de entrada/i)).toHaveValue("10:00");
+  });
+
+  it("respuesta tardía de A tras elegir B sin jornada (B responde vacío): el formulario queda vacío", async () => {
+    const personas = [
+      { id: "persona-a", primer_nombre: "Ana", apellido_paterno: "Alfa", estado: "activo", tiene_jornada_vigente: true },
+      { id: "persona-b", primer_nombre: "Beto", apellido_paterno: "Beta", estado: "activo", tiene_jornada_vigente: false },
+    ];
+    let resolverA!: (r: Response) => void;
+    vi.mocked(apiFetch).mockImplementation((path: string) => {
+      if (path === "/api/sesion") {
+        return Promise.resolve(new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null })));
+      }
+      if (path === "/api/personas") return Promise.resolve(new Response(JSON.stringify(personas)));
+      if (path === "/api/personas/persona-a/jornadas") {
+        return new Promise<Response>((res) => { resolverA = res; });
+      }
+      return Promise.reject(new Error(`ruta no mockeada: ${path}`));
+    });
+
+    render(<AsignarJornadaPage />);
+    const tabla = await screen.findByRole("table");
+    await userEvent.click(within(tabla).getByRole("button", { name: /renovar/i }));
+    await userEvent.click(within(tabla).getByRole("button", { name: /^asignar$/i }));
+    resolverA(
+      new Response(
+        JSON.stringify([
+          {
+            id: 1, tipo_jornada: "normal", vigente_desde: "2026-01-01", vigente_hasta: null,
+            horas_semanales_calculadas: null,
+            patron_semanal: [{ dia_semana: "lunes", hora_entrada: "08:00:00", hora_salida: "18:00:00", minutos_comida: 60 }],
+            estado_vigencia: "en_curso", es_ultima_de_cadena: true, puede_editarse: false,
+            puede_eliminarse: false, puede_mover_limite: false,
+          },
+        ]),
+      ),
+    );
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(screen.getByLabelText(/^persona$/i)).toHaveValue("persona-b");
+    expect(screen.queryByText(/precargado de la jornada vigente/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /lunes/i })).not.toBeChecked();
+  });
+
+  describe("precarga de Renovar: huecos", () => {
+    const EN_CURSO = CADENA_TRES_JORNADAS.filter((j) => j.estado_vigencia === "en_curso");
+
+    function jornadaDosDias() {
+      return {
+        id: 9,
+        tipo_jornada: "flexible",
+        vigente_desde: "2026-01-01",
+        vigente_hasta: null,
+        horas_semanales_calculadas: null,
+        patron_semanal: [
+          { dia_semana: "lunes", hora_entrada: "09:00:00", hora_salida: "18:00:00", minutos_comida: 60 },
+          { dia_semana: "miercoles", hora_entrada: "09:00:00", hora_salida: "18:00:00", minutos_comida: 30 },
+        ],
+        estado_vigencia: "en_curso",
+        es_ultima_de_cadena: true,
+        puede_editarse: false,
+        puede_eliminarse: false,
+        puede_mover_limite: false,
+      };
+    }
+
+    // `cadena` se invoca en cada GET /jornadas (Response nueva cada vez: el cuerpo se lee una vez).
+    function mockAna(cadena: () => Promise<Response>) {
+      const estado = { llamadasJornadas: 0 };
+      vi.mocked(apiFetch).mockImplementation((path: string, init?: RequestInit) => {
+        if (path === "/api/sesion") {
+          return Promise.resolve(new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null })));
+        }
+        if (path === "/api/personas") return Promise.resolve(new Response(JSON.stringify(PERSONA_CON_CADENA)));
+        if (path === "/api/personas/persona-1/jornadas") {
+          estado.llamadasJornadas += 1;
+          return cadena();
+        }
+        if (path === "/api/jornadas-asignadas" && init?.method === "POST") {
+          return Promise.resolve(new Response(JSON.stringify({ id: 1 }), { status: 201 }));
+        }
+        return Promise.reject(new Error(`ruta no mockeada: ${path}`));
+      });
+      return estado;
+    }
+
+    async function pulsarRenovar() {
+      const tabla = await screen.findByRole("table");
+      await userEvent.click(within(tabla).getByRole("button", { name: /renovar/i }));
+    }
+
+    async function asentar() {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+
+    function expectFormularioVacioSinNota() {
+      expect(screen.getByLabelText(/^persona$/i)).toHaveValue("persona-1");
+      expect(screen.queryByText(/precargado de la jornada vigente/i)).not.toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: /lunes/i })).not.toBeChecked();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    }
+
+    it("la cadena responde 500: formulario abierto y vacío, sin nota ni alerta", async () => {
+      mockAna(() => Promise.resolve(new Response(null, { status: 500 })));
+      render(<AsignarJornadaPage />);
+      await pulsarRenovar();
+      await asentar();
+      expectFormularioVacioSinNota();
+    });
+
+    it("apiFetch lanza al pedir la cadena: formulario abierto y vacío, sin nota ni alerta", async () => {
+      mockAna(() => Promise.reject(new Error("red caída")));
+      render(<AsignarJornadaPage />);
+      await pulsarRenovar();
+      await asentar();
+      expectFormularioVacioSinNota();
+    });
+
+    it("cadena sin ninguna en curso (solo futura y pasada): sin precarga ni nota", async () => {
+      const sinEnCurso = CADENA_TRES_JORNADAS.filter((j) => j.estado_vigencia !== "en_curso");
+      mockAna(() => Promise.resolve(new Response(JSON.stringify(sinEnCurso))));
+      render(<AsignarJornadaPage />);
+      await pulsarRenovar();
+      await asentar();
+      expectFormularioVacioSinNota();
+    });
+
+    it("cadena vacía: sin precarga ni nota", async () => {
+      mockAna(() => Promise.resolve(new Response(JSON.stringify([]))));
+      render(<AsignarJornadaPage />);
+      await pulsarRenovar();
+      await asentar();
+      expectFormularioVacioSinNota();
+    });
+
+    it("cadena ya cacheada (fila expandida antes): precarga sin nuevo fetch a /jornadas", async () => {
+      const estado = mockAna(() => Promise.resolve(new Response(JSON.stringify(CADENA_TRES_JORNADAS))));
+      render(<AsignarJornadaPage />);
+      await expandirFilaDeAna();
+      expect(estado.llamadasJornadas).toBe(1);
+
+      await pulsarRenovar();
+
+      expect(await screen.findByText(/precargado de la jornada vigente/i)).toBeInTheDocument();
+      expect(estado.llamadasJornadas).toBe(1);
+    });
+
+    it("tras precargar, lo editado es lo que viaja en el POST (no lo precargado)", async () => {
+      mockAna(() => Promise.resolve(new Response(JSON.stringify([jornadaDosDias()]))));
+      render(<AsignarJornadaPage />);
+      await pulsarRenovar();
+      expect(await screen.findByText(/precargado de la jornada vigente/i)).toBeInTheDocument();
+      expect(screen.getByRole("radio", { name: /flexible/i })).toBeChecked();
+
+      const salidaMiercoles = document.querySelector<HTMLInputElement>("#salida_miercoles")!;
+      await userEvent.clear(salidaMiercoles);
+      await userEvent.type(salidaMiercoles, "17:30");
+      await userEvent.click(screen.getByRole("checkbox", { name: /lunes/i })); // desmarca
+      await userEvent.click(screen.getByRole("checkbox", { name: /viernes/i })); // marca
+      await userEvent.type(document.querySelector<HTMLInputElement>("#entrada_viernes")!, "08:00");
+      await userEvent.type(document.querySelector<HTMLInputElement>("#salida_viernes")!, "14:00");
+      await userEvent.type(screen.getByLabelText(/vigente desde/i), "2026-11-01");
+      await userEvent.click(screen.getByRole("button", { name: /registrar/i }));
+
+      await waitFor(() =>
+        expect(apiFetch).toHaveBeenCalledWith("/api/jornadas-asignadas", expect.objectContaining({ method: "POST" })),
+      );
+      const llamada = vi
+        .mocked(apiFetch)
+        .mock.calls.find(([path, init]) => path === "/api/jornadas-asignadas" && (init as RequestInit)?.method === "POST")!;
+      const cuerpo = JSON.parse(llamada[1]!.body as string);
+      expect(cuerpo.persona_id).toBe("persona-1");
+      expect(cuerpo.tipo_jornada).toBe("flexible");
+      expect(cuerpo.vigente_desde).toBe("2026-11-01");
+      const dias = cuerpo.patron_semanal.map((p: { dia_semana: string }) => p.dia_semana).sort();
+      expect(dias).toEqual(["miercoles", "viernes"]);
+      const miercoles = cuerpo.patron_semanal.find((p: { dia_semana: string }) => p.dia_semana === "miercoles");
+      expect(miercoles.hora_salida).toBe("17:30");
+      expect(miercoles.minutos_comida).toBe(30);
+    });
+
+    it("enviar tras precargar con vigente_desde vacío: la validación bloquea y no hay POST", async () => {
+      mockAna(() => Promise.resolve(new Response(JSON.stringify(EN_CURSO))));
+      render(<AsignarJornadaPage />);
+      await pulsarRenovar();
+      expect(await screen.findByText(/precargado de la jornada vigente/i)).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: /registrar/i }));
+      await asentar();
+
+      const posts = vi
+        .mocked(apiFetch)
+        .mock.calls.filter(([path, init]) => path === "/api/jornadas-asignadas" && (init as RequestInit)?.method === "POST");
+      expect(posts).toHaveLength(0);
+    });
+
+    it("Renovar A (precarga) y luego Asignar B sin jornada: formulario limpio, sin nota ni días de A", async () => {
+      const personas = [
+        { id: "persona-1", primer_nombre: "Ana", apellido_paterno: "Con Jornada", estado: "activo", tiene_jornada_vigente: true },
+        { id: "persona-2", primer_nombre: "Beto", apellido_paterno: "Sin Jornada", estado: "activo", tiene_jornada_vigente: false },
+      ];
+      vi.mocked(apiFetch).mockImplementation((path: string) => {
+        if (path === "/api/sesion") {
+          return Promise.resolve(new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null })));
+        }
+        if (path === "/api/personas") return Promise.resolve(new Response(JSON.stringify(personas)));
+        if (path === "/api/personas/persona-1/jornadas") {
+          return Promise.resolve(new Response(JSON.stringify(EN_CURSO)));
+        }
+        return Promise.reject(new Error(`ruta no mockeada: ${path}`));
+      });
+      render(<AsignarJornadaPage />);
+      const tabla = await screen.findByRole("table");
+      await userEvent.click(within(tabla).getByRole("button", { name: /renovar/i }));
+      expect(await screen.findByText(/precargado de la jornada vigente/i)).toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: /lunes/i })).toBeChecked();
+
+      await userEvent.click(within(tabla).getByRole("button", { name: /^asignar$/i }));
+
+      expect(screen.getByLabelText(/^persona$/i)).toHaveValue("persona-2");
+      expect(screen.queryByText(/precargado de la jornada vigente/i)).not.toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: /lunes/i })).not.toBeChecked();
+      expect(screen.getByLabelText(/vigente desde/i)).toHaveValue("");
+    });
+
+    it("editar un campo con el fetch en vuelo: la respuesta tardía no pisa lo editado", async () => {
+      let resolver!: (r: Response) => void;
+      mockAna(() => new Promise<Response>((res) => { resolver = res; }));
+      render(<AsignarJornadaPage />);
+      await pulsarRenovar();
+      await userEvent.type(screen.getByLabelText(/vigente desde/i), "2026-11-01");
+
+      resolver(new Response(JSON.stringify(EN_CURSO)));
+      await asentar();
+
+      expect(screen.getByLabelText(/vigente desde/i)).toHaveValue("2026-11-01");
+      expect(screen.queryByText(/precargado de la jornada vigente/i)).not.toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: /lunes/i })).not.toBeChecked();
+    });
+
+    it("Cancelar con el fetch en vuelo: el formulario no reaparece sembrado", async () => {
+      let resolver!: (r: Response) => void;
+      mockAna(() => new Promise<Response>((res) => { resolver = res; }));
+      render(<AsignarJornadaPage />);
+      await pulsarRenovar();
+      await userEvent.click(screen.getByRole("button", { name: /^cancelar$/i }));
+
+      resolver(new Response(JSON.stringify(EN_CURSO)));
+      await asentar();
+
+      expect(screen.queryByLabelText(/^persona$/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/precargado de la jornada vigente/i)).not.toBeInTheDocument();
+    });
+
+    it("editar una jornada futura después de Renovar: la nota «Precargado…» desaparece", async () => {
+      mockAna(() => Promise.resolve(new Response(JSON.stringify(CADENA_TRES_JORNADAS))));
+      render(<AsignarJornadaPage />);
+      await pulsarRenovar();
+      expect(await screen.findByText(/precargado de la jornada vigente/i)).toBeInTheDocument();
+
+      const tabla = screen.getByRole("table");
+      await userEvent.click(within(tabla).getByText("Ana Con Jornada").closest("tr")!);
+      await userEvent.click(await screen.findByRole("button", { name: /^editar$/i }));
+
+      expect(screen.getByRole("button", { name: /guardar cambios/i })).toBeInTheDocument();
+      expect(screen.queryByText(/precargado de la jornada vigente/i)).not.toBeInTheDocument();
+    });
+
+    it("tras guardar muestra «Puedes asignar otra desde aquí mismo.»", async () => {
+      mockApiFetch({});
+      render(<AsignarJornadaPage />);
+      await llenarFormularioBasico();
+      await userEvent.click(screen.getByRole("button", { name: /registrar/i }));
+
+      expect(await screen.findByText(/puedes asignar otra desde aquí mismo\./i)).toBeInTheDocument();
+    });
+  });
+
+  it("Asignar (sin jornada vigente) no precarga nada ni muestra la nota", async () => {
+    mockApiFetch({});
+    render(<AsignarJornadaPage />);
+    await abrirFormulario();
+    expect(screen.queryByText(/precargado de la jornada vigente/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /lunes/i })).not.toBeChecked();
   });
 
   it("editar la última jornada futura manda PATCH sin persona_id", async () => {

@@ -73,7 +73,7 @@ describe("AltaAreaPage", () => {
       return Promise.resolve(
         new Response(
           JSON.stringify({
-            detail: "No tenés el permiso necesario (area_lectura o area_edicion) para esta acción.",
+            detail: "No tienes el permiso necesario (area_lectura o area_edicion) para esta acción.",
           }),
           { status: 403 }
         )
@@ -87,7 +87,7 @@ describe("AltaAreaPage", () => {
     await waitFor(() =>
       expect(
         screen.getByText(
-          "No tenés el permiso necesario (area_lectura o area_edicion) para esta acción."
+          "No tienes el permiso necesario (area_lectura o area_edicion) para esta acción."
         )
       ).toBeInTheDocument()
     );

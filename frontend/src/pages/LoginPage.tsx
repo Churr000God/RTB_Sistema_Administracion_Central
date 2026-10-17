@@ -110,7 +110,7 @@ export function LoginPage() {
             </p>
             <p className="intentos-restantes">
               {bloqueado
-                ? `Volvé a intentar en ${minutosRestantesBloqueo} minuto${minutosRestantesBloqueo === 1 ? "" : "s"}.`
+                ? `Vuelve a intentarlo en ${minutosRestantesBloqueo} minuto${minutosRestantesBloqueo === 1 ? "" : "s"}.`
                 : `Te quedan ${intentosRestantes} intentos antes de bloquear la cuenta por 15 minutos.`}
             </p>
           </div>
