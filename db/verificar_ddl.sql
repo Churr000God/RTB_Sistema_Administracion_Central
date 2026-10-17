@@ -1965,3 +1965,16 @@ WHERE NOT EXISTS (
     AND f.prosrc LIKE '%pg_advisory_xact_lock%' AND f.prosrc LIKE '%a.id <> NEW.id%' AND f.prosrc LIKE '%SCJ21%' AND f.prosrc LIKE '%fn_caller_tiene_permiso(''asignacion_edicion'')%'
     AND NOT has_function_privilege('anon', f.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', f.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', f.oid, 'EXECUTE')
 );
+
+-- 81) fn_persona_actualizar_datos tras 116_: debe seguir siendo SECURITY INVOKER con search_path exacto, sin EXECUTE para anon/service_role y con EXECUTE para authenticated; no debe volver a usar
+-- `ON CONFLICT` (el INSERT con NULL en una columna NOT NULL falla con 23502 antes de resolver el conflicto) y debe conservar el error propio SCJ22 (expediente incompleto). Solo violaciones.
+-- Esperado: 0 filas DESPUÉS de aplicar 116_ (antes de aplicarla devuelve 1).
+SELECT 'fn_persona_actualizar_datos' AS objeto, 'usa ON CONFLICT, perdió SCJ22, o dejó de ser INVOKER con search_path exacto / su ACL (authenticated sí; anon y service_role no)' AS problema
+WHERE NOT EXISTS (
+  SELECT 1 FROM pg_proc f
+  WHERE f.pronamespace = 'personas'::regnamespace AND f.proname = 'fn_persona_actualizar_datos'
+    AND NOT f.prosecdef AND f.proconfig = ARRAY['search_path=personas, pg_temp']
+    AND f.prosrc NOT ILIKE '%ON CONFLICT%' AND f.prosrc LIKE '%SCJ22%' AND f.prosrc LIKE '%expediente_incompleto%'
+    AND has_function_privilege('authenticated', f.oid, 'EXECUTE')
+    AND NOT has_function_privilege('anon', f.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', f.oid, 'EXECUTE')
+);
