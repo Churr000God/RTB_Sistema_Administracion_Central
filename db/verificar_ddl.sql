@@ -1978,3 +1978,40 @@ WHERE NOT EXISTS (
     AND has_function_privilege('authenticated', f.oid, 'EXECUTE')
     AND NOT has_function_privilege('anon', f.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', f.oid, 'EXECUTE')
 );
+
+-- 82) Policy de INSERT de tiempo.correccion tras 117_: debe existir, ser de INSERT, exigir correccion_edicion y excepcion_reapertura, y la subconsulta debe comparar contra la fila NUEVA
+-- (`correccion.marca_id`), nunca consigo misma (`e.marca_id = e.marca_id`, el defecto de 48_). Además, ninguna policy del esquema debe tener una autocomparación `alias.col = alias.col`. Solo violaciones.
+-- Esperado: 0 filas DESPUÉS de aplicar 117_ (antes de aplicarla devuelve 2).
+SELECT 'correccion_insert_requiere_permiso' AS objeto, 'falta, no es INSERT, o no califica la fila nueva (correccion.marca_id) / conserva e.marca_id = e.marca_id' AS problema
+WHERE NOT EXISTS (SELECT 1 FROM pg_policies p WHERE p.schemaname = 'tiempo' AND p.tablename = 'correccion' AND p.policyname = 'correccion_insert_requiere_permiso' AND p.cmd = 'INSERT'
+                  AND p.with_check LIKE '%correccion_edicion%' AND p.with_check LIKE '%excepcion_reapertura%' AND p.with_check LIKE '%correccion.marca_id%' AND p.with_check NOT LIKE '%e.marca_id = e.marca_id%')
+UNION ALL
+SELECT p.tablename || '.' || p.policyname, 'policy con una autocomparación alias.col = alias.col (siempre verdadera)'
+FROM pg_policies p
+WHERE p.schemaname IN ('tiempo', 'personas') AND coalesce(p.qual, '') || ' ' || coalesce(p.with_check, '') ~ '(\m[a-z_]+\.[a-z_]+) = \1\M'
+;
+
+-- 82b) Invariante de la que depende en silencio la policy anterior: fn_correccion_valida (BEFORE INSERT) es SECURITY INVOKER y lee tiempo.excepcion con la RLS del caller, y la policy de SELECT de
+-- excepcion es todo o nada (excepcion_lectura o excepcion_edicion). Quien puede corregir (correccion_edicion, directo o heredado por la jerarquía) debe poder leer excepciones, o la corrección falla con
+-- P0001 («no tiene ninguna excepcion asociada»). Se reporta cada puesto activo con correccion_edicion efectivo y sin excepcion_lectura ni excepcion_edicion efectivos (la herencia sigue la misma regla que
+-- personas.fn_caller_tiene_permiso: el permiso se hereda de los puestos que reportan al puesto solo si es heredable). Solo violaciones. Esperado: 0 filas.
+SELECT x.nombre_puesto::text AS objeto, 'puesto activo con correccion_edicion (directo o heredado) sin excepcion_lectura ni excepcion_edicion' AS problema
+FROM (
+  WITH RECURSIVE sub(raiz, id) AS (
+    SELECT id, id FROM personas.puesto
+    UNION
+    SELECT s.raiz, pu.id FROM sub s JOIN personas.puesto pu ON pu.reporta_a_id = s.id
+  ),
+  efectivo AS (
+    SELECT DISTINCT s.raiz AS puesto_id, pp.codigo
+    FROM sub s
+    JOIN personas.puesto_permiso pp ON pp.activo AND pp.puesto_id = s.id
+    JOIN personas.permiso pe ON pe.codigo = pp.codigo
+    WHERE s.raiz = s.id OR pe.heredable
+  )
+  SELECT pu.nombre_puesto
+  FROM personas.puesto pu
+  WHERE pu.activo
+    AND EXISTS (SELECT 1 FROM efectivo e WHERE e.puesto_id = pu.id AND e.codigo = 'correccion_edicion')
+    AND NOT EXISTS (SELECT 1 FROM efectivo e WHERE e.puesto_id = pu.id AND e.codigo IN ('excepcion_lectura', 'excepcion_edicion'))
+) x;
