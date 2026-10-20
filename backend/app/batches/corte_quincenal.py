@@ -17,9 +17,10 @@ extiende hasta el último día real de ese mes).
 Algoritmo por persona, SCJ-PRO-13 §III/§IV (sólo tipo_jornada normal/flexible -- de_confianza
 queda excluida por completo, ni siquiera por persona: se excluye POR FECHA dentro del periodo, en
 caso de que la persona haya cambiado de tipo de jornada a mitad de periodo):
-1. Idempotente por persona -- si algún tramo del periodo ya tiene clasificacion_de_tiempo, se
-   salta (no vuelve a escribir). Ver "OJO -- idempotencia" abajo, no está especificado así en el
-   documento, es una decisión propia.
+1. Idempotente por PERSONA + PERIODO -- si el periodo ya está registrado como aplicado para esa
+   persona (tabla de periodos aplicados, UNIQUE por persona y periodo), se salta SIN calcular.
+   Un resultado 0 (nada esperado, nada trabajado, sin déficit ni movimientos) TAMBIÉN se registra.
+   Ver "OJO -- idempotencia" abajo.
 2. Si algún día esperado del periodo no tiene tiempo.dia (cierre de día no llegó a esa fecha) o
    sigue 'abierto', la persona se salta ENTERA para esta corrida -- cuenta como pendiente, hace
    fallar la corrida (mismo criterio que un error real, SCJ-PRO-13 §III K1).
@@ -28,8 +29,15 @@ caso de que la persona haya cambiado de tipo de jornada a mitad de periodo):
    minutos_comida, igual que el trigger de tope legal -- horas_efectivas no es fuente de verdad)
    de cada día esperado (no domingo/festivo/bloqueado, jornada vigente ese día es normal/
    flexible). horas_trabajadas = suma de tramo.minutos_trabajados de los días elegibles
-   (cerrado/revisado, no bloqueado) -- no se usa dia.horas_totales directo, se sabe recalcular
-   desde el tramo por el mismo criterio de "no confiar en columnas derivadas".
+   (cerrado/revisado, no bloqueado). Un día elegible CON tramos suma Σ minutos_trabajados de sus
+   tramos. Un día elegible SIN tramos suma la ESPERADA del día (redondeada a 2 decimales) si y solo
+   si existe una tiempo.ausencia de la persona con estado_autorizacion = 'autorizada', tipo
+   vacaciones / permiso_con_goce / incapacidad y fecha_inicio <= fecha <= fecha_fin; en cualquier
+   otro caso suma 0. dia.horas_totales NO se lee para el cálculo: lo puede escribir a mano cualquiera
+   con dia_revision_edicion (fn_dia_revisar o un UPDATE directo) y así se borraría una deuda sin
+   ausencia alguna (hallazgo A1 de security). Tampoco se filtra por el origen del día: también es
+   editable. Los días sin tramos de un permiso con goce los crea fn_ausencia_resuelve_excepcion;
+   antes contaban 0 y el corte del 1-15 oct cargó 86 h a una persona con 13 días de permiso.
 5. Si trabajadas < esperadas (déficit): todos los tramos elegibles -> 'ordinario', un
    movimiento_de_saldo tipo='generado_quincena', monto=+déficit.
 6. Si no hay déficit: recorre los tramos en orden cronológico acumulando. Mientras el acumulado
@@ -38,6 +46,10 @@ caso de que la persona haya cambiado de tipo de jornada a mitad de periodo):
    movimiento_de_saldo tipo='cubrir', monto=-min(horas_del_tramo, deuda_restante) (nunca rebasa
    la deuda, el resto del tramo si sobra no genera un movimiento aparte -- no se puede partir el
    tramo); si ya no queda deuda, el tramo entero -> 'extra', sin tocar banco_de_horas.
+   Las horas de días SIN tramos (ausencias autorizadas con goce) cuentan primero en el acumulado,
+   como ordinario: un tramo es extra/reposición solo si, sumado a ellas, excede las esperadas. Con
+   esta regla esas horas NUNCA exceden la esperada (cada día aporta como mucho su propia esperada),
+   así que no existe un «exceso sin tramo» que clasificar ni cubra deuda.
 
 Escritura atómica por persona (hallazgo de security, corregido): Python sólo CALCULA -- recorre
 los tramos y decide clasificaciones/movimientos en memoria, sin escribir nada hasta el final.
@@ -52,13 +64,14 @@ transacción real, un fallo a mitad de camino no deja nada escrito -- el próxim
 como no procesada y la reprocesa limpia.
 
 OJO -- idempotencia: el documento dice "misma orquestación... idempotente por persona" como
-heredado de SCJ-PRO-12, pero a diferencia de tiempo.dia.estado (que tiene un valor "ya resuelto"
-explícito), clasificacion_de_tiempo/movimiento_de_saldo no tienen ningún campo que diga "este
-periodo ya se procesó". Se implementó el criterio más conservador: si CUALQUIER tramo elegible
-del periodo ya tiene una fila en clasificacion_de_tiempo, la persona entera se salta (no hay
-retry parcial por tramo). Reportado a orchestrator como decisión propia, no tomada de un
-documento -- si prefieren granularidad por tramo, es un cambio de una función. Esta lectura de
-idempotencia sigue viviendo en Python (SELECT antes de llamar al RPC), no en la base.
+heredado de SCJ-PRO-12, pero clasificacion_de_tiempo/movimiento_de_saldo no tienen ningún campo
+que diga "este periodo ya se procesó", y un periodo SIN tramos (solo permisos) no deja ninguna
+fila ahí: se volvía a aplicar y duplicaba la deuda. La idempotencia es ahora por persona + periodo
+en una tabla propia (UNIQUE), que el RPC fn_corte_quincenal_aplicar_persona inserta en la MISMA
+transacción que las clasificaciones y los movimientos. Python la lee antes de calcular y mapea el
+ERRCODE de duplicado del RPC (dos corridas que compiten) a SALTADA_YA_PROCESADA. Se conserva,
+además, la guarda antigua (algún tramo del periodo ya clasificado) para periodos aplicados antes de
+que existiera la tabla.
 
 OJO -- comentario desactualizado en 02_tiempo.sql: el COMMENT de tiempo.clasificacion_de_tiempo
 dice que el tipo "se calcula comparando... contra tope_legal vigente" y que "la regla exacta del
@@ -223,13 +236,49 @@ def _tramos_de_dias(db: Client, dia_ids: list[int]) -> list[dict]:
     filas = (
         db.postgrest.schema("tiempo")
         .table("tramo")
-        .select("id, inicio, minutos_trabajados")
+        .select("id, dia_id, inicio, minutos_trabajados")
         .in_("dia_id", dia_ids)
         .order("inicio")
         .execute()
         .data
     )
     return filas
+
+
+TIPOS_AUSENCIA_CON_GOCE = ("vacaciones", "permiso_con_goce", "incapacidad")
+
+
+def _ausencias_con_goce_del_periodo(db: Client, persona_id: str, periodo_desde_iso: str, periodo_hasta_iso: str) -> list[tuple[str, str]]:
+    """Ausencias AUTORIZADAS con goce de la persona que se traslapan con el periodo, leídas UNA vez por persona (no día por día): [(fecha_inicio, fecha_fin)] en ISO. Solo
+    estado_autorizacion = 'autorizada' (la escribe únicamente el trigger de aprobación) y tipo con goce; pendiente, rechazada, sin goce y falta no cuentan."""
+    filas = (
+        db.postgrest.schema("tiempo")
+        .table("ausencia")
+        .select("fecha_inicio, fecha_fin")
+        .eq("persona_id", persona_id)
+        .eq("estado_autorizacion", "autorizada")
+        .in_("tipo_de_ausencia", list(TIPOS_AUSENCIA_CON_GOCE))
+        .lte("fecha_inicio", periodo_hasta_iso)
+        .gte("fecha_fin", periodo_desde_iso)
+        .execute()
+        .data
+    )
+    return [(fila["fecha_inicio"], fila["fecha_fin"]) for fila in filas]
+
+
+def _periodo_ya_aplicado(db: Client, persona_id: str, periodo_desde_iso: str) -> bool:
+    """Idempotencia por persona + periodo: ¿ya hay fila en tiempo.corte_quincenal_aplicado? La UNIQUE es (persona_id, periodo_desde): se consulta por eso. Solo lectura (también la usa la previsión)."""
+    filas = (
+        db.postgrest.schema("tiempo")
+        .table(TABLA_PERIODOS_APLICADOS)
+        .select("persona_id")
+        .eq("persona_id", persona_id)
+        .eq("periodo_desde", periodo_desde_iso)
+        .limit(1)
+        .execute()
+        .data
+    )
+    return bool(filas)
 
 
 def _tramos_ya_clasificados(db: Client, tramo_ids: list[int]) -> bool:
@@ -248,6 +297,9 @@ def _tramos_ya_clasificados(db: Client, tramo_ids: list[int]) -> bool:
 
 
 CODIGO_DESALINEACION_MOVIMIENTO = "SCJ05"
+# Idempotencia por persona + periodo (firma de db): tiempo.corte_quincenal_aplicado, UNIQUE (persona_id, periodo_desde); service_role tiene SELECT e INSERT. El RPC la inserta en la misma transacción.
+TABLA_PERIODOS_APLICADOS = "corte_quincenal_aplicado"
+CODIGO_PERIODO_YA_APLICADO = "SCJ23"   # HINT 'periodo_ya_aplicado': otra corrida ya aplicó ese periodo. El 23505 de UNIQUE(tramo_id) (carrera de clasificaciones) NO es esto: se relanza como siempre.
 
 
 def _deuda_actual(db: Client, persona_id: str) -> float:
@@ -271,24 +323,37 @@ def _aplicar_persona(
     clasificaciones: list[dict],
     movimientos: list[dict],
     motivo: str,
-) -> None:
+    periodo_desde_iso: str,
+    periodo_hasta_iso: str,
+    horas_esperadas: float,
+    horas_trabajadas: float,
+) -> bool:
     """tiempo.fn_corte_quincenal_aplicar_persona -- INSERT de todas las clasificaciones + todos
-    los movimientos de ESTA persona en una sola transacción real (hallazgo de security: insertar
-    uno por uno dejaba clasificación parcial sin su movimiento si algo fallaba a mitad, y la
-    idempotencia por persona la dejaba atascada para siempre sin reintento limpio). Resuelve
-    banco_de_horas (get-or-create) y el mapa tramo_id -> clasificacion_de_tiempo.id internamente,
-    del lado de la base."""
+    los movimientos de ESTA persona + el registro del periodo aplicado en una sola transacción real
+    (hallazgo de security: insertar uno por uno dejaba clasificación parcial sin su movimiento si
+    algo fallaba a mitad). Resuelve banco_de_horas (get-or-create) y el mapa tramo_id ->
+    clasificacion_de_tiempo.id internamente, del lado de la base. Se llama SIEMPRE que no sea
+    simulación, también con listas vacías: un resultado 0 se registra igual.
+
+    Devuelve False si otra corrida ya aplicó ese periodo para la persona (duplicado), True si lo
+    aplicó esta."""
     try:
         db.postgrest.schema("tiempo").rpc(
             "fn_corte_quincenal_aplicar_persona",
             {
                 "p_persona_id": persona_id,
+                "p_periodo_desde": periodo_desde_iso,
+                "p_periodo_hasta": periodo_hasta_iso,
+                "p_horas_esperadas": horas_esperadas,      # OBLIGATORIOS: lo calculado, ya redondeado a 2 decimales
+                "p_horas_trabajadas": horas_trabajadas,
                 "p_clasificaciones": clasificaciones,
                 "p_movimientos": movimientos,
                 "p_motivo": motivo,
             },
         ).execute()
     except APIError as error:
+        if error.code == CODIGO_PERIODO_YA_APLICADO:
+            return False
         if error.code == CODIGO_DESALINEACION_MOVIMIENTO:
             # Defensivo del lado de db: un movimiento trae un tramo_id que no vino en
             # clasificaciones -- no debería pasar nunca si el cálculo de Python está bien, es un
@@ -299,6 +364,7 @@ def _aplicar_persona(
                 f"no un caso esperado): {error.message}"
             ) from error
         raise
+    return True
 
 
 PENDIENTE_DIA_ABIERTO = "pendiente_dia_abierto"
@@ -318,12 +384,15 @@ def _procesar_persona(
     *,
     solo_simular: bool = False,
 ) -> str:
+    if _periodo_ya_aplicado(db, persona_id, periodo_desde_iso):
+        return SALTADA_YA_PROCESADA      # antes de calcular nada: ya aplicado para esta persona y este periodo
+
     jornadas = _jornadas_del_periodo(db, persona_id, periodo_desde_iso, periodo_hasta_iso)
     patrones_por_jornada = _patrones_por_jornada(db, [j["id"] for j in jornadas])
     dias_por_fecha = _dias_del_periodo(db, persona_id, periodo_desde_iso, periodo_hasta_iso)
 
     esperadas_totales = 0.0
-    dia_ids_elegibles: list[int] = []
+    dias_elegibles: list[dict] = []     # {id, fecha_iso, esperada}
 
     for fecha in _fechas_del_periodo(periodo_desde, periodo_hasta):
         fecha_iso = fecha.isoformat()
@@ -340,16 +409,26 @@ def _procesar_persona(
         if dia["estado"] == "bloqueado":
             continue  # excluido de ambos lados (SCJ-PRO-13 §V)
 
-        dia_ids_elegibles.append(dia["id"])
-        esperadas_totales += _horas_esperadas_dia(patrones_por_jornada, jornada["id"], fecha)
+        # La esperada de CADA día se redondea a 2 decimales antes de sumar (un permiso vale exactamente la esperada del día y debe quedar neutro al centésimo).
+        esperada_dia = round(_horas_esperadas_dia(patrones_por_jornada, jornada["id"], fecha), 2)
+        dias_elegibles.append({"id": dia["id"], "fecha_iso": fecha_iso, "esperada": esperada_dia})
+        esperadas_totales += esperada_dia
 
-    tramos = _tramos_de_dias(db, dia_ids_elegibles)
+    tramos = _tramos_de_dias(db, [d["id"] for d in dias_elegibles])
     tramo_ids = [t["id"] for t in tramos]
 
     if _tramos_ya_clasificados(db, tramo_ids):
-        return SALTADA_YA_PROCESADA
+        return SALTADA_YA_PROCESADA      # guarda antigua: periodos aplicados antes de la tabla de periodos
 
-    trabajadas_totales = sum((t["minutos_trabajados"] or 0) / 60.0 for t in tramos)
+    # Días CON tramos: Σ minutos_trabajados. Días SIN tramos: la esperada del día solo si hay una ausencia autorizada con goce que lo cubra; si no, 0. dia.horas_totales NO se lee (editable a mano).
+    dias_con_tramos = {t["dia_id"] for t in tramos}
+    dias_sin_tramos = [d for d in dias_elegibles if d["id"] not in dias_con_tramos]
+    horas_sin_tramos = 0.0
+    if dias_sin_tramos:
+        ausencias = _ausencias_con_goce_del_periodo(db, persona_id, periodo_desde_iso, periodo_hasta_iso)
+        horas_sin_tramos = sum(d["esperada"] for d in dias_sin_tramos if any(inicio <= d["fecha_iso"] <= fin for inicio, fin in ausencias))
+    esperadas_totales = round(esperadas_totales, 2)
+    trabajadas_totales = round(float(sum((t["minutos_trabajados"] or 0) / 60.0 for t in tramos) + horas_sin_tramos), 2)
     motivo = f"corte quincenal {periodo_desde_iso} a {periodo_hasta_iso}"
     clasificaciones: list[dict] = []
     movimientos: list[dict] = []
@@ -357,37 +436,36 @@ def _procesar_persona(
     if trabajadas_totales < esperadas_totales:
         for tramo in tramos:
             clasificaciones.append({"tramo_id": tramo["id"], "tipo": "ordinario"})
-        deficit = esperadas_totales - trabajadas_totales
+        deficit = round(esperadas_totales - trabajadas_totales, 2)
         movimientos.append({"tramo_id": None, "tipo": "generado_quincena", "monto": deficit})
-        if not solo_simular:
-            _aplicar_persona(db, persona_id, clasificaciones, movimientos, motivo)
-        return PROCESADA_DEFICIT
+        resultado = PROCESADA_DEFICIT
+    else:
+        resultado = PROCESADA_OK
+        if tramos:
+            deuda_restante = _deuda_actual(db, persona_id)
+            acumulado = horas_sin_tramos      # lo de los días sin tramos ya "consumió" esperadas: ordinario por definición
 
-    if not tramos:
-        return PROCESADA_OK  # nada esperado, nada trabajado -- sin escritura, sin llamar al RPC
+            for tramo in tramos:
+                horas_tramo = (tramo["minutos_trabajados"] or 0) / 60.0
+                acumulado += horas_tramo
 
-    deuda_restante = _deuda_actual(db, persona_id)
-    acumulado = 0.0
+                if acumulado <= esperadas_totales:
+                    clasificaciones.append({"tramo_id": tramo["id"], "tipo": "ordinario"})
+                    continue
 
-    for tramo in tramos:
-        horas_tramo = (tramo["minutos_trabajados"] or 0) / 60.0
-        acumulado += horas_tramo
-
-        if acumulado <= esperadas_totales:
-            clasificaciones.append({"tramo_id": tramo["id"], "tipo": "ordinario"})
-            continue
-
-        if deuda_restante > 0:
-            clasificaciones.append({"tramo_id": tramo["id"], "tipo": "reposicion"})
-            monto_a_cubrir = min(horas_tramo, deuda_restante)
-            movimientos.append({"tramo_id": tramo["id"], "tipo": "cubrir", "monto": -monto_a_cubrir})
-            deuda_restante -= monto_a_cubrir
-        else:
-            clasificaciones.append({"tramo_id": tramo["id"], "tipo": "extra"})
+                if deuda_restante > 0:
+                    clasificaciones.append({"tramo_id": tramo["id"], "tipo": "reposicion"})
+                    monto_a_cubrir = min(horas_tramo, deuda_restante)
+                    movimientos.append({"tramo_id": tramo["id"], "tipo": "cubrir", "monto": -monto_a_cubrir})
+                    deuda_restante -= monto_a_cubrir
+                else:
+                    clasificaciones.append({"tramo_id": tramo["id"], "tipo": "extra"})
 
     if not solo_simular:
-        _aplicar_persona(db, persona_id, clasificaciones, movimientos, motivo)
-    return PROCESADA_OK
+        # SIEMPRE se llama al RPC, también con listas vacías: el resultado 0 queda registrado como periodo aplicado.
+        if not _aplicar_persona(db, persona_id, clasificaciones, movimientos, motivo, periodo_desde_iso, periodo_hasta_iso, esperadas_totales, trabajadas_totales):
+            return SALTADA_YA_PROCESADA   # otra corrida se nos adelantó (carrera)
+    return resultado
 
 
 def ejecutar_corte_quincenal(fecha_corte: date, db: Client | None = None) -> dict:
@@ -431,7 +509,12 @@ def ejecutar_corte_quincenal(fecha_corte: date, db: Client | None = None) -> dic
         f"{contadores[SALTADA_YA_PROCESADA]} ya procesada(s), {pendientes} pendiente(s) de cierre de día"
     )
     if errores or pendientes:
-        logger.error("corte_quincenal fecha_corte=%s errores=%s", fecha_corrida_iso, lista_acotada(errores))
+        # Log de resumen: solo periodo y conteos (sin persona_id ni horas).
+        logger.error("corte_quincenal periodo=%s a %s errores=%d pendientes=%d", periodo_desde_iso, periodo_hasta_iso, len(errores), pendientes)
+        if errores:
+            # Los persona_id con su error (solo clase de excepción y sqlstate, sin texto; acotados) van al LOG DEL SERVIDOR. corrida_batch.detalle lo puede leer cualquier persona activa por
+            # PostgREST (policy de 44_ sin corrida_batch_edicion): ahí van solo conteos, nunca ids de personas.
+            logger.error("corte_quincenal personas con error (periodo %s a %s): %s", periodo_desde_iso, periodo_hasta_iso, lista_acotada(errores))
         detalle = f"{resumen}, {len(errores)} error(es) -- ver logs del servidor."
         estado_final = "fallida"
     else:

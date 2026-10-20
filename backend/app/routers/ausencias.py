@@ -35,10 +35,12 @@ UNIQUE_VIOLATION = "23505"
 CODIGO_AUSENCIA_NO_ENCONTRADA = "SCJ02"
 CODIGO_AUSENCIA_YA_RESUELTA = "SCJ03"
 CODIGO_TIPO_INVALIDO = "SCJ04"
+CODIGO_AUSENCIA_PROPIA = "SCJ26"      # 122_: nadie resuelve su propia ausencia (fn_ausencia_resolver y un trigger BEFORE INSERT en aprobacion_ausencia), HINT 'ausencia_propia'
 
 MENSAJE_AUSENCIA_NO_ENCONTRADA = "La ausencia no existe."
 MENSAJE_AUSENCIA_YA_RESUELTA = "Esta ausencia ya fue resuelta -- alguien más se te adelantó."
 MENSAJE_AUSENCIA_NO_RESUELTA = "No se pudo resolver la ausencia."
+MENSAJE_AUSENCIA_PROPIA = "No puedes resolver tu propia ausencia."
 
 LIMITE_DEFECTO = 50
 LIMITE_MAXIMO = 200
@@ -230,6 +232,9 @@ def resolver_ausencia(
             raise HTTPException(
                 status.HTTP_404_NOT_FOUND, MENSAJE_AUSENCIA_NO_ENCONTRADA
             ) from error
+        if error.code == CODIGO_AUSENCIA_PROPIA:
+            # La base es la autoridad (no hay chequeo espejo antes del RPC: costaría resolver la persona del caller y la de la ausencia). Mensaje FIJO, nunca el texto de la base.
+            raise HTTPException(status.HTTP_403_FORBIDDEN, MENSAJE_AUSENCIA_PROPIA) from None
         if error.code in (CODIGO_AUSENCIA_YA_RESUELTA, UNIQUE_VIOLATION):
             # SCJ03 (pre-chequeo dentro de la función) o 23505 real de uq_aprobacion_ausencia_
             # paso (H1-H2: dos personas resolviendo a la vez, la función no siempre alcanza a

@@ -242,6 +242,13 @@ def _tabla_clasificacion_existente(datos=None):
     return tabla
 
 
+def _tabla_periodo_aplicado(datos=None):
+    """_periodo_ya_aplicado (idempotencia por persona + periodo): select().eq().eq().limit(1).execute()."""
+    tabla = MagicMock()
+    tabla.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = datos or []
+    return tabla
+
+
 def _tabla_patron_semanal(datos=None):
     tabla = MagicMock()
     tabla.select.return_value.in_.return_value.execute.return_value.data = datos or []
@@ -275,6 +282,7 @@ def _fake_service_client(
             clasificacion_de_tiempo if clasificacion_de_tiempo is not None else _tabla_clasificacion_existente()
         ),
         "patron_semanal": patron_semanal if patron_semanal is not None else _tabla_patron_semanal(),
+        "corte_quincenal_aplicado": _tabla_periodo_aplicado(),
     }
 
     def side_effect(nombre_tabla):
@@ -749,6 +757,29 @@ def test_listar_movimientos_calcula_saldo_corrido_y_vivo():
     assert cuerpo["movimientos"][0]["id"] == 2
 
 
+def test_listar_movimientos_expone_compensacion_y_su_movimiento_compensado_y_marca_vivo_el_lote_viejo():
+    """Ledger con una 'compensacion' (120_): trae compensa_movimiento_id, acepta el tipo nuevo y `vivo` sigue al lote correcto (el viejo; el reciente quedó revertido)."""
+    banco = _tabla_eq([{"id": 1}])
+    movimiento = _tabla_eq(
+        [
+            {"id": 1, "tipo": "generado_quincena", "monto": "10.00", "motivo": None, "autor_id": None, "creado_en": _iso(300), "compensa_movimiento_id": None},
+            {"id": 2, "tipo": "generado_quincena", "monto": "3.00", "motivo": None, "autor_id": None, "creado_en": _iso(20), "compensa_movimiento_id": None},
+            {"id": 3, "tipo": "compensacion", "monto": "-3.00", "motivo": "generado por error", "autor_id": None, "creado_en": _iso(10), "compensa_movimiento_id": 2},
+        ]
+    )
+    _preparar(banco=banco, movimiento=movimiento)
+
+    response = _pedir_movimientos()
+
+    _limpiar()
+    assert response.status_code == 200, response.text
+    por_id = {item["id"]: item for item in response.json()["movimientos"]}
+    assert por_id[3]["tipo"] == "compensacion" and por_id[3]["compensa_movimiento_id"] == 2
+    assert por_id[1]["compensa_movimiento_id"] is None
+    assert por_id[1]["vivo"] is True and por_id[2]["vivo"] is False and por_id[3]["vivo"] is False
+    assert por_id[3]["saldo_corrido"] == 10.0
+
+
 def test_listar_movimientos_persona_sin_banco_de_horas_devuelve_vacio():
     banco = _tabla_eq([])
     _preparar(banco=banco)
@@ -1011,3 +1042,52 @@ def test_registrar_movimiento_motivo_vacio_devuelve_422_sin_llegar_al_rpc():
 
     _limpiar()
     assert response.status_code == 422
+
+
+# --- 'compensacion': los 3 SELECT de movimiento_de_saldo DEBEN traer compensa_movimiento_id (los mocks devuelven la columna aunque el SELECT no la pida) -------------------------------
+
+
+def test_listar_banco_pide_compensa_movimiento_id_al_leer_el_ledger():
+    banco = _tabla_plana([_fila_banco(PERSONA_1, 1, monto=10.0, vivo_desde=_iso(10))])
+    movimiento = _tabla_in([_mov(1, 1, _iso(10), 10.0)])
+    persona = _tabla_persona(nombres=[{"id": PERSONA_1, "primer_nombre": "Ana", "apellido_paterno": "Pérez"}])
+    _preparar(banco=banco, movimiento=movimiento, persona=persona)
+
+    response = _pedir()
+
+    _limpiar()
+    assert response.status_code == 200, response.text
+    assert "compensa_movimiento_id" in movimiento.select.call_args.args[0]
+
+
+def test_ledger_de_persona_pide_compensa_movimiento_id():
+    banco = _tabla_eq([{"id": 1}])
+    movimiento = _tabla_eq([{"id": 1, "tipo": "generado_quincena", "monto": "10.00", "motivo": None, "autor_id": None, "creado_en": _iso(300), "compensa_movimiento_id": None}])
+    _preparar(banco=banco, movimiento=movimiento)
+
+    response = _pedir_movimientos()
+
+    _limpiar()
+    assert response.status_code == 200, response.text
+    assert "compensa_movimiento_id" in movimiento.select.call_args.args[0]
+
+
+def test_registrar_movimiento_pide_compensa_movimiento_id_para_el_tope_de_antiguedad():
+    """El tope de 6+ meses recalcula el FIFO: si el SELECT no trae compensa_movimiento_id, una compensación consumiría el lote viejo y el tope saldría mal."""
+    fake_caller = _fake_caller_gate_edicion()
+    movimiento = _tabla_eq([{"id": 1, "creado_en": _iso(200), "monto": "8.00", "compensa_movimiento_id": None}])
+    fake_service = _fake_caller_client_secuencia(
+        [
+            ("banco_de_horas", _tabla_eq([{"id": 1, "monto": "8.00", "vivo_desde": _iso(200)}])),
+            ("movimiento_de_saldo", movimiento),
+            ("parametro", _tabla_parametro()),
+        ]
+    )
+    app.dependency_overrides[get_caller_client] = lambda: fake_caller
+    app.dependency_overrides[get_service_client] = lambda: fake_service
+    _override_identidad()
+
+    _pedir_registrar(tipo="descontar", monto=10.0)
+
+    _limpiar()
+    assert "compensa_movimiento_id" in movimiento.select.call_args.args[0]

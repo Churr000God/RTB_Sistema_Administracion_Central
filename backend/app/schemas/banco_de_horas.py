@@ -53,7 +53,8 @@ class BancoDeHorasListaOut(BaseModel):
 class MovimientoSaldoItem(BaseModel):
     id: int
     creado_en: datetime
-    tipo: str
+    tipo: str          # generado_quincena | cubrir | arrastrar | descontar | condonar | compensacion (120_: revierte un generado_quincena erróneo)
+    compensa_movimiento_id: int | None = None   # solo en 'compensacion': el generado_quincena que revierte
     monto: float
     motivo: str | None
     autor_nombre: str | None = None

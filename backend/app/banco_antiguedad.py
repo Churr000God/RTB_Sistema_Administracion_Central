@@ -87,7 +87,11 @@ def calcular_lotes(movimientos: list[dict]) -> list[Lote]:
     """FIFO puro sobre el ledger, ordenado por (creado_en, id) asc. monto > 0
     (generado_quincena) apila un lote nuevo. monto < 0 (cubrir/descontar/condonar) consume desde
     el lote más viejo primero -- FIFO real, nunca LIFO. monto == 0 (arrastrar) no toca lotes.
-    Devuelve sólo los lotes con saldo restante."""
+    Una COMPENSACIÓN (tipo 'compensacion', monto < 0, `compensa_movimiento_id` apunta al
+    generado_quincena erróneo que revierte) consume PRIMERO el lote de ese movimiento, hasta lo que
+    le quede (puede estar ya parcialmente consumido por cubrir/descontar...), y solo el remanente
+    sigue por FIFO normal: así revertir un generado reciente no se come las horas viejas de la
+    persona y el desglose por antigüedad queda bien. Devuelve sólo los lotes con saldo restante."""
     ordenados = sorted(movimientos, key=lambda m: (m["creado_en"], m.get("id", 0)))
     lotes: list[Lote] = []
     for movimiento in ordenados:
@@ -102,6 +106,14 @@ def calcular_lotes(movimientos: list[dict]) -> list[Lote]:
             )
         elif monto < 0:
             pendiente = -monto
+            compensado = movimiento.get("compensa_movimiento_id")
+            if compensado is not None:
+                for lote in lotes:
+                    if lote.movimiento_id == compensado and lote.restante > 0:
+                        consumo = min(lote.restante, pendiente)
+                        lote.restante = round(lote.restante - consumo, 2)
+                        pendiente = round(pendiente - consumo, 2)
+                        break
             for lote in lotes:
                 if pendiente <= 0:
                     break

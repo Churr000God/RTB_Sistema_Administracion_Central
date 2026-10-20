@@ -59,7 +59,7 @@ def manejar_error_terminal(error: APIError) -> NoReturn:
     if error.code == PERMISO_DENEGADO:
         logger.error("terminal: la base respondió 42501 (permiso denegado); revisar grants/policies")
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, MENSAJE_TERMINAL_NO_DISPONIBLE) from None
-    if error.code and error.code.startswith("22"):
+    if str(error.code or "").startswith("22"):      # APIError.code puede ser un int (un 520 de Cloudflare): nunca asumir str
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_DATOS_INVALIDOS) from None
     raise error
 
@@ -428,7 +428,7 @@ def es_error_transitorio_de_base(exc: BaseException) -> bool:
     import httpx
 
     if isinstance(exc, APIError):
-        codigo = exc.code or ""
+        codigo = str(exc.code or "")                 # puede ser un int (código HTTP de un 5xx del borde)
         return codigo in SQLSTATE_TRANSITORIOS_BASE or re.fullmatch(r"5[0-9]{2}", codigo) is not None
     return isinstance(exc, httpx.TransportError)
 

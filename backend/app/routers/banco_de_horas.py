@@ -132,7 +132,7 @@ def _resolver_movimientos_por_banco(db: Client, banco_ids: list[int]) -> dict[in
     filas = (
         db.postgrest.schema("tiempo")
         .table("movimiento_de_saldo")
-        .select("id, banco_de_horas_id, creado_en, monto")
+        .select("id, banco_de_horas_id, creado_en, monto, compensa_movimiento_id")
         .in_("banco_de_horas_id", banco_ids)
         .execute()
         .data
@@ -374,7 +374,7 @@ def _armar_ledger_de_persona(db: Client, persona_id: str) -> dict:
     filas = (
         db.postgrest.schema("tiempo")
         .table("movimiento_de_saldo")
-        .select("id, tipo, monto, motivo, autor_id, creado_en")
+        .select("id, tipo, monto, motivo, autor_id, creado_en, compensa_movimiento_id")
         .eq("banco_de_horas_id", banco_id)
         .execute()
         .data
@@ -400,6 +400,7 @@ def _armar_ledger_de_persona(db: Client, persona_id: str) -> dict:
             "id": fila["id"],
             "creado_en": fila["creado_en"],
             "tipo": fila["tipo"],
+            "compensa_movimiento_id": fila.get("compensa_movimiento_id"),
             "monto": float(fila["monto"]),
             "motivo": fila["motivo"],
             "autor_nombre": nombres_autor.get(fila["autor_id"]) if fila["autor_id"] else None,
@@ -473,7 +474,7 @@ def registrar_movimiento_manual(
     movimientos = (
         db_servicio.postgrest.schema("tiempo")
         .table("movimiento_de_saldo")
-        .select("id, creado_en, monto")
+        .select("id, creado_en, monto, compensa_movimiento_id")
         .eq("banco_de_horas_id", fila_banco["id"])
         .execute()
         .data

@@ -497,3 +497,42 @@ def test_resolver_ausencia_autorizada_sin_tipo_devuelve_422_sin_llegar_a_bd():
 
     app.dependency_overrides.clear()
     assert response.status_code == 422
+
+
+def _resolver_con_error_de_rpc(error: APIError, decision="rechazada"):
+    fake_client = _fake_client_secuencia(_entradas_gate_and())
+    fake_client.postgrest.schema.return_value.rpc.return_value.execute.side_effect = error
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+    try:
+        return TestClient(app).post("/api/ausencias/5/resolver", json={"decision": decision}, headers={"Authorization": "Bearer fake-token"})
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_resolver_la_propia_ausencia_scj26_devuelve_403_con_mensaje_fijo_sin_texto_de_la_base():
+    r = _resolver_con_error_de_rpc(APIError({"code": "SCJ26", "message": "texto-interno persona-123", "hint": "ausencia_propia"}))
+    assert r.status_code == 403 and r.json() == {"detail": "No puedes resolver tu propia ausencia."}
+    assert "texto-interno" not in r.text and "persona-123" not in r.text
+
+
+def test_resolver_con_42501_sigue_como_antes_403_de_sin_permiso_y_no_se_confunde_con_ausencia_propia():
+    """Un aprobador distinto del caller da 42501 por la policy: sigue por `traducir_error_dia_cerrado` (403 con el mensaje de sin permiso), no como «ausencia propia»."""
+    from app.errores import MENSAJE_SIN_PERMISO
+
+    r = _resolver_con_error_de_rpc(APIError({"code": "42501", "message": "new row violates row-level security policy for table aprobacion_ausencia"}))
+    assert r.status_code == 403 and r.json() == {"detail": MENSAJE_SIN_PERMISO}
+    assert "row-level" not in r.text and "propia" not in r.json()["detail"]
+
+
+def test_resolver_una_ausencia_ajena_sigue_funcionando():
+    fake_client = _fake_client_secuencia(_entradas_gate_and() + [("persona", _tabla_persona_in([_fila_persona_ausencia()]))])
+    fake_client.postgrest.schema.return_value.rpc.return_value.execute.return_value.data = _fila_ausencia(estado_autorizacion="rechazada")
+    app.dependency_overrides[get_caller_client] = lambda: fake_client
+    _override_identidad()
+    try:
+        r = TestClient(app).post("/api/ausencias/5/resolver", json={"decision": "rechazada"}, headers={"Authorization": "Bearer fake-token"})
+    finally:
+        app.dependency_overrides.clear()
+    assert r.status_code == 200, r.text
+    assert r.json()["estado_autorizacion"] == "rechazada"
