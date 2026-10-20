@@ -109,7 +109,7 @@ def _tabla_in_order(datos):
 def _fake_service_client_config(limite_valor: str | None = None, festivos: list | None = None):
     """tiempo.parametro/tiempo.dia_festivo -- config global que _validar_momento_dispositivo lee
     con service_role vía app/dias_habiles.py (helper compartido con routers/correcciones.py).
-    Mismo fake que tests/test_correcciones.py, sin él get_service_client(get_settings())
+    Mismo fake que tests/test_correcciones.py, sin él crear_cliente_servicio(get_settings())
     pegaría contra el Supabase real de .env."""
     fake = MagicMock()
     tabla_parametro = MagicMock()
@@ -140,7 +140,7 @@ def _sin_red_real_para_ventana():
     llegaría a Supabase real."""
     app.dependency_overrides[get_service_client] = lambda: _fake_servicio_tramos([])
     with patch(
-        "app.dias_habiles.get_service_client",
+        "app.dias_habiles.crear_cliente_servicio",
         return_value=_fake_service_client_config(),
     ):
         yield

@@ -10,7 +10,7 @@ from supabase import Client
 from datetime import datetime, timezone
 
 from app.catalogo_terminal import CLAVE_CADUCIDAD, CLAVE_RETENCION_RECHAZOS, valor_vigente_estricto
-from app.deps import get_service_client
+from app.deps import crear_cliente_servicio
 from app.config import get_settings
 from app.registro_seguro import traza_sin_mensaje
 
@@ -20,7 +20,7 @@ TOPE_BAJAS_POR_CORRIDA = 50  # fijo dentro de fn_terminal_baja_por_caducidad
 
 
 def _cliente() -> Client:
-    return get_service_client(get_settings())
+    return crear_cliente_servicio(get_settings())
 
 
 def _llamar(db: Client, funcion: str, parametros: dict) -> int | None:

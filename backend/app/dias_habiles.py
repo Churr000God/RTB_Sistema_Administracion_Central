@@ -7,7 +7,7 @@ open si Supabase no responde -- no tumbar el endpoint por un problema transitori
 from datetime import date, timedelta
 
 from app.config import get_settings
-from app.deps import get_service_client
+from app.deps import crear_cliente_servicio
 
 DIAS_HABILES_POR_DEFECTO = 30  # mismo valor de ejemplo que db/ddl/03_parametros_ejemplo.sql
 
@@ -17,7 +17,7 @@ def _dias_habiles_limite() -> int:
     responde, cae al valor de ejemplo en vez de tumbar el endpoint por un problema transitorio
     de red."""
     try:
-        db = get_service_client(get_settings())
+        db = crear_cliente_servicio(get_settings())
         hoy = date.today().isoformat()
         filas = (
             db.postgrest.schema("tiempo")
@@ -43,7 +43,7 @@ def _festivos_entre(fecha_inicio: date, fecha_fin: date) -> set[str]:
     if fecha_fin <= fecha_inicio:
         return set()
     try:
-        db = get_service_client(get_settings())
+        db = crear_cliente_servicio(get_settings())
         filas = (
             db.postgrest.schema("tiempo")
             .table("dia_festivo")

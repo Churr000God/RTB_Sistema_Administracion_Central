@@ -78,9 +78,9 @@ def verificar_al_arrancar(cliente_servicio=None) -> None:
     try:
         if cliente_servicio is None:
             from app.config import get_settings
-            from app.deps import get_service_client
+            from app.deps import crear_cliente_servicio
 
-            cliente_servicio = get_service_client(get_settings())
+            cliente_servicio = crear_cliente_servicio(get_settings())
         perdidas = faltantes(cliente_servicio)
     except PrecondicionNoVerificable as error:
         logger.warning("no se pudo verificar el esquema requerido al arrancar (%s); se sigue", error)

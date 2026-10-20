@@ -75,7 +75,7 @@ from supabase import Client
 
 from app.batches._orquestacion import finalizar_corrida, upsert_corrida_en_progreso
 from app.config import get_settings
-from app.deps import get_service_client
+from app.deps import crear_cliente_servicio
 from app.registro_seguro import descripcion_segura, lista_acotada
 
 TIPO_BATCH = "corte_quincenal"
@@ -396,7 +396,7 @@ def ejecutar_corte_quincenal(fecha_corte: date, db: Client | None = None) -> dic
     una persona pendiente (día abierto) tampoco detiene a las demás, pero sí hace fallar la
     corrida completa (K1) para que el mecanismo de reintentos la vuelva a intentar."""
     if db is None:
-        db = get_service_client(get_settings())
+        db = crear_cliente_servicio(get_settings())
 
     periodo_desde, periodo_hasta = _rango_periodo(fecha_corte)
     periodo_desde_iso = periodo_desde.isoformat()

@@ -35,7 +35,7 @@ from app.batches.terminales import (
     ejecutar_reconciliacion_bajas,
 )
 from app.config import get_settings
-from app.deps import get_service_client
+from app.deps import crear_cliente_servicio
 from app.hora_cierre_dia import resolver_umbral_cierre_dia_cron
 
 ID_JOB_BATCH_DE_CONFIANZA = "batch_de_confianza_diario"
@@ -58,7 +58,7 @@ def _leer_hora_corrida_cierre_dia() -> tuple[int, int]:
     valor de ejemplo sembrado en vez de tumbar el arranque del backend entero por un problema
     transitorio de red."""
     try:
-        db = get_service_client(get_settings())
+        db = crear_cliente_servicio(get_settings())
         return resolver_umbral_cierre_dia_cron(db, date.today().isoformat())
     except Exception:
         return HORA_POR_DEFECTO

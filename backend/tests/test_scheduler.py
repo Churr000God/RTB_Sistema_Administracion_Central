@@ -39,18 +39,18 @@ def test_lee_hora_suma_las_2_claves():
     colchón -- con 01:15 + 02:30 el resultado (03:45) no coincide con ninguna de las 2 claves por
     separado, distingue la suma real de usar sólo una."""
     fake_db = _fake_db_parametros({"hora_corte_dia": "01:15", "hora_corrida_cierre_dia": "02:30"})
-    with patch("app.scheduler.get_service_client", return_value=fake_db):
+    with patch("app.scheduler.crear_cliente_servicio", return_value=fake_db):
         assert _leer_hora_corrida_cierre_dia() == (3, 45)
 
 
 def test_sin_filas_de_parametro_usa_default():
     fake_db = _fake_db_parametros({})
-    with patch("app.scheduler.get_service_client", return_value=fake_db):
+    with patch("app.scheduler.crear_cliente_servicio", return_value=fake_db):
         assert _leer_hora_corrida_cierre_dia() == HORA_POR_DEFECTO
 
 
 def test_error_leyendo_parametro_usa_default_no_tumba_arranque():
-    with patch("app.scheduler.get_service_client", side_effect=RuntimeError("sin red")):
+    with patch("app.scheduler.crear_cliente_servicio", side_effect=RuntimeError("sin red")):
         assert _leer_hora_corrida_cierre_dia() == HORA_POR_DEFECTO
 
 

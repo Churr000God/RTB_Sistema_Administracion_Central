@@ -16,7 +16,7 @@ from supabase import Client
 
 from app.batches._orquestacion import finalizar_corrida, upsert_corrida_en_progreso
 from app.config import get_settings
-from app.deps import get_service_client
+from app.deps import crear_cliente_servicio
 from app.registro_seguro import descripcion_segura, lista_acotada
 
 UNIQUE_VIOLATION = "23505"
@@ -69,7 +69,7 @@ def ejecutar_batch_de_confianza(fecha: date, db: Client | None = None) -> dict:
     revienta no detiene a las demás (SCJ-PRO-14 §V): se captura por persona y sigue con las
     siguientes."""
     if db is None:
-        db = get_service_client(get_settings())
+        db = crear_cliente_servicio(get_settings())
 
     fecha_iso = fecha.isoformat()
     corrida = upsert_corrida_en_progreso(db, TIPO_BATCH, fecha_iso)

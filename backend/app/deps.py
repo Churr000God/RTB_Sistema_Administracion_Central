@@ -24,9 +24,16 @@ CODIGOS_TOKEN_INVALIDO = frozenset({"bad_jwt", "no_authorization", "session_not_
 STATUS_TOKEN_INVALIDO = frozenset({400, 401, 403, 404, 422})
 
 
-def get_service_client(request: Request, settings: Settings = Depends(get_settings)) -> Client:
-    request.state.usa_cliente_servicio = True      # lo lee el manejador de APIError: un PGRST30x de un cliente de SERVICIO no es «token del usuario inválido»
+def crear_cliente_servicio(settings: Settings) -> Client:
+    """Cliente con service_role SIN FastAPI: batches, jobs programados, arranque y helpers de configuración global. NO recibe `Request` (no hay petición) ni marca nada en ella.
+    `get_service_client` es la dependencia de FastAPI; fuera de `Depends(...)` se llama ESTA función (una prueba lo vigila)."""
     return create_client(settings.supabase_url, settings.supabase_service_role_key)
+
+
+def get_service_client(request: Request, settings: Settings = Depends(get_settings)) -> Client:
+    """Dependencia de FastAPI. Nunca se llama a mano (`get_service_client(get_settings())` mete Settings como `request`): fuera de una petición, `crear_cliente_servicio`."""
+    request.state.usa_cliente_servicio = True      # lo lee el manejador de APIError: un PGRST30x de un cliente de SERVICIO no es «token del usuario inválido»
+    return crear_cliente_servicio(settings)
 
 
 def _extraer_token(authorization: str) -> str:

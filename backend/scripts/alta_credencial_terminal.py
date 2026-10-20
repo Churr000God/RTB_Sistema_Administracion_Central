@@ -83,9 +83,9 @@ def main(argv: list[str] | None = None, db=None) -> int:
     try:
         if db is None:
             from app.config import get_settings
-            from app.deps import get_service_client
+            from app.deps import crear_cliente_servicio
 
-            db = get_service_client(get_settings())
+            db = crear_cliente_servicio(get_settings())
         llave = registrar_credencial(db, args.serie, args.etiqueta)
     except ErrorProvision as error:
         print(f"Error: {error}", file=sys.stderr)

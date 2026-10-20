@@ -66,9 +66,9 @@ def violaciones_en(codigo: str, nombre: str = "<memoria>") -> list[str]:
         return []
     malas = []
     for nodo in ast.walk(arbol):
-        if isinstance(nodo, ast.Name) and nodo.id in ("get_service_client", "create_client"):
+        if isinstance(nodo, ast.Name) and nodo.id in ("get_service_client", "crear_cliente_servicio", "create_client"):
             malas.append(f"{nombre}:{nodo.lineno}: el archivo escribe en asignación y referencia {nodo.id}")
-        elif isinstance(nodo, ast.Attribute) and nodo.attr in ("get_service_client", "create_client", "supabase_service_role_key"):
+        elif isinstance(nodo, ast.Attribute) and nodo.attr in ("get_service_client", "crear_cliente_servicio", "create_client", "supabase_service_role_key"):
             malas.append(f"{nombre}:{nodo.lineno}: el archivo escribe en asignación y referencia {nodo.attr}")
         elif isinstance(nodo, ast.Constant) and isinstance(nodo.value, str) and "service_role" in nodo.value.lower():
             malas.append(f"{nombre}:{nodo.lineno}: el archivo escribe en asignación y menciona service_role")
