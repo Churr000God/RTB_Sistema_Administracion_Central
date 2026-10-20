@@ -1825,7 +1825,7 @@ FROM f WHERE has_function_privilege('authenticated', oid, 'EXECUTE') AND nspname
     'personas.fn_caller_puestos_en_rama', 'personas.fn_hoy_mexico', 'personas.fn_caller_ve_identidad', 'personas.fn_persona_identidad', 'personas.fn_caller_tiene_permiso', 'personas.fn_caller_ve_estructura_permisos', 'personas.fn_caller_ve_padron', 'personas.fn_persona_actualizar_datos', 'personas.fn_persona_crear',
     'tiempo.fn_ausencia_resolver', 'tiempo.fn_dia_calcular_armado_tramos', 'tiempo.fn_dia_revisar', 'tiempo.fn_excepcion_dia_cerrado_descartar',
     'tiempo.fn_jornada_asignar_renovar', 'tiempo.fn_jornada_en_curso_mover_limite', 'tiempo.fn_jornada_futura_actualizar', 'tiempo.fn_jornada_futura_eliminar',
-    'tiempo.fn_movimiento_de_saldo_manual_registrar', 'tiempo.fn_terminal_config_actualizar', 'tiempo.fn_terminal_consentimiento_publicar',
+    'tiempo.fn_movimiento_de_saldo_manual_registrar', 'tiempo.fn_movimiento_de_saldo_compensar', 'tiempo.fn_terminal_config_actualizar', 'tiempo.fn_terminal_consentimiento_publicar',
     'tiempo.fn_terminal_inferir_huella_cambiar', 'tiempo.fn_terminal_reconsentimiento_pendiente_ids', 'tiempo.fn_terminal_reconsentir');
 
 -- 71) search_path de las funciones INVOKER de apoyo a RLS tras 106_: personas.fn_caller_tiene_permiso, personas.fn_persona_de_usuario y personas.fn_usuario_es_administrador_generico con
@@ -2015,3 +2015,136 @@ FROM (
     AND EXISTS (SELECT 1 FROM efectivo e WHERE e.puesto_id = pu.id AND e.codigo = 'correccion_edicion')
     AND NOT EXISTS (SELECT 1 FROM efectivo e WHERE e.puesto_id = pu.id AND e.codigo IN ('excepcion_lectura', 'excepcion_edicion'))
 ) x;
+
+-- 83) Corte quincenal idempotente y compensación auditada (118_–120_). Solo violaciones. Esperado: 0 filas DESPUÉS de aplicar 118_, 119_ y 120_ (antes de aplicarlas devuelve filas).
+--  (a) 119_: tiempo.corte_quincenal_aplicado existe con RLS habilitada, UNIQUE (persona_id, periodo_desde), sin policies, y solo service_role con SELECT e INSERT (nadie más, ni UPDATE/DELETE/TRUNCATE).
+--  (b) 119_: fn_corte_quincenal_aplicar_persona existe SOLO con la firma nueva de 8 argumentos (la vieja de 4 debe haber desaparecido), INVOKER, search_path fijo, EXECUTE solo service_role, y el cuerpo
+--      conserva el ERRCODE SCJ23 y el registro del periodo.
+--  (c) 118_: fn_ausencia_resuelve_excepcion sigue DEFINER con search_path fijo, sin EXECUTE para nadie, usa minutos_comida y ya no lee descuento_pausa_no_registrada_min.
+--  (d) 120_: el tipo 'compensacion' está en el CHECK, hay índice único parcial sobre compensa_movimiento_id y trigger de validación habilitado, el permiso movimiento_de_saldo_compensar existe y NO es heredable,
+--      y el RPC de compensación es DEFINER con search_path fijo, EXECUTE solo authenticated, con la autorización dentro (fn_caller_tiene_permiso) y el autor desde auth.uid().
+SELECT 'corte_quincenal_aplicado' AS objeto, 'falta, sin RLS, sin UNIQUE (persona_id, periodo_desde), con policies, o privilegios de más/de menos' AS problema
+WHERE NOT EXISTS (
+  SELECT 1 FROM pg_class c
+  WHERE c.oid = to_regclass('tiempo.corte_quincenal_aplicado') AND c.relrowsecurity
+    AND EXISTS (SELECT 1 FROM pg_constraint k WHERE k.conrelid = c.oid AND k.conname = 'uq_corte_quincenal_aplicado_persona_periodo' AND k.contype = 'u')
+    AND NOT EXISTS (SELECT 1 FROM pg_policies p WHERE p.schemaname = 'tiempo' AND p.tablename = 'corte_quincenal_aplicado')
+    AND has_table_privilege('service_role', c.oid, 'SELECT') AND has_table_privilege('service_role', c.oid, 'INSERT')
+    AND NOT has_table_privilege('service_role', c.oid, 'UPDATE') AND NOT has_table_privilege('service_role', c.oid, 'DELETE') AND NOT has_table_privilege('service_role', c.oid, 'TRUNCATE')
+    AND NOT has_table_privilege('authenticated', c.oid, 'SELECT') AND NOT has_table_privilege('authenticated', c.oid, 'INSERT')
+    AND NOT has_table_privilege('anon', c.oid, 'SELECT') AND NOT has_table_privilege('anon', c.oid, 'INSERT')
+)
+UNION ALL
+SELECT 'fn_corte_quincenal_aplicar_persona', 'no existe solo la firma nueva (8 argumentos), o no es INVOKER con search_path fijo, o perdió SCJ23, o el EXECUTE no es solo de service_role'
+WHERE (SELECT count(*) FROM pg_proc p WHERE p.pronamespace = 'tiempo'::regnamespace AND p.proname = 'fn_corte_quincenal_aplicar_persona') <> 1
+   OR NOT EXISTS (
+     SELECT 1 FROM pg_proc p
+     WHERE p.pronamespace = 'tiempo'::regnamespace AND p.proname = 'fn_corte_quincenal_aplicar_persona' AND p.pronargs = 8
+       AND NOT p.prosecdef AND p.proconfig = ARRAY['search_path=tiempo, pg_temp']
+       AND p.prosrc LIKE '%SCJ23%' AND p.prosrc LIKE '%corte_quincenal_aplicado%'
+       AND has_function_privilege('service_role', p.oid, 'EXECUTE')
+       AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
+   )
+UNION ALL
+SELECT 'fn_ausencia_resuelve_excepcion', 'dejó de ser DEFINER con search_path fijo, tiene EXECUTE, no usa minutos_comida o vuelve a leer descuento_pausa_no_registrada_min'
+WHERE NOT EXISTS (
+  SELECT 1 FROM pg_proc p
+  WHERE p.pronamespace = 'tiempo'::regnamespace AND p.proname = 'fn_ausencia_resuelve_excepcion'
+    AND p.prosecdef AND p.proconfig = ARRAY['search_path=tiempo, pg_temp']
+    AND p.prosrc LIKE '%minutos_comida%' AND p.prosrc NOT LIKE '%descuento_pausa_no_registrada_min%'
+    AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE')
+)
+UNION ALL
+SELECT 'movimiento_de_saldo (compensacion)', 'falta el tipo compensacion en el CHECK, el índice único parcial, el trigger de validación habilitado, la columna compensa_movimiento_id o el permiso no heredable'
+WHERE NOT EXISTS (SELECT 1 FROM pg_constraint k WHERE k.conrelid = 'tiempo.movimiento_de_saldo'::regclass AND k.conname = 'ck_movimiento_de_saldo_tipo' AND pg_get_constraintdef(k.oid) LIKE '%compensacion%')
+   OR NOT EXISTS (SELECT 1 FROM pg_indexes i WHERE i.schemaname = 'tiempo' AND i.indexname = 'uq_movimiento_de_saldo_compensa' AND i.indexdef LIKE '%UNIQUE%' AND i.indexdef LIKE '%compensa_movimiento_id IS NOT NULL%')
+   OR NOT EXISTS (SELECT 1 FROM pg_trigger t WHERE t.tgrelid = 'tiempo.movimiento_de_saldo'::regclass AND t.tgname = 'trg_movimiento_compensacion_valida' AND t.tgenabled = 'O')
+   OR NOT EXISTS (SELECT 1 FROM information_schema.columns c WHERE c.table_schema = 'tiempo' AND c.table_name = 'movimiento_de_saldo' AND c.column_name = 'compensa_movimiento_id')
+   OR NOT EXISTS (SELECT 1 FROM personas.permiso pe WHERE pe.codigo = 'movimiento_de_saldo_compensar' AND NOT pe.heredable)
+UNION ALL
+SELECT 'fn_movimiento_de_saldo_compensar', 'no es DEFINER con search_path fijo, o el EXECUTE no es solo de authenticated, o le falta la autorización interna / el autor desde auth.uid() / el SCJ24'
+WHERE NOT EXISTS (
+  SELECT 1 FROM pg_proc p
+  WHERE p.pronamespace = 'tiempo'::regnamespace AND p.proname = 'fn_movimiento_de_saldo_compensar' AND p.pronargs = 2
+    AND p.prosecdef AND p.proconfig = ARRAY['search_path=tiempo, personas, pg_temp']
+    AND p.prosrc LIKE '%fn_caller_tiene_permiso(''movimiento_de_saldo_compensar'')%' AND p.prosrc LIKE '%auth.uid()%' AND p.prosrc LIKE '%SCJ24%'
+    AND p.prosrc LIKE '%compensacion_propia%' AND p.prosrc LIKE '%motivo_demasiado_largo%'
+    AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
+    AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE')
+)
+UNION ALL
+SELECT 'fn_movimiento_compensacion_valida', 'no es DEFINER con search_path fijo o tiene EXECUTE para alguien de la API'
+WHERE NOT EXISTS (
+  SELECT 1 FROM pg_proc p
+  WHERE p.pronamespace = 'tiempo'::regnamespace AND p.proname = 'fn_movimiento_compensacion_valida'
+    AND p.prosecdef AND p.proconfig = ARRAY['search_path=tiempo, pg_temp']
+    AND p.prosrc LIKE '%FOR UPDATE%' AND p.prosrc LIKE '%saldo_insuficiente%'
+    AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE')
+);
+
+-- 84) Tipo de ausencia inmutable una vez resuelta (121_). Solo violaciones. Esperado: 0 filas DESPUÉS de aplicar 121_ (antes de aplicarla devuelve 2).
+--  (a) la policy ausencia_update_requiere_permiso existe, es de UPDATE para authenticated y exige estado_autorizacion = 'pendiente' en USING y en WITH CHECK, además del permiso ausencia_edicion;
+--  (b) existe el trigger trg_ausencia_bloquea_cambio_tipo_resuelta (BEFORE UPDATE OF tipo_de_ausencia, por fila, habilitado) con su WHEN sobre el estado viejo, y su función conserva SCJ25, no es DEFINER
+--      (no hace falta), tiene search_path fijo y NO tiene EXECUTE para nadie de la API.
+SELECT 'ausencia_update_requiere_permiso' AS objeto, 'falta, no es UPDATE de authenticated, o no exige estado_autorizacion = pendiente en USING y WITH CHECK junto con ausencia_edicion' AS problema
+WHERE NOT EXISTS (
+  SELECT 1 FROM pg_policies p
+  WHERE p.schemaname = 'tiempo' AND p.tablename = 'ausencia' AND p.policyname = 'ausencia_update_requiere_permiso' AND p.cmd = 'UPDATE' AND p.roles = '{authenticated}'
+    AND p.qual LIKE '%ausencia_edicion%' AND p.qual LIKE '%pendiente%' AND p.with_check LIKE '%ausencia_edicion%' AND p.with_check LIKE '%pendiente%'
+)
+UNION ALL
+SELECT 'trg_ausencia_bloquea_cambio_tipo_resuelta', 'falta el trigger, no es BEFORE UPDATE OF tipo_de_ausencia por fila habilitado con WHEN sobre el estado viejo, o su función perdió SCJ25 / search_path fijo / ausencia de EXECUTE'
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM pg_trigger t
+  JOIN pg_proc f ON f.oid = t.tgfoid AND f.pronamespace = 'tiempo'::regnamespace AND f.proname = 'fn_ausencia_bloquea_cambio_tipo_resuelta'
+  WHERE t.tgrelid = 'tiempo.ausencia'::regclass AND t.tgname = 'trg_ausencia_bloquea_cambio_tipo_resuelta' AND t.tgenabled = 'O'
+    AND (t.tgtype & 1) = 1 AND (t.tgtype & 2) = 2 AND (t.tgtype & 16) = 16
+    AND (SELECT array_agg(a.attname::text ORDER BY a.attname) FROM pg_attribute a WHERE a.attrelid = t.tgrelid AND a.attnum = ANY (t.tgattr::int2[])) = ARRAY['tipo_de_ausencia']
+    AND pg_get_triggerdef(t.oid) LIKE '%WHEN%estado_autorizacion%pendiente%'
+    AND f.prosrc LIKE '%SCJ25%' AND f.proconfig = ARRAY['search_path=tiempo, pg_temp']
+    AND NOT has_function_privilege('anon', f.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', f.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', f.oid, 'EXECUTE')
+);
+
+-- 85) Nadie resuelve su propia ausencia (122_). Solo violaciones. Esperado: 0 filas DESPUÉS de aplicar 122_ (antes de aplicarla devuelve 4).
+--  (a) la policy aprobacion_ausencia_insert_requiere_permiso (INSERT, authenticated) exige aprobacion_ausencia_edicion, aprobador_id = fn_caller_persona_id() y el NOT EXISTS sobre tiempo.ausencia con la fila nueva
+--      CALIFICADA (aprobacion_ausencia.ausencia_id / aprobacion_ausencia.aprobador_id; sin calificar la condición sería una autocomparación);
+--  (b) el trigger trg_aprobacion_ausencia_bloquea_propia (BEFORE INSERT, por fila, habilitado) y su función: DEFINER con search_path fijo, SCJ26, sin EXECUTE para nadie de la API;
+--  (c) fn_ausencia_resolver: INVOKER, search_path fijo, con SCJ26 y la guarda antes del UPDATE del tipo, EXECUTE para authenticated y no para anon ni PUBLIC.
+--  (d) BAJO 1: la policy ausencia_update_requiere_permiso (UPDATE, authenticated) exige estado pendiente y persona_id <> fn_caller_persona_id() en USING y en WITH CHECK, además de ausencia_edicion.
+SELECT 'aprobacion_ausencia_insert_requiere_permiso' AS objeto, 'falta, no es INSERT de authenticated, o no exige aprobador = persona del caller y el NOT EXISTS con la fila nueva calificada' AS problema
+WHERE NOT EXISTS (
+  SELECT 1 FROM pg_policies p
+  WHERE p.schemaname = 'tiempo' AND p.tablename = 'aprobacion_ausencia' AND p.policyname = 'aprobacion_ausencia_insert_requiere_permiso' AND p.cmd = 'INSERT' AND p.roles = '{authenticated}'
+    AND p.with_check LIKE '%aprobacion_ausencia_edicion%' AND p.with_check LIKE '%fn_caller_persona_id%'
+    AND p.with_check LIKE '%aprobacion_ausencia.ausencia_id%' AND p.with_check LIKE '%aprobacion_ausencia.aprobador_id%'
+)
+UNION ALL
+SELECT 'trg_aprobacion_ausencia_bloquea_propia', 'falta el trigger (BEFORE INSERT por fila habilitado), o su función perdió SCJ26 / DEFINER con search_path fijo / la ausencia de EXECUTE'
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM pg_trigger t
+  JOIN pg_proc f ON f.oid = t.tgfoid AND f.pronamespace = 'tiempo'::regnamespace AND f.proname = 'fn_aprobacion_ausencia_bloquea_propia'
+  WHERE t.tgrelid = 'tiempo.aprobacion_ausencia'::regclass AND t.tgname = 'trg_aprobacion_ausencia_bloquea_propia' AND t.tgenabled = 'O'
+    AND (t.tgtype & 1) = 1 AND (t.tgtype & 2) = 2 AND (t.tgtype & 4) = 4
+    AND f.prosecdef AND f.proconfig = ARRAY['search_path=tiempo, pg_temp'] AND pg_get_userbyid(f.proowner) = 'postgres' AND f.prosrc LIKE '%SCJ26%'
+    AND NOT has_function_privilege('anon', f.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', f.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', f.oid, 'EXECUTE')
+)
+UNION ALL
+SELECT 'fn_ausencia_resolver', 'perdió SCJ26 (o la guarda no va antes del UPDATE del tipo), dejó de ser INVOKER con search_path fijo, o su EXECUTE no es solo para authenticated'
+WHERE NOT EXISTS (
+  SELECT 1 FROM pg_proc p
+  WHERE p.pronamespace = 'tiempo'::regnamespace AND p.proname = 'fn_ausencia_resolver' AND p.pronargs = 4
+    AND NOT p.prosecdef AND p.proconfig = ARRAY['search_path=tiempo, personas, pg_temp']
+    AND p.prosrc LIKE '%SCJ26%' AND position('SCJ26' IN p.prosrc) < position('UPDATE tiempo.ausencia' IN p.prosrc)
+    AND has_function_privilege('authenticated', p.oid, 'EXECUTE') AND NOT has_function_privilege('anon', p.oid, 'EXECUTE')
+    AND NOT EXISTS (SELECT 1 FROM aclexplode(p.proacl) x WHERE x.grantee = 0)
+)
+UNION ALL
+SELECT 'ausencia_update_requiere_permiso', 'falta, no es UPDATE de authenticated, o no exige pendiente y persona_id distinta de la del caller en USING y WITH CHECK junto con ausencia_edicion'
+WHERE NOT EXISTS (
+  SELECT 1 FROM pg_policies p
+  WHERE p.schemaname = 'tiempo' AND p.tablename = 'ausencia' AND p.policyname = 'ausencia_update_requiere_permiso' AND p.cmd = 'UPDATE' AND p.roles = '{authenticated}'
+    AND p.qual LIKE '%ausencia_edicion%' AND p.qual LIKE '%pendiente%' AND p.qual LIKE '%persona_id <>%fn_caller_persona_id%'
+    AND p.with_check LIKE '%ausencia_edicion%' AND p.with_check LIKE '%pendiente%' AND p.with_check LIKE '%persona_id <>%fn_caller_persona_id%'
+);

@@ -141,3 +141,19 @@ independiente de los dos anteriores).
 ---
 
 *Proceso · Folio SCJ-PRO-13 · V1.0*
+
+---
+
+## VIII. Nota posterior (20-oct-2026, sin cambio de versión): ausencias neutras, periodo aplicado y compensación
+
+El corte de 01–15-oct-2026 cargó 86 h de deuda a una persona con 13 permisos con goce autorizados. Tres causas y su corrección (migraciones `118_` a `120_`, aún por aplicar):
+
+1. **Los días de ausencia no tienen tramos.** El corte sumaba las horas trabajadas solo de `tiempo.tramo`. Decisión: en los días sin tramos el corte cuenta `tiempo.dia.horas_totales` como trabajadas (cambio de backend, `corte_quincenal.py`).
+2. **La jornada neta de la ausencia no coincidía con la esperada.** `fn_ausencia_resuelve_excepcion` (`66_`) restaba el parámetro global `descuento_pausa_no_registrada_min`; el corte espera `hora_salida − hora_entrada − minutos_comida` por fila de `patron_semanal`. `118_` la alinea con el corte (por fila, así también con jornada partida). El descuento global queda solo para `cierre_dia` en días de 2 marcas. Redondeo: `horas_totales` es `numeric(5,2)`; backend redondea las esperadas por día a 2 decimales.
+3. **La idempotencia dependía de los tramos clasificados.** Un periodo sin tramos se podía aplicar dos veces y duplicar la deuda. `119_` agrega `tiempo.corte_quincenal_aplicado` (`UNIQUE (persona_id, periodo_desde)`, también para periodos con resultado 0) y cambia la firma de `fn_corte_quincenal_aplicar_persona`: recibe el periodo y las horas, lo registra en la misma transacción y rechaza un duplicado con `ERRCODE SCJ23`, `HINT 'periodo_ya_aplicado'`. La firma anterior se elimina.
+
+**Compensación de un `generado_quincena` erróneo** (`120_`): nuevo tipo `compensacion` en `movimiento_de_saldo`, ligado al original por `compensa_movimiento_id` (una sola compensación por movimiento, monto exacto en negativo, motivo y autor obligatorios), mediante el RPC `fn_movimiento_de_saldo_compensar` y el permiso no heredable `movimiento_de_saldo_compensar`. El trigger de `fn_movimiento_de_saldo_actualiza_banco` mueve el saldo; no se compensa si el saldo quedaría negativo (también validado en el trigger, con el banco bloqueado, por cualquier camino de escritura), nadie compensa movimientos de su propio banco (`compensacion_propia`) y el motivo admite a lo más 500 caracteres. El desglose por antigüedad (`backend/app/banco_antiguedad.py`) debe tratar la compensación contra el lote ligado, no por FIFO.
+
+**Orden de aplicación:** 1) `118_`, `119_` y `120_` (sección 83 de `verificar_ddl.sql` en solo lectura tras cada una); 2) backend y frontend en la misma ventana (el backend nuevo ya lee `compensa_movimiento_id`, así que `120_` va antes); 3) el script de corrección, primero en seco y luego con `v_aplicar = true`. Fuera de los días de corte (1 y 16).
+
+La corrección de datos de la persona afectada vive en `db/correcciones/` y se ejecuta solo con autorización explícita.
