@@ -60,11 +60,19 @@ const AUSENCIA_RECHAZADA = {
   decidido_en: "2026-09-04T10:00:00Z",
 };
 
-function mockApiFetch(opciones: { ausencias?: Response; resolver?: Response } = {}) {
+function mockApiFetch(
+  opciones: { ausencias?: Response; resolver?: Response; sesionPersonaId?: string | null } = {},
+) {
   vi.mocked(apiFetch).mockImplementation((path: string, init?: RequestInit) => {
     if (path === "/api/sesion") {
       return Promise.resolve(
-        new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null })),
+        new Response(
+          JSON.stringify({
+            acceso_permitido: true,
+            motivo_bloqueo: null,
+            persona_id: opciones.sesionPersonaId ?? null,
+          }),
+        ),
       );
     }
     if (path.startsWith("/api/ausencias?")) {
@@ -267,6 +275,59 @@ describe("BandejaAusenciasPage", () => {
       expect(screen.getByText(/alguien más se te adelantó/i)).toBeInTheDocument(),
     );
     expect(screen.getByText(/resolver la ausencia de/i)).toBeInTheDocument();
+  });
+
+  describe("ausencia propia", () => {
+    const TEXTO_PROPIA = /otra persona con permiso debe resolver tu ausencia\./i;
+
+    it("la propia sale deshabilitada, con el texto, y la fila sigue visible", async () => {
+      mockApiFetch({ sesionPersonaId: "persona-1" });
+      render(<BandejaAusenciasPage />);
+      await waitFor(() => expect(screen.getByText("Persona Ficticia")).toBeInTheDocument());
+
+      await waitFor(() => expect(screen.getByRole("button", { name: /resolver/i })).toBeDisabled());
+      expect(screen.getByText(TEXTO_PROPIA)).toBeInTheDocument();
+    });
+
+    it("la ajena sigue habilitada y sin texto", async () => {
+      mockApiFetch({ sesionPersonaId: "persona-9" });
+      render(<BandejaAusenciasPage />);
+      await waitFor(() => expect(screen.getByText("Persona Ficticia")).toBeInTheDocument());
+      // espera a que la sesión haya cargado antes de afirmar la ausencia del bloqueo
+      await waitFor(() =>
+        expect(vi.mocked(apiFetch).mock.calls.some(([p]) => p === "/api/sesion")).toBe(true),
+      );
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(screen.getByRole("button", { name: /resolver/i })).toBeEnabled();
+      expect(screen.queryByText(TEXTO_PROPIA)).not.toBeInTheDocument();
+    });
+
+    it("sesion.persona_id null deja todo habilitado", async () => {
+      mockApiFetch({ sesionPersonaId: null });
+      render(<BandejaAusenciasPage />);
+      await waitFor(() => expect(screen.getByText("Persona Ficticia")).toBeInTheDocument());
+      await new Promise((r) => setTimeout(r, 20));
+
+      expect(screen.getByRole("button", { name: /resolver/i })).toBeEnabled();
+      expect(screen.queryByText(TEXTO_PROPIA)).not.toBeInTheDocument();
+    });
+
+    it("si aun así llega el 403, muestra el mensaje del backend", async () => {
+      mockApiFetch({
+        sesionPersonaId: null,
+        resolver: new Response(JSON.stringify({ detail: "No puedes resolver tu propia ausencia." }), {
+          status: 403,
+        }),
+      });
+      render(<BandejaAusenciasPage />);
+      await waitFor(() => expect(screen.getByText("Persona Ficticia")).toBeInTheDocument());
+      await userEvent.click(screen.getByRole("button", { name: /resolver/i }));
+      await userEvent.click(screen.getByLabelText(/rechazar/i));
+      await userEvent.click(screen.getByRole("button", { name: /^confirmar$/i }));
+
+      expect(await screen.findByText("No puedes resolver tu propia ausencia.")).toBeInTheDocument();
+    });
   });
 
   it("cancelar cierra la fila sin disparar POST", async () => {

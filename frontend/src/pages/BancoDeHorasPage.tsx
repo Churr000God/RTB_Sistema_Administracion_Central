@@ -77,13 +77,20 @@ type SaldoBancoHoras = {
 
 type RespuestaBancoHoras = { total: number; resumen: Resumen; saldos: SaldoBancoHoras[] };
 
-type TipoMovimiento = "generado_quincena" | "cubrir" | "arrastrar" | "descontar" | "condonar";
+type TipoMovimiento =
+  | "generado_quincena"
+  | "cubrir"
+  | "arrastrar"
+  | "descontar"
+  | "condonar"
+  | "compensacion";
 
 type Movimiento = {
   id: number;
   creado_en: string;
   tipo: TipoMovimiento;
   monto: number;
+  compensa_movimiento_id?: number | null;
   motivo: string | null;
   autor_nombre: string | null;
   saldo_corrido: number;
@@ -102,7 +109,17 @@ const ETIQUETA_TIPO_MOVIMIENTO: Record<TipoMovimiento, string> = {
   arrastrar: "Arrastre",
   descontar: "Descuento",
   condonar: "Condonación",
+  compensacion: "Compensación de corte erróneo",
 };
+
+// Texto discreto de una compensación: a qué movimiento apunta, por fecha si está en la misma lista
+// (el ledger viene completo por persona) o por id si no.
+function referenciaCompensada(id: number, movimientos: Movimiento[]): string {
+  const destino = movimientos.find((m) => m.id === id);
+  return destino
+    ? `compensa el movimiento del ${formatearFechaHora(destino.creado_en)}`
+    : `compensa el movimiento #${id}`;
+}
 
 function formatearHoras(monto: number): string {
   return `${monto.toFixed(2)} h`;
@@ -694,7 +711,14 @@ export function BancoDeHorasPage() {
                                       {ledger.movimientos.map((movimiento) => (
                                         <tr key={movimiento.id}>
                                           <td>{formatearFechaHora(movimiento.creado_en)}</td>
-                                          <td>{ETIQUETA_TIPO_MOVIMIENTO[movimiento.tipo]}</td>
+                                          <td>
+                                            {ETIQUETA_TIPO_MOVIMIENTO[movimiento.tipo] ?? movimiento.tipo}
+                                            {movimiento.compensa_movimiento_id != null && (
+                                              <small className="ayuda-campo" style={{ display: "block" }}>
+                                                {referenciaCompensada(movimiento.compensa_movimiento_id, ledger.movimientos)}
+                                              </small>
+                                            )}
+                                          </td>
                                           <td className="num">{formatearHorasConSigno(movimiento.monto)}</td>
                                           <td className="num">{formatearHoras(movimiento.saldo_corrido)}</td>
                                           <td>{movimiento.motivo ?? "—"}</td>

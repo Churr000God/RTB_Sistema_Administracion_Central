@@ -334,6 +334,58 @@ describe("BancoDeHorasPage", () => {
     expect(llamadasMovimientos).toBe(1);
   });
 
+  it("ledger: una compensación muestra su etiqueta y a qué movimiento compensa (por fecha)", async () => {
+    const movimientos = [
+      {
+        id: 3, creado_en: "2026-09-02T12:00:00Z", tipo: "compensacion", monto: -5.0,
+        compensa_movimiento_id: 1, motivo: "corte erróneo", autor_nombre: "RH", saldo_corrido: 0, vivo: false,
+      },
+      {
+        id: 1, creado_en: "2026-08-19T12:00:00Z", tipo: "generado_quincena", monto: 5.0,
+        compensa_movimiento_id: null, motivo: null, autor_nombre: null, saldo_corrido: 5.0, vivo: false,
+      },
+    ];
+    mockApiFetch({ movimientos: new Response(JSON.stringify({ total: 2, movimientos })) });
+    render(<BancoDeHorasPage />);
+    const tabla = await screen.findByRole("table");
+    await userEvent.click(await waitFor(() => within(tabla).getByRole("row", { name: /persona endeudada/i })));
+
+    expect(await screen.findByText(/compensación de corte erróneo/i)).toBeInTheDocument();
+    // la fecha sale de la misma lista, no un id crudo
+    expect(screen.getByText(/compensa el movimiento del .*2026/i)).toBeInTheDocument();
+    expect(screen.queryByText(/#1\b/)).not.toBeInTheDocument();
+  });
+
+  it("ledger: compensación cuyo destino no está en la lista muestra el id", async () => {
+    const movimientos = [
+      {
+        id: 7, creado_en: "2026-09-02T12:00:00Z", tipo: "compensacion", monto: -2.0,
+        compensa_movimiento_id: 99, motivo: null, autor_nombre: null, saldo_corrido: 0, vivo: false,
+      },
+    ];
+    mockApiFetch({ movimientos: new Response(JSON.stringify({ total: 1, movimientos })) });
+    render(<BancoDeHorasPage />);
+    const tabla = await screen.findByRole("table");
+    await userEvent.click(await waitFor(() => within(tabla).getByRole("row", { name: /persona endeudada/i })));
+
+    expect(await screen.findByText(/compensa el movimiento #99/i)).toBeInTheDocument();
+  });
+
+  it("ledger: un tipo desconocido muestra el valor crudo, no una celda vacía", async () => {
+    const movimientos = [
+      {
+        id: 4, creado_en: "2026-09-02T12:00:00Z", tipo: "tipo_futuro_x", monto: 1.0,
+        compensa_movimiento_id: null, motivo: null, autor_nombre: null, saldo_corrido: 1.0, vivo: true,
+      },
+    ];
+    mockApiFetch({ movimientos: new Response(JSON.stringify({ total: 1, movimientos })) });
+    render(<BancoDeHorasPage />);
+    const tabla = await screen.findByRole("table");
+    await userEvent.click(await waitFor(() => within(tabla).getByRole("row", { name: /persona endeudada/i })));
+
+    expect(await screen.findByText("tipo_futuro_x")).toBeInTheDocument();
+  });
+
   it('badge "Corte pendiente" aparece en la fila real y muestra la métrica nueva', async () => {
     const conCortePendiente = { ...SALDO_ENDEUDADO, corte_pendiente: true };
     mockApiFetch({

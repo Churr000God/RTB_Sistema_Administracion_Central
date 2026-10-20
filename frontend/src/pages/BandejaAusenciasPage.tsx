@@ -2,6 +2,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import { AlertCircle, Loader2, Search } from "lucide-react";
 
 import { apiFetch } from "../lib/apiClient";
+import { useSesion } from "../lib/useSesion";
 import { AppShell } from "../layouts/AppShell";
 import { CATALOGO_TIPO_AUSENCIA, etiquetaTipoAusencia, type TipoAusencia } from "../lib/tiposAusencia";
 import { Badge } from "../components/Badge";
@@ -66,6 +67,10 @@ async function mensajeDeError(respuesta: Response, generico: string): Promise<st
 }
 
 export function BandejaAusenciasPage() {
+  // Nadie resuelve su propia ausencia (regla de la base y del backend, 403). Aquí sólo se adelanta
+  // en la UI; sin persona_id en la sesión ninguna es propia y el 403 queda como respaldo.
+  const { sesion } = useSesion();
+  const personaIdPropia = sesion?.persona_id ?? null;
   const [ausencias, setAusencias] = useState<Ausencia[]>([]);
   const [total, setTotal] = useState(0);
   const [estadoCarga, setEstadoCarga] = useState<EstadoCarga>("cargando");
@@ -87,6 +92,7 @@ export function BandejaAusenciasPage() {
   const [motivo, setMotivo] = useState("");
   const [resolviendo, setResolviendo] = useState(false);
   const [errorResolver, setErrorResolver] = useState<string | null>(null);
+  const esPropia = (ausencia: Ausencia) => personaIdPropia !== null && ausencia.persona_id === personaIdPropia;
 
   useEffect(() => {
     const nueva = busqueda.trim();
@@ -372,13 +378,21 @@ export function BandejaAusenciasPage() {
                         </td>
                         <td>
                           {ausencia.estado_autorizacion === "pendiente" && (
-                            <Button
-                              type="button"
-                              aria-label={`Resolver — ${ausencia.persona_nombre ?? "sin nombre"}, ${formatearFecha(ausencia.fecha_inicio)}`}
-                              onClick={() => solicitarResolver(ausencia.id)}
-                            >
-                              Resolver
-                            </Button>
+                            <>
+                              <Button
+                                type="button"
+                                disabled={esPropia(ausencia)}
+                                aria-label={`Resolver — ${ausencia.persona_nombre ?? "sin nombre"}, ${formatearFecha(ausencia.fecha_inicio)}`}
+                                onClick={() => solicitarResolver(ausencia.id)}
+                              >
+                                Resolver
+                              </Button>
+                              {esPropia(ausencia) && (
+                                <div className="ayuda-campo">
+                                  Otra persona con permiso debe resolver tu ausencia.
+                                </div>
+                              )}
+                            </>
                           )}
                         </td>
                       </tr>
