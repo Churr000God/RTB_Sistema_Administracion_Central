@@ -77,6 +77,7 @@ MENSAJE_DIA_CERRADO_REQUIERE_REVISION = (
 )
 MENSAJE_EXCEPCION_INMUTABLE = "La excepción no se puede alterar."
 MENSAJE_TRAMO_INCOHERENTE = "La marca no corresponde a la persona o al día del tramo."
+MENSAJE_TRAMO_TIEMPOS_INCOHERENTES = "Los tiempos del tramo no coinciden con sus marcas. Revisa las marcas del día antes de continuar."
 MENSAJE_DIA_NO_REVISADO = (
     "El día todavía no está revisado: revísalo en vez de descartar la marca."
 )
@@ -97,6 +98,9 @@ _SCJ15_POR_HINT = {
     "excepcion_motivo_inmutable": (status.HTTP_409_CONFLICT, MENSAJE_EXCEPCION_INMUTABLE),
     "tramo_incoherente": (status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_TRAMO_INCOHERENTE),
     "dia_no_revisado": (status.HTTP_409_CONFLICT, MENSAJE_DIA_NO_REVISADO),
+    # 123_*.sql: trg_tramo_valida_tiempos (BEFORE INSERT/UPDATE en tiempo.tramo): inicio/fin/minutos no coinciden con el momento EFECTIVO de las marcas. 409 (como dia_no_revisado y marca_en_tramo):
+    # el estado de las marcas del día cambió o no cuadra con lo que se intenta guardar; no es un cuerpo mal formado. Se distingue SIEMPRE por HINT, nunca solo por SQLSTATE.
+    "tramo_tiempos_incoherentes": (status.HTTP_409_CONFLICT, MENSAJE_TRAMO_TIEMPOS_INCOHERENTES),
     "excepcion_no_descartable": (status.HTTP_409_CONFLICT, MENSAJE_EXCEPCION_NO_DESCARTABLE),
     # 87_*.sql: BEFORE INSERT en tiempo.correccion; la marca es apertura/cierre de algún tramo. Mismo 409 fijo
     # que el guard previo del backend (marca_en_tramo.py). Consecuencia de producto: después de cierre_dia casi

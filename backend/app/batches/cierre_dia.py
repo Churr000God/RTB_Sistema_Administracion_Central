@@ -27,6 +27,13 @@ Algoritmo por persona, SCJ-PRO-12 §III/§IV:
      el valor exacto de relleno de un día bloqueado queda pendiente de decidir, no se inventa
      un número acá), crea tiempo.excepcion(dia_id, sin marca_id).
 
+ATOMICIDAD (124_): el día, TODOS sus tramos y la excepción de paridad se crean con UNA llamada a
+`tiempo.fn_cierre_dia_armar` (RPC transaccional, service_role). Antes eran inserts sueltos: un tramo
+rechazado a medias (p. ej. 123_) dejaba un día sin sus tramos que `_dia_ya_resuelto` saltaba para
+siempre. Ahora cualquier error revierte todo y el día se reintenta limpio en la siguiente corrida;
+SCJ27/dia_ya_existe (otra corrida lo resolvió) se cuenta como «saltada». Lo único suelto que queda
+es la solicitud de falta (un solo INSERT en tiempo.ausencia, atómico por sí mismo).
+
 OJO -- motivo_revision de la excepción de paridad impar: ningún documento (SCJ-DEC-01, SCJ-PRO-12,
 el comentario de tiempo.excepcion en 02_tiempo.sql) especifica el string exacto a usar; los 5
 valores canónicos de motivo_revision son todos de marca, no de día. Se usa 'paridad_impar'
@@ -208,22 +215,53 @@ def _resolver_sin_marcas(db: Client, persona_id: str, fecha_iso: str) -> str:
         return "ausencia_pendiente" if existente and existente["estado_autorizacion"] == "pendiente" else "ausencia_resuelta"
 
 
-def _crear_tramo(db: Client, dia_id: int, apertura: dict, cierre: dict | None) -> float | None:
-    fin_iso = cierre["efectivo"].isoformat() if cierre else None
-    minutos = (
-        (cierre["efectivo"] - apertura["efectivo"]).total_seconds() / 60.0 if cierre else None
-    )
-    db.postgrest.schema("tiempo").table("tramo").insert(
+def _payload_tramo(apertura: dict, cierre: dict | None) -> tuple[dict, float | None]:
+    """Un elemento de `p_tramos` de `tiempo.fn_cierre_dia_armar` y sus minutos (None si el tramo queda abierto). Mismo cálculo de siempre: inicio/fin son los momentos EFECTIVOS de las marcas y los
+    minutos se mandan sin redondear (la base los guarda en numeric(6,2))."""
+    minutos = (cierre["efectivo"] - apertura["efectivo"]).total_seconds() / 60.0 if cierre else None
+    return (
         {
-            "dia_id": dia_id,
             "marca_apertura_id": apertura["id"],
             "marca_cierre_id": cierre["id"] if cierre else None,
             "inicio": apertura["efectivo"].isoformat(),
-            "fin": fin_iso,
+            "fin": cierre["efectivo"].isoformat() if cierre else None,
             "minutos_trabajados": minutos,
-        }
-    ).execute()
-    return minutos
+        },
+        minutos,
+    )
+
+
+CODIGO_CIERRE_DIA = "SCJ27"
+HINT_DIA_YA_EXISTE = "dia_ya_existe"
+
+
+def _armar_dia(db: Client, persona_id: str, fecha_iso: str, estado: str, horas_totales: float | None, tramos: list[dict], motivo_excepcion_dia: str | None) -> bool:
+    """Una sola llamada ATÓMICA a `tiempo.fn_cierre_dia_armar` (124_): crea el día, TODOS sus tramos y, si es bloqueado, la excepción de día en una transacción. Ya no hay un día sin sus tramos
+    si algo falla a medias: cualquier error revierte todo y el día se reintenta limpio en la siguiente corrida.
+
+    Devuelve True si lo creó. SCJ27/dia_ya_existe (otra corrida lo resolvió entre el chequeo y la RPC) devuelve False y se cuenta como «saltada» SOLO si al releer `_dia_ya_resuelto` es cierto; si el día existe 'abierto', se relanza. Cualquier otro error
+    (SCJ27 estado_invalido/tramos_inconsistentes = bug del batch; SCJ15 de los triggers; 23503/23505) SE RELANZA: el `except` por persona de `ejecutar_cierre_dia` lo cuenta como fallo controlado,
+    con `descripcion_segura` (sqlstate y hint, sin texto de la base)."""
+    try:
+        db.postgrest.schema("tiempo").rpc(
+            "fn_cierre_dia_armar",
+            {
+                "p_persona_id": persona_id,
+                "p_fecha": fecha_iso,
+                "p_estado": estado,
+                "p_horas_totales": horas_totales,
+                "p_tramos": tramos,
+                "p_motivo_excepcion_dia": motivo_excepcion_dia,
+            },
+        ).execute()
+    except APIError as error:
+        if error.code == CODIGO_CIERRE_DIA and error.hint == HINT_DIA_YA_EXISTE:
+            # Solo es «ya resuelto» si el día existente YA está resuelto. Un día en estado 'abierto' (que `_dia_ya_resuelto` no cuenta como resuelto) haría que la RPC dijera dia_ya_existe y el batch lo
+            # saltara en silencio, y ese día no se cerraría nunca: se vuelve a consultar y, si sigue sin resolver, se relanza como fallo controlado.
+            if _dia_ya_resuelto(db, persona_id, fecha_iso):
+                return False
+        raise
+    return True
 
 
 def _resolver_descuento_pausa_no_registrada(db: Client, fecha_iso: str) -> int:
@@ -247,18 +285,13 @@ def _resolver_descuento_pausa_no_registrada(db: Client, fecha_iso: str) -> int:
     return int(filas[0]["valor"])
 
 
-def _armar_dia_par(db: Client, persona_id: str, fecha_iso: str, marcas: list[dict]) -> None:
-    dia = (
-        db.postgrest.schema("tiempo")
-        .table("dia")
-        .insert({"persona_id": persona_id, "fecha": fecha_iso, "estado": "cerrado"})
-        .execute()
-        .data[0]
-    )
-
+def _armar_dia_par(db: Client, persona_id: str, fecha_iso: str, marcas: list[dict]) -> bool:
+    tramos = []
     total_minutos = 0.0
     for apertura, cierre in zip(marcas[0::2], marcas[1::2]):
-        total_minutos += _crear_tramo(db, dia["id"], apertura, cierre)
+        payload, minutos = _payload_tramo(apertura, cierre)
+        tramos.append(payload)
+        total_minutos += minutos
 
     if len(marcas) == 2:
         # Un solo tramo: entró una vez, salió una vez, nunca marcó la pausa -- se asume que
@@ -267,30 +300,17 @@ def _armar_dia_par(db: Client, persona_id: str, fecha_iso: str, marcas: list[dic
         descuento_min = _resolver_descuento_pausa_no_registrada(db, fecha_iso)
         total_minutos = max(0.0, total_minutos - descuento_min)
 
-    db.postgrest.schema("tiempo").table("dia").update({"horas_totales": total_minutos / 60.0}).eq(
-        "id", dia["id"]
-    ).execute()
+    return _armar_dia(db, persona_id, fecha_iso, "cerrado", total_minutos / 60.0, tramos, None)
 
 
-def _armar_dia_impar(db: Client, persona_id: str, fecha_iso: str, marcas: list[dict]) -> None:
-    dia = (
-        db.postgrest.schema("tiempo")
-        .table("dia")
-        .insert({"persona_id": persona_id, "fecha": fecha_iso, "estado": "bloqueado"})
-        .execute()
-        .data[0]
-    )
-
+def _armar_dia_impar(db: Client, persona_id: str, fecha_iso: str, marcas: list[dict]) -> bool:
     completos = marcas[:-1]
     abierto = marcas[-1]
-    for apertura, cierre in zip(completos[0::2], completos[1::2]):
-        _crear_tramo(db, dia["id"], apertura, cierre)
-    _crear_tramo(db, dia["id"], abierto, None)
+    tramos = [_payload_tramo(apertura, cierre)[0] for apertura, cierre in zip(completos[0::2], completos[1::2])]
+    tramos.append(_payload_tramo(abierto, None)[0])      # el abierto va ÚLTIMO
 
-    # horas_totales se deja NULL a propósito -- ver docstring del módulo (SCJ-PRA-01 #14).
-    db.postgrest.schema("tiempo").table("excepcion").insert(
-        {"dia_id": dia["id"], "marca_id": None, "motivo_revision": MOTIVO_PARIDAD_IMPAR}
-    ).execute()
+    # horas_totales se deja NULL a propósito -- ver docstring del módulo (SCJ-PRA-01 #14). La excepción de día (marca_id NULL) la inserta la misma RPC, en la misma transacción.
+    return _armar_dia(db, persona_id, fecha_iso, "bloqueado", None, tramos, MOTIVO_PARIDAD_IMPAR)
 
 
 def ejecutar_cierre_dia(fecha: date, db: Client | None = None) -> dict:
@@ -328,11 +348,9 @@ def ejecutar_cierre_dia(fecha: date, db: Client | None = None) -> dict:
             if not marcas:
                 contadores[_resolver_sin_marcas(db, persona_id, fecha_iso)] += 1
             elif len(marcas) % 2 == 0:
-                _armar_dia_par(db, persona_id, fecha_iso, marcas)
-                contadores["cerrado"] += 1
+                contadores["cerrado" if _armar_dia_par(db, persona_id, fecha_iso, marcas) else "saltada"] += 1
             else:
-                _armar_dia_impar(db, persona_id, fecha_iso, marcas)
-                contadores["bloqueado"] += 1
+                contadores["bloqueado" if _armar_dia_impar(db, persona_id, fecha_iso, marcas) else "saltada"] += 1
         except Exception as error:  # noqa: BLE001 -- por diseño: aislar la falla de una persona
             errores.append(f"{persona_id}: {descripcion_segura(error)}")
 

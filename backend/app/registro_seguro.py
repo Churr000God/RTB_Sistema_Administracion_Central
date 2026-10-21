@@ -5,6 +5,7 @@ El mensaje de una excepción puede traer datos de la petición o de la fila (emp
 - cualquier otra excepción: tipo y marcos de la traza, NUNCA el texto del mensaje ni el de sus causas;
 - el mensaje completo solo para una excepción PROPIA que lo declare explícitamente (atributo de clase `mensaje_registrable = True`): es texto escrito por este código, no datos."""
 
+import re
 import traceback
 
 from postgrest.exceptions import APIError
@@ -24,9 +25,87 @@ def traza_sin_mensaje(exc: BaseException) -> str:
     return f"{type(exc).__module__}.{type(exc).__qualname__}\n{marcos}"
 
 
+# HINT estables que escriben las funciones y triggers de db/ddl (RAISE ... USING ERRCODE = 'SCJnn', HINT = '...'). LISTA CERRADA: solo estos se registran tal cual; cualquier otro (texto de la base,
+# un hint de Postgres como «Perhaps you meant…») sale como `hint=otro`. Una prueba de contrato compara esta lista con los HINT literales de db/ddl/*.sql en las DOS direcciones.
+HINTS_CONOCIDOS = frozenset({
+    "alta_duplicada",
+    "ausencia_propia",
+    "ausencia_resuelta_tipo_inmutable",
+    "auto_asignacion_prohibida",
+    "auto_confirmacion_huella_prohibida",
+    "auto_reconsentimiento_prohibido",
+    "autoasignacion_no_permitida",
+    "banco_inexistente",
+    "bitacora_inmutable",
+    "categoria_invalida",
+    "clave_no_editable",
+    "clave_reservada",
+    "compensacion_no_coincide",
+    "compensacion_propia",
+    "consentimiento_desactualizado",
+    "consentimiento_requerido",
+    "credencial_revocada_inmutable",
+    "dia_cerrado_requiere_revision",
+    "dia_no_revisado",
+    "dia_ya_existe",
+    "estado_invalido",
+    "excepcion_columna_inmutable",
+    "excepcion_motivo_inmutable",
+    "excepcion_no_descartable",
+    "expediente_incompleto",
+    "fecha_efectiva_invalida",
+    "hasta_invalido",
+    "horas_fuera_de_rango",
+    "horas_invalidas",
+    "huellas_invalidas",
+    "lote_invalido",
+    "lote_no_elegible",
+    "marca_en_tramo",
+    "marca_no_corresponde",
+    "migracion_con_filas",
+    "misma_persona_que_asigno",
+    "motivo_demasiado_largo",
+    "motivo_invalido",
+    "motivo_obligatorio",
+    "movimiento_inexistente",
+    "no_compensable",
+    "nota_invalida",
+    "nota_requerida",
+    "paginacion_invalida",
+    "parametro_truncate_bloqueado",
+    "parametros_invalidos",
+    "periodo_ya_aplicado",
+    "persona_no_activa",
+    "plazas_llenas",
+    "retencion_invalida",
+    "saldo_insuficiente",
+    "sin_consentimiento_vigente",
+    "sin_permiso",
+    "terminal_con_altas_vigentes",
+    "terminal_invalida",
+    "terminal_no_activa",
+    "terminal_no_valida",
+    "texto_invalido",
+    "tramo_incoherente",
+    "tramo_tiempos_incoherentes",
+    "tramos_inconsistentes",
+    "transicion_invalida",
+    "valor_invalido",
+    "ventana_invalida",
+    "version_base_desactualizada",
+    "vigencia_futura_no_permitida",
+    "vigencias_inconsistentes",
+    "ya_compensado",
+})
+
+
 def descripcion_segura(exc: BaseException) -> str:
-    """Una línea para listas de errores y detalles: `APIError sqlstate=23505` o el nombre del tipo. Sin texto."""
+    """Una línea para listas de errores y detalles: `APIError sqlstate=23505` o el nombre del tipo. Sin texto. Para los SQLSTATE propios (SCJnn) agrega `hint=<hint>` si el hint está en la lista cerrada
+    `HINTS_CONOCIDOS` (o `hint=otro` si no lo está)."""
     if isinstance(exc, APIError):
+        hint = getattr(exc, "hint", None)
+        if str(exc.code).startswith("SCJ") and isinstance(hint, str) and hint:
+            return f"APIError sqlstate={exc.code} hint={hint if hint in HINTS_CONOCIDOS else 'otro'}"
         return f"APIError sqlstate={exc.code}"
     return type(exc).__qualname__
 

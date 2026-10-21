@@ -404,7 +404,7 @@ def test_correccion_con_otro_error_de_base_conserva_su_comportamiento(monkeypatc
 
 @pytest.mark.parametrize(
     "hint,estado",
-    [("tramo_incoherente", 422), ("dia_cerrado_requiere_revision", 409), ("excepcion_motivo_inmutable", 409)],
+    [("tramo_incoherente", 422), ("dia_cerrado_requiere_revision", 409), ("excepcion_motivo_inmutable", 409), ("tramo_tiempos_incoherentes", 409)],
 )
 def test_revisar_dia_traduce_scj15_sin_texto_crudo(permitir, hint, estado):
     db = _db()
@@ -1367,3 +1367,29 @@ def test_marcas_la_consulta_de_dias_usa_service_role_no_el_cliente_del_caller(pe
     r = _cliente(db).get("/api/marcas", headers=AUTH)
     assert r.json()["marcas"][0]["dia_id"] == 5
     dia_del_caller.select.assert_not_called()
+
+
+def test_revisar_dia_con_tiempos_incoherentes_da_409_con_el_mensaje_fijo(permitir):
+    """123_: el armado de tramos de fn_dia_revisar choca con trg_tramo_valida_tiempos."""
+    db = _db()
+    db.postgrest.schema.return_value.rpc.return_value.execute.side_effect = _scj15("tramo_tiempos_incoherentes")
+    r = _cliente(db).post("/api/dias/5/revisar", json={"horas_totales": 8}, headers=AUTH)
+    assert r.status_code == 409
+    assert r.json()["detail"] == "Los tiempos del tramo no coinciden con sus marcas. Revisa las marcas del día antes de continuar."
+    assert "3377" not in r.text
+
+
+def test_resolver_ausencia_con_tiempos_incoherentes_da_409_con_el_mensaje_fijo(permitir):
+    db = _db()
+    db.postgrest.schema.return_value.rpc.return_value.execute.side_effect = _scj15("tramo_tiempos_incoherentes")
+    r = _cliente(db).post("/api/ausencias/9/resolver", json={"decision": "autorizada", "tipo_de_ausencia": "vacaciones"}, headers=AUTH)
+    assert r.status_code == 409 and r.json()["detail"].startswith("Los tiempos del tramo no coinciden con sus marcas")
+    assert "3377" not in r.text
+
+
+def test_descartar_excepcion_con_tiempos_incoherentes_da_409_con_el_mensaje_fijo(permitir):
+    db = _db()
+    db.postgrest.schema.return_value.rpc.return_value.execute.side_effect = _scj15("tramo_tiempos_incoherentes")
+    r = _cliente(db).post("/api/excepciones/7/descartar", json={"motivo": "x"}, headers=AUTH)
+    assert r.status_code == 409 and r.json()["detail"].startswith("Los tiempos del tramo no coinciden con sus marcas")
+    assert "3377" not in r.text

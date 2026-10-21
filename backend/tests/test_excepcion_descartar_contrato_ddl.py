@@ -100,11 +100,12 @@ def test_los_resultados_que_el_backend_entiende_existen_en_el_ddl(sql):
 
 
 DDL_87 = sorted(Path(__file__).resolve().parents[2].glob("db/ddl/87_*.sql"))
+DDL_123 = sorted(Path(__file__).resolve().parents[2].glob("db/ddl/123_*.sql"))
 
 
 def test_cada_hint_scj15_que_el_backend_traduce_existe_en_el_ddl(sql):
-    # 86_ y, cuando existe (db lo escribió; puede estar sin aplicar), 87_
-    texto = sql + "".join(a.read_text(encoding="utf-8") for a in DDL_87)
+    # 86_ y, cuando existen (db los escribió; pueden estar sin aplicar), 87_ y 123_
+    texto = sql + "".join(a.read_text(encoding="utf-8") for a in DDL_87 + DDL_123)
     hints_sql = set(re.findall(r"HINT\s*=\s*'([a-z_]+)'", texto))
     for hint in errores._SCJ15_POR_HINT:
         assert hint in hints_sql, f"el backend traduce '{hint}' pero el DDL ya no lo emite"

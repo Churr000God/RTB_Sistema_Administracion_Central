@@ -41,6 +41,12 @@ CASOS = [
         "Esta excepción no se puede descartar: no es una marca tardía de día cerrado, o ya está "
         "resuelta por otra vía.",
     ),
+    (
+        "SCJ15",
+        "tramo_tiempos_incoherentes",
+        409,
+        "Los tiempos del tramo no coinciden con sus marcas. Revisa las marcas del día antes de continuar.",
+    ),
     ("42501", "sin_permiso", 403, "No tienes permiso para esta acción."),
     ("22023", "motivo_invalido", 422, "El motivo es obligatorio."),
 ]
@@ -171,3 +177,113 @@ def test_el_post_de_correcciones_traduce_marca_en_tramo_del_commit_o_del_insert(
     )
     assert r.status_code == 409
     assert r.json()["detail"].startswith("Esta marca ya forma parte de un tramo")
+
+
+# --- 123_: tramo_tiempos_incoherentes (trg_tramo_valida_tiempos) -----------------------------------------------------------------------------------
+
+
+def test_tramo_tiempos_incoherentes_se_distingue_por_hint_no_por_sqlstate():
+    """SCJ15 con ESTE hint -> su mensaje; SCJ15 con otro hint o sin hint NO se traduce a este mensaje; el hint con otro SQLSTATE tampoco."""
+    mensaje = errores.MENSAJE_TRAMO_TIEMPOS_INCOHERENTES
+    assert traducir_error_dia_cerrado(_error("SCJ15", "tramo_tiempos_incoherentes")).detail == mensaje
+    for otro_hint in ("tramo_incoherente", "marca_en_tramo", "dia_cerrado_requiere_revision", "hint_nuevo", None):
+        assert traducir_error_dia_cerrado(_error("SCJ15", otro_hint)).detail != mensaje
+    assert traducir_error_dia_cerrado(_error("23514", "tramo_tiempos_incoherentes")) is None
+    assert traducir_error_dia_cerrado(_error("42501", "tramo_tiempos_incoherentes")).detail != mensaje
+
+
+def test_los_demas_hints_de_scj15_siguen_como_hoy():
+    esperado = {
+        "dia_cerrado_requiere_revision": 409, "excepcion_columna_inmutable": 409, "excepcion_motivo_inmutable": 409,
+        "tramo_incoherente": 422, "dia_no_revisado": 409, "excepcion_no_descartable": 409, "marca_en_tramo": 409,
+    }
+    for hint, estado in esperado.items():
+        assert traducir_error_dia_cerrado(_error("SCJ15", hint)).status_code == estado, hint
+    assert set(errores._SCJ15_POR_HINT) == set(esperado) | {"tramo_tiempos_incoherentes"}
+
+
+def test_el_mensaje_es_en_tuteo_y_sin_datos_personales():
+    mensaje = errores.MENSAJE_TRAMO_TIEMPOS_INCOHERENTES
+    assert mensaje == "Los tiempos del tramo no coinciden con sus marcas. Revisa las marcas del día antes de continuar."
+    assert "Revisa" in mensaje and not any(c.isdigit() for c in mensaje)
+
+
+def test_manejar_error_dia_cerrado_traduce_el_hint_nuevo_para_excepciones():
+    with pytest.raises(HTTPException) as e:
+        manejar_error_dia_cerrado(_error("SCJ15", "tramo_tiempos_incoherentes"))
+    assert e.value.status_code == 409 and e.value.detail == errores.MENSAJE_TRAMO_TIEMPOS_INCOHERENTES
+
+
+def test_descripcion_segura_de_un_scj_lleva_su_hint_de_la_lista_cerrada_y_nunca_el_texto():
+    from app.registro_seguro import HINTS_CONOCIDOS, descripcion_segura
+
+    assert descripcion_segura(_error("SCJ15", "tramo_tiempos_incoherentes")) == "APIError sqlstate=SCJ15 hint=tramo_tiempos_incoherentes"
+    assert descripcion_segura(_error("SCJ27", "dia_ya_existe")) == "APIError sqlstate=SCJ27 hint=dia_ya_existe"
+    assert descripcion_segura(_error("SCJ27", "horas_fuera_de_rango")) == "APIError sqlstate=SCJ27 hint=horas_fuera_de_rango"
+    assert {"dia_ya_existe", "estado_invalido", "tramos_inconsistentes", "horas_fuera_de_rango", "tramo_tiempos_incoherentes"} <= HINTS_CONOCIDOS
+    assert descripcion_segura(_error("SCJ15", None)) == "APIError sqlstate=SCJ15"
+    assert descripcion_segura(_error("23505", "tramo_tiempos_incoherentes")) == "APIError sqlstate=23505"        # el hint solo se registra en los SQLSTATE propios
+    # fuera de la lista (identificador desconocido, o texto con datos): NO se registra, sale como «otro»
+    assert descripcion_segura(_error("SCJ15", "hint_nuevo_que_no_conozco")) == "APIError sqlstate=SCJ15 hint=otro"
+    assert descripcion_segura(_error("SCJ15", "Hint con espacios y datos 9981")) == "APIError sqlstate=SCJ15 hint=otro"
+    assert "9981" not in descripcion_segura(_error("SCJ15", "Hint con espacios y datos 9981"))
+
+
+def test_la_lista_de_hints_conocidos_coincide_con_los_hint_literales_de_db_ddl_en_las_dos_direcciones():
+    """Contrato con el DDL: cada hint de la lista existe literal en algún db/ddl/*.sql, y todo `HINT = '...'` literal de db/ddl está en la lista (un hint nuevo sin registrar saldría como «otro» en los logs)."""
+    import re
+    from pathlib import Path
+
+    from app.registro_seguro import HINTS_CONOCIDOS
+
+    carpeta = Path(__file__).resolve().parents[2] / "db" / "ddl"
+    en_ddl = set()
+    for archivo in carpeta.glob("*.sql"):
+        en_ddl |= set(re.findall(r"HINT\s*=\s*'([A-Za-z0-9_]+)'", archivo.read_text(encoding="utf-8")))
+    assert en_ddl, "no se leyó ningún HINT de db/ddl"
+    assert HINTS_CONOCIDOS - en_ddl == set(), f"en la lista pero ya no en el DDL: {sorted(HINTS_CONOCIDOS - en_ddl)}"
+    assert en_ddl - HINTS_CONOCIDOS == set(), f"en el DDL pero falta en HINTS_CONOCIDOS: {sorted(en_ddl - HINTS_CONOCIDOS)}"
+
+
+
+def test_el_post_de_correcciones_traduce_tiempos_incoherentes_del_recalculo_del_tramo(monkeypatch):
+    """Si fn_correccion_recalcula_tramo (AFTER INSERT en tiempo.correccion) llegara a reescribir un tramo y chocara con trg_tramo_valida_tiempos, el error vuelve como SCJ15 con ese hint."""
+    from unittest.mock import MagicMock
+
+    from fastapi.testclient import TestClient
+
+    from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
+    from app.main import app
+    from app.routers import correcciones
+
+    monkeypatch.setattr(correcciones, "resolver_persona_id", lambda d, c: "p")
+    monkeypatch.setattr(correcciones, "tiene_permiso", lambda d, p, c: True)
+    monkeypatch.setattr(correcciones, "_validar_ventana", lambda f: None)
+
+    def tabla(datos):
+        t = MagicMock()
+        for m in ("select", "eq", "or_", "in_"):
+            getattr(t, m).return_value = t
+        t.execute.return_value.data = datos
+        return t
+
+    corr = tabla([])
+    corr.insert.return_value.execute.side_effect = _error("SCJ15", "tramo_tiempos_incoherentes")
+    tablas = {
+        "marca": tabla([{"id": 1, "momento_dispositivo": "2026-10-06T15:00:00+00:00"}]),
+        "excepcion": tabla([{"estado": "pendiente", "motivo_revision": "reloj_no_sincronizado"}]),
+        "correccion": corr,
+    }
+    db = MagicMock()
+    db.postgrest.schema.return_value.table.side_effect = lambda n: tablas[n]
+    servicio = MagicMock()
+    servicio.postgrest.schema.return_value.table.side_effect = lambda n: tabla([])
+    app.dependency_overrides[get_caller_client] = lambda: db
+    app.dependency_overrides[get_caller_identity] = lambda: CallerIdentity(auth_user_id="a", correo=None)
+    app.dependency_overrides[get_service_client] = lambda: servicio
+    try:
+        r = TestClient(app).post("/api/correcciones", json={"marca_id": 1, "valor_corregido": "2026-10-06T16:00:00Z", "motivo": "x"}, headers={"Authorization": "Bearer t"})
+    finally:
+        app.dependency_overrides.clear()
+    assert r.status_code == 409
+    assert r.json()["detail"] == errores.MENSAJE_TRAMO_TIEMPOS_INCOHERENTES and "9981" not in r.text
