@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.zona import hoy_mexico
 from app.errores import rechazo_generico
 from app.deps import get_caller_client, get_service_client
 from app.dias_habiles import _dias_habiles_limite, _dias_habiles_transcurridos, _festivos_entre
@@ -130,7 +131,7 @@ def _validar_momento_dispositivo(momento: datetime) -> None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_MOMENTO_FUTURO)
 
     limite = _dias_habiles_limite()
-    hoy = date.today()
+    hoy = hoy_mexico()
     fecha_momento = momento.date()
     festivos = _festivos_entre(fecha_momento, hoy)
     transcurridos = _dias_habiles_transcurridos(fecha_momento, hoy, festivos)

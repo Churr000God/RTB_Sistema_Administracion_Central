@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.zona import hoy_mexico
 from app.deps import get_caller_client
 from app.errores import UNIQUE_VIOLATION, leer_con_reintento, manejar_violacion_unicidad, rechazo_generico
 from app.permisos import requiere_permiso
@@ -69,7 +70,7 @@ def _resolver_personas_con_jornada_vigente(db: Client, persona_ids: list[str]) -
     resolución "vigente hoy" que ya usan corte_quincenal.py/alertas_horario.py."""
     if not persona_ids:
         return set()
-    hoy_iso = date.today().isoformat()
+    hoy_iso = hoy_mexico().isoformat()
     filas = (
         db.postgrest.schema("tiempo")
         .table("jornada_asignada")

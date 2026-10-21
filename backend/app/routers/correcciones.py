@@ -25,6 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.zona import hoy_mexico
 from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
 from app.errores import (
     MENSAJE_DIA_CERRADO_REQUIERE_REVISION,
@@ -105,7 +106,7 @@ def _linea(texto: str) -> str:
 def _validar_ventana(fecha_marca: date) -> None:
     """SCJ-PRO-10 D1-D2: sólo aplicación -- política de proceso, no integridad estructural."""
     limite = _dias_habiles_limite()
-    hoy = date.today()
+    hoy = hoy_mexico()
     festivos = _festivos_entre(fecha_marca, hoy)
     transcurridos = _dias_habiles_transcurridos(fecha_marca, hoy, festivos)
     if transcurridos > limite:

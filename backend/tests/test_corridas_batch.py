@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
+from app.zona import hoy_mexico
 from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
 from app.main import app
 
@@ -158,7 +159,7 @@ def test_disparar_batch_de_confianza_sin_body_usa_hoy():
     assert response.status_code == 200, response.text
     mock_ejecutar.assert_called_once()
     (fecha_llamada, _db), _ = mock_ejecutar.call_args
-    assert fecha_llamada == date.today()
+    assert fecha_llamada == hoy_mexico()
 
 
 def test_disparar_cierre_dia_llama_a_la_funcion_y_devuelve_su_resultado():
@@ -234,7 +235,7 @@ def test_disparar_cierre_dia_sin_body_usa_hoy():
     assert response.status_code == 200, response.text
     mock_ejecutar.assert_called_once()
     (fecha_llamada, _db), _ = mock_ejecutar.call_args
-    assert fecha_llamada == date.today()
+    assert fecha_llamada == hoy_mexico()
 
 
 def test_disparar_cierre_dia_hoy_antes_del_umbral_devuelve_422_sin_invocar_batch():
@@ -278,7 +279,7 @@ def test_disparar_cierre_dia_hoy_despues_del_umbral_devuelve_200():
             return_value={
                 "id": 7,
                 "tipo_batch": "cierre_dia",
-                "fecha": date.today().isoformat(),
+                "fecha": hoy_mexico().isoformat(),
                 "estado": "exitosa",
                 "intentos": 1,
                 "iniciado_en": "2026-09-09T03:00:00+00:00",
@@ -304,7 +305,7 @@ def test_disparar_cierre_dia_fecha_futura_devuelve_422_sin_invocar_batch():
     app.dependency_overrides[get_service_client] = lambda: MagicMock()
     _override_identidad()
 
-    fecha_futura = date.today() + timedelta(days=1)
+    fecha_futura = hoy_mexico() + timedelta(days=1)
 
     with patch("app.routers.corridas_batch.ejecutar_cierre_dia") as mock_ejecutar:
         client = TestClient(app)
@@ -387,7 +388,7 @@ def test_disparar_corte_quincenal_sin_body_usa_hoy():
     assert response.status_code == 200, response.text
     mock_ejecutar.assert_called_once()
     (fecha_llamada, _db), _ = mock_ejecutar.call_args
-    assert fecha_llamada == date.today()
+    assert fecha_llamada == hoy_mexico()
 
 
 def test_disparar_batch_de_confianza_sin_permiso_devuelve_403():

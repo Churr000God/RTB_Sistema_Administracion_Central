@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from postgrest.exceptions import APIError
 
+from app.zona import hoy_mexico
 from app.deps import CallerIdentity, get_caller_client, get_caller_identity
 from app.main import app
 from app.routers.jornada_asignada import ERRORES_ACTUALIZAR, _lanzar_error_rpc
@@ -517,7 +518,7 @@ def test_jornada_vigente_de_persona_filtra_por_vigente_hoy_no_por_fila_abierta()
 
     app.dependency_overrides.clear()
     assert response.status_code == 200, response.text
-    hoy_iso = date.today().isoformat()
+    hoy_iso = hoy_mexico().isoformat()
     tabla_jornada.select.return_value.eq.return_value.lte.assert_called_once_with(
         "vigente_desde", hoy_iso
     )
@@ -561,7 +562,7 @@ def test_listar_jornadas_de_persona_vacio_devuelve_200():
 
 
 def test_listar_jornadas_de_persona_calcula_flags_de_cadena():
-    hoy = date.today()
+    hoy = hoy_mexico()
     id_pasada, id_en_curso, id_futura = 1, 2, 3
     jornadas = [
         _fila_jornada(

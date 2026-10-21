@@ -6,6 +6,7 @@ open si Supabase no responde -- no tumbar el endpoint por un problema transitori
 
 from datetime import date, timedelta
 
+from app.zona import hoy_mexico
 from app.config import get_settings
 from app.deps import crear_cliente_servicio
 
@@ -18,7 +19,7 @@ def _dias_habiles_limite() -> int:
     de red."""
     try:
         db = crear_cliente_servicio(get_settings())
-        hoy = date.today().isoformat()
+        hoy = hoy_mexico().isoformat()
         filas = (
             db.postgrest.schema("tiempo")
             .table("parametro")

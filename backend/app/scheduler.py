@@ -13,14 +13,22 @@ revisado, sólo están hora_corte_dia y hora_corrida_cierre_dia; corte_quincenal
 después de que cierre_dia ya haya procesado el último día del periodo, así que reusar el mismo
 colchón es razonable), pero sólo dispara los días 1 y 16 de cada mes (SCJ-PRO-13 §III).
 
-cierre_dia corre sobre el día ANTERIOR (`date.today() - timedelta(days=1)`) -- a la hora en que
+cierre_dia corre sobre el día ANTERIOR (`hoy_mexico() - timedelta(days=1)`) -- a la hora en que
 el job dispara, el día de HOY recién empieza, sin marcas que cerrar (bug real: hasta este corte
 el job pasaba `date.today()`, contradiciendo tanto la UI del panel de corridas como
 `app/prevision_corte_quincenal.py`, que ya asumía que cierre_dia procesa el día anterior).
-de_confianza y corte_quincenal SÍ corren sobre `date.today()` -- no se tocan."""
+de_confianza y corte_quincenal corren sobre `hoy_mexico()`.
+
+ZONA HORARIA (bug real, confirmado en el Pi): el contenedor corre en UTC y `BackgroundScheduler()` sin
+zona dispara el cron en UTC: las 03:00 eran las 21:00 DE MÉXICO DEL DÍA ANTERIOR (el cierre del
+20-oct corrió el 20-oct a las 21:00 y una marca de las 22:20 cayó como «marca tardía»). Además
+`date.today()` daba la fecha UTC. Ahora el scheduler se crea con `ZONA_MEXICO` explícita y las
+fechas salen de `app.zona.hoy_mexico()`: nada depende de la zona del contenedor. La hora que lee
+`_leer_hora_corrida_cierre_dia` (03:00, `hora_corte_dia` + `hora_corrida_cierre_dia`) significa
+03:00 DE MÉXICO, que es lo que dicen la UI y el parámetro."""
 
 from contextlib import asynccontextmanager
-from datetime import date, timedelta
+from datetime import timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI
@@ -37,6 +45,7 @@ from app.batches.terminales import (
 from app.config import get_settings
 from app.deps import crear_cliente_servicio
 from app.hora_cierre_dia import resolver_umbral_cierre_dia_cron
+from app.zona import ZONA_MEXICO, hoy_mexico
 
 ID_JOB_BATCH_DE_CONFIANZA = "batch_de_confianza_diario"
 ID_JOB_CIERRE_DIA = "cierre_dia_diario"
@@ -59,7 +68,7 @@ def _leer_hora_corrida_cierre_dia() -> tuple[int, int]:
     transitorio de red."""
     try:
         db = crear_cliente_servicio(get_settings())
-        return resolver_umbral_cierre_dia_cron(db, date.today().isoformat())
+        return resolver_umbral_cierre_dia_cron(db, hoy_mexico().isoformat())
     except Exception:
         return HORA_POR_DEFECTO
 
@@ -67,10 +76,10 @@ def _leer_hora_corrida_cierre_dia() -> tuple[int, int]:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     verificar_esquema_al_arrancar()   # RuntimeError si falta una migración requerida (p. ej. 94_): el backend se niega a arrancar antes de servir lecturas rotas
-    scheduler = BackgroundScheduler()
+    scheduler = BackgroundScheduler(timezone=ZONA_MEXICO)
     hora, minuto = _leer_hora_corrida_cierre_dia()
     scheduler.add_job(
-        lambda: ejecutar_batch_de_confianza(date.today()),
+        lambda: ejecutar_batch_de_confianza(hoy_mexico()),
         trigger="cron",
         hour=hora,
         minute=minuto,
@@ -78,7 +87,7 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     scheduler.add_job(
-        lambda: ejecutar_cierre_dia(date.today() - timedelta(days=1)),
+        lambda: ejecutar_cierre_dia(hoy_mexico() - timedelta(days=1)),
         trigger="cron",
         hour=hora,
         minute=minuto,
@@ -86,7 +95,7 @@ async def lifespan(app: FastAPI):
         replace_existing=True,
     )
     scheduler.add_job(
-        lambda: ejecutar_corte_quincenal(date.today()),
+        lambda: ejecutar_corte_quincenal(hoy_mexico()),
         trigger="cron",
         day="1,16",
         hour=hora,

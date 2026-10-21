@@ -46,6 +46,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.zona import ZONA_MEXICO, hoy_mexico
 from app.banco_alertas_magnitud import (
     clasificar_nivel_deuda,
     resolver_jornadas_semanales,
@@ -146,7 +147,7 @@ def _resultado_a_dict(resultado: ResultadoAntiguedad) -> dict:
 
 
 def _resolver_personas_con_corte_pendiente(db_servicio: Client, hoy: datetime) -> set[str]:
-    periodo_desde, periodo_hasta = resolver_ultimo_periodo_vencido(hoy.date())
+    periodo_desde, periodo_hasta = resolver_ultimo_periodo_vencido(hoy.astimezone(ZONA_MEXICO).date())    # el periodo se decide por el día de MÉXICO, no el de UTC
     periodo_desde_iso = periodo_desde.isoformat()
     periodo_hasta_iso = periodo_hasta.isoformat()
     festivos = _festivos_del_periodo(db_servicio, periodo_desde_iso, periodo_hasta_iso)
@@ -200,7 +201,7 @@ def _armar_saldos_completos(db_servicio: Client, hoy: datetime) -> tuple[list[di
     """Toda la tabla banco_de_horas, enriquecida con nombre + desglose de antigüedad + alerta de
     magnitud, más la alerta de corte_pendiente -- base tanto del `resumen` como de `saldos`
     (filtrado/ordenado/paginado después, en memoria)."""
-    fecha_iso = date.today().isoformat()
+    fecha_iso = hoy_mexico().isoformat()
     ventana_meses = resolver_ventana_meses(db_servicio, fecha_iso)
     aviso_pct, escalamiento_pct = resolver_umbrales_pct(db_servicio, fecha_iso)
     filas = (
@@ -471,7 +472,7 @@ def registrar_movimiento_manual(
         .execute()
         .data
     )
-    ventana_meses = resolver_ventana_meses(db_servicio, date.today().isoformat())
+    ventana_meses = resolver_ventana_meses(db_servicio, hoy_mexico().isoformat())
     vivo_desde = (
         datetime.fromisoformat(fila_banco["vivo_desde"])
         if fila_banco["vivo_desde"] is not None

@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.zona import hoy_mexico
 from app.errores import rechazo_generico
 from app.deps import get_caller_client
 from app.permisos import requiere_permiso, requiere_todos_los_permisos
@@ -204,7 +205,7 @@ def jornada_vigente_de_persona(
     que ya usan corte_quincenal.py/alertas_horario.py: vigente_desde <= hoy AND (vigente_hasta
     IS NULL OR vigente_hasta >= hoy), la de vigente_desde más reciente si hubiera más de una
     candidata (no debería, SCJ-DEC-04)."""
-    hoy_iso = date.today().isoformat()
+    hoy_iso = hoy_mexico().isoformat()
     filas = (
         db.postgrest.schema("tiempo")
         .table("jornada_asignada")
@@ -318,7 +319,7 @@ def listar_jornadas_de_persona(
     for fila in patrones:
         patrones_por_jornada.setdefault(fila["jornada_asignada_id"], []).append(fila)
 
-    hoy_iso = date.today().isoformat()
+    hoy_iso = hoy_mexico().isoformat()
     return [
         _armar_jornada_en_cadena(jornada, jornadas, patrones_por_jornada, hoy_iso)
         for jornada in jornadas

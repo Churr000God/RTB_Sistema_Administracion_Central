@@ -16,6 +16,7 @@ from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from supabase import Client
 
+from app.zona import ahora_mexico, hoy_mexico
 from app.batches.cierre_dia import ejecutar_cierre_dia
 from app.batches.corte_quincenal import ejecutar_corte_quincenal
 from app.batches.de_confianza import ejecutar_batch_de_confianza
@@ -62,7 +63,7 @@ def disparar_batch_de_confianza(
     """SCJ-PRO-14 Z1: botón manual, misma invocación que el job programado (devops,
     APScheduler) -- ejecutar_batch_de_confianza es idempotente por persona, repetir la corrida
     del mismo día es seguro."""
-    fecha_efectiva = datos.fecha or date.today()
+    fecha_efectiva = datos.fecha or hoy_mexico()
     return ejecutar_batch_de_confianza(fecha_efectiva, db_servicio)
 
 
@@ -82,13 +83,13 @@ def disparar_cierre_dia(
     actual); una fecha FUTURA nunca ("todavía no ocurre"); HOY sólo después del umbral real
     (`app/hora_cierre_dia.py`, hora_corte_dia + hora_corrida_cierre_dia -- nunca un "03:00"
     hardcodeado en el mensaje, misma lección que ventana_banco_meses)."""
-    hoy = date.today()
+    hoy = hoy_mexico()
     fecha_efectiva = datos.fecha or hoy
     if fecha_efectiva > hoy:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_CIERRE_DIA_FUTURO)
     if fecha_efectiva == hoy:
         umbral = resolver_umbral_cierre_dia(db_servicio, hoy.isoformat())
-        if datetime.now().time() < umbral:
+        if ahora_mexico().time() < umbral:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
                 MENSAJE_CIERRE_DIA_ANTES_DEL_UMBRAL.format(umbral=umbral.strftime("%H:%M")),
@@ -106,5 +107,5 @@ def disparar_corte_quincenal(
     quincenal es idempotente por persona (cualquier tramo del periodo ya clasificado se salta),
     repetir la corrida es seguro. `fecha` (día 1 o 16, o cualquier otra si es un reproceso
     manual) determina el periodo -- ver _rango_periodo en app/batches/corte_quincenal.py."""
-    fecha_efectiva = datos.fecha or date.today()
+    fecha_efectiva = datos.fecha or hoy_mexico()
     return ejecutar_corte_quincenal(fecha_efectiva, db_servicio)

@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.zona import hoy_mexico
 from app.deps import get_service_client
 from app.errores import manejar_violacion_unicidad
 from app.permisos import requiere_permiso
@@ -92,7 +93,7 @@ def borrar_dia_festivo(
     if not fila:
         raise HTTPException(status.HTTP_404_NOT_FOUND, MENSAJE_FESTIVO_NO_ENCONTRADO)
 
-    if date.fromisoformat(fila[0]["fecha"]) <= date.today():
+    if date.fromisoformat(fila[0]["fecha"]) <= hoy_mexico():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_FESTIVO_NO_FUTURO)
 
     db_servicio.postgrest.schema("tiempo").table("dia_festivo").delete().eq(

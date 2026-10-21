@@ -27,6 +27,7 @@ from postgrest.exceptions import APIError
 from supabase import Client
 
 from app import alertas_horario
+from app.zona import hoy_mexico
 from app.busqueda import MAX_LARGO_BUSQUEDA, resolver_ids_por_nombre
 from app.deps import get_caller_client, get_service_client
 from app.errores import CODIGOS_MIGRACION_FALTANTE, limpiar_para_log, rechazo_generico, traducir_error_dia_cerrado
@@ -305,8 +306,8 @@ def dias_pendientes_corte_quincenal(
     hora (SCJ-PRO-13). Mismo gate que el resto del router: expone datos derivados de
     tiempo.marca/tiempo.dia, no sólo tiempo.dia. Sin filtros/paginación -- resumen chico
     (decenas de personas, unas pocas fechas cada una)."""
-    periodo_desde, periodo_hasta = resolver_periodo_en_curso(date.today())
-    faltantes = resolver_dias_faltantes(db_servicio, periodo_desde, periodo_hasta, date.today())
+    periodo_desde, periodo_hasta = resolver_periodo_en_curso(hoy_mexico())
+    faltantes = resolver_dias_faltantes(db_servicio, periodo_desde, periodo_hasta, hoy_mexico())
 
     fechas_por_persona: dict[str, list[str]] = {}
     for item in faltantes:

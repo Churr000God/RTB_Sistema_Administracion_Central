@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 from postgrest.exceptions import APIError
 
+from app.zona import hoy_mexico
 from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
 from app.main import app
 
@@ -11,7 +12,7 @@ GATE_PERSONA_ID = "persona-ficticia-gate"
 GATE_PUESTO_ID = "puesto-ficticio-gate"
 GATE_IDENTITY = CallerIdentity(auth_user_id="auth-ficticio-gate", correo="gate-ficticio@example.com")
 
-HOY = date.today()
+HOY = hoy_mexico()
 MANIANA_ISO = (HOY + timedelta(days=1)).isoformat()
 AYER_ISO = (HOY - timedelta(days=1)).isoformat()
 HOY_ISO = HOY.isoformat()

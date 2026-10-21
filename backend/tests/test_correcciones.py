@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from postgrest.exceptions import APIError
 
+from app.zona import hoy_mexico
 from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
 from app.main import app
 from app.routers import correcciones
@@ -79,8 +80,8 @@ PERSONA_ID = "persona-caller"
 CORRECCION_ID = 3
 CALLER_IDENTITY = CallerIdentity(auth_user_id="auth-caller", correo="caller@example.com")
 
-HOY_ISO = f"{date.today().isoformat()}T09:00:00+00:00"
-HACE_100_DIAS_ISO = f"{(date.today() - timedelta(days=100)).isoformat()}T09:00:00+00:00"
+HOY_ISO = f"{hoy_mexico().isoformat()}T09:00:00+00:00"
+HACE_100_DIAS_ISO = f"{(hoy_mexico() - timedelta(days=100)).isoformat()}T09:00:00+00:00"
 
 
 def _payload(**overrides):

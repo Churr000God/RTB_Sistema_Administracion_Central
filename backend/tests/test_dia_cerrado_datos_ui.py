@@ -1084,7 +1084,7 @@ def _escenario(permitir_gate, monkeypatch, tramos, motivo="reloj_no_sincronizado
         [{"id": 1, "marca_id": 1, "valor_corregido": "2026-10-06T16:00:00+00:00", "motivo": "x",
           "autor_id": PERSONA, "creado_en": "2026-10-07T10:00:00+00:00"}]
     )
-    marca = _marca(1, momento_dispositivo=f"{__import__('datetime').date.today().isoformat()}T09:00:00+00:00")
+    marca = _marca(1, momento_dispositivo=f"{__import__('app.zona', fromlist=['hoy_mexico']).hoy_mexico().isoformat()}T09:00:00+00:00")
     db = _db(
         marca=_tabla([marca], count=1),
         persona=_tabla([{"id": PERSONA, "primer_nombre": "Ana", "apellido_paterno": "Ruiz"}]),

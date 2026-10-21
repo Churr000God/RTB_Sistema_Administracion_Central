@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 from postgrest.exceptions import APIError
 
+from app.zona import hoy_mexico
 from app.deps import CallerIdentity, get_caller_client, get_caller_identity
 from app.main import app
 
@@ -318,7 +319,7 @@ def test_listar_personas_jornada_vigente_filtra_por_vigente_hoy_no_por_fila_abie
     app.dependency_overrides.clear()
     assert response.status_code == 200, response.text
     assert response.json()[0]["tiene_jornada_vigente"] is False
-    hoy_iso = date.today().isoformat()
+    hoy_iso = hoy_mexico().isoformat()
     tabla_jornada.select.return_value.in_.return_value.lte.assert_called_once_with(
         "vigente_desde", hoy_iso
     )

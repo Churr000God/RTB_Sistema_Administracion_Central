@@ -2,6 +2,7 @@ import asyncio
 from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
+from app.zona import hoy_mexico
 from app.scheduler import (
     HORA_POR_DEFECTO,
     ID_JOB_BATCH_DE_CONFIANZA,
@@ -100,7 +101,7 @@ def test_lifespan_arranca_los_3_jobs_a_la_misma_hora_y_apaga_el_scheduler():
 def test_lifespan_cierre_dia_recibe_ayer_los_otros_2_hoy():
     """Bug real corregido este corte: a la hora en que el job dispara, HOY recién empieza (sin
     marcas) -- cierre_dia debe procesar el día ANTERIOR. de_confianza y corte_quincenal SÍ siguen
-    sobre date.today(), no se tocan."""
+    sobre hoy_mexico(), no se tocan."""
     fake_scheduler = MagicMock()
 
     async def escenario():
@@ -122,8 +123,8 @@ def test_lifespan_cierre_dia_recibe_ayer_los_otros_2_hoy():
                     llamadas_por_id[ID_JOB_CIERRE_DIA].args[0]()
                     llamadas_por_id[ID_JOB_CORTE_QUINCENAL].args[0]()
 
-                    mock_confianza.assert_called_once_with(date.today())
-                    mock_cierre.assert_called_once_with(date.today() - timedelta(days=1))
-                    mock_corte.assert_called_once_with(date.today())
+                    mock_confianza.assert_called_once_with(hoy_mexico())
+                    mock_cierre.assert_called_once_with(hoy_mexico() - timedelta(days=1))
+                    mock_corte.assert_called_once_with(hoy_mexico())
 
     asyncio.run(escenario())
