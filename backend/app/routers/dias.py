@@ -27,6 +27,7 @@ from postgrest.exceptions import APIError
 from supabase import Client
 
 from app import alertas_horario
+from app.busqueda import MAX_LARGO_BUSQUEDA, resolver_ids_por_nombre
 from app.deps import get_caller_client, get_service_client
 from app.errores import CODIGOS_MIGRACION_FALTANTE, limpiar_para_log, rechazo_generico, traducir_error_dia_cerrado
 from app.permisos import requiere_permiso, requiere_todos_los_permisos
@@ -76,18 +77,8 @@ ORDEN_A_COLUMNA: dict[str, tuple[str, bool]] = {
 
 
 def _resolver_ids_por_busqueda(db: Client, busqueda: str) -> list[str]:
-    """Texto libre sobre primer_nombre/apellido_paterno/apellido_materno -- mismo molde que
-    tramos.py::_resolver_ids_por_busqueda."""
-    filtro = f"primer_nombre.ilike.%{busqueda}%,apellido_paterno.ilike.%{busqueda}%,apellido_materno.ilike.%{busqueda}%"
-    filas = (
-        db.postgrest.schema("personas")
-        .table("persona")
-        .select("id")
-        .or_(filtro)
-        .execute()
-        .data
-    )
-    return [fila["id"] for fila in filas]
+    """Texto libre sobre primer_nombre/apellido_paterno/apellido_materno. El texto se SANEA (app/busqueda.py) antes de armar el filtro `or=(…)` de PostgREST; vacío tras sanear = sin coincidencias."""
+    return resolver_ids_por_nombre(db, busqueda)
 
 
 def _resolver_nombres_persona(db: Client, persona_ids: list[str]) -> dict[str, str]:
@@ -253,7 +244,7 @@ def _enriquecer_pagina(db_servicio: Client, filas: list[dict]) -> list[dict]:
 def listar_dias(
     db_servicio: Client = Depends(get_service_client),
     _permiso: None = Depends(requiere_todos_los_permisos("dia_lectura", "marca_lectura")),
-    busqueda_persona: str | None = Query(None, description="Texto libre sobre el nombre."),
+    busqueda_persona: str | None = Query(None, max_length=MAX_LARGO_BUSQUEDA, description="Texto libre sobre el nombre."),
     desde: date | None = Query(None, description="fecha >= desde."),
     hasta: date | None = Query(None, description="fecha <= hasta."),
     persona_id: UUID | None = Query(None, description="Una persona exacta (UUID)."),

@@ -59,6 +59,7 @@ from app.banco_antiguedad import (
 )
 from app.batches.corte_quincenal import _festivos_del_periodo, resolver_ultimo_periodo_vencido
 from app.errores import rechazo_generico
+from app.busqueda import MAX_LARGO_BUSQUEDA, resolver_ids_por_nombre
 from app.deps import get_caller_client, get_service_client
 from app.permisos import requiere_permiso
 from app.prevision_corte_quincenal import resolver_personas_con_corte_pendiente
@@ -97,17 +98,8 @@ ORDEN_A_CLAVE = {
 
 
 def _resolver_ids_por_busqueda(db: Client, busqueda: str) -> list[str]:
-    """Mismo molde que tramos.py/dias.py::_resolver_ids_por_busqueda."""
-    filtro = f"primer_nombre.ilike.%{busqueda}%,apellido_paterno.ilike.%{busqueda}%,apellido_materno.ilike.%{busqueda}%"
-    filas = (
-        db.postgrest.schema("personas")
-        .table("persona")
-        .select("id")
-        .or_(filtro)
-        .execute()
-        .data
-    )
-    return [fila["id"] for fila in filas]
+    """Texto libre sobre primer_nombre/apellido_paterno/apellido_materno. El texto se SANEA (app/busqueda.py) antes de armar el filtro `or=(…)` de PostgREST; vacío tras sanear = sin coincidencias."""
+    return resolver_ids_por_nombre(db, busqueda)
 
 
 def _resolver_nombres_persona(db: Client, persona_ids: list[str]) -> dict[str, str]:
@@ -313,7 +305,7 @@ def listar_banco_de_horas(
     _permiso_ledger: None = Depends(
         requiere_permiso("movimiento_de_saldo_lectura", "movimiento_de_saldo_edicion")
     ),
-    busqueda_persona: str | None = Query(None, description="Texto libre sobre el nombre."),
+    busqueda_persona: str | None = Query(None, max_length=MAX_LARGO_BUSQUEDA, description="Texto libre sobre el nombre."),
     tramo_antiguedad: Literal["reciente", "media", "fuera_ventana"] | None = Query(None),
     nivel_alerta: Literal["sin_alerta", "aviso", "escalamiento"] | None = Query(None),
     orden: Literal["monto_desc", "monto_asc", "antiguedad_desc", "antiguedad_asc"] = Query(

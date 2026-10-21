@@ -5,7 +5,6 @@ Gate: get_caller_client (la RLS de cada tabla es la autorización real) + requie
 un 403 legible. Nunca service_role para escribir. Corte C2: lista de terminales con el estado de su puente."""
 
 import logging
-import re
 from collections import namedtuple
 from datetime import date, datetime, timezone
 from typing import Literal
@@ -32,6 +31,7 @@ from app.consentimiento_terminal import (
     manejar_error_con_consentimiento,
 )
 from app.config import Settings, get_settings
+from app.busqueda import filtro_de_nombre, sanear_busqueda
 from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
 from app.errores import MENSAJE_AUTO_ASIGNACION, MENSAJE_LOTE_INVALIDO, MENSAJE_LOTE_NO_ELEGIBLE, manejar_error_terminal_web
 from app.respuestas_error import ErrorConCampos
@@ -595,11 +595,7 @@ def historial_de_un_alta(
     ]
 
 
-def _sanear_busqueda(texto: str) -> str:
-    """Sólo letras, dígitos, espacios, guion y apóstrofo: el texto se interpola en un filtro `or=(…)` de
-    PostgREST, donde comas, paréntesis, puntos y asteriscos tienen significado."""
-    limpio = re.sub(r"[^\w\s'\-]", " ", texto, flags=re.UNICODE).replace("_", " ")
-    return " ".join(limpio.split())
+_sanear_busqueda = sanear_busqueda      # compatibilidad: ahora vive en app/busqueda.py (compartido con los demás buscadores)
 
 
 def _puesto_y_area(db: Client, persona_ids: list[str]) -> dict[str, tuple[str | None, str | None]]:
@@ -688,9 +684,7 @@ def personas_asignables(
         .eq("estado", "activo")
     )
     if texto:
-        consulta = consulta.or_(
-            f"primer_nombre.ilike.%{texto}%,apellido_paterno.ilike.%{texto}%,apellido_materno.ilike.%{texto}%"
-        )
+        consulta = consulta.or_(filtro_de_nombre(texto))
     consulta = consulta.order("apellido_paterno").order("primer_nombre").order("id")
 
     # Se recorre por páginas hasta juntar `limite` libres: «ocupadas» se consulta sólo para los candidatos de

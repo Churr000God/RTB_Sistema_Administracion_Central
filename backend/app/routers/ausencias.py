@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.busqueda import MAX_LARGO_BUSQUEDA, resolver_ids_por_nombre
 from app.deps import get_caller_client
 from app.errores import limpiar_para_log, traducir_error_dia_cerrado
 from app.permisos import requiere_permiso, requiere_todos_los_permisos
@@ -80,18 +81,8 @@ def _con_nombres(db: Client, filas: list[dict]) -> list[dict]:
 
 
 def _resolver_ids_por_busqueda(db: Client, busqueda: str) -> list[str]:
-    """Texto libre sobre primer_nombre/apellido_paterno/apellido_materno -- mismo molde que
-    tramos.py/dias.py::_resolver_ids_por_busqueda."""
-    filtro = f"primer_nombre.ilike.%{busqueda}%,apellido_paterno.ilike.%{busqueda}%,apellido_materno.ilike.%{busqueda}%"
-    filas = (
-        db.postgrest.schema("personas")
-        .table("persona")
-        .select("id")
-        .or_(filtro)
-        .execute()
-        .data
-    )
-    return [fila["id"] for fila in filas]
+    """Texto libre sobre primer_nombre/apellido_paterno/apellido_materno. El texto se SANEA (app/busqueda.py) antes de armar el filtro `or=(…)` de PostgREST; vacío tras sanear = sin coincidencias."""
+    return resolver_ids_por_nombre(db, busqueda)
 
 
 def _resolver_aprobaciones(db: Client, ausencia_ids: list[int]) -> dict[int, dict]:
@@ -119,7 +110,7 @@ def _resolver_aprobaciones(db: Client, ausencia_ids: list[int]) -> dict[int, dic
 def listar_ausencias(
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(requiere_permiso("ausencia_lectura", "ausencia_edicion")),
-    busqueda_persona: str | None = Query(None, description="Texto libre sobre el nombre."),
+    busqueda_persona: str | None = Query(None, max_length=MAX_LARGO_BUSQUEDA, description="Texto libre sobre el nombre."),
     desde: date | None = Query(None, description="fecha_inicio >= desde."),
     hasta: date | None = Query(None, description="fecha_inicio <= hasta."),
     tipo: Literal["vacaciones", "permiso_con_goce", "permiso_sin_goce", "incapacidad", "falta"]

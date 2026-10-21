@@ -18,6 +18,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Query
 from supabase import Client
 
+from app.busqueda import MAX_LARGO_BUSQUEDA, resolver_ids_por_nombre
 from app.deps import get_service_client
 from app.permisos import requiere_permiso
 from app.schemas.tramos import TramoListaOut
@@ -50,18 +51,8 @@ def _aplanar_fila(fila: dict) -> dict:
 
 
 def _resolver_ids_por_busqueda(db: Client, busqueda: str) -> list[str]:
-    """Texto libre sobre primer_nombre/apellido_paterno/apellido_materno -- misma resolución que
-    el resto de las pantallas con buscador de persona."""
-    filtro = f"primer_nombre.ilike.%{busqueda}%,apellido_paterno.ilike.%{busqueda}%,apellido_materno.ilike.%{busqueda}%"
-    filas = (
-        db.postgrest.schema("personas")
-        .table("persona")
-        .select("id")
-        .or_(filtro)
-        .execute()
-        .data
-    )
-    return [fila["id"] for fila in filas]
+    """Texto libre sobre primer_nombre/apellido_paterno/apellido_materno. El texto se SANEA (app/busqueda.py) antes de armar el filtro `or=(…)` de PostgREST; vacío tras sanear = sin coincidencias."""
+    return resolver_ids_por_nombre(db, busqueda)
 
 
 def _resolver_nombres_persona(db: Client, persona_ids: list[str]) -> dict[str, str]:
@@ -102,7 +93,7 @@ def _resolver_tipos_por_tramo(db: Client, tramo_ids: list[int]) -> dict[int, str
 def listar_tramos(
     db_servicio: Client = Depends(get_service_client),
     _permiso: None = Depends(requiere_permiso("tramo_lectura")),
-    busqueda_persona: str | None = Query(None, description="Texto libre sobre el nombre."),
+    busqueda_persona: str | None = Query(None, max_length=MAX_LARGO_BUSQUEDA, description="Texto libre sobre el nombre."),
     desde: date | None = Query(None, description="dia.fecha >= desde."),
     hasta: date | None = Query(None, description="dia.fecha <= hasta."),
     orden: Literal["inicio_desc", "inicio_asc", "minutos_desc", "minutos_asc"] = Query("inicio_desc"),
