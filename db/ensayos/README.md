@@ -113,3 +113,7 @@ que toque cada función (no en 94_/95_). Los `RAISE WARNING` ya están cubiertos
   Razón: backend traduce por HINT con una lista cerrada, y un HINT dinámico podría filtrar identificadores o valores al cliente y rompería ese mapeo. Los **mensajes** también van fijos (sin valores ni ids) en los errores que llegan al cliente.
 - Alta de un HINT nuevo = avisarlo en el mismo cambio al equipo de backend para que lo agregue a su lista cerrada (`ERRCODE` + `HINT`), y cubrirlo con un caso del ensayo.
 - La sección 70/verificador no puede comprobar esto por catálogo; se revisa en la revisión de security de cada migración.
+
+## Pendientes opcionales anotados (security, 125_)
+- **`fn_excepcion_dia_cerrado_descartar` (86_)**: su normalización del motivo solo cubre `[[:cntrl:]]`. Para alinearla con 125_ (separadores Unicode U+2028/2029, bidireccionales U+202A–U+202E, invisibles U+200B–U+200F/U+2060/U+FEFF, NBSP y colapso de espacios antes de medir el mínimo) hay que reescribirla con `CREATE OR REPLACE` repitiendo `SECURITY DEFINER` y `SET search_path = tiempo, personas, pg_temp`. NO se toca ahora: hacerlo la próxima vez que se modifique esa función.
+- **Autor de la captura manual** (preexistente): `tiempo.marca` no guarda quién capturó una marca manual, así que alguien con captura manual y permiso de descarte podría crear una marca fuera de horario ajena y descartar su alerta (125_ solo impide descartar la alerta de una marca PROPIA). Más adelante: guardar el autor de la captura manual en la marca e impedir descartar la alerta de una marca capturada por uno mismo.
