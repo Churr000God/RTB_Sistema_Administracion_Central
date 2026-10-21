@@ -28,6 +28,7 @@ def traza_sin_mensaje(exc: BaseException) -> str:
 # HINT estables que escriben las funciones y triggers de db/ddl (RAISE ... USING ERRCODE = 'SCJnn', HINT = '...'). LISTA CERRADA: solo estos se registran tal cual; cualquier otro (texto de la base,
 # un hint de Postgres como «Perhaps you meant…») sale como `hint=otro`. Una prueba de contrato compara esta lista con los HINT literales de db/ddl/*.sql en las DOS direcciones.
 HINTS_CONOCIDOS = frozenset({
+    "alerta_propia",
     "alta_duplicada",
     "ausencia_propia",
     "ausencia_resuelta_tipo_inmutable",
@@ -46,10 +47,12 @@ HINTS_CONOCIDOS = frozenset({
     "consentimiento_requerido",
     "credencial_revocada_inmutable",
     "dia_cerrado_requiere_revision",
+    "dia_no_cerrado",
     "dia_no_revisado",
     "dia_ya_existe",
     "estado_invalido",
     "excepcion_columna_inmutable",
+    "excepcion_inexistente",
     "excepcion_motivo_inmutable",
     "excepcion_no_descartable",
     "expediente_incompleto",
@@ -64,11 +67,14 @@ HINTS_CONOCIDOS = frozenset({
     "marca_no_corresponde",
     "migracion_con_filas",
     "misma_persona_que_asigno",
+    "motivo_corto",
     "motivo_demasiado_largo",
     "motivo_invalido",
+    "motivo_largo",
     "motivo_obligatorio",
     "movimiento_inexistente",
     "no_compensable",
+    "no_es_alerta_de_horario",
     "nota_invalida",
     "nota_requerida",
     "paginacion_invalida",
@@ -96,6 +102,7 @@ HINTS_CONOCIDOS = frozenset({
     "vigencia_futura_no_permitida",
     "vigencias_inconsistentes",
     "ya_compensado",
+    "ya_resuelta",
 })
 
 

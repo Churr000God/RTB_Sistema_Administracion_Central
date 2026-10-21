@@ -136,6 +136,35 @@ def traducir_error_dia_cerrado(error: APIError) -> HTTPException | None:
     return None
 
 
+# --- 125_*.sql: descarte auditado de alertas de horario (fn_excepcion_horario_descartar) -------------------------------------------------------------
+
+CODIGO_ALERTA_HORARIO = "SCJ28"
+MENSAJE_ALERTA_HORARIO_GENERICO = "No se pudo descartar la alerta de horario."
+_SCJ28_POR_HINT = {
+    "motivo_obligatorio": (status.HTTP_422_UNPROCESSABLE_ENTITY, "El motivo es obligatorio."),
+    "motivo_corto": (status.HTTP_422_UNPROCESSABLE_ENTITY, "El motivo es demasiado corto: escribe al menos 10 caracteres."),
+    "motivo_largo": (status.HTTP_422_UNPROCESSABLE_ENTITY, "El motivo es demasiado largo: máximo 500 caracteres."),
+    "excepcion_inexistente": (status.HTTP_404_NOT_FOUND, "La excepción no existe."),
+    "no_es_alerta_de_horario": (status.HTTP_409_CONFLICT, "Esta excepción no es una alerta de horario."),
+    "ya_resuelta": (status.HTTP_409_CONFLICT, "Esta alerta ya fue resuelta."),
+    "dia_no_cerrado": (status.HTTP_409_CONFLICT, "El día de la marca no está cerrado ni revisado: corrige la marca o revisa el día."),
+    "alerta_propia": (status.HTTP_403_FORBIDDEN, "No puedes descartar la alerta de tu propia marca."),
+}
+
+
+def traducir_error_alerta_horario(error: APIError) -> HTTPException | None:
+    """SCJ28 se distingue SIEMPRE por HINT (nunca solo por SQLSTATE), con mensajes fijos: el texto de la base no llega a la respuesta. 42501/sin_permiso se traduce como el descarte de dia_cerrado
+    (403). Un SCJ28 con hint desconocido o sin hint da un 409 genérico fijo. None si el error no es de esta familia."""
+    if error.code == CODIGO_ALERTA_HORARIO:
+        estado, mensaje = _SCJ28_POR_HINT.get(error.hint or "", (status.HTTP_409_CONFLICT, MENSAJE_ALERTA_HORARIO_GENERICO))
+        return HTTPException(estado, mensaje)
+    if error.code == PERMISO_DENEGADO:
+        if error.hint != HINT_SIN_PERMISO:
+            logger.error("la base respondió 42501 sin hint al descartar una alerta de horario; revisar grants/policies")
+        return HTTPException(status.HTTP_403_FORBIDDEN, MENSAJE_SIN_PERMISO)
+    return None
+
+
 def manejar_error_dia_cerrado(error: APIError) -> NoReturn:
     """Debe llamarse desde un `except APIError`. Levanta la traducción o relanza el error original
     (que cae al handler genérico de main.py, sin texto)."""

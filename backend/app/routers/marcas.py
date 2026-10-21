@@ -20,11 +20,11 @@ from supabase import Client
 
 from app.zona import hoy_mexico
 from app.errores import rechazo_generico
-from app.deps import get_caller_client, get_service_client
+from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
 from app.dias_habiles import _dias_habiles_limite, _dias_habiles_transcurridos, _festivos_entre
 from app.fecha_local import fecha_local_efectiva
 from app.marca_en_tramo import bloqueo_por_tramo
-from app.permisos import requiere_permiso
+from app.permisos import requiere_permiso, resolver_persona_id, tiene_permiso
 from app.schemas.marcas import (
     MarcaCapturaManualCreate,
     MarcaCapturaManualOut,
@@ -34,6 +34,9 @@ from app.schemas.marcas import (
 router = APIRouter(prefix="/api/marcas", tags=["marcas"])
 
 ZONA_OPERACION = ZoneInfo("America/Mexico_City")
+PREFIJO_FUERA_DE_HORARIO = "fuera_de_horario"        # motivo de la alerta de horario (72_); 125_ admite el sufijo ' — ...' de una resolución o reapertura
+PERMISO_DESCARTE = "excepcion_dia_cerrado_descarte"    # el mismo permiso de acción (no heredable) que el descarte de 86_
+ESTADOS_DIA_DESCARTABLES = ("cerrado", "revisado")
 
 UNIQUE_VIOLATION = "23505"
 LIMITE_DEFECTO = 50
@@ -173,9 +176,11 @@ def _resolver_motivos_y_pendiente_por_marca(
     Tercer valor (86_*.sql): por marca, el id de su excepción dia_cerrado PENDIENTE (prefijo del
     motivo: puede llevar sufijo " — ..." si se reabrió). Con ella la marca NO se puede corregir: la
     corrección resuelve TODAS sus excepciones pendientes en un solo UPDATE (incluida la dia_cerrado,
-    aunque haya otra pendiente al lado) y la base lo rechaza con SCJ15 al COMMIT."""
+    aunque haya otra pendiente al lado) y la base lo rechaza con SCJ15 al COMMIT.
+
+    Cuarto valor (125_*.sql): por marca, el id de su excepción `fuera_de_horario` PENDIENTE (prefijo; puede llevar sufijo). Alimenta `puede_descartar_alerta_horario`."""
     if not marca_ids:
-        return {}, {}, {}
+        return {}, {}, {}, {}
     filas = (
         db.postgrest.schema("tiempo")
         .table("excepcion")
@@ -188,6 +193,7 @@ def _resolver_motivos_y_pendiente_por_marca(
     motivos: dict[int, list[str]] = {}
     pendientes: dict[int, int] = {}
     dia_cerrado_pendientes: dict[int, int] = {}
+    horario_pendientes: dict[int, int] = {}
     for fila in filas:
         motivos.setdefault(fila["marca_id"], []).append(fila["motivo_revision"])
         if fila["estado"] == "pendiente" and fila["marca_id"] not in pendientes:
@@ -198,7 +204,13 @@ def _resolver_motivos_y_pendiente_por_marca(
             and fila["marca_id"] not in dia_cerrado_pendientes
         ):
             dia_cerrado_pendientes[fila["marca_id"]] = fila["id"]
-    return motivos, pendientes, dia_cerrado_pendientes
+        if (
+            fila["estado"] == "pendiente"
+            and fila["motivo_revision"].startswith(PREFIJO_FUERA_DE_HORARIO)
+            and fila["marca_id"] not in horario_pendientes
+        ):
+            horario_pendientes[fila["marca_id"]] = fila["id"]
+    return motivos, pendientes, dia_cerrado_pendientes, horario_pendientes
 
 
 def _resolver_momento_efectivo_por_marca(db: Client, marca_ids: list[int]) -> dict[int, datetime]:
@@ -226,8 +238,13 @@ def _resolver_momento_efectivo_por_marca(db: Client, marca_ids: list[int]) -> di
 
 
 def _resolver_dia_por_marca(db_servicio: Client, filas: list[dict], fechas_locales: dict) -> dict[int, int]:
-    """{marca_id: tiempo.dia.id} de las marcas de la página cuyo día ya existe. UNA consulta por página con
-    el cliente service_role (lectura de insumo, como la de tramos; sólo devuelve el id del día de marcas que el
+    """{marca_id: tiempo.dia.id} de las marcas de la página cuyo día ya existe (ver `_resolver_dias_de_marcas`)."""
+    return {marca_id: dia_id for marca_id, (dia_id, _estado) in _resolver_dias_de_marcas(db_servicio, filas, fechas_locales).items()}
+
+
+def _resolver_dias_de_marcas(db_servicio: Client, filas: list[dict], fechas_locales: dict) -> dict[int, tuple[int, str | None]]:
+    """{marca_id: (tiempo.dia.id, estado)} de las marcas de la página cuyo día ya existe. UNA consulta por página con
+    el cliente service_role (lectura de insumo, como la de tramos; sólo devuelve el id y el estado del día de marcas que el
     caller ya puede ver), filtrando por personas y fechas EXACTAS de la página."""
     if not filas:
         return {}
@@ -236,18 +253,37 @@ def _resolver_dia_por_marca(db_servicio: Client, filas: list[dict], fechas_local
     dias = (
         db_servicio.postgrest.schema("tiempo")
         .table("dia")
-        .select("id, persona_id, fecha")
+        .select("id, persona_id, fecha, estado")
         .in_("persona_id", personas)
         .in_("fecha", fechas)
         .execute()
         .data
     )
-    id_por_clave = {(d["persona_id"], d["fecha"]): d["id"] for d in dias}
+    por_clave = {(d["persona_id"], d["fecha"]): (d["id"], d.get("estado")) for d in dias}
     return {
-        fila["id"]: id_por_clave[(fila["persona_id"], fechas_locales[fila["id"]].isoformat())]
+        fila["id"]: por_clave[(fila["persona_id"], fechas_locales[fila["id"]].isoformat())]
         for fila in filas
-        if (fila["persona_id"], fechas_locales[fila["id"]].isoformat()) in id_por_clave
+        if (fila["persona_id"], fechas_locales[fila["id"]].isoformat()) in por_clave
     }
+
+
+def _marcas_con_alerta_horario_descartable(
+    db: Client, caller: CallerIdentity, filas: list[dict], horario_pendientes: dict[int, int], dias: dict[int, tuple[int, str | None]]
+) -> set[int]:
+    """Marcas para las que se muestra el botón «Descartar alerta de horario» (SOLO visualización: la autorización real es `fn_excepcion_horario_descartar`): excepción `fuera_de_horario` pendiente,
+    día de la persona y fecha local de la marca en cerrado o revisado, marca que NO es del caller y caller con el permiso de acción. Las consultas del caller (persona y permiso) solo se hacen si
+    hay candidatas en la página."""
+    candidatas = [
+        fila for fila in filas
+        if fila["id"] in horario_pendientes and dias.get(fila["id"], (None, None))[1] in ESTADOS_DIA_DESCARTABLES
+    ]
+    if not candidatas:
+        return set()
+    propia = resolver_persona_id(db, caller)
+    ajenas = [fila for fila in candidatas if fila["persona_id"] != propia]
+    if not ajenas or not tiene_permiso(db, propia, PERMISO_DESCARTE):
+        return set()
+    return {fila["id"] for fila in ajenas}
 
 
 def _motivo_bloqueo_correccion(dia_cerrado_pendiente: bool, bloqueo_tramo: str | None) -> str | None:
@@ -282,6 +318,7 @@ def listar_marcas(
     limite: int = Query(LIMITE_DEFECTO, ge=1, le=LIMITE_MAXIMO),
     desplazamiento: int = Query(0, ge=0),
     db_servicio: Client = Depends(get_service_client),
+    caller: CallerIdentity = Depends(get_caller_identity),
 ) -> dict:
     """Listado paginado para la pestaña de marcas en vivo (polling desde el frontend, sin
     websocket -- SCJ-PRO-11/07 no piden push real). Más reciente primero, siempre:
@@ -310,7 +347,7 @@ def listar_marcas(
     ids_con_revision = sorted(
         {fila["id"] for fila in resultado.data if fila["requiere_revision"]}
     )
-    motivos, pendientes, dia_cerrado_pendientes = _resolver_motivos_y_pendiente_por_marca(
+    motivos, pendientes, dia_cerrado_pendientes, horario_pendientes = _resolver_motivos_y_pendiente_por_marca(
         db, ids_con_revision
     )
     ids_pagina = sorted({fila["id"] for fila in resultado.data})
@@ -324,7 +361,9 @@ def listar_marcas(
         )
         for fila in resultado.data
     }
-    dias = _resolver_dia_por_marca(db_servicio, resultado.data, fechas_locales)
+    dias_con_estado = _resolver_dias_de_marcas(db_servicio, resultado.data, fechas_locales)
+    dias = {marca_id: dia_id for marca_id, (dia_id, _estado) in dias_con_estado.items()}
+    descartables = _marcas_con_alerta_horario_descartable(db, caller, resultado.data, horario_pendientes, dias_con_estado)
     marcas = [
         {
             **fila,
@@ -340,6 +379,8 @@ def listar_marcas(
             "correccion_bloqueada_en_tramo_cerrado": bloqueo_tramo.get(fila["id"]) == "en_tramo_cerrado",
             "fecha_local": fechas_locales[fila["id"]],
             "dia_id": dias.get(fila["id"]),
+            "excepcion_horario_pendiente_id": horario_pendientes.get(fila["id"]),
+            "puede_descartar_alerta_horario": fila["id"] in descartables,
             "motivo_bloqueo_correccion": _motivo_bloqueo_correccion(
                 fila["id"] in dia_cerrado_pendientes, bloqueo_tramo.get(fila["id"])
             ),

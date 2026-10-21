@@ -1,7 +1,7 @@
 from datetime import date, datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 
 class ExcepcionOut(BaseModel):
@@ -35,3 +35,14 @@ class DescartarExcepcionOut(BaseModel):
     resultado: Literal["descartada", "ya_descartada"]
     excepcion_id: int
     dia_id: int | None = None
+
+
+class DescartarAlertaHorarioIn(BaseModel):
+    """125_: el motivo se recorta ANTES de medirlo (10 a 500 caracteres): la base también lo recorta y lo valida; aquí se da el 422 legible sin llamar a la base."""
+
+    motivo: Annotated[str, StringConstraints(strip_whitespace=True, min_length=10, max_length=500)]
+
+
+class DescartarAlertaHorarioOut(BaseModel):
+    auditoria_id: int
+    excepcion_id: int

@@ -21,10 +21,10 @@ from pydantic import ValidationError
 from supabase import Client
 
 from app.deps import get_caller_client
-from app.errores import UNIQUE_VIOLATION, manejar_error_dia_cerrado
+from app.errores import UNIQUE_VIOLATION, manejar_error_dia_cerrado, traducir_error_alerta_horario
 from app.fecha_local import a_datetime, fecha_local_efectiva
 from app.permisos import requiere_permiso
-from app.schemas.excepciones import DescartarExcepcionIn, DescartarExcepcionOut, ExcepcionOut
+from app.schemas.excepciones import DescartarAlertaHorarioIn, DescartarAlertaHorarioOut, DescartarExcepcionIn, DescartarExcepcionOut, ExcepcionOut
 
 logger = logging.getLogger(__name__)
 
@@ -286,3 +286,38 @@ def descartar_excepcion_dia_cerrado(
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, MENSAJE_RESPUESTA_INESPERADA
         ) from None
+
+
+
+@router.post("/{excepcion_id}/descartar-alerta-horario", response_model=DescartarAlertaHorarioOut)
+def descartar_alerta_horario(
+    excepcion_id: int,
+    datos: DescartarAlertaHorarioIn,
+    db: Client = Depends(get_caller_client),
+    _permiso: None = Depends(requiere_permiso("excepcion_dia_cerrado_descarte")),
+) -> dict:
+    """Descarte AUDITADO de una alerta de horario (`fuera_de_horario`) pendiente de una marca AJENA cuyo día ya está cerrado o revisado (125_*.sql). Con el día abierto el camino es Corregir; con el día
+    cerrado, «Corregir» está bloqueado (87_) y esta es la única salida con constancia.
+
+    Cliente del CALLER (anon key + su JWT), nunca service_role: `fn_excepcion_horario_descartar` es SECURITY DEFINER con EXECUTE solo para `authenticated`, el actor sale de auth.uid() y la autorización
+    (persona activa + permiso de acción `excepcion_dia_cerrado_descarte`, no heredable) vive DENTRO. El `requiere_permiso` de arriba es solo un gate débil para dar un 403 legible.
+
+    Errores por HINT con mensajes fijos: 403 sin permiso o alerta propia; 404 la excepción no existe; 409 no es alerta de horario / ya resuelta / día no cerrado; 422 motivo obligatorio, corto o largo.
+    Devuelve el id de la fila de auditoría."""
+    try:
+        auditoria_id = (
+            db.postgrest.schema("tiempo")
+            .rpc("fn_excepcion_horario_descartar", {"p_excepcion_id": excepcion_id, "p_motivo": datos.motivo})
+            .execute()
+            .data
+        )
+    except APIError as error:
+        traduccion = traducir_error_alerta_horario(error)
+        if traduccion is not None:
+            raise traduccion from None
+        raise
+
+    if isinstance(auditoria_id, bool) or not isinstance(auditoria_id, int):
+        logger.error("fn_excepcion_horario_descartar devolvió una forma inesperada")
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, MENSAJE_RESPUESTA_INESPERADA)
+    return DescartarAlertaHorarioOut(auditoria_id=auditoria_id, excepcion_id=excepcion_id).model_dump()

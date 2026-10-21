@@ -64,6 +64,10 @@ class MarcaListaItem(BaseModel):
     # desfase_local) y el id del tiempo.dia si ya existe (None si el día aún no se materializó).
     fecha_local: date | None = None
     dia_id: int | None = None
+    # 125_*.sql: alerta de horario (`fuera_de_horario`) pendiente de esta marca y si el caller puede DESCARTARLA con constancia desde la UI (día cerrado o revisado, marca que no es suya, permiso de
+    # acción). Solo para mostrar el botón: la autorización real es la RPC. POST /api/excepciones/{excepcion_horario_pendiente_id}/descartar-alerta-horario.
+    excepcion_horario_pendiente_id: int | None = None
+    puede_descartar_alerta_horario: bool = False
 
 
 class MarcaListaOut(BaseModel):
