@@ -2,7 +2,7 @@
 
 **Estado:** Aceptada
 **Fecha de la decisión:** 2026-09-02
-**Última revisión:** —
+**Última revisión:** 2026-10-21
 
 ---
 
@@ -111,4 +111,8 @@ fecha dada del pasado**, ejecutado dos veces con meses de diferencia y con el mi
 
 ## Revisión posterior a la implementación
 
-*(se llena al construir)*
+**21-oct-2026 (V1.1).** La decisión (saldo materializado en `banco_de_horas`, el libro `movimiento_de_saldo` como única fuente de verdad) se mantiene y se implementó como un disparador que actualiza el saldo (`fn_movimiento_de_saldo_actualiza_banco`, `SECURITY DEFINER` desde `104_`). Novedades que no la contradicen:
+
+- **Tipo `compensacion` (`120_`).** El libro admite un sexto tipo: el movimiento opuesto, ligado por `compensa_movimiento_id` a un `generado_quincena` erróneo, con motivo y autor obligatorios, una sola vez por movimiento, y sin dejar el saldo por debajo de cero. Es la única vía auditada para deshacer un error del corte sin tocar el libro (que sigue siendo de solo inserción).
+- **Idempotencia del corte (`119_`).** `tiempo.corte_quincenal_aplicado` registra cada periodo aplicado por persona (`UNIQUE (persona_id, periodo_desde)`), también cuando el resultado es 0, para que un periodo sin tramos no se aplique dos veces.
+- **Antigüedad del saldo.** `vivo_desde` sigue siendo un solo timestamp por persona; el desglose por antigüedad se reconstruye en memoria con FIFO sobre el libro (`banco_antiguedad.py`), y una compensación se aplica contra el lote que corrige, no contra el más antiguo.

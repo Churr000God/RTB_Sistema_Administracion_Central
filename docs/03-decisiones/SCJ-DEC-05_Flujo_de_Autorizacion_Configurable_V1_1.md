@@ -2,7 +2,7 @@
 
 **Estado:** Aceptada
 **Fecha de la decisión:** 2026-09-02
-**Última revisión:** 2026-09-02
+**Última revisión:** 2026-10-21
 
 ---
 
@@ -126,4 +126,7 @@ verificar que la solicitud en curso se comporta como se decidió — sin migraci
 
 ## Revisión posterior a la implementación
 
-*(se llena al construir)*
+**21-oct-2026 (V1.1).** La decisión (cadena de pasos congelada al crear la solicitud, `Opción C`) se mantiene. En la implementación el flujo de ausencias es de **un solo paso** (`numero_paso = 1`), resuelto por `fn_ausencia_resolver`. Reglas añadidas que no la contradicen:
+
+- **Nadie resuelve su propia ausencia (`122_`).** El aprobador es siempre la persona de la sesión (no un parámetro) y no puede ser la persona de la ausencia; lo hacen cumplir `fn_ausencia_resolver` (`SCJ26` / `ausencia_propia`), la policy de INSERT de `aprobacion_ausencia` y un trigger que cubre también `service_role`.
+- **El tipo de una ausencia resuelta es inmutable (`121_`, `SCJ25`)**; solo se reclasifica con la ausencia pendiente, dentro de la resolución.

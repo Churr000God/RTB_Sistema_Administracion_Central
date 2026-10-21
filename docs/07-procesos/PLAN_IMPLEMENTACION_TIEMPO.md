@@ -8,6 +8,14 @@ así que vive aquí sin versión, como documento de trabajo (mismo trato que `RE
 Ordena los 8 `SCJ-PRO` de Tiempo (`07` a `14`) por dependencia real, no por número de folio — se
 escribieron en el orden en que se diseñaron, no en el orden en que conviene construirlos.
 
+> **Nota del 21 de octubre de 2026 (documento histórico, no se reescribe).** Este plan describe el orden de
+> construcción de septiembre y varias de sus afirmaciones ya no son ciertas: (1) «ningún proceso necesita
+> permiso nuevo» y «30 códigos»: el catálogo tiene hoy 54 permisos; (2) «las 16 tablas de `02_tiempo.sql`»: `tiempo`
+> tiene más tablas (terminales, `corte_quincenal_aplicado`, `excepcion_descarte`, etc.; ver `SCJ-DIC-01` V1.6);
+> (3) Fase 4, `SCJ-PRO-13`, «sin cambios de esquema»: el corte sí cambió el esquema (`119_`, `120_`); (4) el cierre
+> de día ya no usa inserts sueltos sino `fn_cierre_dia_armar` (`124_`), y la corrida de las 03:00 procesa el día
+> anterior. El estado vigente está en `SCJ-PRO-12` V1.1, `SCJ-PRO-13` V1.1 y `SCJ-TRZ-01` §II.b.
+
 ---
 
 ## Cómo se armó el orden

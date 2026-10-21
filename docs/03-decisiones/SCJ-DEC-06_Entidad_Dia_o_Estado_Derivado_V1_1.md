@@ -2,7 +2,7 @@
 
 **Estado:** Aceptada
 **Fecha de la decisión:** 2026-09-02
-**Última revisión:** —
+**Última revisión:** 2026-10-21
 
 ---
 
@@ -110,4 +110,8 @@ explícita de RH. Ver `SCJ-CVA-01`.
 
 ## Revisión posterior a la implementación
 
-*(se llena al construir)*
+**21-oct-2026 (V1.1).** La decisión (el día es una entidad materializada con estado propio) se mantiene. Se corrigen tres frases de «Queda cerrado para siempre» y de las consecuencias que la implementación dejó atrás:
+
+- **«Cambiar de `bloqueado` a `revisado` es la única transición manual permitida» ya no es exacto.** Hoy RH también puede revisar un día `cerrado` (`fn_dia_revisar` admite `bloqueado` y `cerrado`, `77_`): sirve para armar los tramos de marcas tardías que llegaron después del cierre y dejar el día `revisado`, con las horas que RH escribe. Sigue sin existir ninguna transición automática: ningún proceso reabre un día `cerrado`, `bloqueado` o `revisado` por sí solo.
+- **La marca tardía sobre un día `revisado`** (el caso que quedaba «a decidir») se resolvió en `86_`: queda como excepción `dia_cerrado` pendiente, que se resuelve revisando el día en la misma transacción o con el descarte auditado de una marca tardía (`fn_excepcion_dia_cerrado_descartar`); y una **alerta de horario** sobre un día `cerrado` o `revisado` se descarta con `fn_excepcion_horario_descartar` (`125_`). Ninguna de las dos reabre nada.
+- **«Necesita ser una transacción, no una serie de pasos sueltos»** se cumplió con el cierre atómico `fn_cierre_dia_armar` (`124_`): el día, sus tramos y su excepción de paridad se crean en una sola transacción, de modo que un fallo no deja un día sin tramos. El estado de un día cerrado sigue protegido contra cambios fuera de la revisión: `fn_dia_revisar` es la única vía humana hacia `revisado`.

@@ -8,6 +8,12 @@ Este documento es el plan del piloto: qué se va a probar, con quién, en qué o
 
 ## 0. En una página
 
+> **Nota del 21 de octubre de 2026.** Desde el 20-oct el cierre de día es atómico (`124_`) y la corrida
+> automática de las 03:00 (hora de México) procesa el **día anterior**; el corte quincenal se registra una sola
+> vez por persona y periodo (`119_`) y cuenta como trabajadas las ausencias con goce autorizadas (`118_`). Una
+> alerta de horario de un día ya cerrado se resuelve con «Descartar alerta» (`125_`), no con «Corregir». Los
+> resultados esperados de esta sección (p. ej. P3) se leen con esas reglas.
+
 - **Qué es:** un piloto técnico de **un mes** con **personas avisadas** de que es una prueba, sobre la **base de pruebas** (no el sistema final). Al terminar, el aparato se limpia (salvo el usuario del dueño) y se pasa al sistema real, que es otra base de datos.
 - **Qué se quiere ver:** que las huellas se registren y se activen bien, que las marcas **suban** y se generen bien (hora, tiempos, tramos, horas), que el cierre de día y el corte quincenal calculen lo esperado, y qué pasa con una **caída del Pi** (si las marcas hechas durante el corte se suben después).
 - **Qué NO es:** no se prueba el interruptor de activación automática de huella (queda **apagado**), no hay relevador ni cerradura conectados, no se cargan datos reales de personal definitivo.

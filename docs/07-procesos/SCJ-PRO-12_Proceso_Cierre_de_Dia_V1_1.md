@@ -1,7 +1,7 @@
 # Proceso — Cierre de día
 
 **Sistema de Control de Jornada**
-Folio SCJ-PRO-12 · Versión 1.0 · 5 de septiembre de 2026
+Folio SCJ-PRO-12 · Versión 1.1 · 21 de octubre de 2026
 
 Sexto `SCJ-PRO` del subsistema de **Tiempo**, y el primero puramente de sistema — no lo dispara un
 usuario resolviendo algo, lo dispara el reloj. Es el batch del que ya dependían `SCJ-PRO-08`
@@ -128,7 +128,7 @@ flowchart TD
 
 ---
 
-## VI. Estado actual
+## VI. Estado actual (al emitir V1.0; el estado vigente está en VIII)
 
 Lo que ya existe y de lo que este batch depende: `fn_marca_valida_revision`/`trg_marca_valida_
 revision` (`SCJ-PRO-11`, deja la marca lista), `fn_correccion_recalcula_tramo` (`SCJ-PRO-10`, ya
@@ -158,4 +158,24 @@ este orden porque dependen de que éste exista: **corte quincenal**, luego **bat
 
 ---
 
-*Proceso · Folio SCJ-PRO-12 · V1.0*
+## VIII. Actualización posterior (V1.1, 21-oct-2026): implementación y cierre atómico
+
+Se agrega sin contradecir lo anterior; lo que decía «falta» en VI ya existe.
+
+**Implementado.** `backend/app/batches/cierre_dia.py`, con el job programado dentro del backend (APScheduler embebido) y el botón manual, que invocan la misma función. `tiempo.corrida_batch` lleva el estado de cada corrida.
+
+**Hora de disparo.** La hora de corrida (`hora_corte_dia` + `hora_corrida_cierre_dia`, ejemplo `03:00`) se interpreta en **hora de México** (`America/Mexico_City`) y la corrida programada procesa el **día anterior**. Dos errores de zona horaria del scheduler se corrigieron: uno procesaba el día en curso, con faltas falsas (9-sep-2026); el otro hizo que el cierre del 20-oct-2026 corriera a las 21:00 de México en lugar de las 03:00 del día siguiente, con lo que cerró un día antes de que RH pudiera corregir sus alertas. El disparo manual rechaza una fecha futura, y la fecha de hoy antes de `hora_corte_dia` + `hora_corrida_cierre_dia`.
+
+**El cierre de cada día es atómico (`124_`).** Antes se insertaba el día y luego cada tramo con llamadas sueltas; si un tramo fallaba a medias, el día quedaba creado sin tramos y la idempotencia por persona lo saltaba para siempre. Ahora el batch llama a **`tiempo.fn_cierre_dia_armar`**, una función `SECURITY DEFINER` con `EXECUTE` solo para `service_role`, que en **una sola transacción** crea el día (`cerrado` o `bloqueado`), todos sus tramos en orden y, si el día es bloqueado, la excepción de día `paridad_impar`. Cualquier fallo de la función o de un trigger sobre `dia`, `tramo` o `excepcion` revierte todo. Errores propios (`SCJ27`, hint literal): `dia_ya_existe` (el batch lo cuenta como persona saltada, equivale al paso C2), `estado_invalido`, `horas_fuera_de_rango` (las horas del día cerrado van de 0 a 24, el mismo rango que `fn_dia_revisar`) y `tramos_inconsistentes`. Cualquier otro error significa que ese día **no se creó** y se reintenta en la corrida siguiente, porque no queda nada a medias. La función no calcula nada: horas, descuento y minutos los manda el batch.
+
+**Horas del día (precisa H2).** Un día par suma los minutos de sus tramos; **si el día queda en un solo tramo** (entró una vez y salió una vez sin marcar pausa) se resta `descuento_pausa_no_registrada_min` (60 de ejemplo, nunca por debajo de 0). Con dos o más tramos no se resta, porque la pausa quedó registrada. El descuento va en `tiempo.dia.horas_totales`, **no** en `tramo.minutos_trabajados`. Un día impar queda `bloqueado` con `horas_totales` NULL.
+
+**Validación de los tramos (`123_`).** Cada tramo debe cumplir `inicio` = momento efectivo de su marca de apertura; con marca de cierre, `fin` = momento efectivo del cierre y `minutos_trabajados` = diferencia (tolerancia 0.01); abierto: `fin` y `minutos_trabajados` NULL. Un tramo incoherente (`SCJ15`, hint `tramo_tiempos_incoherentes`) hace fallar el cierre de **ese** día completo. El «momento efectivo» es el de la corrección más reciente de la marca si la hay, si no `momento_dispositivo`; dos correcciones de la misma marca no pueden compartir `creado_en` (índice único).
+
+**Días de ausencia (G4).** `fn_ausencia_resuelve_excepcion` materializa el día con la jornada neta de `patron_semanal`: suma por fila de `hora_salida − hora_entrada − minutos_comida` (`118_`; antes restaba el descuento global de pausa). El corte quincenal cuenta esas horas como trabajadas aunque el día no tenga tramos (`SCJ-PRO-13`).
+
+**Alertas de horario pendientes al cerrar.** Si el día cierra con una excepción `fuera_de_horario` todavía pendiente, la marca queda dentro de un tramo y ya no se puede corregir; se resuelve con el descarte auditado de `125_` (ver `SCJ-PRO-10` V2.0, §VII). Cerrar a la hora correcta deja a RH la jornada completa para corregir antes de que la marca entre a un tramo.
+
+---
+
+*Proceso · Folio SCJ-PRO-12 · V1.1*

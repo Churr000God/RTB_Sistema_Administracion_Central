@@ -1,7 +1,7 @@
 # Proceso — Detección y resolución de falta
 
 **Sistema de Control de Jornada**
-Folio SCJ-PRO-08 · Versión 1.0 · 5 de septiembre de 2026
+Folio SCJ-PRO-08 · Versión 1.1 · 21 de octubre de 2026
 
 Segundo `SCJ-PRO` del subsistema de **Tiempo**. Cubre el único flujo de `tiempo.ausencia` que existe
 hoy: el sistema detecta un día laboral completo sin ninguna marca y sin ausencia previa que lo
@@ -127,7 +127,7 @@ flowchart TD
 
 ---
 
-## VI. Estado actual — nada construido todavía
+## VI. Estado actual al emitir V1.0 — nada construido todavía (el estado vigente está en VIII)
 
 Sólo el trigger de excepción está corregido (`db/ddl/02_tiempo.sql`,
 `fn_ausencia_resuelve_excepcion`). Falta, en orden:
@@ -151,4 +151,15 @@ existentes sin haberlos diseñado todavía.
 
 ---
 
-*Proceso · Folio SCJ-PRO-08 · V1.0*
+## VIII. Actualización posterior (V1.1, 21-oct-2026): lo que protege una ausencia ya resuelta
+
+Se agrega sin contradecir lo anterior. El corte quincenal confía en `tiempo.ausencia` (un permiso con goce autorizado cuenta la jornada como trabajada), por eso la resolución quedó blindada:
+
+- **Jornada neta del día neutro.** Al resolver con un tipo pagado, el día se materializa con la suma por fila de `patron_semanal` de `hora_salida − hora_entrada − minutos_comida` (`118_`); ya no resta el parámetro global `descuento_pausa_no_registrada_min`, que queda para el cierre de día con un solo tramo. Para `de_confianza` sigue la excepción deliberada de `SCJ-PRO-14` (nunca 0).
+- **El tipo no cambia una vez resuelta (`121_`).** Solo se reclasifica con la ausencia `pendiente`, y únicamente a través de `fn_ausencia_resolver`. Después de `autorizada` o `rechazada`, cambiar `tipo_de_ausencia` falla (`SCJ25` / `ausencia_resuelta_tipo_inmutable`), también para `service_role`. Si se autorizó con el tipo equivocado no hay corrección por la aplicación: solo con acceso de superusuario (deshabilitar el trigger en una transacción, con registro) o rechazando y registrando otra ausencia, lo que hace el sistema. Un rechazo no se re-autoriza.
+- **Nadie resuelve su propia ausencia (`122_`).** `fn_ausencia_resolver` rechaza la ausencia de quien la resuelve (`SCJ26` / `ausencia_propia`) antes de escribir; la policy de INSERT de `aprobacion_ausencia` exige que `aprobador_id` sea la persona de la sesión y que la ausencia no sea suya; y un trigger cubre también `service_role`. Tampoco se edita el tipo de la propia ausencia pendiente. Efecto: la ausencia de una persona la resuelve otra con `ausencia_edicion` y `aprobacion_ausencia_edicion`.
+- **Estado de la construcción.** Existen el batch de cierre de día (que crea la `falta` pendiente), los endpoints para listar y resolver, la RLS y la bandeja de ausencias.
+
+---
+
+*Proceso · Folio SCJ-PRO-08 · V1.1*

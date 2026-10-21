@@ -4,7 +4,15 @@
 
 **Sistema de Control de Jornada · RTB-CRM-APP**
 Estado al **8 de octubre de 2026**. Documento vivo (sin folio, mismo trato que
-`PLAN_IMPLEMENTACION_TIEMPO.md`): se actualiza en cada sesión. Existe para que una conversación nueva
+`PLAN_IMPLEMENTACION_TIEMPO.md`): se actualiza en cada sesión.
+
+> **Nota del 21 de octubre de 2026.** Las cifras de la base de este plan (34 tablas, 57 funciones, 76 policies,
+> 52 permisos «tras `87_`») son de esa fecha; hoy el DDL llega a `125_` (126 scripts) y el catálogo tiene 54
+> permisos (ver `SCJ-DIC-01` V1.6). Sobre la corrección de marcas: la opción B (D7) **sigue pendiente**, pero
+> ya existe una vía para las alertas `fuera_de_horario` de un día cerrado o revisado, el descarte auditado
+> `fn_excepcion_horario_descartar` (`125_`, `SCJ-PRO-10` V2.0 §VII); y el cierre de día ahora es atómico
+> (`124_`) y exige tiempos de tramo coherentes con sus marcas (`123_`). El caso de prueba 14 debe
+> contemplar ese descarte. Existe para que una conversación nueva
 (o una persona nueva) pueda retomar sin haber leído el historial. Complementa
 `bitacora/2026-10-05_checador_hikvision_auditoria_y_modelo.md` y
 `bitacora/2026-10-07_sesion_terminal_hikvision_correcciones_y_paquete1.md`.

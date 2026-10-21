@@ -2,7 +2,7 @@
 
 **Estado:** Aceptada
 **Fecha de la decisión:** 2026-09-02
-**Última revisión:** —
+**Última revisión:** 2026-10-21
 
 ---
 
@@ -101,4 +101,9 @@ sobrescrito a la otra. Ver `SCJ-CVA-01`.
 
 ## Revisión posterior a la implementación
 
-*(se llena al construir)*
+**21-oct-2026 (V1.1).** La decisión (entidad `excepcion` con ciclo de vida propio) se mantiene y se confirma en la implementación. Precisiones:
+
+- **Motivos reales.** Los escribe el trigger `fn_marca_valida_revision` al insertar la marca (`reloj_no_sincronizado`, `persona_inactiva`, `dia_cerrado`, `fuera_de_horario`; una marca puede acumular varios), el batch de cierre de día a nivel de día (`paridad_impar`) y Operación (`plantilla_desconocida`). `fuera_de_horario` es el único motivo de alerta de horario.
+- **La resolución nunca borra la señal.** Una excepción pasa de `pendiente` a `resuelto` y solo se le agrega un sufijo « — …» al motivo; `trg_excepcion_protege_columnas` (`86_`) impide cambiar `marca_id`, `dia_id`, `creado_en` o el prefijo del motivo.
+- **Formas de resolver una excepción de marca:** corregir la marca (`SCJ-PRO-10`, mientras no esté en un tramo); armar el tramo al revisar el día (`fn_dia_revisar`); para una marca tardía `dia_cerrado`, revisar el día en la misma transacción o el descarte auditado (`86_`); y para una alerta `fuera_de_horario` sobre un día `cerrado` o `revisado`, el descarte auditado de `125_`. Todo descarte queda en `tiempo.excepcion_descarte` (inmutable).
+- **Excepciones de día** (`marca_id` NULL): hoy solo `paridad_impar`, que crea `fn_cierre_dia_armar` junto con el día bloqueado y que resuelve el armado de tramos al revisar.

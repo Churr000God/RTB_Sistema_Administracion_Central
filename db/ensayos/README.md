@@ -3,7 +3,7 @@
 Scripts que `db` escribió para ensayar cada migración **contra Supabase real dentro de una transacción
 que siempre termina en `ROLLBACK`**, con personas, marcas y días sintéticos (el usuario administrador real
 sólo actúa como *caller*). Se conservan porque son la evidencia y el banco de pruebas de los cortes
-`80_` a `92_` (ver `docs/07-procesos/PLAN_TERMINAL_HIKVISION_HASTA_PRODUCCION.md`).
+`80_` a `125_` (ver `docs/07-procesos/PLAN_TERMINAL_HIKVISION_HASTA_PRODUCCION.md` para los de la terminal).
 
 | Archivo | Prueba | Resultado histórico |
 |---|---|---|
@@ -30,6 +30,18 @@ sólo actúa como *caller*). Se conservan porque son la evidencia y el banco de 
 | `ensayo_104.sql` | `104_` (`fn_movimiento_de_saldo_actualiza_banco` a `SECURITY DEFINER` con UPDATE atómico y `SCJ18`; se elimina la policy `movimiento_de_saldo_insert_manual` y el INSERT de authenticated; `fn_movimiento_de_saldo_manual_registrar` a `SECURITY DEFINER` con autorización propia, `42501`, `FOR UPDATE`): reproduce el defecto ANTES (banco 10 / ledger 7), tres tipos manuales, batch, cada forma de abuso por INSERT directo => 42501, suspendida, solo lectura, anon, usuario no admin; secciones 68 (banco = Σ ledger) y 69 | **corrido 54/54 y APLICADO el 14-oct-2026** (diff: `diff_104_*.diff`; vigente: `vigente_104_*.sql`) |
 | `ensayo_105.sql` | `105_` (REVOKE EXECUTE de 13 funciones de trigger a todos los roles de la API; `fn_caller_activo`/`fn_caller_tiene_permiso` sin PUBLIC ni anon, con GRANT explícito a authenticated/service_role; `fn_terminal_config_catalogo` sin authenticated/service_role): foto de EXECUTE efectivo y proconfig de las 81 funciones antes/después (cambia EXACTAMENTE lo listado), disparo real de los 13 triggers (`track_functions` + `pg_stat_get_xact_function_calls`; los 2 inmutables por su mensaje, porque una función que termina en error no cuenta; el trigger deferrable con `SET CONSTRAINTS ALL IMMEDIATE`), lecturas con RLS como authenticated en 13 tablas, RPC con claims, anon/authenticated/service_role => 42501, reversa, sección 70 | **corrido 64/64 el 14-oct-2026; sin aplicar** |
 | `ensayo_106.sql` | `106_` (`ALTER FUNCTION personas.fn_caller_tiene_permiso(text) SET search_path = personas, pg_temp`): solo cambia el proconfig de una función, plan no inlineable antes ni después, `EXPLAIN (ANALYZE, BUFFERS)` de 7 consultas con RLS (5 repeticiones, mediana) sin regresión, mismo resultado de la función, `RESET search_path` exacto, sección 71 | **corrido 20/20 el 14-oct-2026; sin aplicar** |
+| `ensayo_107.sql` a `ensayo_115.sql` | `107_` a `115_` (alta atómica de persona, padrón y bitácoras por permiso, identidad separada del nombre, `fn_caller_tiene_permiso` a `DEFINER`, reglas de asignaciones y límite de plazas) | APLICADOS (13 a 16-oct-2026); los conteos de cada ensayo están en la bitácora de esas sesiones y en el encabezado de cada archivo, no se recopilan aquí |
+| `ensayo_116.sql` | `116_` (`fn_persona_actualizar_datos` sin `ON CONFLICT`: editar solo el folio o solo el tipo de contrato; `SCJ22`) | 31/31 PASS — **APLICADO 17-oct-2026** |
+| `ensayo_117.sql` | `117_` (policy de INSERT de `tiempo.correccion` con la fila nueva calificada: `correccion_edicion` basta para una excepción pendiente) | 13/13 PASS — **APLICADO 19-oct-2026** |
+| `ensayo_118.sql` | `118_` (jornada neta de la ausencia con `minutos_comida` por fila, igual que el corte) | 18/18 PASS — **APLICADO 20-oct-2026** |
+| `ensayo_119.sql` | `119_` (`tiempo.corte_quincenal_aplicado` y la nueva firma de `fn_corte_quincenal_aplicar_persona`; `SCJ23`) | 28/28 PASS — **APLICADO 20-oct-2026** |
+| `ensayo_120.sql` | `120_` (tipo `compensacion`, `compensa_movimiento_id`, trigger de validación, `fn_movimiento_de_saldo_compensar`, `SCJ24`) | 47/47 PASS — **APLICADO 20-oct-2026** |
+| `ensayo_correccion_corte_oct.sql` | script de corrección de datos `db/correcciones/2026-10-20_corte_01_15_oct_*.sql` aplicado sobre una persona sintética con `118_` a `120_` | 30/30 PASS — **EJECUTADO en la base real 20-oct-2026** |
+| `ensayo_121.sql` | `121_` (tipo de ausencia inmutable una vez resuelta; `SCJ25`) | 24/24 PASS — **APLICADO 20-oct-2026** |
+| `ensayo_122.sql` | `122_` (nadie resuelve su propia ausencia ni edita el tipo de la propia pendiente; `SCJ26`) | 33/33 PASS — **APLICADO 20-oct-2026** |
+| `ensayo_123.sql` | `123_` (coherencia de `inicio`/`fin`/`minutos_trabajados` del tramo con sus marcas; índice único de correcciones) | 30/30 PASS — **APLICADO 21-oct-2026** |
+| `ensayo_124.sql` | `124_` (`fn_cierre_dia_armar`, el cierre de día atómico; `SCJ27`; los dos órdenes con `123_`) | 33/33 PASS — **APLICADO 21-oct-2026** |
+| `ensayo_125.sql` | `125_` (`fn_excepcion_horario_descartar`, descarte auditado de alertas de horario; `SCJ28`) | 49/49 PASS — **APLICADO 21-oct-2026** |
 | `ensayo_correccion.sql` | comportamiento de corregir una marca en un tramo (confirmó la inconsistencia que motivó `87_`) | inferencia confirmada |
 | `ensayo_78.sql` | comportamiento de `78_` | **obsoleto, nunca corrido** (`86_` lo reemplaza) |
 
@@ -117,3 +129,6 @@ que toque cada función (no en 94_/95_). Los `RAISE WARNING` ya están cubiertos
 ## Pendientes opcionales anotados (security, 125_)
 - **`fn_excepcion_dia_cerrado_descartar` (86_)**: su normalización del motivo solo cubre `[[:cntrl:]]`. Para alinearla con 125_ (separadores Unicode U+2028/2029, bidireccionales U+202A–U+202E, invisibles U+200B–U+200F/U+2060/U+FEFF, NBSP y colapso de espacios antes de medir el mínimo) hay que reescribirla con `CREATE OR REPLACE` repitiendo `SECURITY DEFINER` y `SET search_path = tiempo, personas, pg_temp`. NO se toca ahora: hacerlo la próxima vez que se modifique esa función.
 - **Autor de la captura manual** (preexistente): `tiempo.marca` no guarda quién capturó una marca manual, así que alguien con captura manual y permiso de descarte podría crear una marca fuera de horario ajena y descartar su alerta (125_ solo impide descartar la alerta de una marca PROPIA). Más adelante: guardar el autor de la captura manual en la marca e impedir descartar la alerta de una marca capturada por uno mismo.
+
+## Pendiente para un script futuro (discrepancia 14 de `SCJ-DIC-01` V1.6)
+- **`COMMENT ON` obsoletos** de `tiempo.parametro` (`03_`) y `tiempo.persona` (`01_`): describen el proyecto escolar o remiten a documentos que ya no existen. Corregirlos exige un script nuevo (`COMMENT ON` no cambia datos ni privilegios; ensayo mínimo con `BEGIN … ROLLBACK`). Cosmético, sin riesgo; registrado también como #17 en `SCJ-PRA-01`.

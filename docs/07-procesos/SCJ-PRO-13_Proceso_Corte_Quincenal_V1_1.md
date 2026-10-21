@@ -1,7 +1,7 @@
 # Proceso — Corte quincenal
 
 **Sistema de Control de Jornada**
-Folio SCJ-PRO-13 · Versión 1.0 · 5 de septiembre de 2026
+Folio SCJ-PRO-13 · Versión 1.1 · 21 de octubre de 2026
 
 Séptimo `SCJ-PRO` del subsistema de **Tiempo**. Cubre, en un solo documento, el corte de banco de
 horas (`generado_quincena`, `SCJ-DEC-02`) **y** la clasificación de tiempo por tramo
@@ -116,7 +116,7 @@ flowchart TD
 
 ---
 
-## VI. Estado actual — nada construido todavía
+## VI. Estado actual al emitir V1.0 — nada construido todavía (el estado vigente está en VIII)
 
 **Sin cambios de esquema** — `clasificacion_de_tiempo.tipo` (`ordinario`/`reposicion`/`extra`) y
 `movimiento_de_saldo.tipo` (`generado_quincena`/`cubrir`) ya existían con los valores correctos;
@@ -138,15 +138,12 @@ corte quincenal, los dos batches de mayor riesgo, comparten la misma orquestaci�
 conviene implementarlos juntos. Queda: el batch de jornada `de_confianza` (el más simple e
 independiente de los dos anteriores).
 
----
-
-*Proceso · Folio SCJ-PRO-13 · V1.0*
 
 ---
 
-## VIII. Nota posterior (20-oct-2026, sin cambio de versión): ausencias neutras, periodo aplicado y compensación
+## VIII. Actualización posterior (V1.1, 21-oct-2026): ausencias neutras, periodo aplicado y compensación
 
-El corte de 01–15-oct-2026 cargó 86 h de deuda a una persona con 13 permisos con goce autorizados. Tres causas y su corrección (migraciones `118_` a `120_`, aún por aplicar):
+El corte de 01–15-oct-2026 cargó 86 h de deuda a una persona con 13 permisos con goce autorizados. Tres causas y su corrección (migraciones `118_` a `120_`, aplicadas en la base real el 20 y 21 de octubre de 2026):
 
 1. **Los días de ausencia no tienen tramos.** El corte sumaba las horas trabajadas solo de `tiempo.tramo`. Decisión: en los días sin tramos el corte cuenta `tiempo.dia.horas_totales` como trabajadas (cambio de backend, `corte_quincenal.py`).
 2. **La jornada neta de la ausencia no coincidía con la esperada.** `fn_ausencia_resuelve_excepcion` (`66_`) restaba el parámetro global `descuento_pausa_no_registrada_min`; el corte espera `hora_salida − hora_entrada − minutos_comida` por fila de `patron_semanal`. `118_` la alinea con el corte (por fila, así también con jornada partida). El descuento global queda solo para `cierre_dia` en días de 2 marcas. Redondeo: `horas_totales` es `numeric(5,2)`; backend redondea las esperadas por día a 2 decimales.
@@ -154,6 +151,17 @@ El corte de 01–15-oct-2026 cargó 86 h de deuda a una persona con 13 permisos 
 
 **Compensación de un `generado_quincena` erróneo** (`120_`): nuevo tipo `compensacion` en `movimiento_de_saldo`, ligado al original por `compensa_movimiento_id` (una sola compensación por movimiento, monto exacto en negativo, motivo y autor obligatorios), mediante el RPC `fn_movimiento_de_saldo_compensar` y el permiso no heredable `movimiento_de_saldo_compensar`. El trigger de `fn_movimiento_de_saldo_actualiza_banco` mueve el saldo; no se compensa si el saldo quedaría negativo (también validado en el trigger, con el banco bloqueado, por cualquier camino de escritura), nadie compensa movimientos de su propio banco (`compensacion_propia`) y el motivo admite a lo más 500 caracteres. El desglose por antigüedad (`backend/app/banco_antiguedad.py`) debe tratar la compensación contra el lote ligado, no por FIFO.
 
-**Orden de aplicación:** 1) `118_`, `119_` y `120_` (sección 83 de `verificar_ddl.sql` en solo lectura tras cada una); 2) backend y frontend en la misma ventana (el backend nuevo ya lee `compensa_movimiento_id`, así que `120_` va antes); 3) el script de corrección, primero en seco y luego con `v_aplicar = true`. Fuera de los días de corte (1 y 16).
 
-La corrección de datos de la persona afectada vive en `db/correcciones/` y se ejecuta solo con autorización explícita.
+La corrección de datos de la persona afectada (recalcular las horas de sus días de ausencia con goce, compensar las 86 h y registrar el periodo con resultado 0) se ejecutó el 20-oct-2026 con autorización explícita; el script vive en `db/correcciones/` y verifica antes de escribir que el periodo no tenga ningún día elegible que no sea ausencia con goce, que ningún día tenga tramos y que las horas esperadas recalculadas cuadren.
+
+**Precisiones de la implementación.**
+
+- **Idempotencia:** `fn_corte_quincenal_aplicar_persona` recibe el periodo, las horas esperadas y las trabajadas, lo registra en `tiempo.corte_quincenal_aplicado` (`UNIQUE (persona_id, periodo_desde)`, también para un resultado 0) en la misma transacción y devuelve `SCJ23` / `periodo_ya_aplicado` si ya existía; la guarda antigua por tramos clasificados se conserva para los periodos previos a `119_`. Acepta clasificaciones y movimientos vacíos.
+- **Horas trabajadas de los días sin tramos:** el corte suma `horas_totales` de los días sin tramos (ausencias con goce, vacaciones, incapacidad) y los minutos de los tramos en los demás. Las esperadas de cada día se **redondean a 2 decimales antes de sumar**, porque `dia.horas_totales` es `numeric(5,2)`; así un permiso queda neutro al centésimo.
+- **Compensación:** el RPC `fn_movimiento_de_saldo_compensar` exige el permiso `movimiento_de_saldo_compensar` (no heredable; Gerente General y TI), un motivo de hasta 500 caracteres y no permite compensar un movimiento del banco propio (`SCJ24` / `compensacion_propia`) ni dejar el saldo por debajo de 0 (`saldo_insuficiente`, validado también en el trigger, con el banco bloqueado). El desglose por antigüedad de `banco_antiguedad.py` trata una compensación contra el lote ligado, no por FIFO.
+- **Ausencias que alimentan el corte:** una ausencia resuelta no cambia de tipo (`121_`, `SCJ25`), nadie resuelve la propia (`122_`, `SCJ26`) y nadie edita el tipo de su propia ausencia pendiente; un permiso con goce no se puede inflar sin una aprobación ajena.
+- **Prevención:** si un día elegible del periodo no tiene fila de `tiempo.dia` (típicamente una falta pendiente), el corte de esa persona devuelve `pendiente_dia_abierto` hasta que alguien la resuelva.
+
+---
+
+*Proceso · Folio SCJ-PRO-13 · V1.1*

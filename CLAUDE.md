@@ -50,7 +50,7 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   `--no-dev` (sin pytest) y el frontend prod es nginx sirviendo el bundle (sin npm/node); el script
   corta con un mensaje explícito en vez de fallar con un error de `docker exec`. Las pruebas
   siempre corren con `dev pruebas`.
-- **Tests:** backend `uv run pytest` (393 casos), frontend `npm test` (458 casos, 60 archivos).
+- **Tests:** backend `uv run pytest` (2850 casos al 21 de octubre de 2026), frontend `npm test` (1389 casos, 93 archivos).
   Ambos corren igual dentro de los contenedores (`./scripts/desplegar.sh <entorno> pruebas`).
   Cobertura instrumentada desde el 4 de septiembre de 2026: `uv run pytest --cov=app
   --cov-report=term-missing` (backend) y `npm run test:coverage` / `npm test -- --coverage`
@@ -446,7 +446,7 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   rol por la cadena vía `authenticator` (su membresía directa es sólo ADMIN OPTION); cortarla exige un
   `GRANT … WITH SET TRUE` temporal para ensayar privilegios residuales. Pendiente propuesto de
   `security`: `94_` que revoque a `anon` los GRANT de tablas de `tiempo` y `TRUNCATE`/`REFERENCES`/
-  `TRIGGER` (ver `db/ensayos/README.md`). El diccionario de datos pasó a V1.5.
+  `TRIGGER` (ver `db/ensayos/README.md`). El diccionario de datos pasó a V1.5 (V1.6 desde el 21 de octubre de 2026, regenerado contra el catálogo real: 37 tablas, 97 funciones, 76 policies, 54 permisos).
 - **Interruptor de la activación por huella, puente instalado y causa raíz del 401 (10–13 de octubre de 2026):**
   `94_` a `99_` aplicados en la base real (huella «sin conteo» B+C; `97_`/`98_` interruptor apagado de fábrica,
   solo `fn_terminal_inferir_huella_cambiar` lo enciende y exige consentimiento DEFINITIVO publicado; `99_` agrega
@@ -551,6 +551,25 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   falsa sensación de cierre — y un `WHEN` con igualdad exacta sobre una columna que el mismo
   actor puede editar es evadible; las migraciones versionadas deben contrastarse contra la base
   real después de cada tanda (`verificar_ddl.sql`).
+- **Corte quincenal corregido, batches en hora de México, cierre del día atómico y descarte de
+  alertas de horario (20 y 21 de octubre de 2026):** todo aplicado en la base real y desplegado
+  (`40d6a49`). (1) El corte del 1–15 oct generó 86 h de deuda falsa: ignoraba días sin tramos
+  (permisos) y la jornada neta de ausencias usaba el descuento global. `118_`–`122_`: jornada neta
+  con `minutos_comida` del patrón; `tiempo.corte_quincenal_aplicado` (un corte por persona y
+  periodo, RPC del corte con firma nueva); movimiento `compensacion` con `compensa_movimiento_id` y
+  `fn_movimiento_de_saldo_compensar` (permiso nuevo, 54 en total); tipo de ausencia inmutable al
+  resolverse; **nadie resuelve su propia ausencia** (SCJ26). Regla del corte: un día sin tramos
+  cuenta la esperada solo si lo cubre una ausencia autorizada con goce; si no, 0 (`dia.horas_totales`
+  ya no se lee). (2) Inyección de filtros de PostgREST en la búsqueda por nombre de 4 routers
+  (oráculo de CURP/RFC con `service_role`): `app/busqueda.py` compartido (`ed5da96`). (3) El
+  scheduler corría en UTC del contenedor: el job «de las 03:00» se disparaba a las 21:00 de México
+  del día anterior; `app/zona.py` + `BackgroundScheduler(timezone=ZONA_MEXICO)` (`7a97c81`).
+  (4) `124_` `fn_cierre_dia_armar` (día + tramos + excepción en una transacción, SCJ27) y `123_`
+  `trg_tramo_valida_tiempos` (SCJ15 `tramo_tiempos_incoherentes`), aplicadas en ese orden con el
+  backend en medio. (5) `125_` `fn_excepcion_horario_descartar`: descarte auditado de alertas
+  `fuera_de_horario` en días cerrados o revisados (SCJ28), botón «Descartar alerta». Ver
+  `bitacora/2026-10-21_corte_quincenal_zona_horaria_cierre_atomico.md`; pendientes P-179 a P-190 en
+  la bóveda.
 
 ## Arquitectura y módulos
 
@@ -595,7 +614,7 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   `http://localhost:5173` fijo a mano — esa configuración no vive en este repositorio. Al pasar a
   producción (`docker compose … prod`, frontend en `:8080`) hay que actualizarla ahí también, o
   los links de invitación/recuperación de contraseña no aterrizan en la app.
-- El DDL llega hasta `db/ddl/115_*.sql` (116 archivos, `00` a `115`; 76 policies tras `104_`) y TODO está aplicado en la base real; el resto de este renglón conserva el detalle histórico hasta `93_` (`88_`-`92_` aplicados el 8 de octubre de 2026 tras ensayos `BEGIN…ROLLBACK` 143/143, 60/60, 21/21, 22/22 y 38/38; `93_` aplicado el 9 de octubre de 2026 tras ensayo `BEGIN…ROLLBACK` 19/19 y revisión de `security`; `verificar_ddl.sql` completo en 0 filas, 72 funciones, 76 policies, 53 permisos; única excepción: 1 huérfano de `auth.users`, `prueba-diagnostico-local@example.com`, ajeno al DDL, aceptado por el usuario el 9 de octubre de 2026 — se deja). `92_` ata autor y hora de `personas.bitacora_movimiento_persona` (el INSERT en `personas.usuario` debe hacerse siempre con `service_role`). `personas.permiso`
+- El DDL llega hasta `db/ddl/125_*.sql` (126 archivos, `00` a `125`; 54 permisos; `verificar_ddl.sql` secciones 1–88, línea base de 10 bloques informativos) y TODO está aplicado en la base real (`116_`–`125_` del 19 al 21 de octubre de 2026); hasta `115_` había 76 policies tras `104_`; el resto de este renglón conserva el detalle histórico hasta `93_` (`88_`-`92_` aplicados el 8 de octubre de 2026 tras ensayos `BEGIN…ROLLBACK` 143/143, 60/60, 21/21, 22/22 y 38/38; `93_` aplicado el 9 de octubre de 2026 tras ensayo `BEGIN…ROLLBACK` 19/19 y revisión de `security`; `verificar_ddl.sql` completo en 0 filas, 72 funciones, 76 policies, 53 permisos; única excepción: 1 huérfano de `auth.users`, `prueba-diagnostico-local@example.com`, ajeno al DDL, aceptado por el usuario el 9 de octubre de 2026 — se deja). `92_` ata autor y hora de `personas.bitacora_movimiento_persona` (el INSERT en `personas.usuario` debe hacerse siempre con `service_role`). `personas.permiso`
   es la única tabla del proyecto con clave natural (`codigo varchar PRIMARY KEY`) en vez de `uuid`
   — decisión deliberada, fiel a la redacción literal de `SCJ-PRO-05`, no un descuido a corregir.
 - Las tablas de bitácora inmutables (`bitacora_movimiento_persona`,
@@ -781,6 +800,25 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   porque la causa real (bloqueo de IP) no es diagnosticable de forma confiable sólo con el
   `.status` del error — no inventar una causa específica en el mensaje sin evidencia real de qué
   código/status manda cada escenario.
+- **Ningún «hoy» implícito en el backend: el contenedor corre en UTC.** Tercera vez que aparece el
+  mismo bug de zona horaria (`_desfase_local_en` el 11-sep, el frontend después, y el 21-oct el
+  scheduler, que corría el cierre del día a las 21:00 de México). Toda fecha de regla de negocio
+  sale de `app/zona.py` (`hoy_mexico()`/`ahora_mexico()`); una prueba de CI falla si aparece
+  `date.today()`, `datetime.now()` sin zona, `datetime.today()` o `utcnow()` fuera de ese módulo. Los
+  instantes que se guardan o comparan siguen en UTC. Del lado de la base sigue abierto
+  `CURRENT_DATE` en `75_`/`76_` (P-055, que P-182 duplica).
+- **Texto del cliente dentro de `.or_()`/`.filter()` de PostgREST es inyección de filtros, aunque
+  PostgREST parametrice el SQL.** Coma, punto, paréntesis y `*` son sintaxis del filtro: sin sanear,
+  el usuario agrega condiciones propias, y con `service_role` eso se vuelve un oráculo sobre
+  columnas protegidas. Toda búsqueda por nombre pasa por `app/busqueda.py` (guarda de CI); `.in_()`
+  solo con UUID/enteros/constantes.
+- **Los HINT del DDL son literales fijos y su lista vive en el backend.** `registro_seguro.HINTS_CONOCIDOS`
+  tiene un contrato bidireccional con los `HINT = '…'` de `db/ddl`: una migración con un HINT nuevo
+  rompe la prueba hasta que se agrega a la lista (y a su mapeo en `errores.py`). Convención en
+  `db/ensayos/README.md`.
+- **Al endurecer una regla, revisar que cada estado conserve una salida.** Una alerta de horario
+  sólo se resolvía corrigiendo la marca; `87_` bloqueó corregir marcas en tramos y, al cerrarse el
+  día, la alerta quedó sin ninguna salida hasta `125_`.
 
 ## Historial de decisiones
 

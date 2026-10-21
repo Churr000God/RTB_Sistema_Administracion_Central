@@ -6,6 +6,8 @@ Folio SCJ-TRZ-01 · Versión 1.0 · Agosto de 2026
 Enlaza cada requisito de `SCJ-ESP-01` con la estructura del modelo que lo sostiene y la consulta
 que lo demuestra.
 
+*Última actualización: 21 de octubre de 2026 (sección II.b: cortes `118` a `125`).*
+
 > **Se llena sobre la marcha, no al final.** Un requisito sin fila es un requisito que nadie
 > verificó. Una fila sin consulta es una afirmación sin prueba.
 
@@ -63,6 +65,22 @@ que lo demuestra.
 | VII.5 | La marca señalada se guarda y se calcula igual — persona inactiva, día cerrado, fuera de horario | `tiempo.excepcion.motivo_revision` | `fn_marca_valida_revision` (`SECURITY DEFINER`) | | Implementado (`SCJ-PRO-11`) |
 | IV | **Se descartan duplicados por terminal + secuencia** | `marca` | `UNIQUE (evento_id)`; `uq_marca_terminal_secuencia` parcial | | Implementado |
 | IV | El orden de llegada no determina el orden de los eventos | `marca.momento_dispositivo` vs. `.momento_recepcion` | | | Implementado |
+
+## II.b Trazabilidad de los cortes de octubre (`118_` a `125_`, 21-oct-2026)
+
+Mismas columnas de la matriz, más el **endpoint o batch** y la **pantalla** que usan la regla. «Consulta» es la sección de `db/verificar_ddl.sql` o el archivo de `db/consultas/validacion/` que la comprueba contra la base real; «Estado» sigue la escala de arriba (Verificado = ensayo `BEGIN … ROLLBACK` + verificador en 0 filas tras aplicar).
+
+| Requisito | Qué exige | Dónde vive (DDL) | Endpoint / batch | Pantalla | Cómo se garantiza | Consulta | Estado |
+|---|---|---|---|---|---|---|---|
+| III.8 / III.5 | Un permiso con goce, vacaciones o incapacidad autorizados cuentan la jornada completa neta; el corte no genera deuda por ellos | `tiempo.dia.horas_totales` (origen `ausencia_autorizada`); `fn_ausencia_resuelve_excepcion` suma por fila `salida − entrada − minutos_comida` (`118_`) | `POST /api/ausencias/{id}/resolver`; batch `ejecutar_corte_quincenal` (cuenta `horas_totales` de los días sin tramos, esperadas redondeadas por día) | Bandeja de ausencias; Panel de corridas | Función `SECURITY DEFINER` + regla del corte (`SCJ-PRO-13`) | Sección 83 | Verificado (`ensayo_118`) |
+| III.5 / III.6 | El corte se aplica una sola vez por persona y periodo, también si no hay tramos | `tiempo.corte_quincenal_aplicado` `UNIQUE (persona_id, periodo_desde)`; `fn_corte_quincenal_aplicar_persona` (8 argumentos, `SCJ23`) (`119_`) | Batch `ejecutar_corte_quincenal` (job programado o botón manual) | Panel de corridas batch | Restricción declarativa + RPC transaccional | Sección 83 | Verificado (`ensayo_119`) |
+| III.6 | Un `generado_quincena` erróneo se compensa con constancia y no se edita el libro | `movimiento_de_saldo.tipo = 'compensacion'`, `compensa_movimiento_id`, índice único parcial, `CHECK`, trigger de validación, `fn_movimiento_de_saldo_compensar` (`120_`, `SCJ24`) | *(sin endpoint todavía: la compensación se aplica con un script de corrección autorizado)* | Banco de horas (muestra el tipo y la liga) | Trigger `SECURITY DEFINER` (mismo banco, monto opuesto, saldo ≥ 0) + permiso no heredable `movimiento_de_saldo_compensar` | Sección 83 | Implementado en la base (Verificado `ensayo_120`); endpoint y pantalla, Pendiente |
+| III.8 | Una ausencia resuelta no cambia de tipo | `tiempo.ausencia`: policy de `UPDATE` solo pendiente + trigger `BEFORE UPDATE OF tipo_de_ausencia` (`121_`, `SCJ25`) | `POST /api/ausencias/{id}/resolver` (única vía de reclasificación, mientras sigue pendiente) | Bandeja de ausencias | Policy + trigger (cubre `service_role`) | Sección 84 | Verificado (`ensayo_121`) |
+| III.8 | Nadie resuelve su propia ausencia ni edita el tipo de la propia pendiente | `aprobacion_ausencia`: policy de `INSERT`, trigger `DEFINER` (`SCJ26`); `fn_ausencia_resolver`; policy de `UPDATE` de `ausencia` (`122_`) | `POST /api/ausencias/{id}/resolver` | Bandeja de ausencias | Policy + trigger + RPC | Sección 85 | Verificado (`ensayo_122`) |
+| III.1 / III.2 | `inicio`, `fin` y `minutos_trabajados` de un tramo coinciden con los momentos efectivos de sus marcas; dos correcciones de una marca nunca comparten `creado_en` | `trg_tramo_valida_tiempos` (`SCJ15` / `tramo_tiempos_incoherentes`), `fn_marca_momento_efectivo`, `uq_correccion_marca_creado_en` (`123_`) | Batch `ejecutar_cierre_dia`; `POST /api/dias/{id}/revisar`; `POST /api/correcciones` | Días; Tramos | Trigger `SECURITY DEFINER` + índice único | Sección 86; `tramos_tiempos_incoherentes.sql` | Verificado (`ensayo_123`) |
+| III.2 | El cierre de un día crea día, tramos y excepción de paridad en una sola transacción | `fn_cierre_dia_armar` (`124_`, `SCJ27`) | Batch `ejecutar_cierre_dia` (la corrida de las 03:00 hora de México procesa el día anterior; `dia_ya_existe` cuenta como persona saltada) | Panel de corridas batch | RPC `SECURITY DEFINER`, `EXECUTE` solo `service_role` | Sección 87; `dias_cierre_incompleto.sql` | Verificado (`ensayo_124`) |
+| III.7 / VII.5 | Una alerta `fuera_de_horario` sobre un día cerrado o revisado se resuelve con motivo, autor y fecha, sin tocar tramo ni horas; nadie descarta la alerta de una marca propia | `fn_excepcion_horario_descartar` + `tiempo.excepcion_descarte` inmutable (`125_`, `SCJ28`) | `POST /api/excepciones/{id}/descartar-alerta-horario` | Registro de marcas («Descartar alerta de horario») | RPC `SECURITY DEFINER` + permiso no heredable `excepcion_dia_cerrado_descarte` + auditoría inmutable | Sección 88 | Verificado (`ensayo_125`) |
+| III.7 | Corregir una marca solo es posible mientras no está en un tramo; RH con `correccion_edicion` corrige una excepción pendiente | `trg_correccion_bloquea_marca_en_tramo` (`87_`, `SCJ15` / `marca_en_tramo`); policy de `INSERT` de `correccion` corregida (`117_`) | `POST /api/correcciones` | Registro de marcas («Corregir») | Trigger + policy | Sección 82 | Verificado (`ensayo_87`, `ensayo_117`) |
 
 ---
 
