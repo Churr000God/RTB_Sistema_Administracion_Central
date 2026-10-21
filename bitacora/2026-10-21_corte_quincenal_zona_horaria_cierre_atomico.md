@@ -82,7 +82,13 @@
 - **Botón** «Descartar alerta» (`40d6a49`).
 - La excepción 210 ya fue descartada por RH.
 
-### 6. Guía de enrolamiento de huella (borrador, sin commit)
+### 6. Jornadas reducidas por acuerdo (análisis, sin código)
+- **Pregunta del usuario:** cómo cargar a una persona contratada por 48 h que, por un acuerdo, trabajará 35 h durante tres meses y repondrá después.
+- **Hallazgo:** el sistema guarda una sola cifra de horas esperadas (el `patron_semanal`). Si el patrón refleja el acuerdo, la diferencia nunca se vuelve deuda.
+- **Decisión (opción B del usuario):** el patrón siempre es el del contrato, la flexibilidad de horario se da con `flexible` y lo no cumplido se lleva como deuda en el banco. Mientras dure el acuerdo, RH renueva la antigüedad de esa deuda. Las horas de más sin deuda (`extra`) no tocan el banco ni generan pago, solo aparecen en Tramos y en Tope legal, y no se reconocen como horas extra. Queda como regla de operación en `SCJ-PRO-09` V1.1 §VIII.
+- **Bug encontrado:** `cierre_dia` crea faltas en días sin fila de patrón (P-191 de la bóveda).
+
+### 7. Guía de enrolamiento de huella (borrador, sin commit)
 - **Fotos:** la parte B (el aparato) quedó completa con las fotos del 20 y 21-oct. Se les borraron los metadatos de ubicación y se taparon IDs y nombres con un bloque sólido.
 - **Correcciones:**
   - en el aparato la persona aparece como «U» + Nº, no con su nombre real;

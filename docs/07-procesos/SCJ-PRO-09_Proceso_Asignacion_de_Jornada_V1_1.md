@@ -1,7 +1,7 @@
 # Proceso — Asignación de jornada
 
 **Sistema de Control de Jornada**
-Folio SCJ-PRO-09 · Versión 1.0 · 5 de septiembre de 2026
+Folio SCJ-PRO-09 · Versión 1.1 · 21 de octubre de 2026
 
 Tercer `SCJ-PRO` del subsistema de **Tiempo**. Cubre cómo se le asigna a una persona su
 `jornada_asignada`/`patron_semanal` — de alta inicial y en cada cambio posterior.
@@ -137,4 +137,28 @@ quincenal que varios `SCJ-PRO` ya dan por existentes sin haberlos diseñado toda
 
 ---
 
-*Proceso · Folio SCJ-PRO-09 · V1.0*
+## VIII. Actualización posterior (V1.1, 21-oct-2026): regla de operación para jornadas reducidas por acuerdo
+
+Las secciones VI y VII describen el estado al 5 de septiembre; todo lo que listan ya está construido. Esta sección fija cómo se administra la información cuando una persona trabaja menos horas de las que dice su contrato por un acuerdo temporal. No cambia código: es una regla para RH, decidida por el usuario el 21-oct-2026.
+
+**El problema.** El sistema guarda una sola cifra de horas esperadas: la que sale del `patron_semanal`. No distingue entre las horas del contrato y lo que se acordó para un periodo. Si el patrón refleja el acuerdo (por ejemplo 35 h en lugar de 48 h), el corte quincenal espera 35 h y la diferencia nunca queda registrada como deuda: solo existiría en un control externo de RH.
+
+**La regla.**
+
+- **El patrón semanal siempre refleja el contrato, nunca un acuerdo temporal.** Una persona contratada por 48 h de 9 a 6 lleva ese patrón aunque pacte trabajar menos.
+- **La flexibilidad de horario se da con `tipo_jornada = 'flexible'`.** La persona puede entrar y salir a otra hora (por ejemplo de 11 a 8) sin alertas de horario, porque `genera_alerta_horario` es `false`. Las horas esperadas siguen siendo las del patrón.
+- **Lo que no se cumple se vuelve deuda en el banco de horas**, la genera el corte quincenal (`generado_quincena`). Las horas trabajadas de más pagan primero esa deuda (`reposicion`, movimiento `cubrir`).
+- **Mientras dure el acuerdo, RH renueva la antigüedad de la deuda** con «Renovar antigüedad» en Banco de Horas (movimiento manual `arrastrar`, `68_`/`104_`), con un motivo que identifique el acuerdo. Sin eso, la deuda de los primeros meses vence a los `ventana_banco_meses` (6) antes de que la persona alcance a reponerla.
+- **Las alertas de magnitud de deuda se van a disparar** (aviso y escalamiento contra la jornada semanal). En estos casos son esperadas; el motivo de la renovación deja constancia del acuerdo.
+
+**Cosas que RH debe saber.**
+
+- **El corte mide por quincena, no por semana.** Una semana corta y otra larga dentro de la misma quincena se compensan sin generar deuda.
+- **Las horas de más sin deuda pendiente se clasifican como `extra`.** Esa clasificación no toca el banco de horas ni genera pago (no hay módulo de nómina); solo se ve en Tramos y en Tope legal, como aviso de quién se excede. La política es que, si la persona decide quedarse de más sin tener deuda, la empresa no lo reconoce como hora extra. Cuando se diseñe el módulo de reportes, el reporte no debe presentar esas horas como algo que se le debe a la persona. El tratamiento legal de las horas extra lo valida RH.
+- **No hay forma de expresar «N horas a la semana sin días fijos».** El patrón siempre exige días y horarios concretos; para media jornada sin horario fijo se usa `flexible` con un patrón aproximado.
+
+**Defecto conocido (P-191 de la bóveda).** `cierre_dia` crea una falta en cualquier día que no sea domingo ni festivo y no tenga marcas, sin revisar si ese día está en el patrón de la persona (`backend/app/batches/cierre_dia.py`, `es_no_laborable`). Una persona que trabaja solo algunos días de la semana acumula faltas pendientes en sus días libres, y esas faltas pueden bloquear su corte quincenal. Hasta corregirlo, RH resuelve esas faltas; como ese día no tiene horas esperadas en el patrón, no generan deuda. No se agregan días al patrón para evitarlas, porque eso cambiaría las horas esperadas.
+
+---
+
+*Proceso · Folio SCJ-PRO-09 · V1.1*
