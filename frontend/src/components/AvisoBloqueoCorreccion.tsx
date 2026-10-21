@@ -34,11 +34,13 @@ const CONTENIDO: Record<
 type Props = {
   motivo: MotivoBloqueoCorreccion;
   hrefDia: string;
+  // El flag `puede_descartar_alerta_horario` de la marca: añade la salida al «¿Por qué?».
+  puedeDescartarAlerta?: boolean;
 };
 
 // "Corregir" bloqueado: sigue visible y en el orden de tab (aria-disabled, no `disabled`) con el
 // motivo colgando de aria-describedby; no depende del color (candado + borde punteado + etiqueta).
-export function AvisoBloqueoCorreccion({ motivo, hrefDia }: Props) {
+export function AvisoBloqueoCorreccion({ motivo, hrefDia, puedeDescartarAlerta = false }: Props) {
   const idMensaje = useId();
   const [abierto, setAbierto] = useState(false);
   // Un motivo nuevo que backend agregue antes que el frontend no debe dejar la pantalla en blanco:
@@ -71,6 +73,8 @@ export function AvisoBloqueoCorreccion({ motivo, hrefDia }: Props) {
       </button>
       <p className="aviso-bloqueo__texto" id={idMensaje} hidden={!abierto}>
         {mensaje}
+        {puedeDescartarAlerta &&
+          " Si la alerta «Fuera de horario» ya no aplica, puedes descartarla con constancia desde aquí."}
       </p>
       <div className="aviso-bloqueo__enlaces">
         <a href={hrefDia} className="boton-con-icono">

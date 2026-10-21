@@ -318,3 +318,107 @@ describe("RegistroMarcasPage", () => {
     expect(screen.queryByRole("button", { name: "Corregir" })).not.toBeInTheDocument();
   });
 });
+
+describe("RegistroMarcasPage · descartar alerta de horario", () => {
+  const MARCA_CON_ALERTA = {
+    ...MARCA_1,
+    id: 10,
+    persona_nombre: "Persona Con Alerta",
+    excepcion_pendiente_id: 5, // otra excepción: NO es la que se descarta
+    motivo_bloqueo_correccion: "en_tramo_cerrado",
+    puede_descartar_alerta_horario: true,
+    excepcion_horario_pendiente_id: 77,
+  };
+
+  function mockConMarcas(marcas: unknown[], post?: () => Promise<Response>) {
+    vi.mocked(apiFetch).mockImplementation((path: string, init?: RequestInit) => {
+      if (path === "/api/sesion") {
+        return Promise.resolve(new Response(JSON.stringify({ acceso_permitido: true, motivo_bloqueo: null })));
+      }
+      if (path === "/api/personas") return Promise.resolve(new Response(JSON.stringify(PERSONAS)));
+      if (path.startsWith("/api/marcas?")) {
+        return Promise.resolve(new Response(JSON.stringify({ total: marcas.length, marcas })));
+      }
+      if (path.endsWith("/descartar-alerta-horario") && init?.method === "POST") {
+        return post
+          ? post()
+          : Promise.resolve(new Response(JSON.stringify({ auditoria_id: 1, excepcion_id: 77 }), { status: 200 }));
+      }
+      return Promise.reject(new Error(`ruta no mockeada: ${path}`));
+    });
+  }
+
+  beforeEach(() => {
+    vi.mocked(apiFetch).mockReset();
+  });
+
+  it("el botón aparece solo con el flag en true (y con el id de la excepción de horario)", async () => {
+    mockConMarcas([
+      MARCA_CON_ALERTA,
+      { ...MARCA_1, id: 11, persona_nombre: "Sin Flag" },
+      { ...MARCA_1, id: 12, persona_nombre: "Flag Apagado", puede_descartar_alerta_horario: false, excepcion_horario_pendiente_id: 80 },
+      { ...MARCA_1, id: 13, persona_nombre: "Flag Sin Id", puede_descartar_alerta_horario: true, excepcion_horario_pendiente_id: null },
+    ]);
+    render(<RegistroMarcasPage />);
+    await screen.findByText("Persona Con Alerta");
+
+    expect(screen.getAllByRole("button", { name: /^descartar alerta$/i })).toHaveLength(1);
+    const fila = screen.getByText("Persona Con Alerta").closest("tr")!;
+    expect(within(fila).getByRole("button", { name: /^descartar alerta$/i })).toBeInTheDocument();
+  });
+
+  it("el «¿Por qué?» menciona la salida solo cuando el flag es true", async () => {
+    mockConMarcas([
+      MARCA_CON_ALERTA,
+      {
+        ...MARCA_1, id: 14, persona_nombre: "Bloqueada Sin Flag", excepcion_pendiente_id: 6,
+        motivo_bloqueo_correccion: "en_tramo_cerrado",
+      },
+    ]);
+    render(<RegistroMarcasPage />);
+    await screen.findByText("Persona Con Alerta");
+
+    const conFlag = screen.getByText("Persona Con Alerta").closest("tr")!;
+    const sinFlag = screen.getByText("Bloqueada Sin Flag").closest("tr")!;
+    expect(conFlag).toHaveTextContent(/puedes descartarla con constancia/i);
+    expect(sinFlag).not.toHaveTextContent(/puedes descartarla con constancia/i);
+  });
+
+  it("flujo: abre el modal, envía a la excepción de horario (77, no la 5) y refresca la lista", async () => {
+    mockConMarcas([MARCA_CON_ALERTA]);
+    render(<RegistroMarcasPage />);
+    await screen.findByText("Persona Con Alerta");
+    const cargasAntes = vi.mocked(apiFetch).mock.calls.filter(([p]) => (p as string).startsWith("/api/marcas?")).length;
+
+    await userEvent.click(screen.getByRole("button", { name: /^descartar alerta$/i }));
+    await userEvent.type(screen.getByLabelText(/motivo del descarte/i), "Salió tarde por una junta autorizada.");
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^descartar alerta$/i }));
+
+    expect(await screen.findByText(/alerta descartada/i)).toBeInTheDocument();
+    const post = vi
+      .mocked(apiFetch)
+      .mock.calls.filter(([p, init]) => (p as string).endsWith("/descartar-alerta-horario") && init?.method === "POST");
+    expect(post).toHaveLength(1);
+    expect(post[0][0]).toBe("/api/excepciones/77/descartar-alerta-horario");
+
+    await userEvent.click(screen.getByRole("button", { name: /^cerrar$/i }));
+    await waitFor(() => {
+      const cargasDespues = vi.mocked(apiFetch).mock.calls.filter(([p]) => (p as string).startsWith("/api/marcas?")).length;
+      expect(cargasDespues).toBeGreaterThan(cargasAntes);
+    });
+  });
+
+  it("un error del backend se muestra tal cual dentro del modal", async () => {
+    mockConMarcas([MARCA_CON_ALERTA], () =>
+      Promise.resolve(new Response(JSON.stringify({ detail: "No puedes descartar tu propia alerta." }), { status: 403 })),
+    );
+    render(<RegistroMarcasPage />);
+    await screen.findByText("Persona Con Alerta");
+
+    await userEvent.click(screen.getByRole("button", { name: /^descartar alerta$/i }));
+    await userEvent.type(screen.getByLabelText(/motivo del descarte/i), "Motivo suficientemente largo.");
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: /^descartar alerta$/i }));
+
+    expect(await screen.findByText("No puedes descartar tu propia alerta.")).toBeInTheDocument();
+  });
+});

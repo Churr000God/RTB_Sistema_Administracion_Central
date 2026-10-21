@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, Info, Loader2, RadioTower, Search, Wrench } from "lucide-react";
+import { AlertCircle, EyeOff, Info, Loader2, RadioTower, Search, Wrench } from "lucide-react";
 
 import { apiFetch } from "../lib/apiClient";
 import { formatearHoraMexico } from "../lib/calendario";
@@ -7,6 +7,7 @@ import { etiquetaMotivo } from "../lib/motivosRevision";
 import { AppShell } from "../layouts/AppShell";
 import { AvisoBloqueoCorreccion, type MotivoBloqueoCorreccion } from "../components/AvisoBloqueoCorreccion";
 import { Badge } from "../components/Badge";
+import { DescartarAlertaHorarioModal } from "../components/DescartarAlertaHorarioModal";
 import { Input } from "../components/Input";
 import { hrefRevisarDia } from "../lib/enlacesDias";
 
@@ -41,6 +42,10 @@ type Marca = {
   estado_revision: "sin_revision" | "pendiente" | "resuelta";
   motivos_revision: string[];
   excepcion_pendiente_id: number | null;
+  // Alerta «Fuera de horario» de un día cerrado o revisado: se puede descartar con constancia. El id es
+  // el de ESA excepción, no el de excepcion_pendiente_id (que puede ser otra).
+  puede_descartar_alerta_horario?: boolean;
+  excepcion_horario_pendiente_id?: number | null;
   // 86_*.sql: por qué no se puede corregir la hora de esta marca (null = sí se puede).
   motivo_bloqueo_correccion?: MotivoBloqueoCorreccion | null;
   // Para "Ir a revisar el día": id de tiempo.dia si ya existe (si no, null) y fecha local efectiva.
@@ -82,6 +87,11 @@ const VARIANTE_ESTADO_REVISION: Record<"pendiente" | "resuelta", "aviso" | "exit
   resuelta: "exito",
 };
 
+// El botón solo existe con el flag del backend Y el id de la excepción de horario (no el de la pendiente).
+function puedeDescartarAlerta(marca: Marca): boolean {
+  return marca.puede_descartar_alerta_horario === true && marca.excepcion_horario_pendiente_id != null;
+}
+
 function formatearFechaHora(fecha: string): string {
   const valor = new Date(fecha);
   if (Number.isNaN(valor.getTime())) return "—";
@@ -112,6 +122,9 @@ export function RegistroMarcasPage() {
   // (cambio de filtro) o viceversa — sólo la carga manual muestra el estado "cargando" a
   // pantalla completa, el refresco silencioso no debe hacer parpadear la tabla ya visible.
   const cargaEnCursoRef = useRef(0);
+  // Marca cuya alerta de horario se está por descartar (abre el modal) y recarga silenciosa de la lista.
+  const [descartando, setDescartando] = useState<Marca | null>(null);
+  const recargarRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     apiFetch("/api/personas")
@@ -151,6 +164,7 @@ export function RegistroMarcasPage() {
     }
 
     cargar(false);
+    recargarRef.current = () => cargar(true);
     const intervalo = setInterval(() => cargar(true), INTERVALO_REFRESCO_MS);
     return () => clearInterval(intervalo);
   }, [personaId, desde, hasta]);
@@ -308,6 +322,7 @@ export function RegistroMarcasPage() {
                         {marca.excepcion_pendiente_id !== null && marca.motivo_bloqueo_correccion ? (
                           <AvisoBloqueoCorreccion
                             motivo={marca.motivo_bloqueo_correccion}
+                            puedeDescartarAlerta={puedeDescartarAlerta(marca)}
                             hrefDia={hrefRevisarDia({
                               diaId: marca.dia_id,
                               personaId: marca.persona_id,
@@ -322,8 +337,18 @@ export function RegistroMarcasPage() {
                             <Wrench size={14} aria-hidden="true" />
                             Corregir
                           </a>
-                        ) : (
+                        ) : !puedeDescartarAlerta(marca) ? (
                           "—"
+                        ) : null}
+                        {puedeDescartarAlerta(marca) && (
+                          <button
+                            type="button"
+                            className="boton-con-icono"
+                            onClick={() => setDescartando(marca)}
+                          >
+                            <EyeOff size={14} aria-hidden="true" />
+                            Descartar alerta
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -338,6 +363,19 @@ export function RegistroMarcasPage() {
           </>
         )}
       </div>
+      {descartando && descartando.excepcion_horario_pendiente_id != null && (
+        <DescartarAlertaHorarioModal
+          marca={{
+            excepcionHorarioId: descartando.excepcion_horario_pendiente_id,
+            persona_nombre: descartando.persona_nombre,
+            momento_efectivo: descartando.momento_efectivo,
+          }}
+          onCerrar={(refrescar) => {
+            setDescartando(null);
+            if (refrescar) recargarRef.current();
+          }}
+        />
+      )}
     </AppShell>
   );
 }
