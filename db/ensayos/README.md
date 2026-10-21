@@ -107,3 +107,9 @@ que toque cada función (no en 94_/95_). Los `RAISE WARNING` ya están cubiertos
   llamador (archivo:línea y cliente: caller o service_role) en el mensaje del commit o en el encabezado de la migración. Sin esa entrada, la sección 70 da una fila y la migración no cierra.
 - **Nota:** `personas.fn_caller_persona_id` y `personas.fn_caller_es_administrador_generico` solo las llama `tiempo.fn_terminal_reconsentir` (INVOKER, ejecutada por `authenticated`); es aceptable porque devuelven
   datos propios del caller, pero son candidatas a NO exponerse a authenticated si esa función se reescribe como `SECURITY DEFINER`.
+
+## Convención de HINT en errores de DDL (desde 124_, regla de security)
+- El `HINT` de todo `RAISE EXCEPTION … USING … HINT = '…'` es SIEMPRE un **literal fijo** escrito en el código (`HINT = 'dia_ya_existe'`), nunca una cadena armada con `format()`, concatenación, `%` ni datos de la fila o del llamador.
+  Razón: backend traduce por HINT con una lista cerrada, y un HINT dinámico podría filtrar identificadores o valores al cliente y rompería ese mapeo. Los **mensajes** también van fijos (sin valores ni ids) en los errores que llegan al cliente.
+- Alta de un HINT nuevo = avisarlo en el mismo cambio al equipo de backend para que lo agregue a su lista cerrada (`ERRCODE` + `HINT`), y cubrirlo con un caso del ensayo.
+- La sección 70/verificador no puede comprobar esto por catálogo; se revisa en la revisión de security de cada migración.

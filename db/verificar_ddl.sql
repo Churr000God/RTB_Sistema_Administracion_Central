@@ -11,7 +11,7 @@
 -- ============================================================================
 
 -- 1) Tablas por esquema.
--- Esperado: personas = 11, tiempo = 24 (20 + terminal_credencial de 82_ + marca_rechazada de 84_ + excepcion_descarte de 86_ + terminal_consentimiento de 88_).
+-- Esperado: personas = 11, tiempo = 26 (24 + corte_quincenal_aplicado de 119_ y las que ya sumaban terminal_credencial de 82_, marca_rechazada de 84_, excepcion_descarte de 86_, terminal_consentimiento de 88_, etc.; la cifra viva es la referencia).
 SELECT table_schema, count(*)
 FROM information_schema.tables
 WHERE table_schema IN ('personas', 'tiempo') AND table_type = 'BASE TABLE'
@@ -21,7 +21,7 @@ ORDER BY table_schema;
 -- 2) Tablas con RLS habilitada y CERO policies (deny-by-default silencioso, no error visible).
 -- Esperado: ninguna fila de personas; en tiempo, sólo las que 41_tiempo_rls_deny_default.sql
 -- deja deliberadamente sin policy (confirmar contra ese archivo si aparece alguna inesperada), más
--- tiempo.terminal_credencial (82_*.sql, deliberado: sólo service_role, ninguna policy).
+-- tiempo.terminal_credencial (82_*.sql, deliberado: sólo service_role, ninguna policy) y tiempo.corte_quincenal_aplicado (119_*.sql, deliberado: sólo service_role, ninguna policy).
 SELECT n.nspname AS esquema, c.relname AS tabla
 FROM pg_class c
 JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -42,7 +42,7 @@ CROSS JOIN (VALUES ('personas'), ('tiempo')) AS e(esquema)
 ORDER BY esquema, rol;
 
 -- 4) Tablas sin SELECT para authenticated (grant a nivel tabla, no RLS).
--- Esperado: 0 filas.
+-- Esperado: las deliberadas: personas.persona (111_), tiempo.terminal_credencial (82_) y tiempo.corte_quincenal_aplicado (119_); cualquier otra es una violación.
 SELECT table_schema, table_name
 FROM information_schema.tables t
 WHERE table_schema IN ('personas', 'tiempo')
@@ -1385,8 +1385,8 @@ SELECT 'PUBLIC conserva EXECUTE', f.proname FROM fn f
 WHERE EXISTS (SELECT 1 FROM aclexplode(COALESCE((SELECT proacl FROM pg_proc WHERE oid = f.oid), acldefault('f', (SELECT proowner FROM pg_proc WHERE oid = f.oid)))) a
               WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')
 UNION ALL
-SELECT 'cuenta de permisos distinta de 53 (D1: no hay permiso nuevo)', (SELECT count(*)::text FROM personas.permiso)
-WHERE (SELECT count(*) FROM personas.permiso) <> 53;
+SELECT 'cuenta de permisos distinta de 54 (53 + movimiento_de_saldo_compensar de 120_)', (SELECT count(*)::text FROM personas.permiso)
+WHERE (SELECT count(*) FROM personas.permiso) <> 54;
 
 -- 58) fn_marca_terminal_registrar tras 95_: lee modo_verificacion, activa con FOR UPDATE bloqueante (NUNCA SKIP LOCKED), sigue DEFINER con search_path
 -- exacto y EXECUTE sólo service_role. Esperado: 0 filas.
@@ -1823,7 +1823,7 @@ FROM f WHERE has_function_privilege('authenticated', oid, 'EXECUTE') AND nspname
   AND (nspname || '.' || proname) NOT IN (
     'personas.fn_asignacion_cambiar_puesto', 'personas.fn_caller_activo', 'personas.fn_caller_es_administrador_generico', 'personas.fn_caller_persona_id',
     'personas.fn_caller_puestos_en_rama', 'personas.fn_hoy_mexico', 'personas.fn_caller_ve_identidad', 'personas.fn_persona_identidad', 'personas.fn_caller_tiene_permiso', 'personas.fn_caller_ve_estructura_permisos', 'personas.fn_caller_ve_padron', 'personas.fn_persona_actualizar_datos', 'personas.fn_persona_crear',
-    'tiempo.fn_ausencia_resolver', 'tiempo.fn_dia_calcular_armado_tramos', 'tiempo.fn_dia_revisar', 'tiempo.fn_excepcion_dia_cerrado_descartar',
+    'tiempo.fn_ausencia_resolver', 'tiempo.fn_dia_calcular_armado_tramos', 'tiempo.fn_dia_revisar', 'tiempo.fn_excepcion_dia_cerrado_descartar', 'tiempo.fn_excepcion_horario_descartar',
     'tiempo.fn_jornada_asignar_renovar', 'tiempo.fn_jornada_en_curso_mover_limite', 'tiempo.fn_jornada_futura_actualizar', 'tiempo.fn_jornada_futura_eliminar',
     'tiempo.fn_movimiento_de_saldo_manual_registrar', 'tiempo.fn_movimiento_de_saldo_compensar', 'tiempo.fn_terminal_config_actualizar', 'tiempo.fn_terminal_consentimiento_publicar',
     'tiempo.fn_terminal_inferir_huella_cambiar', 'tiempo.fn_terminal_reconsentimiento_pendiente_ids', 'tiempo.fn_terminal_reconsentir');
@@ -2148,3 +2148,69 @@ WHERE NOT EXISTS (
     AND p.qual LIKE '%ausencia_edicion%' AND p.qual LIKE '%pendiente%' AND p.qual LIKE '%persona_id <>%fn_caller_persona_id%'
     AND p.with_check LIKE '%ausencia_edicion%' AND p.with_check LIKE '%pendiente%' AND p.with_check LIKE '%persona_id <>%fn_caller_persona_id%'
 );
+
+-- 86) Coherencia de tiempos de tiempo.tramo (123_). Solo violaciones. Esperado: 0 filas DESPUÉS de aplicar 123_ (antes de aplicarla devuelve 2 por la falta del índice y del trigger, más las filas de datos históricos incoherentes si las hubiera).
+--  (a) existe trg_tramo_valida_tiempos (BEFORE INSERT OR UPDATE OF inicio, fin, minutos_trabajados, marca_apertura_id, marca_cierre_id, por fila, habilitado), su función es DEFINER con search_path fijo, dueño postgres, con SCJ15 /
+--      tramo_tiempos_incoherentes y SIN EXECUTE para nadie de la API, y la función interna fn_marca_momento_efectivo no tiene EXECUTE para la API;
+--  (a2) existe el índice único uq_correccion_marca_creado_en sobre tiempo.correccion (marca_id, creado_en) (desempate de correcciones);
+--  (b) ningún tramo existente viola la regla (misma lógica que db/consultas/validacion/tramos_tiempos_incoherentes.sql, sin el detalle): una fila por tramo incoherente.
+SELECT 'uq_correccion_marca_creado_en' AS objeto, 'falta el índice único (marca_id, creado_en) que elimina el empate entre correcciones de la misma marca' AS problema
+WHERE NOT EXISTS (SELECT 1 FROM pg_indexes i WHERE i.schemaname = 'tiempo' AND i.indexname = 'uq_correccion_marca_creado_en' AND i.indexdef LIKE '%UNIQUE%' AND i.indexdef LIKE '%(marca_id, creado_en)%')
+UNION ALL
+SELECT 'trg_tramo_valida_tiempos', 'falta el trigger, o no es BEFORE INSERT OR UPDATE OF (inicio, fin, minutos_trabajados, marca_apertura_id, marca_cierre_id) por fila habilitado, o su función perdió SCJ15 / DEFINER con search_path fijo / la ausencia de EXECUTE' AS problema
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM pg_trigger t
+  JOIN pg_proc f ON f.oid = t.tgfoid AND f.pronamespace = 'tiempo'::regnamespace AND f.proname = 'fn_tramo_valida_tiempos'
+  WHERE t.tgrelid = 'tiempo.tramo'::regclass AND t.tgname = 'trg_tramo_valida_tiempos' AND t.tgenabled = 'O'
+    AND (t.tgtype & 1) = 1 AND (t.tgtype & 2) = 2 AND (t.tgtype & 4) = 4 AND (t.tgtype & 16) = 16
+    AND (SELECT array_agg(a.attname::text ORDER BY a.attname) FROM pg_attribute a WHERE a.attrelid = t.tgrelid AND a.attnum = ANY (t.tgattr::int2[]))
+        = ARRAY['fin', 'inicio', 'marca_apertura_id', 'marca_cierre_id', 'minutos_trabajados']
+    AND f.prosecdef AND f.proconfig = ARRAY['search_path=tiempo, pg_temp'] AND pg_get_userbyid(f.proowner) = 'postgres'
+    AND f.prosrc LIKE '%SCJ15%' AND f.prosrc LIKE '%tramo_tiempos_incoherentes%'
+    AND NOT has_function_privilege('anon', f.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', f.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', f.oid, 'EXECUTE')
+    AND EXISTS (SELECT 1 FROM pg_proc e WHERE e.pronamespace = 'tiempo'::regnamespace AND e.proname = 'fn_marca_momento_efectivo'
+                AND NOT has_function_privilege('anon', e.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', e.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', e.oid, 'EXECUTE'))
+)
+UNION ALL
+SELECT 'tramo ' || tr.id, 'viola la coherencia de tiempos de 123_ (inicio/fin/minutos_trabajados distintos de lo que dicen sus marcas): ver db/consultas/validacion/tramos_tiempos_incoherentes.sql'
+FROM tiempo.tramo tr
+WHERE (SELECT COALESCE((SELECT c.valor_corregido FROM tiempo.correccion c WHERE c.marca_id = tr.marca_apertura_id ORDER BY c.creado_en DESC, c.id DESC LIMIT 1),
+                       (SELECT m.momento_dispositivo FROM tiempo.marca m WHERE m.id = tr.marca_apertura_id))) IS DISTINCT FROM tr.inicio
+   OR (tr.marca_cierre_id IS NULL AND (tr.fin IS NOT NULL OR tr.minutos_trabajados IS NOT NULL))
+   OR (tr.marca_cierre_id IS NOT NULL AND (
+         tr.fin IS DISTINCT FROM (SELECT COALESCE((SELECT c.valor_corregido FROM tiempo.correccion c WHERE c.marca_id = tr.marca_cierre_id ORDER BY c.creado_en DESC, c.id DESC LIMIT 1),
+                                                  (SELECT m.momento_dispositivo FROM tiempo.marca m WHERE m.id = tr.marca_cierre_id)))
+         OR tr.minutos_trabajados IS NULL
+         OR abs(tr.minutos_trabajados - round((EXTRACT(EPOCH FROM (tr.fin - tr.inicio)) / 60.0)::numeric, 2)) > 0.01));
+
+-- 87) RPC del cierre de día (124_). Solo violaciones. Esperado: 0 filas DESPUÉS de aplicar 124_ (antes de aplicarla devuelve 1): debe existir UNA sola tiempo.fn_cierre_dia_armar con 6 argumentos, SECURITY DEFINER con search_path
+-- fijo, dueño postgres, no LEAKPROOF, con SCJ27 y sus cuatro HINT, que inserte día, tramos y excepción de día, y con EXECUTE SOLO para service_role (ni PUBLIC, ni anon, ni authenticated).
+SELECT 'fn_cierre_dia_armar' AS objeto, 'no existe una sola con 6 argumentos, o no es DEFINER con search_path fijo / dueño postgres / no LEAKPROOF, o perdió SCJ27 o alguno de sus HINT, o su EXECUTE no es solo de service_role' AS problema
+WHERE (SELECT count(*) FROM pg_proc p WHERE p.pronamespace = 'tiempo'::regnamespace AND p.proname = 'fn_cierre_dia_armar') <> 1
+   OR NOT EXISTS (
+     SELECT 1 FROM pg_proc p
+     WHERE p.pronamespace = 'tiempo'::regnamespace AND p.proname = 'fn_cierre_dia_armar' AND p.pronargs = 6
+       AND p.prosecdef AND p.proconfig = ARRAY['search_path=tiempo, pg_temp'] AND pg_get_userbyid(p.proowner) = 'postgres' AND NOT p.proleakproof
+       AND p.prosrc LIKE '%SCJ27%' AND p.prosrc LIKE '%dia_ya_existe%' AND p.prosrc LIKE '%estado_invalido%' AND p.prosrc LIKE '%tramos_inconsistentes%' AND p.prosrc LIKE '%horas_fuera_de_rango%'
+       AND p.prosrc LIKE '%INSERT INTO tiempo.dia%' AND p.prosrc LIKE '%INSERT INTO tiempo.tramo%' AND p.prosrc LIKE '%INSERT INTO tiempo.excepcion%'
+       AND has_function_privilege('service_role', p.oid, 'EXECUTE')
+       AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')
+       AND NOT EXISTS (SELECT 1 FROM aclexplode(p.proacl) x WHERE x.grantee = 0)
+   );
+
+-- 88) Descarte auditado de alertas de horario (125_). Solo violaciones. Esperado: 0 filas DESPUÉS de aplicar 125_ (antes de aplicarla devuelve 1): debe existir UNA sola tiempo.fn_excepcion_horario_descartar(bigint, text), SECURITY DEFINER con search_path
+-- fijo, dueño postgres, no LEAKPROOF, con SCJ28 y todos sus HINT literales, la autorización interna (excepcion_dia_cerrado_descarte), el autor por auth.uid(), el INSERT en excepcion_descarte y EXECUTE solo para authenticated (ni PUBLIC, anon ni service_role).
+SELECT 'fn_excepcion_horario_descartar' AS objeto, 'no existe una sola de (bigint, text), o no es DEFINER con search_path fijo / dueño postgres / no LEAKPROOF, o perdió SCJ28 o algún HINT, la autorización interna, auth.uid() o el INSERT de auditoría, o su EXECUTE no es solo de authenticated' AS problema
+WHERE (SELECT count(*) FROM pg_proc p WHERE p.pronamespace = 'tiempo'::regnamespace AND p.proname = 'fn_excepcion_horario_descartar') <> 1
+   OR NOT EXISTS (
+     SELECT 1 FROM pg_proc p
+     WHERE p.pronamespace = 'tiempo'::regnamespace AND p.proname = 'fn_excepcion_horario_descartar' AND p.pronargs = 2
+       AND p.prosecdef AND p.proconfig = ARRAY['search_path=tiempo, personas, pg_temp'] AND pg_get_userbyid(p.proowner) = 'postgres' AND NOT p.proleakproof
+       AND p.prosrc LIKE '%SCJ28%' AND p.prosrc LIKE '%sin_permiso%' AND p.prosrc LIKE '%motivo_obligatorio%' AND p.prosrc LIKE '%motivo_corto%' AND p.prosrc LIKE '%motivo_largo%'
+       AND p.prosrc LIKE '%excepcion_inexistente%' AND p.prosrc LIKE '%no_es_alerta_de_horario%' AND p.prosrc LIKE '%ya_resuelta%' AND p.prosrc LIKE '%alerta_propia%' AND p.prosrc LIKE '%dia_no_cerrado%'
+       AND p.prosrc LIKE '%fn_caller_tiene_permiso(''excepcion_dia_cerrado_descarte'')%' AND p.prosrc LIKE '%auth.uid()%' AND p.prosrc LIKE '%INSERT INTO tiempo.excepcion_descarte%'
+       AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
+       AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE')
+       AND NOT EXISTS (SELECT 1 FROM aclexplode(p.proacl) x WHERE x.grantee = 0)
+   );
