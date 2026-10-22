@@ -2,7 +2,7 @@
 # Especificación funcional — Subsistema de Tiempo
 
 **Distribuidora Central, S.A. de C.V. · Sistema de Control de Jornada (SCJ)**
-Folio SCJ-ESP-01 · Versión 3.0 · 6 de octubre de 2026 · Ciudad de México
+Folio SCJ-ESP-01 · Versión 3.1 · 22 de octubre de 2026 · Ciudad de México
 
 Documento de entrada del proyecto. Define **qué debe poder representar el modelo de datos**, sin
 prescribir cómo. Junto con `SCJ-CTX-01`, `SCJ-CDT-01` y `SCJ-FRO-01` es todo lo que hace falta para
@@ -13,7 +13,14 @@ empezar `C1.1`.
 > **ejemplos y parámetros**, no valores de operación. Las reglas de anonimización están en
 > `SCJ-ANO-01`.
 
-> **Cambio de versión (V2.1 → V3.0, mayor):** la terminal biométrica Hikvision (`SCJ-DEC-11`,
+> **Cambio de versión (V3.0 → V3.1, menor):** se cierra la pregunta abierta `SCJ-PRA-01 #14` (relleno del
+> día `bloqueado`). Decisión de Dirección del 22-oct-2026: **no hay relleno automático**. El día impar
+> queda `bloqueado` sin horas hasta que RH lo revisa y escribe las horas a mano; «Calcular tiempo
+> total» solo sugiere. Se reescriben §VI.2.3 y la restricción de diseño que pedían rellenar con la
+> jornada pactada. Así ya funcionaba el sistema construido (`124_`, `63_`, `65_`): el documento se
+> alinea con lo construido, sin cambio de esquema ni de código. Tarea P-058.
+
+> **Cambio de versión anterior (V2.1 → V3.0, mayor):** la terminal biométrica Hikvision (`SCJ-DEC-11`,
 > `SCJ-DEC-12`, `SCJ-PRO-11 V3.0`, `SCJ-CDT-01 V3.0`) obliga a **contradecir dos cosas ya escritas**,
 > por eso el cambio es mayor (`CONVENCIONES.md §I`): (1) §II daba el **enrolamiento** como fuera de
 > alcance y §I.4 regla 5 mandaba apartar la marca irresoluble "en Operación"; ahora el **mapeo
@@ -292,17 +299,19 @@ marcas:
 
 1. **Ninguna marca se borra ni se invalida.** Se señala el **día**, no las marcas
 2. El día queda **bloqueado** para procesamiento posterior
-3. El día se registra con la **jornada pactada de esa persona ese día**, tomada del registro de
-   jornada con vigencia
+3. El día se registra **sin horas** (`horas_totales` nulo). **No hay relleno automático:** las horas
+   las fija RH a mano al revisar el día (V3.1)
 4. El caso entra a la **cola de excepciones** para revisión humana
 
 Funciona igual si falta la primera marca, la última, o una intermedia.
 
-> **Restricción de diseño:** el valor de relleno **no es una constante de ocho horas**. Es la
-> jornada pactada de esa persona ese día, que sale del modelo de jornadas con vigencia (§VI.3).
+> **Decisión (22-oct-2026, cierra `SCJ-PRA-01 #14`):** el sistema **no** rellena el día bloqueado, ni
+> con una constante ni con la jornada pactada (§VI.3). Quien revisa ve las marcas y decide las horas
+> caso por caso; el sistema puede sugerir un valor («Calcular tiempo total»), pero no lo aplica solo.
+> Razón: rellenar en automático puede pagar horas no trabajadas o descontar horas sí trabajadas.
 
-**Un día `bloqueado` no entra al corte quincenal hasta que se revisa.** El relleno de §VI.2.3 es
-provisional, no autoritativo: el corte quincenal excluye del cálculo cualquier día que siga
+**Un día `bloqueado` no entra al corte quincenal hasta que se revisa.** Como el día
+no tiene horas hasta la revisión (§VI.2.3), el corte quincenal excluye del cálculo cualquier día que siga
 `bloqueado` (no cuenta como trabajado ni como deuda) y sólo lo toma en cuenta una vez que pasa a
 `revisado`, con el valor que haya quedado tras la revisión humana. Sin esta regla, un día que
 todavía no se resuelve podría generarle a alguien una deuda o un pago mal calculado en una quincena
@@ -777,7 +786,7 @@ alcance** por §II, no por omisión.
 ---
 
 *Especificación funcional · Subsistema de Tiempo · Distribuidora Central, S.A. de C.V. ·
-Folio SCJ-ESP-01 · V1.0 · 18 de agosto de 2026*
+Folio SCJ-ESP-01 · V3.1 · 22 de octubre de 2026*
 
 *Este documento no constituye asesoría legal. Las obligaciones en materia de datos personales, de
 jornada y de conservación de registros deben confirmarse con asesoría legal profesional.*
