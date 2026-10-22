@@ -569,7 +569,11 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   backend en medio. (5) `125_` `fn_excepcion_horario_descartar`: descarte auditado de alertas
   `fuera_de_horario` en días cerrados o revisados (SCJ28), botón «Descartar alerta». Ver
   `bitacora/2026-10-21_corte_quincenal_zona_horaria_cierre_atomico.md`; pendientes P-179 a P-190 en
-  la bóveda.
+  la bóveda. **22-oct:** el primer cierre en hora de México quedó verificado (corrida 77 a las 03:00,
+  días a medias en 0; P-180 cerrada) y el ERD vigente es «Diagrama RTB-CRM V3.0» en Lucid, cotejado
+  contra el catálogo real (37 tablas, 53 FK); ver
+  `bitacora/2026-10-22_erd_v3_y_primer_cierre_en_hora_de_mexico.md`. Los batches solo registran
+  errores: para saber si corrieron se mira `tiempo.corrida_batch`, no el log del contenedor.
 
 ## Arquitectura y módulos
 
