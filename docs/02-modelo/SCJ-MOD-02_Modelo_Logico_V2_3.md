@@ -1,7 +1,7 @@
 # Modelo lógico — Subsistema de Tiempo
 
 **Sistema de Control de Jornada**
-Folio SCJ-MOD-02 · Versión 2.2 · 5 de septiembre de 2026
+Folio SCJ-MOD-02 · Versión 2.3 · 23 de octubre de 2026
 
 > **Cambio de versión (V1.0 → V1.1, menor):** se completan los atributos de las 14 entidades, que
 > antes sólo estaban listadas por nombre. No se contradice nada de lo ya escrito — se precisa. Ver
@@ -26,6 +26,16 @@ Folio SCJ-MOD-02 · Versión 2.2 · 5 de septiembre de 2026
 > estado visible de los batches de orquestación (`SCJ-PRO-12`). Se corrige `dia.origen`: el `CHECK`
 > traía `'terminal'` por error (nunca se usó — el caso de marcas reales siempre fue `NULL`) y se
 > agrega `'ausencia_autorizada'`, el tercer caso real que `SCJ-PRO-12` necesita.
+
+> **Cambio de versión (V2.2 → V2.3, menor, 23-oct-2026):** la cuenta de tablas se pone al día con la
+> base real antes del congelamiento del esquema (`SCJ-ACT-03`, tarea J3.1; pendiente P-090). El
+> esquema `tiempo` tiene hoy **26 tablas**: las 17 que describen §II.1–§II.14 (la V2.2 decía «16ª
+> tabla»; el stub `persona` y `aprobacion_ausencia` hacen 17) más 9 que llegaron con la terminal
+> biométrica, el descarte auditado y el corte quincenal (`80_` a `119_`). Se agrega §II.15
+> con su lista y propósito; sus atributos completos viven en `SCJ-DIC-01` V1.6, que es la
+> referencia viva, para no duplicarlos aquí. No cambia nada de §II.1–§II.14. Se anota en §IV que
+> `tope_legal` tiene `vigente_hasta` y solo `UNIQUE (vigente_desde)`: no hay protección de traslape
+> en la base (pendiente de los fixes de módulos 1 y 2).
 
 Entidades, atributos, claves y cardinalidades del subsistema de Tiempo. Entregable E2 de
 `SCJ-ESP-01`. La justificación de normalización va aparte, en `SCJ-NRM-01`.
@@ -282,6 +292,26 @@ son la misma invocación; reintentar/reprocesar es un `UPSERT` sobre la misma fi
 | `terminado_en` | timestamptz | | Sí (`NULL` mientras `en_progreso`) | |
 | `detalle` | text | | Sí | Resumen legible, ej. personas pendientes tras 3 intentos |
 
+### II.15 Tablas agregadas después de la V2.2
+
+*Llegaron con el desarrollo del checador (septiembre y octubre de 2026). Atributos, claves y
+políticas en `SCJ-DIC-01` V1.6; aquí solo su lugar en el modelo. Conteo verificado contra la base
+real el 23-oct-2026: `tiempo` = 26 tablas, `personas` = 11.*
+
+| Tabla | DDL | Para qué |
+|---|---|---|
+| `terminal` | `80_` | Terminal biométrica física, una fila por aparato (`SCJ-DEC-11`). Fuera de servicio = `activa = false`, nunca se borra |
+| `terminal_usuario` | `80_` | *Calculada.* Persona enrolada en una terminal y estado del enrolamiento; la deriva el trigger desde la bitácora siguiente |
+| `bitacora_movimiento_terminal_usuario` | `81_` | Fuente de verdad de `terminal_usuario`; solo inserción, inmutable |
+| `terminal_credencial` | `82_` | Llave del puente de cada terminal, guardada solo como hash (`SCJ-DEC-12 §1`); solo `service_role` |
+| `marca_rechazada` | `84_` | Evidencia de una marca de terminal rechazada en definitiva (`SCJ-DEC-12 §6`); no entra a `marca` |
+| `excepcion_descarte` | `86_` | Auditoría inmutable de los descartes de excepciones (día cerrado, `86_`; alerta de horario, `125_`) |
+| `terminal_consentimiento` | `88_` | Versiones del texto de consentimiento biométrico y aviso de privacidad (`SCJ-PRO-15`); solo inserción |
+| `bitacora_config_terminal` | `97_` | Rastro inmutable de los cambios al interruptor de activación por huella |
+| `corte_quincenal_aplicado` | `119_` | Un registro por persona y periodo ya cortado; es la idempotencia del corte quincenal (`SCJ-PRO-13`) |
+
+17 tablas de §II.1–§II.14 + estas 9 = 26.
+
 ---
 
 ## III. Cardinalidades
@@ -314,7 +344,7 @@ Las cuatro más exigentes, con la estructura que las garantiza:
 | 1 | Paridad de marcas por día | No se bloquea al insertar: `tramo.marca_cierre_id` nulo es válido, `dia.estado` lo refleja | `SCJ-DEC-01` (sigue propuesta) |
 | 2 | Un cálculo pasado da el mismo resultado indefinidamente | `tope_legal`/`jornada_asignada` versionados por vigencia, nunca se sobrescriben | `SCJ-DEC-04` (sigue propuesta) |
 | 3 | Una marca nunca se modifica | Sin `UPDATE`/`DELETE` en ningún flujo; toda corrección es una fila nueva en `correccion` | `SCJ-DEC-03` (aceptada) |
-| 4 | Los topes cambian por vigencia sin alterar el histórico | `tope_legal.vigente_desde` UNIQUE, sin `UPDATE` sobre registros pasados | `SCJ-DEC-04` (sigue propuesta) |
+| 4 | Los topes cambian por vigencia sin alterar el histórico | `tope_legal.vigente_desde` UNIQUE, sin `UPDATE` sobre registros pasados. **Hueco conocido (23-oct):** la tabla tiene `vigente_hasta` y no hay restricción de traslape en la base, a diferencia de `jornada_asignada`; hoy lo evita la RPC `fn_tope_legal_crear_vigencia`. Queda para los fixes de módulos 1 y 2 | `SCJ-DEC-04` (sigue propuesta) |
 
 ---
 
@@ -328,4 +358,4 @@ Las cuatro más exigentes, con la estructura que las garantiza:
 
 ---
 
-*Modelo lógico · Folio SCJ-MOD-02 · V1.1*
+*Modelo lógico · Folio SCJ-MOD-02 · V2.3*
