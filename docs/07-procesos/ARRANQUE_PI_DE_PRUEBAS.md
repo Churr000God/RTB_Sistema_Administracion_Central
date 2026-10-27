@@ -3,6 +3,27 @@
 Todo lo necesario para reconstruir ese Pi desde git. Sin secretos: de los `.env` solo se nombran las claves y los valores
 que no son secretos. Versionado el 16 de octubre de 2026 (antes vivía solo en el Pi, en ediciones manuales).
 
+## 0. Reloj del host (antes de levantar contenedores)
+
+El Pi no tiene RTC: al encender, el reloj arranca con la hora guardada al apagar (atrasado tanto como estuvo apagado) y
+salta a la hora real cuando `systemd-timesyncd` sincroniza, unos 37 s después. Si Docker arranca antes, el scheduler,
+`hoy_mexico()`, los registros y TLS ven una hora falsa durante esos segundos.
+
+```
+scripts/preparar_hora_host.sh verificar   # solo lee
+scripts/preparar_hora_host.sh instalar    # sudo; aplica en el siguiente arranque
+```
+
+`instalar` habilita `systemd-time-wait-sync.service` y copia dos drop-ins de `despliegue/host/`: uno ordena
+`docker.service` después de `time-sync.target` y otro pone un tope de 3 min a la espera, para que Docker arranque aunque
+no haya internet. Habilitar solo `systemd-time-wait-sync` no basta: `docker.service` de fábrica solo espera
+`time-set.target`. Así quedó el Pi del 17-sep al 27-oct; en el arranque del 26-oct Docker empezó ~15 s antes del salto
+de ~58 min. Si el host tiene RTC, el script no instala nada. Si el host usa chrony, necesita `rtcsync` (el script avisa).
+
+Esto **no** resuelve el `PGRST303` («JWT issued at future») del 17-sep: con la llave `sb_secret_` el JWT lo acuña
+Supabase con su propio reloj, y la causa probable es un desfase dentro de Supabase. Ver
+`bitacora/2026-10-27_reloj_pi_docker_espera_sincronia.md`.
+
 ## 1. Contenedores
 
 ```

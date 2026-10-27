@@ -1,5 +1,18 @@
 # 2026-09-17 · Falla del corte quincenal automático por reloj del Pi + fix de boot NTP
 
+> **Corrección del 27-oct-2026 (P-056).** Tres afirmaciones de esta bitácora resultaron falsas o no demostradas.
+> Se dejan abajo como se escribieron; lo vigente es esto. Detalle en `2026-10-27_reloj_pi_docker_espera_sincronia.md`.
+>
+> 1. **El job que falló fue `cierre_dia` (procesaba el 16-sep), no el corte quincenal.** El traceback
+>    `scheduler.py:68` corresponde a la lambda de `cierre_dia` en `e5408ba`, y el corte solo corre los días 1 y 16. El
+>    `intentos=2` del corte con fecha 16 es el cron del 16 más el disparo manual del 17: probablemente el corte nunca falló.
+> 2. **La causa no fue el reloj del Pi** (no demostrada). El Pi tenía ~1 ms de offset. El backend usa la llave
+>    `sb_secret_`, con la que Supabase acuña el JWT con su propio reloj; lo más probable es un desfase dentro de Supabase.
+>    Los logs ya no existen (contenedor recreado el 21-oct).
+> 3. **El «fix» no bloqueaba el arranque de Docker.** Habilitar `systemd-time-wait-sync` solo retrasa
+>    `time-sync.target`, y `docker.service` solo espera `time-set.target`. El arreglo efectivo está en
+>    `despliegue/host/` + `scripts/preparar_hora_host.sh` (pendiente de aplicar en el Pi).
+
 **Participantes:** usuario, `orchestrator`, `devops`.
 **Duración:** corta (una consulta del usuario sobre la pantalla de Banco de Horas terminó en un
 hallazgo de infraestructura real).
