@@ -82,7 +82,7 @@ Si después de esta fecha resulta indispensable cambiar el esquema:
 
 | | Nombre | Fecha |
 |---|---|---|
-| Responsable del sistema (módulos 1 y 2) | Diego | |
+| Responsable del sistema (módulos 1 y 2) | Diego Hermilo Guillén García | 27-oct-2026 |
 
 ---
 
