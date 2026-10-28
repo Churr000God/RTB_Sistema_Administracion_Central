@@ -120,7 +120,7 @@ En la V1.2 se cumplieron los cinco pasos:
 
 | | Nombre | Fecha |
 |---|---|---|
-| Responsable del sistema (módulos 1 y 2) | Diego Hermilo Guillén García | ____-oct-2026 *(a llenar al firmar la V1.2)* |
+| Responsable del sistema (módulos 1 y 2) | Diego Hermilo Guillén García | 28-oct-2026 |
 
 La V1.1 se firmó el 27-oct-2026; esa firma queda en el historial del repositorio (commit `9ebb534`).
 
