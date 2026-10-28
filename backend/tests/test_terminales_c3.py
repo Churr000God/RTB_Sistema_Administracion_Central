@@ -78,13 +78,22 @@ def test_suspender_o_dar_de_baja_pide_la_baja_en_las_terminales(entorno, tipo):
     assert parametros == {"p_persona_id": PERSONA_ID}
 
 
-@pytest.mark.parametrize("tipo", ["reactivacion", "alta"])
-def test_reactivar_o_dar_de_alta_no_llama_al_rpc(entorno, tipo):
-    entorno.configurar(tipo)
-    r = _post(tipo)
+def test_reactivar_no_llama_al_rpc(entorno):
+    entorno.configurar("reactivacion")
+    r = _post("reactivacion")
     assert r.status_code == 201
     assert r.json()["advertencias"] == []
     assert r.json()["bajas_terminal_emitidas"] == 0
+    entorno.rpc.assert_not_called()
+
+
+def test_alta_por_post_se_rechaza_con_422_y_no_llama_al_rpc(entorno):
+    """«alta» la crea el trigger de persona; el POST sólo acepta suspension/reactivacion/baja_definitiva
+    (MovimientoCreate.tipo_movimiento es Literal). Antes llegaba a la base y la policy lo rechazaba."""
+    entorno.configurar("alta")
+    r = _post("alta")
+    assert r.status_code == 422
+    entorno.tabla.insert.assert_not_called()
     entorno.rpc.assert_not_called()
 
 

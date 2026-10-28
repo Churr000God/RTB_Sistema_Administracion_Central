@@ -50,7 +50,7 @@ backend y un frontend que lo exponen. Ver `README.md` y `docs/00-contexto/SCJ-CT
   `--no-dev` (sin pytest) y el frontend prod es nginx sirviendo el bundle (sin npm/node); el script
   corta con un mensaje explícito en vez de fallar con un error de `docker exec`. Las pruebas
   siempre corren con `dev pruebas`.
-- **Tests:** backend `uv run pytest` (2850 casos al 21 de octubre de 2026), frontend `npm test` (1389 casos, 93 archivos).
+- **Tests:** backend `uv run pytest` (2867 casos al 28 de octubre de 2026), frontend `npm test` (1389 casos, 93 archivos).
   Ambos corren igual dentro de los contenedores (`./scripts/desplegar.sh <entorno> pruebas`).
   Cobertura instrumentada desde el 4 de septiembre de 2026: `uv run pytest --cov=app
   --cov-report=term-missing` (backend) y `npm run test:coverage` / `npm test -- --coverage`
@@ -618,7 +618,7 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   `http://localhost:5173` fijo a mano — esa configuración no vive en este repositorio. Al pasar a
   producción (`docker compose … prod`, frontend en `:8080`) hay que actualizarla ahí también, o
   los links de invitación/recuperación de contraseña no aterrizan en la app.
-- El DDL llega hasta `db/ddl/126_*.sql` (127 archivos, `00` a `126`; `126_` solo corrige el `COMMENT` de `tiempo.parametro`, aplicado el 23-oct-2026; **esquema de módulos 1 y 2 congelado el 23-oct-2026, acta `docs/06-actas/SCJ-ACT-03_Congelamiento_del_Esquema_V1_1.md`**: un cambio de estructura posterior exige aprobación escrita de Diego y versión nueva del acta; 54 permisos; `verificar_ddl.sql` secciones 1–88, línea base de 10 bloques informativos) y TODO está aplicado en la base real (`116_`–`125_` del 19 al 21 de octubre de 2026); hasta `115_` había 76 policies tras `104_`; el resto de este renglón conserva el detalle histórico hasta `93_` (`88_`-`92_` aplicados el 8 de octubre de 2026 tras ensayos `BEGIN…ROLLBACK` 143/143, 60/60, 21/21, 22/22 y 38/38; `93_` aplicado el 9 de octubre de 2026 tras ensayo `BEGIN…ROLLBACK` 19/19 y revisión de `security`; `verificar_ddl.sql` completo en 0 filas, 72 funciones, 76 policies, 53 permisos; única excepción: 1 huérfano de `auth.users`, `prueba-diagnostico-local@example.com`, ajeno al DDL, aceptado por el usuario el 9 de octubre de 2026 — se deja). `92_` ata autor y hora de `personas.bitacora_movimiento_persona` (el INSERT en `personas.usuario` debe hacerse siempre con `service_role`). `personas.permiso`
+- El DDL llega hasta `db/ddl/129_*.sql` (130 archivos, `00` a `129`; **esquema de módulos 1 y 2 congelado el 23-oct-2026, acta vigente `docs/06-actas/SCJ-ACT-03_Congelamiento_del_Esquema_V1_2.md`**: un cambio de estructura posterior exige aprobación escrita de Diego y versión nueva del acta. Primer cambio por ese procedimiento, 28-oct-2026 (P-055/P-182): `127_` cambia `CURRENT_DATE` por `personas.fn_hoy_mexico()` en 10 funciones de `tiempo`/`personas`, `128_` fecha las bajas de la bitácora con `fn_hoy_mexico(NEW.fecha_efectiva)` y `129_` exige `asignacion_edicion` para registrar una baja definitiva. **Regla:** en la base, «hoy» es `personas.fn_hoy_mexico()` y nunca `CURRENT_DATE`; la única excepción a propósito es el interruptor de huella, que sigue en UTC (`97_`). Diccionario `SCJ-DIC-01` V1.7; 54 permisos; `verificar_ddl.sql` secciones 1–92, línea base de 10 bloques informativos; `126_` solo corrige el `COMMENT` de `tiempo.parametro`, aplicado el 23-oct-2026) y TODO está aplicado en la base real (`116_`–`125_` del 19 al 21 de octubre de 2026); hasta `115_` había 76 policies tras `104_`; el resto de este renglón conserva el detalle histórico hasta `93_` (`88_`-`92_` aplicados el 8 de octubre de 2026 tras ensayos `BEGIN…ROLLBACK` 143/143, 60/60, 21/21, 22/22 y 38/38; `93_` aplicado el 9 de octubre de 2026 tras ensayo `BEGIN…ROLLBACK` 19/19 y revisión de `security`; `verificar_ddl.sql` completo en 0 filas, 72 funciones, 76 policies, 53 permisos; única excepción: 1 huérfano de `auth.users`, `prueba-diagnostico-local@example.com`, ajeno al DDL, aceptado por el usuario el 9 de octubre de 2026 — se deja). `92_` ata autor y hora de `personas.bitacora_movimiento_persona` (el INSERT en `personas.usuario` debe hacerse siempre con `service_role`). `personas.permiso`
   es la única tabla del proyecto con clave natural (`codigo varchar PRIMARY KEY`) en vez de `uuid`
   — decisión deliberada, fiel a la redacción literal de `SCJ-PRO-05`, no un descuido a corregir.
 - Las tablas de bitácora inmutables (`bitacora_movimiento_persona`,
@@ -719,9 +719,10 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   guardado en silencio. Cazado con logging temporal real tras descartar RLS/doble-submit/payload
   obsoleto de escritorio como hipótesis de escritorio, ninguna correcta. **Lección:** toda tabla
   con `vigente_desde`/`vigente_hasta` (`jornada_asignada`, `tope_legal`, `parametro`, `asignacion`)
-  debería tener su propio `CHECK (vigente_hasta IS NULL OR vigente_hasta >= vigente_desde)` — sólo
-  `jornada_asignada` lo tiene por ahora, agregado recién tras encontrar el bug, no por diseño desde
-  el principio. Revisar las demás si se vuelve a tocar alguna.
+  debería tener su propio `CHECK (vigente_hasta IS NULL OR vigente_hasta >= vigente_desde)` — lo
+  tienen `jornada_asignada` (agregado recién tras encontrar el bug) y `asignacion`
+  (`ck_asignacion_vigencia`); faltan `parametro` y `tope_legal`, anotados como pendientes en
+  `SCJ-ACT-03` V1.2 §IV.
 - **Un endpoint que lee de una tabla para validar y escribe en otra no debe asumir que el permiso
   de escritura siempre va a traer consigo el de lectura de la primera.** Encontrado el 8 de
   septiembre de 2026 al construir el POST manual de `movimiento_de_saldo`
@@ -773,14 +774,13 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   asumir que ese header alcanza para "no dejar cambios permanentes" — sólo los casos que rechazan
   con excepción son inherentemente seguros sin él; cualquier caso de éxito necesita limpieza
   manual explícita después, o correrse dentro de una transacción real con `ROLLBACK` por `psql`.
-- **Los triggers/RPCs de vigencia nuevos evalúan "hoy" con `CURRENT_DATE`, que en esta base corre
-  en UTC** (confirmado con `SHOW timezone`), no en hora real de México (UTC-6) — hay una ventana
-  de hasta 6 horas (medianoche a las 6am CDMX) donde el servidor ya considera "mañana" mientras en
-  México sigue siendo "hoy". Mismo tipo de problema que el de `desfase_local` (ver bitácora del
-  11 de septiembre de 2026), pero en el calendario de vigencias de jornada en vez de la hora de una
-  marca puntual. No corregido en ese corte — decisión pendiente si hace falta fijar el timezone de
-  la sesión o usar `(now() AT TIME ZONE 'America/Mexico_City')::date` en los chequeos de fecha de
-  `75_*.sql`/`76_*.sql`.
+- **[RESUELTO el 28 de octubre de 2026, `127_`/`128_`] La base corre en UTC (`SHOW timezone`), así
+  que `CURRENT_DATE` y `instante::date` dan el día de mañana entre las 18:00 y las 24:00 de CDMX.**
+  Afectaba las vigencias de jornada (`75_`/`76_`), las bajas, los parámetros y la configuración de la
+  terminal. No se fijó la zona de la sesión (rompería lo que funciona en UTC): toda fecha de regla
+  de negocio usa `personas.fn_hoy_mexico()` o `fn_hoy_mexico(instante)`. `verificar_ddl.sql`
+  secciones 89 y 90 fallan si reaparece. Excepción deliberada: el interruptor de huella (`97_`),
+  que compara en UTC de forma coherente consigo mismo.
 - **[RESUELTO el 22 de septiembre de 2026] Desde el Pi de pruebas (`raspberrypi-serverpruebas`)
   no se podían enviar invitaciones de usuario — bloqueo de red, no bug de código.** Encontrado el
   11 de septiembre de 2026: dar de alta un usuario tiraba `500` al invitar. Diagnóstico con `curl`
@@ -809,8 +809,8 @@ Cada una vive en su propio documento de decisión — no se duplican aquí, sól
   scheduler, que corría el cierre del día a las 21:00 de México). Toda fecha de regla de negocio
   sale de `app/zona.py` (`hoy_mexico()`/`ahora_mexico()`); una prueba de CI falla si aparece
   `date.today()`, `datetime.now()` sin zona, `datetime.today()` o `utcnow()` fuera de ese módulo. Los
-  instantes que se guardan o comparan siguen en UTC. Del lado de la base sigue abierto
-  `CURRENT_DATE` en `75_`/`76_` (P-055, que P-182 duplica).
+  instantes que se guardan o comparan siguen en UTC. Del lado de la base, lo mismo con
+  `personas.fn_hoy_mexico()` desde `127_` (P-055/P-182, cerrada el 28-oct-2026).
 - **Texto del cliente dentro de `.or_()`/`.filter()` de PostgREST es inyección de filtros, aunque
   PostgREST parametrice el SQL.** Coma, punto, paréntesis y `*` son sintaxis del filtro: sin sanear,
   el usuario agrega condiciones propias, y con `service_role` eso se vuelve un oráculo sobre

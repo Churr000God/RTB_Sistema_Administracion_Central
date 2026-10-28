@@ -2,7 +2,9 @@
 
 **Estado:** Aceptada
 **Fecha de la decisión:** 2026-09-02
-**Última revisión:** 2026-09-02
+**Última revisión:** 2026-10-28 (V1.1)
+
+> **Cambio de versión (V1.0 → V1.1, menor, 28-oct-2026):** se agrega en «Revisión posterior a la implementación» la regla de qué es «hoy» para una vigencia (`127_`, P-055). No cambia la decisión ni la convención de borde. El archivo seguía en `V1_0` aunque ya tenía la revisión del 7-sep; esa revisión no subió versión.
 
 ---
 
@@ -128,3 +130,23 @@ que corregir el código para alinearlo con este documento. No se corrige el cód
 acá como la convención real en uso. Si se implementa otra vigencia nueva (jornada asignada ya usa
 el mismo patrón inclusivo, ver `fn_jornada_asignar_renovar`), seguir el borde inclusivo, no el
 exclusivo de este documento.
+
+**«Hoy» para una vigencia es la fecha de México (28 de octubre de 2026, `127_`):** la base corre
+con `TimeZone = UTC`, así que `CURRENT_DATE` adelantaba un día entre las 18:00 y las 24:00 de la
+Ciudad de México. En esa franja, una jornada que empieza mañana se trataba como ya vigente (no se
+podía editar ni eliminar), la jornada en curso dejaba de ser «la vigente hoy», y una vigencia nueva
+de parámetro o de configuración de terminal empezaba mañana y cerraba la anterior con la fecha de
+hoy. Desde `127_`, toda comparación de una vigencia contra «hoy» en SQL usa
+`personas.fn_hoy_mexico()` (`113_`), nunca `CURRENT_DATE`, `LOCALTIMESTAMP` ni `now()::date`;
+`db/verificar_ddl.sql` §89 lo vigila. Del lado del backend, la misma regla vive en `app/zona.py`
+(P-176). Una fecha que se deriva de un instante ya guardado (por ejemplo, la fecha de una baja,
+`128_`) se convierte con `personas.fn_hoy_mexico(instante)`, no con `::date`.
+
+- **Excepción deliberada:** el interruptor de la activación por huella
+  (`fn_terminal_inferir_huella_cambiar`/`_estado`, claves `terminal_inferir_huella_*`) sigue con
+  fecha UTC explícita (`97_`; decisión de Diego del 28-oct-2026). Cualquier chequeo de
+  `vigente_desde > fn_hoy_mexico()` sobre `tiempo.parametro` debe excluir esas claves.
+- **Pendiente** (pospuesto en `SCJ-ACT-03` V1.2 §IV): `tiempo.jornada_asignada`
+  (`ck_jornada_asignada_vigencia`) y `personas.asignacion` (`ck_asignacion_vigencia`) tienen
+  `CHECK` de vigencia (hasta no anterior a desde); `tiempo.parametro` y `tiempo.tope_legal` no
+  (catálogo real, 28-oct-2026).

@@ -206,3 +206,217 @@ def _sin_service_role_real():
     servicio.postgrest.schema.return_value.rpc.return_value.execute.return_value.data = 0
     app.dependency_overrides[get_service_client] = lambda: servicio
     yield
+
+
+# --- 129_*.sql: baja_definitiva exige además asignacion_edicion -----------------------------------
+
+from postgrest.exceptions import APIError  # noqa: E402
+
+from app.routers.movimientos import (  # noqa: E402
+    MENSAJE_BAJA_PUESTO_ADMINISTRADOR,
+    MENSAJE_BAJA_SIN_PERMISO_ASIGNACIONES,
+    MENSAJE_MOVIMIENTO_SIN_PERMISO,
+)
+
+
+def _cliente_con_permisos(codigos_otorgados, error_insert=None):
+    """Gate sensible al código: puesto_permiso devuelve el puesto del caller sólo para los códigos
+    otorgados; permiso responde no heredable (así no entra la rama de herencia)."""
+    tabla_bitacora = MagicMock()
+    if error_insert is not None:
+        tabla_bitacora.insert.return_value.execute.side_effect = error_insert
+    else:
+        tabla_bitacora.insert.return_value.execute.side_effect = lambda: MagicMock(
+            data=[
+                {
+                    "id": "33333333-3333-3333-3333-333333333333",
+                    "persona_id": PERSONA_ID,
+                    "tipo_movimiento": tabla_bitacora.insert.call_args[0][0]["tipo_movimiento"],
+                    "fecha_efectiva": "2026-10-28T10:00:00+00:00",
+                    "motivo": "motivo",
+                    "documento_ref": None,
+                    "registrado_por": AUTH_USER_ID,
+                }
+            ]
+        )
+
+    def tabla(nombre):
+        if nombre == "bitacora_movimiento_persona":
+            return tabla_bitacora
+        t = MagicMock()
+        if nombre == "usuario":
+            t.select.return_value.eq.return_value.execute.return_value.data = [{"persona_id": GATE_PERSONA_ID}]
+        elif nombre == "asignacion":
+            t.select.return_value.eq.return_value.is_.return_value.execute.return_value.data = [
+                {"puesto_id": GATE_PUESTO_ID}
+            ]
+        elif nombre == "puesto_permiso":
+            def por_codigo(_columna, codigo):
+                siguiente = MagicMock()
+                siguiente.eq.return_value.execute.return_value.data = (
+                    [{"puesto_id": GATE_PUESTO_ID}] if codigo in codigos_otorgados else []
+                )
+                return siguiente
+
+            t.select.return_value.eq.side_effect = por_codigo
+        elif nombre == "permiso":
+            t.select.return_value.eq.return_value.execute.return_value.data = [{"heredable": False}]
+        return t
+
+    cliente = MagicMock()
+    cliente.postgrest.schema.return_value.table.side_effect = tabla
+    return cliente, tabla_bitacora
+
+
+PUESTO_AFECTADO_ID = "puesto-de-la-persona-afectada"
+
+
+def _servicio(es_admin=False):
+    """service_role: lee la asignación vigente de la persona afectada y el flag de su puesto, y responde
+    el RPC de baja de terminales."""
+    servicio = MagicMock()
+    servicio.postgrest.schema.return_value.rpc.return_value.execute.return_value.data = 0
+
+    def tabla(nombre):
+        t = MagicMock()
+        if nombre == "asignacion":
+            t.select.return_value.eq.return_value.is_.return_value.execute.return_value.data = [
+                {"puesto_id": PUESTO_AFECTADO_ID}
+            ]
+        elif nombre == "puesto":
+            t.select.return_value.in_.return_value.execute.return_value.data = [
+                {"es_administrador_generico": es_admin}
+            ]
+        return t
+
+    servicio.postgrest.schema.return_value.table.side_effect = tabla
+    return servicio
+
+
+def _post_movimiento(cliente, tipo, servicio=None):
+    servicio = servicio or _servicio()
+    app.dependency_overrides[get_caller_client] = lambda: cliente
+    app.dependency_overrides[get_service_client] = lambda: servicio
+    app.dependency_overrides[get_caller_identity] = lambda: CallerIdentity(
+        auth_user_id=AUTH_USER_ID, correo="mariana.alcantara@example.com"
+    )
+    try:
+        return TestClient(app).post(
+            f"/api/personas/{PERSONA_ID}/movimientos",
+            json={"tipo_movimiento": tipo, "motivo": "motivo"},
+            headers={"Authorization": "Bearer fake-token"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_baja_definitiva_sin_asignacion_edicion_da_403_sin_insertar():
+    cliente, bitacora = _cliente_con_permisos({"cambio_estado_persona"})
+    r = _post_movimiento(cliente, "baja_definitiva")
+    assert r.status_code == 403
+    assert r.json()["detail"] == MENSAJE_BAJA_SIN_PERMISO_ASIGNACIONES
+    bitacora.insert.assert_not_called()
+
+
+def test_baja_definitiva_con_asignacion_edicion_pasa():
+    cliente, bitacora = _cliente_con_permisos({"cambio_estado_persona", "asignacion_edicion"})
+    r = _post_movimiento(cliente, "baja_definitiva")
+    assert r.status_code == 201
+    assert r.json()["tipo_movimiento"] == "baja_definitiva"
+    bitacora.insert.assert_called_once()
+
+
+@pytest.mark.parametrize("tipo", ["suspension", "reactivacion"])
+def test_suspension_y_reactivacion_no_exigen_asignacion_edicion(tipo):
+    cliente, bitacora = _cliente_con_permisos({"cambio_estado_persona"})
+    r = _post_movimiento(cliente, tipo)
+    assert r.status_code == 201
+    assert r.json()["tipo_movimiento"] == tipo
+
+
+def test_baja_definitiva_sin_cambio_estado_persona_da_403_aunque_tenga_asignacion_edicion():
+    cliente, bitacora = _cliente_con_permisos({"asignacion_edicion"})
+    r = _post_movimiento(cliente, "baja_definitiva")
+    assert r.status_code == 403
+    bitacora.insert.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "tipo, mensaje",
+    [
+        ("baja_definitiva", MENSAJE_MOVIMIENTO_SIN_PERMISO),
+        ("suspension", MENSAJE_MOVIMIENTO_SIN_PERMISO),
+    ],
+)
+def test_42501_de_la_base_da_403_con_mensaje_fijo_y_sin_texto_en_log(tipo, mensaje, caplog):
+    texto_secreto = 'new row violates row-level security policy for table "bitacora_movimiento_persona"'
+    error = APIError({"code": "42501", "message": texto_secreto, "hint": None, "details": None})
+    cliente, _ = _cliente_con_permisos(
+        {"cambio_estado_persona", "asignacion_edicion"}, error_insert=error
+    )
+    with caplog.at_level("DEBUG"):
+        r = _post_movimiento(cliente, tipo)
+    assert r.status_code == 403
+    assert r.json()["detail"] == mensaje
+    assert texto_secreto not in r.text
+    assert texto_secreto not in caplog.text
+
+
+def test_otro_error_de_la_base_no_se_traduce_a_403():
+    error = APIError({"code": "23503", "message": "fk", "hint": None, "details": None})
+    cliente, _ = _cliente_con_permisos({"cambio_estado_persona"}, error_insert=error)
+    r = _post_movimiento(cliente, "suspension")
+    assert r.status_code != 403
+
+
+
+def _error_42501():
+    return APIError({"code": "42501", "message": "texto de la base no contractual", "hint": None, "details": None})
+
+
+def test_baja_de_quien_ocupa_el_puesto_administrador_da_422_sin_insertar():
+    cliente, bitacora = _cliente_con_permisos({"cambio_estado_persona", "asignacion_edicion"})
+    r = _post_movimiento(cliente, "baja_definitiva", servicio=_servicio(es_admin=True))
+    assert r.status_code == 422
+    assert r.json()["detail"] == MENSAJE_BAJA_PUESTO_ADMINISTRADOR
+    bitacora.insert.assert_not_called()
+
+
+@pytest.mark.parametrize("tipo", ["suspension", "reactivacion"])
+def test_suspension_y_reactivacion_no_consultan_el_puesto_administrador(tipo):
+    cliente, _ = _cliente_con_permisos({"cambio_estado_persona"})
+    r = _post_movimiento(cliente, tipo, servicio=_servicio(es_admin=True))
+    assert r.status_code == 201
+
+
+def test_verificacion_previa_no_detecta_al_administrador_y_el_insert_da_42501_es_403():
+    """La asignación del administrador no se vio en la verificación previa (simulado: es_admin=False) y la
+    policy de asignacion rechaza vía el trigger. Respaldo: 403 fijo, nunca 500 ni texto de la base."""
+    cliente, bitacora = _cliente_con_permisos(
+        {"cambio_estado_persona", "asignacion_edicion"}, error_insert=_error_42501()
+    )
+    r = _post_movimiento(cliente, "baja_definitiva", servicio=_servicio(es_admin=False))
+    assert r.status_code == 403
+    # El respaldo nunca afirma una causa: ni «falta asignacion_edicion» ni «puesto administrador».
+    assert r.json()["detail"] == MENSAJE_MOVIMIENTO_SIN_PERMISO
+    assert "texto de la base" not in r.text
+    bitacora.insert.assert_called_once()
+
+
+def test_carrera_permiso_revocado_entre_validacion_e_insert_da_403_fijo(caplog):
+    cliente, _ = _cliente_con_permisos(
+        {"cambio_estado_persona", "asignacion_edicion"}, error_insert=_error_42501()
+    )
+    with caplog.at_level("DEBUG"):
+        r = _post_movimiento(cliente, "baja_definitiva")
+    assert r.status_code == 403
+    assert r.json()["detail"] == MENSAJE_MOVIMIENTO_SIN_PERMISO
+    assert "texto de la base" not in caplog.text
+
+
+@pytest.mark.parametrize("tipo", ["alta", "despido", "", "BAJA_DEFINITIVA"])
+def test_tipo_de_movimiento_invalido_da_422_sin_insertar(tipo):
+    cliente, bitacora = _cliente_con_permisos({"cambio_estado_persona", "asignacion_edicion"})
+    r = _post_movimiento(cliente, tipo)
+    assert r.status_code == 422
+    bitacora.insert.assert_not_called()

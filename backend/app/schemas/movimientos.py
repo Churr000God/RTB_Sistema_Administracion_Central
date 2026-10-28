@@ -1,10 +1,13 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
 
 class MovimientoCreate(BaseModel):
-    tipo_movimiento: str  # suspension | reactivacion | baja_definitiva (alta la crea el trigger)
+    # Lo que deja insertar la policy de la bitácora (92_/129_). «alta» también está en el CHECK de la tabla,
+    # pero la crea el trigger de persona, nunca este endpoint.
+    tipo_movimiento: Literal["suspension", "reactivacion", "baja_definitiva"]
     motivo: str
 
 
