@@ -154,10 +154,19 @@ El sistema final es **otra base de datos**. Al terminar el piloto, **en orden**:
 
 ## 11. Registro de resultados (plantilla)
 
+Verificación del 26-oct-2026 (solo lectura, base del servidor + `puente-operador estado`); detalle en la bóveda, `Bitacora/2026-10-26_piloto_casos_p1_p4_p10_latencia.md`.
+
 | Caso | Fecha/hora UTC | Quién | Resultado | Evidencia / nota |
 |---|---|---|---|---|
-| P1 | | | | |
-| P2 | | | | |
+| P1 | 2026-10-17T18:15Z a 2026-10-21T02:47Z (4 altas); verificado 2026-10-27T00:20Z | Diego (RH/TI); verificación Claude | Pasa | 4 `terminal_usuario` en `activo` con `huella_evidencia=manual`; 4 `accion_terminal` alta en el puente; `mapa_cache` 4 activos. Nota de cada confirmación no revisada. |
+| P2 | 2026-10-19 → 2026-10-26; verificado 2026-10-27T00:20Z | Equipo del piloto; verificación Claude | Pasa | 73 marcas `origen='terminal'`, `desfase_local=-06:00`, 67 `sincronizado`; 6 `sin_sincronizar` del 17-oct (llegaron con 0.1.2 el 19-oct, excepción resuelta). Retraso ≤ ~41 s en uso normal. |
+| P3 | 2026-10-17 → 2026-10-24; verificado 2026-10-27T00:20Z | Batch `cierre_dia`; verificación Claude | Pasa | 19 días: 15 `cerrado`, 4 `revisado`, 0 abiertos o bloqueados. Marca impar → excepción `paridad_impar` resuelta → `revisado`. |
+| P4 | 2026-10-17T18:18Z y 18:53Z (eventos 237 y 248) | Uso normal; verificación Claude | Explicado | El puente descarta como `doble_marca` la 2.ª lectura < 60 s: queda **una sola marca**. 0 pares < 60 s en el servidor. |
+| P10 | verificado 2026-10-27T00:20Z | Claude (`operador estado`) | Explicado | `altas_a_mano_ajenas=0`, `hallazgo_reconciliacion` vacía, 4 usuarios en la terminal, todos del puente: el usuario previo se resolvió en las previas (20-oct) y el puente no borró nada solo. Quién y cuándo lo borró: sin verificar. |
+| Latencia | 2026-10-19 → 2026-10-26 (63 marcas) | Claude (base) | Medida | Mediana 24.3 s, p90 38.3 s, mín 3.1 s, máx normal 40.8 s. Atípico: la marca de 2026-10-26T15:01Z llegó 66 min tarde por `ConnectTimeout` al servidor (racimo ~58 min); se subió sola, sin pérdida (ver P8 y P5). |
+| P8 | 2026-10-26 ~15:00Z → 16:06Z (caída real, no provocada; decisión del usuario: cuenta como P8) | Claude (base + puente) | Pasa | `ConnectTimeout` ~65 min (114 en latido, 8 en subida); la marca de 15:01Z quedó en el Pi y subió sola a 16:07Z con su hora original; `marcas pendiente=0`. 8 intentos en ~65 min, compatible con espera creciente; patrón exacto sin verificar. Causa de la caída sin investigar. |
+| P5 | verificado 2026-10-27T00:20Z, tras la caída de P8 | Claude (base) | Pasa | 0 duplicados por `evento_id`, por `(terminal, secuencia_local)` ni por `(persona, momento_dispositivo)` en 73 marcas. |
+| P13 | 2026-10-21T04:20Z (marca de las 22:20 del 20-oct, México) | Caso real; verificación Claude | Pasa | Excepción `dia_cerrado` #213 → día `revisado`. El bloqueo de «Corregir» y de PostgREST no se probó en pantalla (cubierto por las pruebas del DDL). |
 | … | | | | |
 
 ## 12. Referencias
