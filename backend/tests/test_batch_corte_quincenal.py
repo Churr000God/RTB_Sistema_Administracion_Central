@@ -892,3 +892,78 @@ def test_el_log_del_servidor_acota_la_lista_de_personas_con_error():
     muchos = [f"persona-{i}: RuntimeError" for i in range(MAXIMO_EN_LISTA + 7)]
     acotada = lista_acotada(muchos)
     assert len(acotada) == MAXIMO_EN_LISTA + 1 and acotada[-1] == "y 7 más"
+
+
+# ---------------------------------------------------------------------------
+# P-191: un día que el patrón semanal no espera trabajado no exige tiempo.dia ni bloquea el corte
+# ---------------------------------------------------------------------------
+
+
+def test_dia_fuera_del_patron_sin_tiempo_dia_no_bloquea_el_corte_y_su_esperada_es_cero():
+    """Patrón solo de lunes; el martes no tiene tiempo.dia (cierre_dia lo saltó sin falta). La persona NO queda pendiente y la esperada es solo la del lunes (4 h)."""
+    solo_lunes = {PERIODO_DESDE_ISO: {"id": DIA_1_ID, "fecha": PERIODO_DESDE_ISO, "estado": "cerrado", "horas_totales": None}}
+    fake_db = _fake_db(
+        [
+            ("corte_quincenal_aplicado", _tabla_periodo_aplicado([])),
+            ("jornada_asignada", _tabla_jornadas_persona([_jornada()])),
+            ("patron_semanal", _tabla_patron_semanal([_patron("lunes")])),
+            ("dia", _tabla_dia_periodo(list(solo_lunes.values()))),
+            ("tramo", _tabla_tramo_periodo([_tramo(201, 240)])),
+            ("clasificacion_de_tiempo", _tabla_clasificacion_existente([])),
+            ("banco_de_horas", _tabla_banco_select([])),
+        ]
+    )
+
+    resultado = _procesar_persona(
+        fake_db, PERSONA_1, PERIODO_DESDE, PERIODO_HASTA, PERIODO_DESDE_ISO, PERIODO_HASTA_ISO, set()
+    )
+
+    assert resultado == PROCESADA_OK
+    argumentos = fake_db.postgrest.schema.return_value.rpc.call_args[0][1]
+    assert argumentos["p_horas_esperadas"] == 4.0 and argumentos["p_horas_trabajadas"] == 4.0
+    assert argumentos["p_clasificaciones"] == [{"tramo_id": 201, "tipo": "ordinario"}]
+    assert argumentos["p_movimientos"] == []
+
+
+def test_dia_fuera_del_patron_trabajado_cuenta_sus_horas_con_esperada_cero():
+    """Patrón solo de lunes; el martes trabajó 2 h y cierre_dia armó el día. Esperada 4 h (lunes), trabajadas 4 + 2: el tramo del martes excede y, sin deuda, es extra."""
+    fake_db = _fake_db(
+        [
+            ("corte_quincenal_aplicado", _tabla_periodo_aplicado([])),
+            ("jornada_asignada", _tabla_jornadas_persona([_jornada()])),
+            ("patron_semanal", _tabla_patron_semanal([_patron("lunes")])),
+            ("dia", _tabla_dia_periodo(list(_dias_lunes_martes().values()))),
+            ("tramo", _tabla_tramo_periodo([_tramo(201, 240), _tramo(202, 120, "2026-03-03T09:00:00+00:00", DIA_2_ID)])),
+            ("clasificacion_de_tiempo", _tabla_clasificacion_existente([])),
+            ("banco_de_horas", _tabla_banco_select([])),
+        ]
+    )
+
+    resultado = _procesar_persona(
+        fake_db, PERSONA_1, PERIODO_DESDE, PERIODO_HASTA, PERIODO_DESDE_ISO, PERIODO_HASTA_ISO, set()
+    )
+
+    assert resultado == PROCESADA_OK
+    argumentos = fake_db.postgrest.schema.return_value.rpc.call_args[0][1]
+    assert argumentos["p_horas_esperadas"] == 4.0 and argumentos["p_horas_trabajadas"] == 6.0
+    assert argumentos["p_clasificaciones"] == [{"tramo_id": 201, "tipo": "ordinario"}, {"tramo_id": 202, "tipo": "extra"}]
+
+
+def test_dia_en_el_patron_sin_tiempo_dia_sigue_bloqueando_el_corte():
+    """Persona de lunes a sábado (aquí lunes y martes): el martes sin día bloquea como siempre."""
+    solo_lunes = {PERIODO_DESDE_ISO: {"id": DIA_1_ID, "fecha": PERIODO_DESDE_ISO, "estado": "cerrado", "horas_totales": None}}
+    fake_db = _fake_db(
+        [
+            ("corte_quincenal_aplicado", _tabla_periodo_aplicado([])),
+            ("jornada_asignada", _tabla_jornadas_persona([_jornada()])),
+            ("patron_semanal", _tabla_patron_semanal([_patron(d) for d in ("lunes", "martes", "miercoles", "jueves", "viernes", "sabado")])),
+            ("dia", _tabla_dia_periodo(list(solo_lunes.values()))),
+        ]
+    )
+
+    resultado = _procesar_persona(
+        fake_db, PERSONA_1, PERIODO_DESDE, PERIODO_HASTA, PERIODO_DESDE_ISO, PERIODO_HASTA_ISO, set()
+    )
+
+    assert resultado == PENDIENTE_DIA_ABIERTO
+    fake_db.postgrest.schema.return_value.rpc.assert_not_called()

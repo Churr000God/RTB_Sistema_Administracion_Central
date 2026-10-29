@@ -10,6 +10,9 @@ service_role: es un proceso de sistema, no un caller humano sujeto a RLS.
 Algoritmo por persona, SCJ-PRO-12 §III/§IV:
 1. Si tiempo.dia ya existe con estado != 'abierto' -> saltar (idempotente por persona).
 2. Si la fecha es domingo o festivo -> saltar, nunca genera nada por sí sola.
+   Tampoco genera falta un día que el patrón semanal de la jornada vigente no espera trabajado
+   (SCJ-PRO-08 A1, P-191): sin marcas, ese día se salta. Si tiene marcas se procesa igual (paso 3);
+   las marcas nunca se descartan por caer fuera del patrón.
 3. Cuenta las marcas del día -- AGRUPADAS por el día calendario del valor EFECTIVO (corregido si
    existe, si no el original), no por el original crudo (hallazgo de security: una corrección
    puede cruzar medianoche -- ej. última marca 23:50 corregida a 00:10 del día siguiente, válida
@@ -17,7 +20,7 @@ Algoritmo por persona, SCJ-PRO-12 §III/§IV:
    exigir que el día calendario no cambie. fn_marca_valida_revision sí usa el original porque
    corre al insertar la marca, antes de que exista ninguna corrección -- este batch corre
    después, así que el bucket debe reflejar dónde cae la marca DE VERDAD):
-   - 0 marcas: si no hay tiempo.ausencia cubriendo la fecha, la crea (tipo='falta', pendiente);
+   - 0 marcas: si la fecha no está en el patrón semanal, se salta (ver paso 2). Si está y no hay tiempo.ausencia cubriendo la fecha, la crea (tipo='falta', pendiente);
      tiempo.dia NO se crea acá -- se materializa cuando la ausencia se resuelve
      (fn_ausencia_resuelve_excepcion ya lo hace, SCJ-PRO-08, responsabilidad de ese trigger).
    - Par: arma tramo por parejas consecutivas, tiempo.dia.estado='cerrado',
@@ -47,6 +50,7 @@ from postgrest.exceptions import APIError
 from supabase import Client
 
 from app.batches._orquestacion import finalizar_corrida, upsert_corrida_en_progreso
+from app.batches.corte_quincenal import DIAS_SEMANA
 from app.catalogo_motivos_revision import MOTIVO_PARIDAD_IMPAR
 from app.config import get_settings
 from app.deps import crear_cliente_servicio
@@ -101,6 +105,41 @@ def _personas_normal_flexible_vigentes(db: Client, fecha_iso: str) -> list[str]:
         .data
     )
     return [fila["persona_id"] for fila in filas]
+
+
+def _fecha_en_patron(db: Client, persona_id: str, fecha: date) -> bool:
+    """¿El patrón semanal de la jornada vigente de la persona espera trabajado ese día de la semana?
+    SCJ-PRO-08 A1: la falta solo nace en un día que el patrón esperaba trabajado (P-191). Solo se
+    consulta cuando el día no tiene marcas (con marcas se procesa igual). Si no se encuentra la
+    jornada vigente (no debería pasar: la persona salió de la lista de vigentes) se conserva el
+    comportamiento anterior y se trata como día esperado."""
+    fecha_iso = fecha.isoformat()
+    jornadas = (
+        db.postgrest.schema("tiempo")
+        .table("jornada_asignada")
+        .select("id")
+        .eq("persona_id", persona_id)
+        .in_("tipo_jornada", ["normal", "flexible"])
+        .lte("vigente_desde", fecha_iso)
+        .or_(f"vigente_hasta.is.null,vigente_hasta.gte.{fecha_iso}")
+        .order("vigente_desde", desc=True)
+        .limit(1)
+        .execute()
+        .data
+    )
+    if not jornadas:
+        return True
+    filas = (
+        db.postgrest.schema("tiempo")
+        .table("patron_semanal")
+        .select("id")
+        .eq("jornada_asignada_id", jornadas[0]["id"])
+        .eq("dia_semana", DIAS_SEMANA[fecha.weekday()])
+        .limit(1)
+        .execute()
+        .data
+    )
+    return bool(filas)
 
 
 def _dia_ya_resuelto(db: Client, persona_id: str, fecha_iso: str) -> bool:
@@ -345,7 +384,9 @@ def ejecutar_cierre_dia(fecha: date, db: Client | None = None) -> dict:
                 continue
 
             marcas = _marcas_efectivas_del_dia(db, persona_id, fecha)
-            if not marcas:
+            if not marcas and not _fecha_en_patron(db, persona_id, fecha):
+                contadores["saltada"] += 1      # día de descanso del patrón: sin marcas no hay falta (P-191)
+            elif not marcas:
                 contadores[_resolver_sin_marcas(db, persona_id, fecha_iso)] += 1
             elif len(marcas) % 2 == 0:
                 contadores["cerrado" if _armar_dia_par(db, persona_id, fecha_iso, marcas) else "saltada"] += 1

@@ -51,6 +51,31 @@ def _tabla_jornada_vigentes(personas_ids):
     return tabla
 
 
+def _tabla_jornada_vigente_persona(datos):
+    """_fecha_en_patron (1/2): select(id).eq(persona).in_(tipo).lte().or_().order().limit(1).execute()."""
+    tabla = MagicMock()
+    (
+        tabla.select.return_value.eq.return_value.in_.return_value.lte.return_value.or_.return_value
+        .order.return_value.limit.return_value.execute.return_value.data
+    ) = datos
+    return tabla
+
+
+def _tabla_patron_dia(datos):
+    """_fecha_en_patron (2/2): select(id).eq(jornada).eq(dia_semana).limit(1).execute()."""
+    tabla = MagicMock()
+    tabla.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = datos
+    return tabla
+
+
+def _entrada_en_patron(en_patron=True, jornada_id=7):
+    """Las dos consultas que hace el batch para un día SIN marcas: jornada vigente y fila del patrón."""
+    return [
+        ("jornada_asignada", _tabla_jornada_vigente_persona([{"id": jornada_id}])),
+        ("patron_semanal", _tabla_patron_dia([{"id": 1}] if en_patron else [])),
+    ]
+
+
 def _tabla_dia_estado(datos):
     """_dia_ya_resuelto: select().eq(persona_id).eq(fecha).execute()."""
     tabla = MagicMock()
@@ -200,6 +225,9 @@ def test_cero_marcas_sin_ausencia_previa_crea_ausencia():
             ("jornada_asignada", _tabla_jornada_vigentes([PERSONA_1])),
             ("dia", _tabla_dia_estado([])),
             ("marca", _tabla_marca([])),
+        ]
+        + _entrada_en_patron()
+        + [
             ("ausencia", _tabla_ausencia_select([])),
             ("ausencia", tabla_ausencia_insert),
         ]
@@ -223,6 +251,9 @@ def test_cero_marcas_con_ausencia_pendiente_no_duplica():
             ("jornada_asignada", _tabla_jornada_vigentes([PERSONA_1])),
             ("dia", _tabla_dia_estado([])),
             ("marca", _tabla_marca([])),
+        ]
+        + _entrada_en_patron()
+        + [
             ("ausencia", _tabla_ausencia_select([{"id": 9, "estado_autorizacion": "pendiente"}])),
         ]
         + _entrada_cierre_corrida()
@@ -243,6 +274,9 @@ def test_cero_marcas_con_ausencia_ya_resuelta_no_hace_nada_mas():
             ("jornada_asignada", _tabla_jornada_vigentes([PERSONA_1])),
             ("dia", _tabla_dia_estado([])),
             ("marca", _tabla_marca([])),
+        ]
+        + _entrada_en_patron()
+        + [
             ("ausencia", _tabla_ausencia_select([{"id": 9, "estado_autorizacion": "autorizada"}])),
         ]
         + _entrada_cierre_corrida()
@@ -389,6 +423,9 @@ def test_error_de_una_persona_no_detiene_a_las_demas_y_marca_fallida():
             ("marca", tabla_marca_falla),
             ("dia", _tabla_dia_estado([])),
             ("marca", _tabla_marca([])),
+        ]
+        + _entrada_en_patron()
+        + [
             ("ausencia", _tabla_ausencia_select([])),
             ("ausencia", _tabla_ausencia_insert()),
         ]
@@ -554,6 +591,9 @@ def test_ausencia_carrera_no_revienta_y_queda_pendiente():
             ("jornada_asignada", _tabla_jornada_vigentes([PERSONA_1])),
             ("dia", _tabla_dia_estado([])),
             ("marca", _tabla_marca([])),
+        ]
+        + _entrada_en_patron()
+        + [
             ("ausencia", _tabla_ausencia_select([])),
             ("ausencia", _tabla_ausencia_insert_conflicto()),
             ("ausencia", _tabla_ausencia_select([{"id": 77, "estado_autorizacion": "pendiente"}])),
@@ -824,3 +864,148 @@ def test_el_payload_de_los_tramos_usa_las_claves_que_lee_la_rpc():
 
     payload, _ = _payload_tramo({"id": 1, "efectivo": __import__("datetime").datetime(2026, 3, 2, 9, tzinfo=__import__("datetime").timezone.utc)}, None)
     assert set(payload) == claves_sql
+
+
+# ---------------------------------------------------------------------------
+# P-191: un día que el patrón semanal no espera trabajado no genera falta (SCJ-PRO-08 A1)
+# ---------------------------------------------------------------------------
+
+
+def _detalle_y_estado(tabla_update):
+    payload = tabla_update.update.call_args[0][0]
+    return payload["estado"], payload["detalle"]
+
+
+def test_dia_fuera_del_patron_sin_marcas_no_crea_falta_y_cuenta_como_saltada():
+    """Lunes que el patrón (p. ej. martes a sábado) no espera trabajado: sin marcas no se crea tiempo.ausencia. La secuencia termina en el patrón: cualquier
+    consulta a ausencia rompería el mock y la corrida quedaría 'fallida'."""
+    tabla_cierre = _tabla_corrida_update({"id": 1, "estado": "exitosa", "intentos": 1})
+    tabla_patron = _tabla_patron_dia([])
+    fake_db = _fake_db(
+        _entrada_arranque_corrida_primera_vez()
+        + [
+            ("dia_festivo", _tabla_dia_festivo([])),
+            ("jornada_asignada", _tabla_jornada_vigentes([PERSONA_1])),
+            ("dia", _tabla_dia_estado([])),
+            ("marca", _tabla_marca([])),
+            ("jornada_asignada", _tabla_jornada_vigente_persona([{"id": 7}])),
+            ("patron_semanal", tabla_patron),
+            ("corrida_batch", tabla_cierre),
+        ]
+    )
+
+    ejecutar_cierre_dia(FECHA, fake_db)
+
+    estado, detalle = _detalle_y_estado(tabla_cierre)
+    assert estado == "exitosa"
+    assert "0 ausencia(s) creada(s), 1 saltada(s)" in detalle
+    # Consulta el patrón de ESA jornada y ESE día de la semana (FECHA es lunes).
+    tabla_patron.select.return_value.eq.assert_called_once_with("jornada_asignada_id", 7)
+    tabla_patron.select.return_value.eq.return_value.eq.assert_called_once_with("dia_semana", "lunes")
+
+
+def test_dia_en_el_patron_sin_marcas_sigue_creando_la_falta():
+    """Persona de lunes a sábado: mismo comportamiento de siempre."""
+    tabla_cierre = _tabla_corrida_update({"id": 1, "estado": "exitosa", "intentos": 1})
+    tabla_ausencia_insert = _tabla_ausencia_insert()
+    fake_db = _fake_db(
+        _entrada_arranque_corrida_primera_vez()
+        + [
+            ("dia_festivo", _tabla_dia_festivo([])),
+            ("jornada_asignada", _tabla_jornada_vigentes([PERSONA_1])),
+            ("dia", _tabla_dia_estado([])),
+            ("marca", _tabla_marca([])),
+        ]
+        + _entrada_en_patron(en_patron=True)
+        + [
+            ("ausencia", _tabla_ausencia_select([])),
+            ("ausencia", tabla_ausencia_insert),
+            ("corrida_batch", tabla_cierre),
+        ]
+    )
+
+    ejecutar_cierre_dia(FECHA, fake_db)
+
+    estado, detalle = _detalle_y_estado(tabla_cierre)
+    assert estado == "exitosa"
+    assert "1 ausencia(s) creada(s), 0 saltada(s)" in detalle
+    assert tabla_ausencia_insert.insert.call_args[0][0]["tipo_de_ausencia"] == "falta"
+
+
+def test_dia_fuera_del_patron_con_marcas_se_procesa_igual_y_no_consulta_el_patron():
+    """Las marcas nunca se descartan: si la persona trabajó su día de descanso, el día se arma como cualquier otro (cerrado con su tramo). El patrón solo se mira sin
+    marcas, así que no aparece en la secuencia."""
+    tabla_cierre = _tabla_corrida_update({"id": 1, "estado": "exitosa", "intentos": 1})
+    marcas = [_marca(101, "09:00:00"), _marca(102, "18:00:00")]
+    fake_db = _fake_db(
+        _entrada_arranque_corrida_primera_vez()
+        + [
+            ("dia_festivo", _tabla_dia_festivo([])),
+            ("jornada_asignada", _tabla_jornada_vigentes([PERSONA_1])),
+            ("dia", _tabla_dia_estado([])),
+            ("marca", _tabla_marca(marcas)),
+            ("correccion", _tabla_correccion([])),
+            ("parametro", _tabla_parametro([])),
+            ("corrida_batch", tabla_cierre),
+        ]
+    )
+
+    ejecutar_cierre_dia(FECHA, fake_db)
+
+    estado, detalle = _detalle_y_estado(tabla_cierre)
+    assert estado == "exitosa" and detalle.startswith("1 cerrado(s)")
+    assert _llamada_rpc(fake_db)[1]["p_estado"] == "cerrado"
+
+
+def test_sin_jornada_vigente_al_releer_conserva_el_comportamiento_anterior_y_crea_la_falta():
+    tabla_cierre = _tabla_corrida_update({"id": 1, "estado": "exitosa", "intentos": 1})
+    tabla_ausencia_insert = _tabla_ausencia_insert()
+    fake_db = _fake_db(
+        _entrada_arranque_corrida_primera_vez()
+        + [
+            ("dia_festivo", _tabla_dia_festivo([])),
+            ("jornada_asignada", _tabla_jornada_vigentes([PERSONA_1])),
+            ("dia", _tabla_dia_estado([])),
+            ("marca", _tabla_marca([])),
+            ("jornada_asignada", _tabla_jornada_vigente_persona([])),
+            ("ausencia", _tabla_ausencia_select([])),
+            ("ausencia", tabla_ausencia_insert),
+            ("corrida_batch", tabla_cierre),
+        ]
+    )
+
+    ejecutar_cierre_dia(FECHA, fake_db)
+
+    estado, detalle = _detalle_y_estado(tabla_cierre)
+    assert estado == "exitosa" and "1 ausencia(s) creada(s)" in detalle
+
+
+def test_dos_personas_una_descansa_por_patron_y_la_otra_recibe_su_falta():
+    tabla_cierre = _tabla_corrida_update({"id": 1, "estado": "exitosa", "intentos": 1})
+    tabla_ausencia_insert = _tabla_ausencia_insert()
+    fake_db = _fake_db(
+        _entrada_arranque_corrida_primera_vez()
+        + [
+            ("dia_festivo", _tabla_dia_festivo([])),
+            ("jornada_asignada", _tabla_jornada_vigentes([PERSONA_1, PERSONA_2])),
+            ("dia", _tabla_dia_estado([])),
+            ("marca", _tabla_marca([])),
+        ]
+        + _entrada_en_patron(en_patron=False, jornada_id=7)
+        + [
+            ("dia", _tabla_dia_estado([])),
+            ("marca", _tabla_marca([])),
+        ]
+        + _entrada_en_patron(en_patron=True, jornada_id=8)
+        + [
+            ("ausencia", _tabla_ausencia_select([])),
+            ("ausencia", tabla_ausencia_insert),
+            ("corrida_batch", tabla_cierre),
+        ]
+    )
+
+    ejecutar_cierre_dia(FECHA, fake_db)
+
+    estado, detalle = _detalle_y_estado(tabla_cierre)
+    assert estado == "exitosa" and "1 ausencia(s) creada(s), 1 saltada(s)" in detalle
+    assert tabla_ausencia_insert.insert.call_args[0][0]["persona_id"] == PERSONA_2

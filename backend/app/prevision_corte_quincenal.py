@@ -24,10 +24,12 @@ from app.batches.corte_quincenal import (
     DOMINGO,
     SALTADA_YA_PROCESADA,
     _dias_del_periodo,
+    _fecha_en_patron,
     _fechas_del_periodo,
     _festivos_del_periodo,
     _jornada_vigente_en,
     _jornadas_del_periodo,
+    _patrones_por_jornada,
     _personas_normal_flexible_del_periodo,
     _procesar_persona,
     resolver_ultimo_periodo_vencido,
@@ -56,7 +58,8 @@ def resolver_dias_faltantes(
     que corta en el primer hallazgo con `return`) -- acá el objetivo es mostrarle a RH la lista
     completa, no sólo detectar que hay un problema. `fecha < hoy` estrictamente: nunca marcar hoy
     ni fechas futuras del periodo -- el cierre de día corre de madrugada sobre el día ANTERIOR,
-    marcar "hoy" sería puro falso positivo (la corrida de esta noche todavía no corrió)."""
+    marcar "hoy" sería puro falso positivo (la corrida de esta noche todavía no corrió). Un día que
+    el patrón semanal no espera trabajado no falta nunca (P-191), igual que en _procesar_persona."""
     periodo_desde_iso = periodo_desde.isoformat()
     periodo_hasta_iso = periodo_hasta.isoformat()
     festivos = _festivos_del_periodo(db, periodo_desde_iso, periodo_hasta_iso)
@@ -64,6 +67,7 @@ def resolver_dias_faltantes(
     faltantes: list[dict] = []
     for persona_id in _personas_normal_flexible_del_periodo(db, periodo_desde_iso, periodo_hasta_iso):
         jornadas = _jornadas_del_periodo(db, persona_id, periodo_desde_iso, periodo_hasta_iso)
+        patrones_por_jornada = _patrones_por_jornada(db, [j["id"] for j in jornadas])
         dias_por_fecha = _dias_del_periodo(db, persona_id, periodo_desde_iso, periodo_hasta_iso)
 
         for fecha in _fechas_del_periodo(periodo_desde, periodo_hasta):
@@ -77,7 +81,7 @@ def resolver_dias_faltantes(
             if jornada is None or jornada["tipo_jornada"] not in ("normal", "flexible"):
                 continue  # de_confianza (o sin jornada vigente) esa fecha puntual -- excluida
 
-            if fecha_iso not in dias_por_fecha:
+            if fecha_iso not in dias_por_fecha and _fecha_en_patron(patrones_por_jornada, jornada["id"], fecha):
                 faltantes.append({"persona_id": persona_id, "fecha": fecha_iso})
 
     return faltantes

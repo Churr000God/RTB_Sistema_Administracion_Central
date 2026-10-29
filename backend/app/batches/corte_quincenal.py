@@ -24,6 +24,9 @@ caso de que la persona haya cambiado de tipo de jornada a mitad de periodo):
 2. Si algún día esperado del periodo no tiene tiempo.dia (cierre de día no llegó a esa fecha) o
    sigue 'abierto', la persona se salta ENTERA para esta corrida -- cuenta como pendiente, hace
    fallar la corrida (mismo criterio que un error real, SCJ-PRO-13 §III K1).
+   Un día que el patrón semanal no espera trabajado (P-191) no exige tiempo.dia: sin día se omite
+   (esperada 0, nada trabajado). Si la persona trabajó ese día y cierre_dia lo armó, se procesa como
+   cualquier otro día, con esperada 0 (sus tramos cuentan como trabajadas).
 3. Un día 'bloqueado' se excluye de ambos lados del cálculo (ni esperado ni trabajado).
 4. horas_esperadas = suma de patron_semanal (recalculado desde hora_entrada/hora_salida/
    minutos_comida, igual que el trigger de tope legal -- horas_efectivas no es fuente de verdad)
@@ -212,6 +215,12 @@ def _horas_esperadas_dia(patrones_por_jornada: dict[int, list[dict]], jornada_id
         fila for fila in patrones_por_jornada.get(jornada_id, []) if fila["dia_semana"] == dia_semana
     ]
     return sum(_horas_patron_fila(fila) for fila in filas)
+
+
+def _fecha_en_patron(patrones_por_jornada: dict[int, list[dict]], jornada_id: int, fecha: date) -> bool:
+    """¿El patrón semanal de esa jornada espera trabajado ese día de la semana? (P-191)"""
+    dia_semana = DIAS_SEMANA[fecha.weekday()]
+    return any(fila["dia_semana"] == dia_semana for fila in patrones_por_jornada.get(jornada_id, []))
 
 
 def _dias_del_periodo(
@@ -404,6 +413,8 @@ def _procesar_persona(
             continue  # de_confianza (o sin jornada vigente) esa fecha puntual -- excluida
 
         dia = dias_por_fecha.get(fecha_iso)
+        if dia is None and not _fecha_en_patron(patrones_por_jornada, jornada["id"], fecha):
+            continue  # día de descanso del patrón sin día armado: no se espera nada (P-191)
         if dia is None or dia["estado"] == "abierto":
             return PENDIENTE_DIA_ABIERTO
         if dia["estado"] == "bloqueado":

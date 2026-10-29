@@ -140,6 +140,10 @@ def _jornada(id_=JORNADA_ID, tipo="normal", vigente_desde="2026-01-01", vigente_
     return {"id": id_, "tipo_jornada": tipo, "vigente_desde": vigente_desde, "vigente_hasta": vigente_hasta}
 
 
+def _patron(dia_semana, jornada_id=JORNADA_ID):
+    return {"jornada_asignada_id": jornada_id, "dia_semana": dia_semana, "hora_entrada": "09:00:00", "hora_salida": "13:00:00", "minutos_comida": 0}
+
+
 def _dia(id_, fecha, estado="cerrado"):
     return {"id": id_, "fecha": fecha, "estado": estado, "horas_totales": None}
 
@@ -157,6 +161,7 @@ def test_resolver_dias_faltantes_detecta_hueco_y_excluye_hoy_y_futuro():
             ("dia_festivo", _tabla_festivos([])),
             ("jornada_asignada", _tabla_personas_candidatas([{"persona_id": PERSONA_1}])),
             ("jornada_asignada", _tabla_jornadas_persona([_jornada()])),
+            ("patron_semanal", _tabla_patron_semanal([_patron(d, j) for j in (JORNADA_ID, JORNADA_ID_2) for d in ("lunes", "martes", "miercoles", "jueves", "viernes", "sabado")])),
             ("dia", _tabla_dia_periodo([_dia(1, "2026-09-01")])),
         ]
     )
@@ -172,6 +177,7 @@ def test_resolver_dias_faltantes_sin_huecos_no_aparece():
             ("dia_festivo", _tabla_festivos([])),
             ("jornada_asignada", _tabla_personas_candidatas([{"persona_id": PERSONA_1}])),
             ("jornada_asignada", _tabla_jornadas_persona([_jornada()])),
+            ("patron_semanal", _tabla_patron_semanal([_patron(d, j) for j in (JORNADA_ID, JORNADA_ID_2) for d in ("lunes", "martes", "miercoles", "jueves", "viernes", "sabado")])),
             ("dia", _tabla_dia_periodo([_dia(1, "2026-09-01"), _dia(2, "2026-09-02")])),
         ]
     )
@@ -189,6 +195,7 @@ def test_resolver_dias_faltantes_excluye_domingo_y_festivo():
             ("dia_festivo", _tabla_festivos([{"fecha": "2026-09-05"}])),
             ("jornada_asignada", _tabla_personas_candidatas([{"persona_id": PERSONA_1}])),
             ("jornada_asignada", _tabla_jornadas_persona([_jornada()])),
+            ("patron_semanal", _tabla_patron_semanal([_patron(d, j) for j in (JORNADA_ID, JORNADA_ID_2) for d in ("lunes", "martes", "miercoles", "jueves", "viernes", "sabado")])),
             ("dia", _tabla_dia_periodo([])),
         ]
     )
@@ -214,6 +221,7 @@ def test_resolver_dias_faltantes_persona_de_confianza_esa_fecha_excluida():
                     ]
                 ),
             ),
+            ("patron_semanal", _tabla_patron_semanal([_patron(d, j) for j in (JORNADA_ID, JORNADA_ID_2) for d in ("lunes", "martes", "miercoles", "jueves", "viernes", "sabado")])),
             ("dia", _tabla_dia_periodo([])),
         ]
     )
@@ -259,7 +267,7 @@ def test_resolver_personas_con_corte_pendiente_dia_faltante_aparece():
             ("jornada_asignada", _tabla_personas_candidatas([{"persona_id": PERSONA_1}])),
             ("corte_quincenal_aplicado", _tabla_periodo_aplicado([])),
             ("jornada_asignada", _tabla_jornadas_persona([_jornada()])),
-            ("patron_semanal", _tabla_patron_semanal([])),
+            ("patron_semanal", _tabla_patron_semanal([_patron("lunes"), _patron("martes")])),
             ("dia", _tabla_dia_periodo([_dia(101, PERIODO_DESDE_ISO)])),  # falta el martes
         ]
     )
@@ -407,3 +415,47 @@ def test_la_prevision_calcula_igual_que_el_corte_real_con_tramos_deuda_y_mezcla(
             "p_motivo": f"corte quincenal {PERIODO_DESDE_ISO} a {PERIODO_HASTA_ISO}",
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# P-191: un día que el patrón no espera trabajado no falta nunca
+# ---------------------------------------------------------------------------
+
+
+def test_resolver_dias_faltantes_omite_el_dia_de_descanso_del_patron():
+    """Periodo 09-01 (martes) a 09-02 (miércoles), hoy=09-03, patrón sin miércoles: sin días armados solo falta el martes."""
+    patron = [_patron(d) for d in ("lunes", "martes", "jueves", "viernes", "sabado")]
+    fake_db = _fake_db(
+        [
+            ("dia_festivo", _tabla_festivos([])),
+            ("jornada_asignada", _tabla_personas_candidatas([{"persona_id": PERSONA_1}])),
+            ("jornada_asignada", _tabla_jornadas_persona([_jornada()])),
+            ("patron_semanal", _tabla_patron_semanal(patron)),
+            ("dia", _tabla_dia_periodo([])),
+        ]
+    )
+
+    faltantes = resolver_dias_faltantes(fake_db, date(2026, 9, 1), date(2026, 9, 2), date(2026, 9, 3))
+
+    assert faltantes == [{"persona_id": PERSONA_1, "fecha": "2026-09-01"}]
+
+
+def test_resolver_personas_con_corte_pendiente_dia_de_descanso_sin_dia_no_queda_pendiente():
+    """Patrón solo de lunes; el martes no tiene día. La simulación llega hasta el final (no bloquea) y, con el periodo ya clasificado, no aparece."""
+    fake_db = _fake_db(
+        [
+            ("jornada_asignada", _tabla_personas_candidatas([{"persona_id": PERSONA_1}])),
+            ("corte_quincenal_aplicado", _tabla_periodo_aplicado([])),
+            ("jornada_asignada", _tabla_jornadas_persona([_jornada()])),
+            ("patron_semanal", _tabla_patron_semanal([_patron("lunes")])),
+            ("dia", _tabla_dia_periodo([_dia(101, PERIODO_DESDE_ISO)])),
+            ("tramo", _tabla_tramo_periodo([{"id": 5, "dia_id": 101, "inicio": "2026-03-02T09:00:00+00:00", "minutos_trabajados": 240}])),
+            ("clasificacion_de_tiempo", _tabla_clasificacion_existente([{"id": 1}])),
+        ]
+    )
+
+    pendientes = resolver_personas_con_corte_pendiente(
+        fake_db, PERIODO_DESDE, PERIODO_HASTA, PERIODO_DESDE_ISO, PERIODO_HASTA_ISO, set()
+    )
+
+    assert pendientes == set()
