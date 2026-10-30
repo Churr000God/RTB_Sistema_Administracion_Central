@@ -26,18 +26,39 @@ Supabase con su propio reloj, y la causa probable es un desfase dentro de Supaba
 
 ## 1. Contenedores
 
+Una sola vez por clon (archivo local, no versionado):
+
+```
+echo pi > ~/RTB-CRM-APP/.perfil-despliegue
+```
+
+Despliegue:
+
 ```
 cd ~/RTB-CRM-APP
-docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.pi.yml up -d --no-deps backend
-# frontend (las VITE_* son de build; se cargan de frontend/.env):
-bash -c "set -a; source frontend/.env; set +a; docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.pi.yml build frontend"
-docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.pi.yml up -d --no-deps frontend
+./scripts/desplegar.sh prod levantar backend    # sólo el backend; el frontend sigue arriba
+./scripts/desplegar.sh prod levantar frontend   # sólo el frontend (exporta las VITE_* de frontend/.env para el build)
+./scripts/desplegar.sh prod levantar            # los dos (corte de ambos)
 ```
 
 `docker-compose.pi.yml` (versionado) aporta lo específico del Pi: el backend escucha solo en `127.0.0.1:8000`, la red
-`rtb-crm-app_default` tiene la subred fija `172.19.0.0/16` y los logs rotan (10 MB × 3). Con `./scripts/desplegar.sh` el perfil
-se activa con `DESPLEGAR_PERFIL=pi` (ojo: ese script recrea backend y frontend a la vez y exige `uv` en el host, que el Pi no
-tiene; por eso los despliegues se hacen con los comandos de arriba).
+`rtb-crm-app_default` tiene la subred fija `172.19.0.0/16` y los logs rotan (10 MB × 3). El script lo suma solo cuando el perfil
+es `pi`, que lee de `.perfil-despliegue` (la variable `DESPLEGAR_PERFIL`, si trae valor, gana sobre el archivo; vacía no cuenta;
+`DESPLEGAR_PERFIL=ninguno` lo apaga a propósito). Antes de cada `levantar`/`reconstruir` imprime el perfil y los archivos compose.
+
+Protecciones (desde el 30-oct-2026, tras dos incidentes):
+
+- **Perfil olvidado.** El 29-oct un despliegue sin el perfil dejó el backend en `0.0.0.0:8000` (API en http plano por la LAN).
+  Ahora, si `tailscale serve` publica `127.0.0.1:8000` y el perfil no es `pi`, el script corta con error. En una máquina sin
+  `tailscale` no se aplica.
+- **Red recreada en un despliegue parcial.** El 30-oct, `up -d --no-deps backend` a mano con el IPAM recién agregado falló:
+  compose quiso recrear la red con el frontend conectado y dejó el backend caído ~1 min. Antes de un `levantar <servicio>` el
+  script simula con `docker compose --dry-run`; si compose planea borrar una red, no hace el parcial y pide confirmación para
+  un down + up completo (sin terminal interactiva, cancela).
+- Sin `uv` en el host (el Pi), el script avisa y omite la verificación de esquema y el bootstrap del usuario base, en vez de
+  terminar con `uv: orden no encontrada`. La verificación de migraciones hay que hacerla desde una máquina con `uv`.
+
+No uses `docker compose … up -d --no-deps` a mano: se salta las dos protecciones.
 
 ## 2. `tailscale serve` (no vive en el compose)
 

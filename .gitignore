@@ -54,3 +54,6 @@ npm-debug.log*
 # Capturas de QA manual (sólo el reporte .md se versiona)
 qa/capturas/*
 !qa/capturas/.gitkeep
+
+# Perfil de despliegue de la máquina (scripts/desplegar.sh): local, nunca se versiona
+.perfil-despliegue

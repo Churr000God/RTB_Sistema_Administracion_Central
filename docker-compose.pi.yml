@@ -1,8 +1,12 @@
 # Pi de pruebas (raspberrypi-serverpruebas) — ajustes que solo aplican a esa máquina.
 # Override de docker-compose.yml + docker-compose.prod.yml, se suma como TERCER archivo:
 #
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.pi.yml up -d --no-deps backend
-#   (o DESPLEGAR_PERFIL=pi ./scripts/desplegar.sh prod <accion>)
+#   ./scripts/desplegar.sh prod levantar [backend|frontend]
+#   (el perfil se lee de ~/RTB-CRM-APP/.perfil-despliegue, que en el Pi contiene "pi")
+#
+# No uses `up -d --no-deps <servicio>` a mano: si cambia la red (el IPAM de abajo), compose no puede
+# recrearla con el otro contenedor conectado y deja el servicio caído (30-oct-2026). El script lo detecta
+# con --dry-run y pide confirmación para un down + up completo.
 #
 # Versionado el 16 de octubre de 2026: hasta entonces estas tres cosas vivían solo editadas a mano en el
 # docker-compose.prod.yml local del Pi y se habrían perdido al reconstruirlo desde git. Detalle de lo demás que
