@@ -25,6 +25,10 @@ services:
         max-file: "3"
 
   frontend:
+    # Igual que el backend: solo en el propio Pi; la SPA sale por `tailscale serve --https=8443` (→ 127.0.0.1:8080).
+    # Desde el 30-oct-2026 ya no se alcanza por http://<ip>:8080 (ni LAN ni tailnet).
+    ports: !override
+      - "127.0.0.1:8080:80"
     logging:
       driver: json-file
       options:
