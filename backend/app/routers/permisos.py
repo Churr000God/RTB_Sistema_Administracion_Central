@@ -9,9 +9,15 @@ herencia via el organigrama, protección de "última fila" de puesto_permiso_edi
 independiente del gate y ya estaba implementada."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from postgrest.exceptions import APIError
 from supabase import Client
 
 from app.deps import CallerIdentity, get_caller_client, get_caller_identity
+from app.errores import (
+    MENSAJE_AUTOOTORGAMIENTO_DIRECTO,
+    MENSAJE_AUTOOTORGAMIENTO_POR_HERENCIA,
+    traducir_error_autootorgamiento,
+)
 from app.permisos import (
     descendientes_incluido_si_mismo,
     mapa_hijos_por_puesto,
@@ -34,10 +40,6 @@ CODIGO_PUESTO_PERMISO_EDICION = "puesto_permiso_edicion"
 
 MENSAJE_PUESTO_INVALIDO = "El puesto no existe o está inactivo."
 MENSAJE_PERMISO_INVALIDO = "El permiso no existe o está inactivo."
-MENSAJE_AUTOOTORGAMIENTO_DIRECTO = "No puedes otorgarte este permiso a ti mismo."
-MENSAJE_AUTOOTORGAMIENTO_POR_HERENCIA = (
-    "No puedes otorgar este permiso: terminarías heredándolo por el rodeo del organigrama."
-)
 MENSAJE_PUESTO_PERMISO_NO_ENCONTRADO = "puesto_permiso no encontrado."
 MENSAJE_ULTIMA_FILA_EDICION = (
     "No se puede revocar: dejaría al sistema sin nadie que pueda repartir permisos."
@@ -166,14 +168,21 @@ def otorgar_permiso(
                 status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_AUTOOTORGAMIENTO_DIRECTO
             )
 
-    db.postgrest.schema("personas").table("bitacora_movimiento_puesto_permiso").insert(
-        {
-            "puesto_id": datos.puesto_id,
-            "codigo": datos.codigo,
-            "tipo_movimiento": "otorgado",
-            "registrado_por": caller.auth_user_id,
-        }
-    ).execute()
+    try:
+        db.postgrest.schema("personas").table("bitacora_movimiento_puesto_permiso").insert(
+            {
+                "puesto_id": datos.puesto_id,
+                "codigo": datos.codigo,
+                "tipo_movimiento": "otorgado",
+                "registrado_por": caller.auth_user_id,
+            }
+        ).execute()
+    except APIError as error:
+        # Red de seguridad: el trigger de 130_ rechaza lo que el chequeo de arriba haya dejado pasar.
+        traduccion = traducir_error_autootorgamiento(error)
+        if traduccion is None:
+            raise
+        raise traduccion from None
 
     return (
         db.postgrest.schema("personas")
@@ -230,14 +239,20 @@ def revocar_permiso(
         if len(activas) <= 1:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, MENSAJE_ULTIMA_FILA_EDICION)
 
-    db.postgrest.schema("personas").table("bitacora_movimiento_puesto_permiso").insert(
-        {
-            "puesto_id": puesto_id,
-            "codigo": codigo,
-            "tipo_movimiento": "revocado",
-            "registrado_por": caller.auth_user_id,
-        }
-    ).execute()
+    try:
+        db.postgrest.schema("personas").table("bitacora_movimiento_puesto_permiso").insert(
+            {
+                "puesto_id": puesto_id,
+                "codigo": codigo,
+                "tipo_movimiento": "revocado",
+                "registrado_por": caller.auth_user_id,
+            }
+        ).execute()
+    except APIError as error:
+        traduccion = traducir_error_autootorgamiento(error)
+        if traduccion is None:
+            raise
+        raise traduccion from None
 
     return (
         db.postgrest.schema("personas")

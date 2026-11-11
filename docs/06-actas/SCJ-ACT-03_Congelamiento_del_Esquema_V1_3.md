@@ -1,10 +1,52 @@
 # Acta — Congelamiento del esquema
 
 **Sistema de Control de Jornada**
-Folio SCJ-ACT-03 · Versión 1.2 · 28 de octubre de 2026
+Folio SCJ-ACT-03 · Versión 1.3 · 11 de noviembre de 2026
 
-**El esquema de los módulos 1 y 2 sigue congelado.** Esta versión registra el primer cambio
-posterior al congelamiento, hecho con el procedimiento de §V. Corresponde a la tarea J3.1 del plan.
+**El esquema de los módulos 1 y 2 sigue congelado.** Esta versión registra el segundo cambio
+posterior al congelamiento, hecho con el procedimiento de §V. La V1.2 registró el primero.
+
+> **Cambio de versión (V1.2 → V1.3, 11-nov-2026):** segundo cambio sobre el esquema congelado.
+> **Motivo (hallazgos de `security`, 11-nov-2026):** la regla que impide otorgarse permisos a uno
+> mismo vivía solo en el backend (`routers/permisos.py`). Quien tuviera `puesto_permiso_edicion`
+> podía saltarla por PostgREST directo de dos formas:
+> - **Por la bitácora.** La policy de INSERT de `personas.bitacora_movimiento_puesto_permiso`
+>   (`31_`/`32_`) solo exige ese permiso, y el trigger `fn_puesto_permiso_sincroniza` (`24_`)
+>   convierte cada fila `otorgado` en un otorgamiento real. La policy tampoco ataba
+>   `registrado_por` a quien hace el movimiento.
+> - **Sin bitácora (crítico).** `personas.puesto_permiso` aceptaba INSERT, UPDATE y DELETE directos
+>   de `authenticated` (`22_`, policies de `31_`/`32_`), porque el trigger que la sincroniza era
+>   `SECURITY INVOKER` y escribía como el caller. Un INSERT o un PATCH `activo = true` otorgaba el
+>   permiso sin pasar por ninguna regla y sin dejar auditoría.
+>
+> El rodeo por la API (UUID en mayúsculas) se cerró en el backend (commit `832682d`); este cambio
+> cierra los de fondo. Todo va en un solo script:
+> - **`130_`, parte A:** `fn_puesto_permiso_sincroniza()` pasa a `SECURITY DEFINER` con
+>   `search_path` fijo, con `ALTER FUNCTION` (el cuerpo de `24_` no cambia).
+> - **`130_`, parte B:** `personas.puesto_permiso` queda de solo lectura para la API. Se revocan
+>   `INSERT`, `UPDATE` y `DELETE` a `authenticated` y `service_role`, y se eliminan sus 3 policies
+>   de escritura. El único escritor es el trigger de la bitácora.
+> - **`130_`, parte C:** trigger `BEFORE INSERT` `trg_bitacora_puesto_permiso_regla_autootorgamiento`
+>   con la función `personas.fn_bitacora_puesto_permiso_regla_autootorgamiento()`
+>   (`SECURITY DEFINER`, `search_path` fijo, sin `EXECUTE` para ningún rol de la API). Exige que
+>   `registrado_por` sea quien hace el movimiento, y aplica la misma regla que Python: un permiso
+>   no heredable no se otorga al puesto vigente propio; uno heredable no se otorga al puesto
+>   propio ni a ningún descendiente por `reporta_a_id`. Solo actúa con `auth.uid()`: migraciones,
+>   semillas y `service_role` no cambian. Error `SCJ29` con HINT `autootorgamiento_directo`,
+>   `autootorgamiento_por_herencia` o `autor_distinto_del_caller`.
+>
+> **No cambia la estructura de datos:** mismas tablas, columnas, restricciones, índices, permisos y
+> claves de parámetro. Cambian la seguridad y el comportamiento: una función y un trigger nuevos,
+> una función de trigger pasa a `SECURITY DEFINER`, 3 policies menos (76 → 73) y menos privilegios
+> de escritura sobre `personas.puesto_permiso`.
+>
+> **Aprobación (§V, paso 2):** Diego, el 11-nov-2026, por escrito en el chat de coordinación de la
+> sesión `orchestrator`: «sí cambia el esquema para arreglar el error de autootorgamiento». La
+> sesión `db` recibió la cita retransmitida por `orchestrator`; queda por anotar dónde se guarda
+> en la bóveda.
+>
+> **Pendiente al redactar esta versión:** ensayo (`ensayo_130`), revisión de `security`, aplicación
+> en la base y firma (§III #9, §VI).
 
 > **Cambio de versión (V1.1 → V1.2, 28-oct-2026):** primer cambio sobre el esquema congelado
 > (P-055, con P-182 fusionada). **Motivo:** la base corre con `TimeZone = UTC`. Entre las 18:00 y
@@ -52,19 +94,19 @@ acta (§IV).
 | | |
 |---|---|
 | Esquemas | `tiempo` (26 tablas) y `personas` (11 tablas) |
-| Versión | Módulos 1 y 2 · DDL `00_` a `129_` (130 archivos) |
-| Última migración aplicada | `129_personas_baja_exige_asignacion_edicion.sql`. `127_`, `128_` y `129_` se aplicaron el 28-oct-2026, en ese orden, con el comando de Diego, y se verificaron en solo lectura ese mismo día |
-| Huella del DDL | `a5aa73ad183fa195f633f1cd4af0b8e6a908124a452845021eea1adf0611af92` — `sha256` de los 130 archivos de `db/ddl/` concatenados en orden numérico (`cd db/ddl && cat $(ls \| sort -V) \| sha256sum`). Huella de la V1.1 (`00_` a `126_`): `a7a15caa3355dcb66ff97fdde4a29ae503fd3958683477772dc5b84670a26179` |
-| Catálogo (solo lectura, 28-oct-2026) | 37 tablas; 97 funciones propias (45 `SECURITY DEFINER`, 45 de trigger); 76 policies RLS; 54 permisos (27 no heredables); 15 claves en `tiempo.parametro`. Iguales a la V1.1: los tres scripts nuevos no agregan ni quitan objetos |
+| Versión | Módulos 1 y 2 · DDL `00_` a `130_` (131 archivos) |
+| Última migración aplicada | `129_personas_baja_exige_asignacion_edicion.sql` (`127_` a `129_` aplicados el 28-oct-2026 con el comando de Diego). **`130_personas_puesto_permiso_regla_autootorgamiento.sql` está escrita y pendiente de ensayo, revisión y aplicación** (§III #9) |
+| Huella del DDL | Se fija al aplicar `130_` (`sha256` de los 131 archivos de `db/ddl/` concatenados en orden numérico: `cd db/ddl && cat $(ls \| sort -V) \| sha256sum`). Huella de la V1.2 (`00_` a `129_`): `a5aa73ad183fa195f633f1cd4af0b8e6a908124a452845021eea1adf0611af92`. Huella de la V1.1 (`00_` a `126_`): `a7a15caa3355dcb66ff97fdde4a29ae503fd3958683477772dc5b84670a26179` |
+| Catálogo | V1.2 (solo lectura, 28-oct-2026): 37 tablas; 97 funciones propias (45 `SECURITY DEFINER`, 45 de trigger); 76 policies RLS; 54 permisos (27 no heredables); 15 claves en `tiempo.parametro`. Esperado tras `130_`: 98 funciones propias (47 `SECURITY DEFINER`: la nueva y `fn_puesto_permiso_sincroniza`, que pasa a DEFINER; 46 de trigger), 73 policies (3 menos en `personas.puesto_permiso`), un trigger más en `personas.bitacora_movimiento_puesto_permiso` y `personas.puesto_permiso` sin `INSERT`/`UPDATE`/`DELETE` para la API; tablas, columnas y permisos iguales. Se confirma en solo lectura al aplicar |
 | Base | Supabase `RTBGO` |
-| Fecha | 23 de octubre de 2026 (congelamiento) · 28 de octubre de 2026 (cambio de la V1.2) |
+| Fecha | 23 de octubre de 2026 (congelamiento) · 28 de octubre de 2026 (cambio de la V1.2) · 11 de noviembre de 2026 (cambio de la V1.3) |
 
 ---
 
 ## III. Verificación previa
 
 Las verificaciones 1 a 7 son las del congelamiento (23-oct-2026) y siguen vigentes. La 8 es la del
-cambio de la V1.2.
+cambio de la V1.2 y la 9, la del cambio de la V1.3.
 
 | # | Verificación | Resultado |
 |---|---|---|
@@ -76,6 +118,7 @@ cambio de la V1.2.
 | 6 | Las cinco consultas de validación pasan | **Parcial.** `db/verificar_ddl.sql` (secciones 1 a 92) corre sin errores y todas las verificaciones estructurales cumplen. Hay dos comentarios del script desfasados: el §7 espera 53 permisos y hay 54 (`120_`), y el §10 espera 0 huérfanos de `auth.users` y hay 1, aceptado el 9-oct. La §9 (prueba HTTP con curl) no se corrió. Las consultas de negocio `03_calculo_historico`, `04_tope_vigente` y `05_reconstruccion_historica` que cita `SCJ-TRZ-01` **no existen** en `db/consultas/validacion/` (§IV, #4) |
 | 7 | `SCJ-TRZ-01` no tiene requisitos en estado *Pendiente* sin justificación | **Sí.** Los pendientes tienen justificación: relleno del día impar (decisión del 22-oct: lo captura RH a mano, `SCJ-PRA-01 #14`); saldo de vacaciones y traslape por grupo (pasan al módulo 3, decisión del 23-oct); consultas de validación (#6) |
 | 8 | El cambio de la V1.2 (`127_`–`129_`) se ensayó y se verificó | **Sí.** Los tres se ensayaron con `BEGIN…ROLLBACK` contra la base real, con datos sintéticos y sin residuo: `ensayo_127` 54/54, y 58/58 con la reversa probada; `ensayo_128` 20/20; `ensayo_129` 19/19. Después de aplicarlos, en solo lectura: las secciones 55, 89, 90 y 91 de `verificar_ddl.sql` dan 0 filas; la 92 (informativa: puestos con `cambio_estado_persona` sin `asignacion_edicion`, contando herencia) también da 0, así que `129_` no le quita a ningún puesto real la posibilidad de dar bajas. Los atributos, el dueño y el `EXECUTE` de las 11 funciones, y el comando, los roles y el `USING` de la policy, son iguales a los de antes del cambio. Cada script tiene su reversa ejecutable en `db/ensayos/` (`vigente_127_*`, `vigente_128_*`, `vigente_129_*`) |
+| 9 | El cambio de la V1.3 (`130_`) se ensayó y se verificó | **Pendiente.** `db/ensayos/ensayo_130.sql` está escrito y no se ha corrido: necesita el OK de Diego. Corre con `BEGIN…ROLLBACK` y datos sintéticos. Reproduce los tres huecos antes de aplicar (bitácora, escritura directa sobre `puesto_permiso`, autor ajeno). Prueba la reversa exacta (`vigente_130_reversa.sql`: policies, privilegios y atributos iguales a la foto). Después de aplicar prueba la regla, la escritura directa en 42501, la sincronización como DEFINER, la autoría y el puesto administrador. Falta también la revisión de `security` del corte ampliado, la aplicación y la sección 93 de `verificar_ddl.sql` en 0 filas |
 
 ---
 
@@ -108,10 +151,17 @@ Si después de esta fecha resulta indispensable cambiar el esquema:
 5. Se levanta una versión nueva de esta acta
 
 En la V1.2 se cumplieron los cinco pasos:
-1. **Motivo:** la nota de cambio de esta versión y la bitácora de la bóveda.
-2. **Aprobación:** la nota de cambio de esta versión.
+1. **Motivo:** la nota de cambio de la V1.2 y la bitácora de la bóveda.
+2. **Aprobación:** la nota de cambio de la V1.2.
 3. **Migraciones:** `127_`, `128_` y `129_`, con sus ensayos (#8 de §III).
 4. **Documentación:** `SCJ-DIC-01` V1.7 y `SCJ-DEC-04` V1.1.
+5. **Acta:** la V1.2.
+
+En la V1.3:
+1. **Motivo:** la nota de cambio de esta versión (hallazgo de `security` del 11-nov-2026).
+2. **Aprobación:** la nota de cambio de esta versión.
+3. **Migración:** `130_`, con su ensayo (#9 de §III; pendiente de correr).
+4. **Documentación:** `SCJ-DIC-01` V1.8 y `SCJ-PRO-05` (§V, la regla ahora también la aplica la base).
 5. **Acta:** esta versión.
 
 ---
@@ -120,10 +170,11 @@ En la V1.2 se cumplieron los cinco pasos:
 
 | | Nombre | Fecha |
 |---|---|---|
-| Responsable del sistema (módulos 1 y 2) | Diego Hermilo Guillén García | 28-oct-2026 |
+| Responsable del sistema (módulos 1 y 2) | Diego Hermilo Guillén García | *pendiente (V1.3)* |
 
-La V1.1 se firmó el 27-oct-2026; esa firma queda en el historial del repositorio (commit `9ebb534`).
+La V1.2 se firmó el 28-oct-2026 y la V1.1 el 27-oct-2026 (commit `9ebb534`); esas firmas quedan
+en el historial del repositorio.
 
 ---
 
-*Acta de congelamiento · Folio SCJ-ACT-03 · V1.2*
+*Acta de congelamiento · Folio SCJ-ACT-03 · V1.3*

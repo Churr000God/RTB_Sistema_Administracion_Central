@@ -657,3 +657,68 @@ def test_otorgar_autootorgamiento_por_herencia_con_puesto_entre_llaves_sigue_sie
     app.dependency_overrides.clear()
     assert response.status_code == 422
     assert "rodeo del organigrama" in response.json()["detail"]
+
+
+def _tabla_insert_que_falla(codigo, hint):
+    from postgrest.exceptions import APIError
+
+    tabla = MagicMock()
+    tabla.insert.return_value.execute.side_effect = APIError({"code": codigo, "hint": hint, "message": "texto crudo de la base"})
+    return tabla
+
+
+def _otorgar_con_insert_que_falla(codigo, hint):
+    fake_client = _fake_client_secuencia(
+        _entradas_gate()
+        + [
+            ("puesto", _tabla_select_simple([{"id": PUESTO_DESTINO_ID, "activo": True}])),
+            ("permiso", _tabla_select_simple([{"codigo": "permiso_ficticio_uno", "heredable": False, "activo": True}])),
+            ("usuario", _tabla_select_simple([{"persona_id": CALLER_PERSONA_ID}])),
+            ("asignacion", _tabla_select_eq_is([{"puesto_id": "puesto-ficticio-otro-del-caller"}])),
+            ("bitacora_movimiento_puesto_permiso", _tabla_insert_que_falla(codigo, hint)),
+        ]
+    )
+    _override_identidad(fake_client)
+    try:
+        return TestClient(app, raise_server_exceptions=False).post(
+            "/api/permisos/otorgar", json=_cuerpo_otorgar(), headers={"Authorization": "Bearer fake-token"}
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_otorgar_scj29_directo_de_la_base_devuelve_422_con_mensaje_fijo():
+    response = _otorgar_con_insert_que_falla("SCJ29", "autootorgamiento_directo")
+    assert response.status_code == 422
+    assert response.json()["detail"] == "No puedes otorgarte este permiso a ti mismo."
+
+
+def test_otorgar_scj29_por_herencia_de_la_base_devuelve_422_con_mensaje_fijo():
+    response = _otorgar_con_insert_que_falla("SCJ29", "autootorgamiento_por_herencia")
+    assert response.status_code == 422
+    assert response.json()["detail"] == "No puedes otorgar este permiso: terminarías heredándolo por el rodeo del organigrama."
+
+
+def test_otorgar_otro_error_de_la_base_no_se_traduce_como_scj29():
+    response = _otorgar_con_insert_que_falla("23505", None)
+    assert response.status_code != 422 or "ti mismo" not in str(response.json())
+
+
+def test_revocar_scj29_de_la_base_devuelve_422_con_mensaje_fijo():
+    fake_client = _fake_client_secuencia(
+        _entradas_gate()
+        + [
+            ("puesto_permiso", _tabla_select_simple([{"id": PUESTO_PERMISO_ID, "puesto_id": PUESTO_DESTINO_ID, "codigo": "permiso_ficticio_uno"}])),
+            ("puesto", _tabla_select_simple([{"es_administrador_generico": False}])),
+            ("bitacora_movimiento_puesto_permiso", _tabla_insert_que_falla("SCJ29", "autor_distinto_del_caller")),
+        ]
+    )
+    _override_identidad(fake_client)
+    try:
+        response = TestClient(app, raise_server_exceptions=False).post(
+            "/api/permisos/revocar", json={"puesto_permiso_id": PUESTO_PERMISO_ID}, headers={"Authorization": "Bearer fake-token"}
+        )
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 422
+    assert response.json()["detail"] == "El movimiento debe registrarse a nombre de quien lo hace."

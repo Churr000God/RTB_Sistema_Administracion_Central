@@ -287,3 +287,36 @@ def test_el_post_de_correcciones_traduce_tiempos_incoherentes_del_recalculo_del_
         app.dependency_overrides.clear()
     assert r.status_code == 409
     assert r.json()["detail"] == errores.MENSAJE_TRAMO_TIEMPOS_INCOHERENTES and "9981" not in r.text
+
+
+def test_scj29_se_traduce_por_hint_a_422_con_mensaje_fijo():
+    from postgrest.exceptions import APIError
+
+    from app import errores
+
+    directo = errores.traducir_error_autootorgamiento(APIError({"code": "SCJ29", "hint": "autootorgamiento_directo", "message": "crudo"}))
+    herencia = errores.traducir_error_autootorgamiento(APIError({"code": "SCJ29", "hint": "autootorgamiento_por_herencia", "message": "crudo"}))
+    assert (directo.status_code, directo.detail) == (422, "No puedes otorgarte este permiso a ti mismo.")
+    assert (herencia.status_code, herencia.detail) == (
+        422,
+        "No puedes otorgar este permiso: terminarías heredándolo por el rodeo del organigrama.",
+    )
+
+
+def test_scj29_con_hint_desconocido_cae_al_mensaje_general_y_otros_codigos_no_se_traducen():
+    from postgrest.exceptions import APIError
+
+    from app import errores
+
+    assert errores.traducir_error_autootorgamiento(APIError({"code": "SCJ29", "hint": "inventado", "message": "x"})).detail == errores.MENSAJE_AUTOOTORGAMIENTO_DIRECTO
+    assert errores.traducir_error_autootorgamiento(APIError({"code": "SCJ28", "hint": "autootorgamiento_directo", "message": "x"})) is None
+    assert errores.traducir_error_autootorgamiento(APIError({"code": "23505", "message": "x"})) is None
+
+
+def test_scj29_autor_distinto_del_caller_tiene_mensaje_propio():
+    from postgrest.exceptions import APIError
+
+    from app import errores
+
+    traduccion = errores.traducir_error_autootorgamiento(APIError({"code": "SCJ29", "hint": "autor_distinto_del_caller", "message": "crudo"}))
+    assert (traduccion.status_code, traduccion.detail) == (422, "El movimiento debe registrarse a nombre de quien lo hace.")

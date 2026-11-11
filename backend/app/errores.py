@@ -165,6 +165,30 @@ def traducir_error_alerta_horario(error: APIError) -> HTTPException | None:
     return None
 
 
+# --- 130_*.sql: regla anti auto-otorgamiento de permisos en la base (trigger sobre bitacora_movimiento_puesto_permiso) -----------------------------------
+
+CODIGO_AUTOOTORGAMIENTO = "SCJ29"
+MENSAJE_AUTOOTORGAMIENTO_DIRECTO = "No puedes otorgarte este permiso a ti mismo."
+MENSAJE_AUTOOTORGAMIENTO_POR_HERENCIA = (
+    "No puedes otorgar este permiso: terminarías heredándolo por el rodeo del organigrama."
+)
+MENSAJE_AUTOR_DISTINTO_DEL_CALLER = "El movimiento debe registrarse a nombre de quien lo hace."
+_SCJ29_POR_HINT = {
+    "autootorgamiento_directo": MENSAJE_AUTOOTORGAMIENTO_DIRECTO,
+    "autootorgamiento_por_herencia": MENSAJE_AUTOOTORGAMIENTO_POR_HERENCIA,
+    "autor_distinto_del_caller": MENSAJE_AUTOR_DISTINTO_DEL_CALLER,
+}
+
+
+def traducir_error_autootorgamiento(error: APIError) -> HTTPException | None:
+    """SCJ29 se distingue por HINT, con mensajes fijos (el texto de la base no llega a la respuesta). Un SCJ29 con hint desconocido o sin hint se trata como auto-otorgamiento directo,
+    el mensaje más general. None si el error no es de esta familia."""
+    if error.code != CODIGO_AUTOOTORGAMIENTO:
+        return None
+    mensaje = _SCJ29_POR_HINT.get(error.hint or "", MENSAJE_AUTOOTORGAMIENTO_DIRECTO)
+    return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, mensaje)
+
+
 def manejar_error_dia_cerrado(error: APIError) -> NoReturn:
     """Debe llamarse desde un `except APIError`. Levanta la traducción o relanza el error original
     (que cae al handler genérico de main.py, sin texto)."""

@@ -1,13 +1,20 @@
 # Proceso — Otorgar/revocar permiso a puesto
 
 **Sistema de Control de Jornada**
-Folio SCJ-PRO-05 · Versión 2.1 · 5 de septiembre de 2026
+Folio SCJ-PRO-05 · Versión 2.2 · 11 de noviembre de 2026
 
 Quinto documento de la serie `SCJ-PRO`, subsistema **Personas y Usuarios** — módulo
 Asignaciones/áreas/puestos/permisos. Cubre el proceso más sensible del módulo: quién puede darle
 un permiso a un puesto (`puesto_permiso`), y las tres protecciones que evitan que ese acto se use
 para ampliar los propios permisos, para dejar al sistema sin nadie que pueda repartirlos, o para
 dejarlo sin el puesto administrador de bootstrap.
+
+> **Cambió en V2.2 (11-nov-2026, bump menor):** las dos reglas de auto-otorgamiento de §V
+> (directo y por herencia) pasan también a la base, con `db/ddl/130_personas_puesto_permiso_regla_autootorgamiento.sql`
+> (cambio sobre el esquema congelado, `SCJ-ACT-03` V1.3). Hasta ahora solo las aplicaba el backend,
+> y con `puesto_permiso_edicion` se saltaban por PostgREST directo: insertando en la bitácora o
+> escribiendo `puesto_permiso` sin bitácora. El mismo script deja `puesto_permiso` de solo lectura
+> para la API (la bitácora es la única puerta) y ata `registrado_por` a quien hace el movimiento.
 
 > **Cambió en V2.1 (no contradice V2.0, se agrega sin quitar nada — bump menor):** cuarta
 > protección de §V, "revocación sobre el puesto administrador nunca procede". Se agregó tras un
@@ -115,6 +122,22 @@ flowchart TD
   ti mismo. Un permiso **no** heredable no tiene este riesgo — sólo se bloquea el puesto propio.
 - **La restricción aplica a la unión de todos tus puestos vigentes**, no a uno solo — consistente
   con que una persona puede cubrir varios puestos a la vez (`SCJ-PRO-04`).
+- **Las dos reglas anteriores se aplican en dos capas (V2.2).** El backend
+  (`routers/permisos.py::otorgar_permiso()`) responde un 422 legible. La base las aplica con el
+  trigger `BEFORE INSERT` `trg_bitacora_puesto_permiso_regla_autootorgamiento`
+  (`db/ddl/130_*.sql`), que cierra el INSERT directo por PostgREST. El trigger solo actúa en
+  otorgamientos hechos con identidad de usuario (`auth.uid()`). Las migraciones, las semillas y
+  `service_role` no pasan por esta regla. Error: `SCJ29`, con HINT `autootorgamiento_directo`
+  (permiso no heredable sobre el puesto propio) o `autootorgamiento_por_herencia` (permiso
+  heredable sobre el puesto propio o un descendiente).
+- **La bitácora es la única puerta (V2.2).** `personas.puesto_permiso` es de solo lectura para la
+  API: ningún rol tiene `INSERT`, `UPDATE` ni `DELETE`, y no hay policies de escritura. La escribe
+  solo `trg_puesto_permiso_sincroniza`, que es `SECURITY DEFINER` desde `130_`. Antes, esa tabla
+  aceptaba escrituras directas con `puesto_permiso_edicion` y se podía otorgar un permiso sin
+  pasar por la bitácora ni por ninguna regla.
+- **Cada movimiento queda a nombre de quien lo hace (V2.2).** Con identidad de usuario,
+  `registrado_por` debe ser `auth.uid()` al otorgar y al revocar (`SCJ29`,
+  `autor_distinto_del_caller`). Es el mismo criterio que la bitácora de personas (`92_`).
 - **No se puede dejar el sistema sin nadie que pueda repartir permisos.** Revocar la última fila
   activa de `puesto_permiso_edicion` en todo el sistema se rechaza — un deadlock así sólo se
   arregla por acceso directo a la base, y con 8 personas es un riesgo real, no teórico.
@@ -201,4 +224,4 @@ diseño como en código. Queda pendiente:
 
 ---
 
-*Proceso · Folio SCJ-PRO-05 · V2.1*
+*Proceso · Folio SCJ-PRO-05 · V2.2*

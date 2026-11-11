@@ -1,7 +1,9 @@
 # Diccionario de datos
 
 **Sistema de Control de Jornada · Esquemas `personas` y `tiempo`**
-Folio SCJ-DIC-01 · Versión 1.7 · 28 de octubre de 2026
+Folio SCJ-DIC-01 · Versión 1.8 · 11 de noviembre de 2026
+
+> **Cambio de versión (V1.7 → V1.8, menor, 11-nov-2026):** segundo cambio sobre el esquema congelado (`SCJ-ACT-03` V1.3 §V), aprobado por Diego el 11-nov-2026. Recoge el script `130_`, **escrito y pendiente de ensayo y aplicación**: cierra el auto-otorgamiento de permisos por puesto en la base. (1) `personas.puesto_permiso` queda de solo lectura para la API: sin `INSERT`/`UPDATE`/`DELETE` para `authenticated` ni `service_role` y sin sus 3 policies de escritura (`puesto_permiso_insert/update/delete_requiere_permiso`); su único escritor es `personas.fn_puesto_permiso_sincroniza()`, que pasa a `SECURITY DEFINER` con `search_path` fijo. (2) Función nueva `personas.fn_bitacora_puesto_permiso_regla_autootorgamiento()` (trigger, `SECURITY DEFINER`, sin `EXECUTE` para roles de la API) y trigger `trg_bitacora_puesto_permiso_regla_autootorgamiento` (BEFORE INSERT en `personas.bitacora_movimiento_puesto_permiso`): ata `registrado_por` al caller y replica la regla anti auto-otorgamiento del backend. (3) Código `SCJ29` con tres HINT (`autootorgamiento_directo`, `autootorgamiento_por_herencia`, `autor_distinto_del_caller`). Cifras: funciones 97 → 98 (47 `SECURITY DEFINER`: la nueva y `fn_puesto_permiso_sincroniza`; 46 de trigger), policies 76 → 73; tablas, columnas y permisos sin cambio. Estas entradas se escribieron a mano a partir del DDL; se cotejan contra el catálogo real al aplicar.
 
 > **Cambio de versión (V1.6 → V1.7, menor, 28-oct-2026):** cambio sobre el esquema congelado (`SCJ-ACT-03` V1.2 §V, P-055 con P-182 fusionada), aprobado por Diego el 28-oct-2026. Recoge los scripts `127_`, `128_` y `129_`, aplicados ese día y verificados en solo lectura contra la base real (`db/verificar_ddl.sql`: secciones 55, 89, 90 y 91 en 0 filas, y la 92, informativa, también en 0). **No cambia ninguna estructura** (tablas, columnas, restricciones, índices, permisos y claves de parámetro iguales) ni ninguna cifra: **37 tablas**, **97 funciones propias** (45 `SECURITY DEFINER`, 45 de trigger), **76 policies RLS**, **54 permisos** (27 no heredables), **15 claves** de `tiempo.parametro`; los scripts pasan a **130 (`00` a `129`)**. Lo que cambia es el comportamiento de 11 funciones y 1 policy:
 > - **`127_` — «hoy» es la fecha de México.** La base corre con `TimeZone = UTC`, así que `CURRENT_DATE` adelantaba un día entre las 18:00 y las 24:00 de CDMX. Las 10 funciones que lo usaban como «hoy» pasan a `personas.fn_hoy_mexico()` (`113_`) sin otro cambio de cuerpo, atributos ni `EXECUTE`: `personas.fn_persona_sincroniza_baja`, `tiempo.fn_jornada_asignada_protege_borrado`, `tiempo.fn_jornada_asignada_protege_vigencias`, `tiempo.fn_patron_semanal_solo_jornada_futura`, `tiempo.fn_jornada_en_curso_mover_limite`, `tiempo.fn_jornada_futura_actualizar`, `tiempo.fn_jornada_futura_eliminar`, `tiempo.fn_parametro_actualizar_valor`, `tiempo.fn_terminal_config_actualizar` y `tiempo.fn_terminal_config_valor`. Regla vigente: ninguna función de `tiempo`/`personas` usa `CURRENT_DATE`, `LOCALTIMESTAMP` ni `now()::date` (sección 89). Excepción deliberada: `fn_terminal_inferir_huella_cambiar`/`_estado` siguen con fecha UTC explícita (`97_`, decisión de Diego del 28-oct).
@@ -1612,14 +1614,11 @@ Sin policy: acceso denegado por omisión a los roles sujetos a RLS.
 
 **Referenciada por:** — (ninguna FK la referencia)
 
-**RLS:** habilitada; privilegios de tabla (D=DELETE, I=INSERT, S=SELECT, U=UPDATE) — anon:— authenticated:DISU service_role:DISU
+**RLS:** habilitada; privilegios de tabla (D=DELETE, I=INSERT, S=SELECT, U=UPDATE) — anon:— authenticated:S service_role:S *(V1.8, `130_`: sin INSERT/UPDATE/DELETE; el único escritor es el trigger DEFINER de la bitácora)*
 
 | Policy | Comando | Roles | USING / WITH CHECK |
 |---|---|---|---|
-| `puesto_permiso_delete_requiere_permiso` | DELETE | public | `USING ((personas.fn_caller_activo() AND personas.fn_caller_tiene_permiso('puesto_permiso_edicion'::text) AND (NOT (EXISTS ( SELECT 1 FROM personas.puesto pu WHERE ((pu.id = puesto_permiso.puesto_id) AND pu.es_administrador_generico))))))` |
-| `puesto_permiso_insert_requiere_permiso` | INSERT | public | `CHECK ((personas.fn_caller_activo() AND personas.fn_caller_tiene_permiso('puesto_permiso_edicion'::text)))` |
 | `puesto_permiso_select_caller_activo` | SELECT | public | `USING ((personas.fn_caller_activo() AND (( SELECT personas.fn_caller_ve_estructura_permisos() AS fn_caller_ve_estructura_permisos) OR (puesto_id IN ( SELECT personas.fn_caller_puestos_en_rama() AS fn_caller_puestos_en_rama)))))` |
-| `puesto_permiso_update_requiere_permiso` | UPDATE | public | `USING ((personas.fn_caller_activo() AND personas.fn_caller_tiene_permiso('puesto_permiso_edicion'::text))) ; CHECK ((personas.fn_caller_activo() AND personas.fn_caller_tiene_permiso('puesto_permiso_edicion'::text) AND (NOT ((activo = false) AND (EXISTS ( SELECT 1 FROM personas.puesto pu WHERE ((pu.id = puesto_permiso.puesto_id) AND pu.es_administrador_generico)))))))` |
 
 ---
 
@@ -1655,6 +1654,7 @@ Sin policy: acceso denegado por omisión a los roles sujetos a RLS.
 **Triggers:** 
 - `trg_bitacora_puesto_permiso_inmutable`: BEFORE DELETE OR UPDATE, por fila → `personas.fn_bitacora_puesto_permiso_inmutable()`
 - `trg_puesto_permiso_sincroniza`: AFTER INSERT, por fila → `personas.fn_puesto_permiso_sincroniza()`
+- `trg_bitacora_puesto_permiso_regla_autootorgamiento`: BEFORE INSERT, por fila → `personas.fn_bitacora_puesto_permiso_regla_autootorgamiento()` *(V1.8, `130_`)*
 
 **Referenciada por:** — (ninguna FK la referencia)
 
@@ -1733,7 +1733,7 @@ Las columnas "backend" se apoyan en comentarios del DDL, en `CLAUDE.md` y en `SC
 
 ## V. Funciones, RPC y políticas RLS
 
-### V.1 Funciones (97)
+### V.1 Funciones (98)
 
 Ejecutable por: roles con `EXECUTE` entre `anon`, `authenticated`, `service_role`; `público` = el privilegio por omisión de `PUBLIC` sigue activo. SD = `SECURITY DEFINER`. Tipo: trigger = función de trigger; RPC = con `EXECUTE` para `authenticated` o `service_role`; auxiliar = el resto (la llaman otras funciones o las policies).
 
@@ -1745,6 +1745,7 @@ Ejecutable por: roles con `EXECUTE` entre `anon`, `authenticated`, `service_role
 | `personas.fn_bitacora_inmutable()` | trigger | no | — | Aborta cualquier UPDATE/DELETE sobre la bitácora, incluido service_role (que salta RLS y conserva el GRANT de 08_personas_permisos.sql hasta que se revoque explícitamente). |
 | `personas.fn_bitacora_persona_fija_hora()` | trigger | no | — | 92_. BEFORE INSERT en personas.bitacora_movimiento_persona: para llamadores de la API (anon/authenticated) fija creado_en = now() y exige fecha_efectiva entre now() - 90 días y now() + 5 minutos (22023 / fecha_efectiva_invalida). service_role y el dueño no se tocan. SECURITY INVOKER, search_path = personas, pg_temp; s… |
 | `personas.fn_bitacora_puesto_permiso_inmutable()` | trigger | no | — | Aborta cualquier UPDATE/DELETE sobre la bitácora, incluido service_role. |
+| `personas.fn_bitacora_puesto_permiso_regla_autootorgamiento()` | trigger | sí | — | *(V1.8, `130_`)* BEFORE INSERT de bitacora_movimiento_puesto_permiso, solo con auth.uid(): registrado_por debe ser el caller (SCJ29 autor_distinto_del_caller); en otorgado, réplica exacta de la regla anti auto-otorgamiento de routers/permisos.py: heredable => rechaza el puesto vigente del caller o cualquier descendiente (SCJ29 autootorgamiento_por_herencia); no heredable => rechaza el puesto vigente del caller (SCJ29 autootorgamiento_directo). Sin auth.uid() (migraciones, semillas, service_role) no aplica. |
 | `personas.fn_bitacora_sincroniza_persona()` | trigger | no | — | Implementa SCJ-PRO-02 (sincroniza persona.estado/fecha_baja) y, desde este archivo, además SCJ-PRO-04 §VI: en baja_definitiva cierra todas las asignaciones vigentes de la persona con vigente_hasta = fecha_efectiva de la baja. *(V1.7, 128_: fecha_baja y cierre de asignaciones con `personas.fn_hoy_mexico(NEW.fecha_efectiva)`)* |
 | `personas.fn_caller_activo()` | RPC | sí | authenticated,service_role | true si el usuario autenticado (auth.uid()) tiene una persona activa detrás. |
 | `personas.fn_caller_es_administrador_generico()` | RPC | sí | authenticated | 88_. true si el llamador ocupa HOY (asignación vigente, sin herencia) un puesto con es_administrador_generico. Sólo datos propios; la usa fn_terminal_reconsentir. SECURITY DEFINER, search_path = personas, pg_temp; EXECUTE sólo authenticated. |
@@ -1763,7 +1764,7 @@ Ejecutable por: roles con `EXECUTE` entre `anon`, `authenticated`, `service_role
 | `personas.fn_persona_sincroniza_baja()` | trigger | no | — | Sincroniza estado y fecha_baja en ambos sentidos. *(V1.7, 127_: «hoy» = `personas.fn_hoy_mexico()`, no CURRENT_DATE)* |
 | `personas.fn_persona_sincroniza_tiempo()` | trigger | sí | — | Crea el ancla tiempo.persona(id) al dar de alta una personas.persona -- sólo el id, ningún atributo de identidad cruza la frontera (SCJ-FRO-01). |
 | `personas.fn_puesto_administrador_generico_inmutable()` | trigger | no | — | Aborta cualquier UPDATE que cambie es_administrador_generico, incluido service_role. |
-| `personas.fn_puesto_permiso_sincroniza()` | trigger | no | — | Implementa SCJ-PRO-05 G8 ("crea o reactiva la fila"): ON CONFLICT (puesto_id, codigo) DO UPDATE resuelve en una sola sentencia el caso de otorgar un permiso ya revocado antes, apoyado en uq_puesto_permiso_puesto_codigo (22_personas_puesto_permiso.sql). |
+| `personas.fn_puesto_permiso_sincroniza()` | trigger | sí *(V1.8, `130_`)* | — | Implementa SCJ-PRO-05 G8 ("crea o reactiva la fila"): ON CONFLICT (puesto_id, codigo) DO UPDATE resuelve en una sola sentencia el caso de otorgar un permiso ya revocado antes, apoyado en uq_puesto_permiso_puesto_codigo (22_personas_puesto_permiso.sql). |
 | `personas.fn_usuario_bitacora_alta()` | trigger | no | — | Implementa SCJ-PRO-01 paso A3. |
 | `personas.fn_usuario_es_administrador_generico(p_auth_user_id uuid)` | auxiliar | no | — | 88_. true si el usuario ocupa HOY (asignación vigente, sin herencia) un puesto con es_administrador_generico. Excepción de la regla de auto-asignación a una terminal (SCJ-PRO-15 §V.3). Interna del trigger; sin EXECUTE para la API. SECURITY INVOKER, search_path = personas, pg_temp. |
 | `tiempo.fn_aprobacion_ausencia_actualiza_ausencia()` | trigger | sí | — | Recalcula ausencia.estado_autorizacion desde su cadena de pasos: cualquier rechazo cierra en 'rechazada'; todos los pasos en 'autorizada' cierra en 'autorizada'; cualquier otro caso se queda 'pendiente'. |
@@ -1839,7 +1840,7 @@ Ejecutable por: roles con `EXECUTE` entre `anon`, `authenticated`, `service_role
 
 ### V.2 Políticas RLS
 
-Las 37 tablas tienen RLS habilitada y ninguna la tiene forzada (`FORCE`). El detalle de cada policy está en la sección de su tabla en II. Resumen (76 policies):
+Las 37 tablas tienen RLS habilitada y ninguna la tiene forzada (`FORCE`). El detalle de cada policy está en la sección de su tabla en II. Resumen (73 policies desde `130_`; eran 76):
 
 | Tabla | Policies |
 |---|---|
@@ -1878,13 +1879,14 @@ Las 37 tablas tienen RLS habilitada y ninguna la tiene forzada (`FORCE`). El det
 | `personas.puesto` | 4 (1 DELETE, 1 INSERT, 1 SELECT, 1 UPDATE) |
 | `personas.asignacion` | 4 (1 DELETE, 1 INSERT, 1 SELECT, 1 UPDATE) |
 | `personas.permiso` | 4 (1 DELETE, 1 INSERT, 1 SELECT, 1 UPDATE) |
-| `personas.puesto_permiso` | 4 (1 DELETE, 1 INSERT, 1 SELECT, 1 UPDATE) |
+| `personas.puesto_permiso` | 1 (1 SELECT) *(V1.8: `130_` quita las 3 de escritura)* |
 | `personas.bitacora_movimiento_puesto_permiso` | 2 (1 INSERT, 1 SELECT) |
 
 
 - Sin policy (deny-by-default, a propósito): `tiempo.corte_quincenal_aplicado`, `tiempo.dia_festivo`, `tiempo.parametro`, `tiempo.terminal_credencial`, `tiempo.tope_legal`. Se acceden por `service_role` o por RPC.
 - `anon` **no tiene ningún privilegio de tabla en ninguna de las 37 tablas** (`100_`, `102_`, `103_`).
 - Sin `UPDATE` ni `DELETE` para `authenticated` ni `service_role` (solo inserción/lectura): `personas.bitacora_movimiento_persona`, `personas.bitacora_movimiento_puesto_permiso`, `tiempo.bitacora_config_terminal`, `tiempo.bitacora_movimiento_terminal_usuario`, `tiempo.correccion`, `tiempo.corte_quincenal_aplicado`, `tiempo.excepcion_descarte`, `tiempo.marca_rechazada`, `tiempo.marca`, `tiempo.movimiento_de_saldo`, `tiempo.terminal_consentimiento`, `tiempo.terminal_credencial`, `tiempo.terminal_usuario`, `tiempo.terminal`. Las bitácoras y `tiempo.excepcion_descarte` además están protegidas por triggers de inmutabilidad que aplican incluso al dueño.
+- *(V1.8, `130_`)* Solo lectura para la API (sin `INSERT`, `UPDATE` ni `DELETE` para ningún rol, sin policies de escritura): `personas.puesto_permiso`. Lo escribe solo `trg_puesto_permiso_sincroniza` (`SECURITY DEFINER`) desde la bitácora.
 - Nadie de la API puede ejecutar `TRUNCATE`, `REFERENCES`, `TRIGGER` ni `MAINTAIN` (`100_`, `102_`); el privilegio efectivo de cada tabla está en su sección de II.
 - Roles de plataforma esperados (no creados por el DDL): `anon`, `authenticated`, `service_role`, `authenticator`. El rol `terminal_checador` (`37_`) quedó vacío y `NOLOGIN` desde `93_`; el DDL no le concede nada.
 
@@ -1970,6 +1972,9 @@ El DDL define sus propios `SQLSTATE` para que el backend distinga el caso sin le
 | `SCJ28` | `motivo_obligatorio` | `tiempo.fn_excepcion_horario_descartar` | El motivo del descarte es obligatorio. *(V1.6)* |
 | `SCJ28` | `no_es_alerta_de_horario` | `tiempo.fn_excepcion_horario_descartar` | La excepción no es una alerta de horario. *(V1.6)* |
 | `SCJ28` | `ya_resuelta` | `tiempo.fn_excepcion_horario_descartar` | La excepción ya está resuelta. *(V1.6)* |
+| `SCJ29` | `autootorgamiento_directo` | `personas.fn_bitacora_puesto_permiso_regla_autootorgamiento` | No puedes otorgarte este permiso a ti mismo. *(V1.8)* |
+| `SCJ29` | `autootorgamiento_por_herencia` | `personas.fn_bitacora_puesto_permiso_regla_autootorgamiento` | No puedes otorgar este permiso: terminarías heredándolo por el rodeo del organigrama. *(V1.8)* |
+| `SCJ29` | `autor_distinto_del_caller` | `personas.fn_bitacora_puesto_permiso_regla_autootorgamiento` | El movimiento debe registrarse a nombre de quien lo hace. *(V1.8)* |
 
 `22023` (`invalid_parameter_value`), `23514` (`check_violation`), `42501` (`insufficient_privilege`) y `P0001` (`raise_exception`) son códigos estándar, no propios; se listan porque el backend distingue por su `HINT`. Los códigos de resultado por evento de `fn_marca_terminal_registrar` (`confirmado`, `duplicado`, `rechazo_definitivo`/`rechazo_transitorio` con su `codigo`) no son errores SQL: viajan en el `jsonb` de respuesta (`SCJ-CDT-01 §IX.6`).
 
