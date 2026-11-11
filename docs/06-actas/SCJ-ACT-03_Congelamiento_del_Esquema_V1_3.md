@@ -45,8 +45,8 @@ posterior al congelamiento, hecho con el procedimiento de §V. La V1.2 registró
 > sesión `db` recibió la cita retransmitida por `orchestrator`; queda por anotar dónde se guarda
 > en la bóveda.
 >
-> **Pendiente al redactar esta versión:** ensayo (`ensayo_130`), revisión de `security`, aplicación
-> en la base y firma (§III #9, §VI).
+> **Estado (11-nov-2026):** `130_` ensayada (52/52, `ROLLBACK`), aplicada por Diego y verificada en
+> solo lectura (§III #9). Falta la firma de esta versión (§VI).
 
 > **Cambio de versión (V1.1 → V1.2, 28-oct-2026):** primer cambio sobre el esquema congelado
 > (P-055, con P-182 fusionada). **Motivo:** la base corre con `TimeZone = UTC`. Entre las 18:00 y
@@ -95,9 +95,9 @@ acta (§IV).
 |---|---|
 | Esquemas | `tiempo` (26 tablas) y `personas` (11 tablas) |
 | Versión | Módulos 1 y 2 · DDL `00_` a `130_` (131 archivos) |
-| Última migración aplicada | `129_personas_baja_exige_asignacion_edicion.sql` (`127_` a `129_` aplicados el 28-oct-2026 con el comando de Diego). **`130_personas_puesto_permiso_regla_autootorgamiento.sql` está escrita y pendiente de ensayo, revisión y aplicación** (§III #9) |
-| Huella del DDL | Se fija al aplicar `130_` (`sha256` de los 131 archivos de `db/ddl/` concatenados en orden numérico: `cd db/ddl && cat $(ls \| sort -V) \| sha256sum`). Huella de la V1.2 (`00_` a `129_`): `a5aa73ad183fa195f633f1cd4af0b8e6a908124a452845021eea1adf0611af92`. Huella de la V1.1 (`00_` a `126_`): `a7a15caa3355dcb66ff97fdde4a29ae503fd3958683477772dc5b84670a26179` |
-| Catálogo | V1.2 (solo lectura, 28-oct-2026): 37 tablas; 97 funciones propias (45 `SECURITY DEFINER`, 45 de trigger); 76 policies RLS; 54 permisos (27 no heredables); 15 claves en `tiempo.parametro`. Esperado tras `130_`: 98 funciones propias (47 `SECURITY DEFINER`: la nueva y `fn_puesto_permiso_sincroniza`, que pasa a DEFINER; 46 de trigger), 73 policies (3 menos en `personas.puesto_permiso`), un trigger más en `personas.bitacora_movimiento_puesto_permiso` y `personas.puesto_permiso` sin `INSERT`/`UPDATE`/`DELETE` para la API; tablas, columnas y permisos iguales. Se confirma en solo lectura al aplicar |
+| Última migración aplicada | `130_personas_puesto_permiso_regla_autootorgamiento.sql`, aplicada el 11-nov-2026 por Diego (`psql --single-transaction`, commit `dd16f77`) y verificada en solo lectura ese mismo día (#9). `127_` a `129_` se aplicaron el 28-oct-2026 |
+| Huella del DDL | `18313c6d14384edb431f71ce2dd6307d1022c749168cd691e856ecd7497a0ffd` — `sha256` de los 131 archivos de `db/ddl/` concatenados en orden numérico (`cd db/ddl && cat $(ls \| sort -V) \| sha256sum`), calculada el 11-nov-2026 sobre `db/ddl/` idéntico al commit `dd16f77`. Huella de la V1.2 (`00_` a `129_`): `a5aa73ad183fa195f633f1cd4af0b8e6a908124a452845021eea1adf0611af92`. Huella de la V1.1 (`00_` a `126_`): `a7a15caa3355dcb66ff97fdde4a29ae503fd3958683477772dc5b84670a26179` |
+| Catálogo (solo lectura, 11-nov-2026) | 37 tablas; 98 funciones propias en `personas` y `tiempo` (47 `SECURITY DEFINER`, 46 de trigger); 73 policies RLS; 54 permisos (27 no heredables). Cambios contra la V1.2 (97 funciones, 45 SD, 45 de trigger, 76 policies): la función nueva de `130_`, `fn_puesto_permiso_sincroniza` pasa a `SECURITY DEFINER` y se quitan las 3 policies de escritura de `personas.puesto_permiso`. Tablas y permisos iguales |
 | Base | Supabase `RTBGO` |
 | Fecha | 23 de octubre de 2026 (congelamiento) · 28 de octubre de 2026 (cambio de la V1.2) · 11 de noviembre de 2026 (cambio de la V1.3) |
 
@@ -118,7 +118,7 @@ cambio de la V1.2 y la 9, la del cambio de la V1.3.
 | 6 | Las cinco consultas de validación pasan | **Parcial.** `db/verificar_ddl.sql` (secciones 1 a 92) corre sin errores y todas las verificaciones estructurales cumplen. Hay dos comentarios del script desfasados: el §7 espera 53 permisos y hay 54 (`120_`), y el §10 espera 0 huérfanos de `auth.users` y hay 1, aceptado el 9-oct. La §9 (prueba HTTP con curl) no se corrió. Las consultas de negocio `03_calculo_historico`, `04_tope_vigente` y `05_reconstruccion_historica` que cita `SCJ-TRZ-01` **no existen** en `db/consultas/validacion/` (§IV, #4) |
 | 7 | `SCJ-TRZ-01` no tiene requisitos en estado *Pendiente* sin justificación | **Sí.** Los pendientes tienen justificación: relleno del día impar (decisión del 22-oct: lo captura RH a mano, `SCJ-PRA-01 #14`); saldo de vacaciones y traslape por grupo (pasan al módulo 3, decisión del 23-oct); consultas de validación (#6) |
 | 8 | El cambio de la V1.2 (`127_`–`129_`) se ensayó y se verificó | **Sí.** Los tres se ensayaron con `BEGIN…ROLLBACK` contra la base real, con datos sintéticos y sin residuo: `ensayo_127` 54/54, y 58/58 con la reversa probada; `ensayo_128` 20/20; `ensayo_129` 19/19. Después de aplicarlos, en solo lectura: las secciones 55, 89, 90 y 91 de `verificar_ddl.sql` dan 0 filas; la 92 (informativa: puestos con `cambio_estado_persona` sin `asignacion_edicion`, contando herencia) también da 0, así que `129_` no le quita a ningún puesto real la posibilidad de dar bajas. Los atributos, el dueño y el `EXECUTE` de las 11 funciones, y el comando, los roles y el `USING` de la policy, son iguales a los de antes del cambio. Cada script tiene su reversa ejecutable en `db/ensayos/` (`vigente_127_*`, `vigente_128_*`, `vigente_129_*`) |
-| 9 | El cambio de la V1.3 (`130_`) se ensayó y se verificó | **Pendiente.** `db/ensayos/ensayo_130.sql` está escrito y no se ha corrido: necesita el OK de Diego. Corre con `BEGIN…ROLLBACK` y datos sintéticos. Reproduce los tres huecos antes de aplicar (bitácora, escritura directa sobre `puesto_permiso`, autor ajeno). Prueba la reversa exacta (`vigente_130_reversa.sql`: policies, privilegios y atributos iguales a la foto). Después de aplicar prueba la regla, la escritura directa en 42501, la sincronización como DEFINER, la autoría y el puesto administrador. Falta también la revisión de `security` del corte ampliado, la aplicación y la sección 93 de `verificar_ddl.sql` en 0 filas |
+| 9 | El cambio de la V1.3 (`130_`) se ensayó y se verificó | **Sí.** `db/ensayos/ensayo_130.sql` se corrió con `BEGIN…ROLLBACK` contra la base real, con datos sintéticos: 52/52 (dato que reportó `orchestrator`; el ensayo reproduce los tres huecos antes de aplicar, prueba la reversa exacta `vigente_130_reversa.sql` y luego la regla, la escritura directa en 42501, la sincronización como DEFINER, la autoría y el puesto administrador). Después de aplicar `130_` (11-nov-2026), en solo lectura: `verificar_ddl.sql` completo (secciones 1 a 93) solo devuelve los 10 bloques informativos de la línea base; todo lo demás, incluidas la 70 y la 93 (sus 4 partes), da 0 filas. `personas.puesto_permiso` queda con `relacl` `{postgres=arwdDxtm/postgres,authenticated=r/postgres,service_role=r/postgres}`, RLS sin `FORCE`, dueño `postgres` y una sola policy (`puesto_permiso_select_caller_activo`, SELECT). `fn_puesto_permiso_sincroniza` y la función nueva: `SECURITY DEFINER`, `search_path=personas, pg_temp`, dueño `postgres`, `EXECUTE` solo para `postgres`. La bitácora tiene 3 triggers habilitados: el nuevo BEFORE INSERT ROW (`tgtype` 7), el que sincroniza AFTER INSERT ROW (5) y el de inmutabilidad (27) |
 
 ---
 
@@ -160,7 +160,7 @@ En la V1.2 se cumplieron los cinco pasos:
 En la V1.3:
 1. **Motivo:** la nota de cambio de esta versión (hallazgo de `security` del 11-nov-2026).
 2. **Aprobación:** la nota de cambio de esta versión.
-3. **Migración:** `130_`, con su ensayo (#9 de §III; pendiente de correr).
+3. **Migración:** `130_`, con su ensayo (#9 de §III).
 4. **Documentación:** `SCJ-DIC-01` V1.8 y `SCJ-PRO-05` (§V, la regla ahora también la aplica la base).
 5. **Acta:** esta versión.
 
