@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.tipos_id import IdUuid
 from app.zona import hoy_mexico
 from app.deps import get_caller_client
 from app.errores import UNIQUE_VIOLATION, leer_con_reintento, manejar_violacion_unicidad, rechazo_generico
@@ -259,13 +260,13 @@ def _construir_ficha_persona(db: Client, persona_id: str) -> dict:
 
 
 @router.get("/{persona_id}", response_model=PersonaConExpediente)
-def ficha_persona(persona_id: str, db: Client = Depends(get_caller_client)) -> dict:
+def ficha_persona(persona_id: IdUuid, db: Client = Depends(get_caller_client)) -> dict:
     return _construir_ficha_persona(db, persona_id)
 
 
 @router.patch("/{persona_id}", response_model=PersonaConExpediente)
 def actualizar_persona(
-    persona_id: str,
+    persona_id: IdUuid,
     datos: PersonaActualizar,
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(requiere_permiso("persona_edicion")),

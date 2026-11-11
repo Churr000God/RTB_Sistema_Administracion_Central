@@ -2,6 +2,8 @@ from datetime import date, time
 
 from pydantic import BaseModel, field_validator, model_validator
 
+from app.tipos_id import IdUuid
+
 TIPOS_JORNADA_VALIDOS = {"normal", "flexible", "de_confianza"}
 DIAS_SEMANA_VALIDOS = {
     "lunes",
@@ -80,7 +82,7 @@ class _CamposJornada(BaseModel):
 
 
 class JornadaAsignadaCreate(_CamposJornada):
-    persona_id: str
+    persona_id: IdUuid
     confirma_cierre_vigente: bool = False
 
 

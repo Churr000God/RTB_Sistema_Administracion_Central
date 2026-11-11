@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.tipos_id import IdUuid
 from app.deps import get_caller_client
 from app.errores import manejar_violacion_unicidad
 from app.permisos import requiere_permiso
@@ -85,7 +86,7 @@ def alta_departamento(
 
 @router.get("/{departamento_id}", response_model=DepartamentoOut)
 def obtener_departamento(
-    departamento_id: str,
+    departamento_id: IdUuid,
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(requiere_permiso("departamento_lectura", "departamento_edicion")),
 ) -> dict:
@@ -104,7 +105,7 @@ def obtener_departamento(
 
 @router.patch("/{departamento_id}", response_model=DepartamentoOut)
 def renombrar_departamento(
-    departamento_id: str,
+    departamento_id: IdUuid,
     datos: DepartamentoRename,
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(requiere_permiso("departamento_edicion")),
@@ -133,7 +134,7 @@ def renombrar_departamento(
 
 @router.patch("/{departamento_id}/estado", response_model=DepartamentoOut)
 def cambiar_estado_departamento(
-    departamento_id: str,
+    departamento_id: IdUuid,
     datos: DepartamentoEstado,
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(requiere_permiso("departamento_edicion")),

@@ -46,6 +46,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.tipos_id import IdUuid
 from app.zona import ZONA_MEXICO, hoy_mexico
 from app.banco_alertas_magnitud import (
     clasificar_nivel_deuda,
@@ -172,7 +173,7 @@ def _campos_alerta_magnitud(
 
 
 def _fila_sintetica_corte_pendiente(
-    persona_id: str,
+    persona_id: IdUuid,
     persona_nombre: str | None,
     jornada_semanal_horas: float | None,
     aviso_pct: int,
@@ -407,7 +408,7 @@ def _armar_ledger_de_persona(db: Client, persona_id: str) -> dict:
 
 @router.get("/{persona_id}/movimientos", response_model=MovimientoSaldoListaOut)
 def listar_movimientos_de_persona(
-    persona_id: str,
+    persona_id: IdUuid,
     db_servicio: Client = Depends(get_service_client),
     _permiso_banco: None = Depends(requiere_permiso("banco_de_horas_lectura")),
     _permiso_ledger: None = Depends(
@@ -419,7 +420,7 @@ def listar_movimientos_de_persona(
 
 @router.post("/{persona_id}/movimientos", response_model=MovimientoSaldoListaOut)
 def registrar_movimiento_manual(
-    persona_id: str,
+    persona_id: IdUuid,
     datos: MovimientoSaldoCrear,
     db: Client = Depends(get_caller_client),
     db_servicio: Client = Depends(get_service_client),

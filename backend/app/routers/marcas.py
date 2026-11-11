@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.tipos_id import IdUuid
 from app.zona import hoy_mexico
 from app.errores import rechazo_generico
 from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
@@ -308,7 +309,7 @@ def _estado_revision(requiere_revision: bool, excepcion_pendiente_id: int | None
 def listar_marcas(
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(requiere_permiso("marca_lectura", "captura_manual_edicion")),
-    persona_id: str | None = Query(None, description="Filtra por una persona exacta."),
+    persona_id: IdUuid | None = Query(None, description="Filtra por una persona exacta."),
     desde: datetime | None = Query(
         None, description="momento_recepcion >= desde (ISO 8601, incluye hora)."
     ),

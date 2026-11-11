@@ -3,10 +3,12 @@ from typing import Literal
 
 from pydantic import BaseModel, field_validator
 
+from app.tipos_id import IdUuid
+
 
 class MarcaCapturaManualCreate(BaseModel):
-    evento_id: str  # UUID v4, generado por el frontend al montar el formulario (SCJ-ESP-01 §VII.4)
-    persona_id: str
+    evento_id: IdUuid  # UUID v4, generado por el frontend al montar el formulario (SCJ-ESP-01 §VII.4)
+    persona_id: IdUuid
     terminal_id: str  # punto de captura (ej. "rh-captura-01"), no un aparato físico
     momento_dispositivo: datetime | None = None  # None = comportamiento actual, ahora
 

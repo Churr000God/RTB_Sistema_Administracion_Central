@@ -2,15 +2,17 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_validator
 
+from app.tipos_id import IdUuid
+
 NIVELES_VALIDOS = {"direccion", "gerencia", "mando_medio", "operativo"}
 
 
 class PuestoCreate(BaseModel):
-    departamento_id: str
+    departamento_id: IdUuid
     nombre_puesto: str
     nivel: str
     plazas_totales: int = 1
-    reporta_a_id: str  # obligatorio: la API nunca crea un puesto tope, sólo la migración por SQL
+    reporta_a_id: IdUuid  # obligatorio: la API nunca crea un puesto tope, sólo la migración por SQL
 
     @field_validator("nombre_puesto")
     @classmethod

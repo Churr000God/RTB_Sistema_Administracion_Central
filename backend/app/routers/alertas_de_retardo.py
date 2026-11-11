@@ -20,6 +20,7 @@ from datetime import date, datetime, time, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from supabase import Client
 
+from app.tipos_id import IdUuid
 from app.deps import get_caller_client
 from app.permisos import requiere_permiso
 from app.schemas.alertas_de_retardo import AlertaDeRetardoItem, AlertasDeRetardoOut
@@ -184,7 +185,7 @@ def _diferencia_minutos(hora_a: time, hora_b: time) -> float:
 def listar_alertas_de_retardo(
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(requiere_permiso("clasificacion_de_tiempo_lectura")),
-    persona_id: str | None = Query(None, description="Filtra por una persona exacta."),
+    persona_id: IdUuid | None = Query(None, description="Filtra por una persona exacta."),
     desde: date = Query(..., description="Primer día del rango a evaluar (inclusive)."),
     hasta: date = Query(..., description="Último día del rango a evaluar (inclusive)."),
 ) -> dict:

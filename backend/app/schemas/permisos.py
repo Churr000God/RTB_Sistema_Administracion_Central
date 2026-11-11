@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from app.tipos_id import IdUuid
+
 
 class PermisoOut(BaseModel):
     codigo: str
@@ -12,12 +14,12 @@ class PermisoOut(BaseModel):
 
 
 class PuestoPermisoOtorgar(BaseModel):
-    puesto_id: str
+    puesto_id: IdUuid
     codigo: str
 
 
 class PuestoPermisoRevocar(BaseModel):
-    puesto_permiso_id: str
+    puesto_permiso_id: IdUuid
 
 
 class PuestoPermisoOut(BaseModel):

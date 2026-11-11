@@ -9,14 +9,14 @@ CALLER_AUTH_USER_ID = "auth-ficticio-caller"
 CALLER_PERSONA_ID = "persona-ficticia-caller"
 GATE_PUESTO_ID = "puesto-ficticio-gate"
 
-PUESTO_DESTINO_ID = "puesto-ficticio-destino"
-PUESTO_PERMISO_ID = "puesto-permiso-ficticio-1"
+PUESTO_DESTINO_ID = "aaaaaaaa-0000-4000-8000-000000000001"
+PUESTO_PERMISO_ID = "aaaaaaaa-0000-4000-8000-000000000002"
 
-RAIZ_ID = "puesto-ficticio-raiz"
-HIJO_ID = "puesto-ficticio-hijo"
-NIETO_ID = "puesto-ficticio-nieto"
-OTRO_TOPE_ID = "puesto-ficticio-otro-tope"
-OTRO_HIJO_ID = "puesto-ficticio-otro-hijo"
+RAIZ_ID = "aaaaaaaa-0000-4000-8000-000000000003"
+HIJO_ID = "aaaaaaaa-0000-4000-8000-000000000004"
+NIETO_ID = "aaaaaaaa-0000-4000-8000-000000000005"
+OTRO_TOPE_ID = "aaaaaaaa-0000-4000-8000-000000000006"
+OTRO_HIJO_ID = "aaaaaaaa-0000-4000-8000-000000000007"
 
 CALLER_IDENTITY = CallerIdentity(auth_user_id=CALLER_AUTH_USER_ID, correo="caller-ficticio@example.com")
 
@@ -600,3 +600,60 @@ def test_otorgar_permiso_sin_token():
     response = client.post("/api/permisos/otorgar", json=_cuerpo_otorgar())
 
     assert response.status_code in (401, 422)
+
+
+def test_otorgar_autootorgamiento_directo_con_puesto_en_mayusculas_sigue_siendo_422():
+    """Regresión P-214: el id del body se normaliza a minúsculas antes de compararlo con los puestos del caller; en MAYÚSCULAS el `in` daba False y el insert pasaba."""
+    fake_client = _fake_client_secuencia(
+        _entradas_gate()
+        + [
+            ("puesto", _tabla_select_simple([{"id": PUESTO_DESTINO_ID, "activo": True}])),
+            ("permiso", _tabla_select_simple([{"codigo": "permiso_ficticio_uno", "heredable": False, "activo": True}])),
+            ("usuario", _tabla_select_simple([{"persona_id": CALLER_PERSONA_ID}])),
+            ("asignacion", _tabla_select_eq_is([{"puesto_id": PUESTO_DESTINO_ID}])),
+        ]
+    )
+    _override_identidad(fake_client)
+
+    response = TestClient(app).post(
+        "/api/permisos/otorgar",
+        json=_cuerpo_otorgar(puesto_id=PUESTO_DESTINO_ID.upper()),
+        headers={"Authorization": "Bearer fake-token"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 422
+    assert "ti mismo" in response.json()["detail"]
+
+
+def test_otorgar_autootorgamiento_por_herencia_con_puesto_entre_llaves_sigue_siendo_422():
+    fake_client = _fake_client_secuencia(
+        _entradas_gate()
+        + [
+            ("puesto", _tabla_select_simple([{"id": NIETO_ID, "activo": True}])),
+            ("permiso", _tabla_select_simple([{"codigo": "permiso_ficticio_heredable", "heredable": True, "activo": True}])),
+            ("usuario", _tabla_select_simple([{"persona_id": CALLER_PERSONA_ID}])),
+            ("asignacion", _tabla_select_eq_is([{"puesto_id": RAIZ_ID}])),
+            (
+                "puesto",
+                _tabla_select_plana(
+                    [
+                        {"id": RAIZ_ID, "reporta_a_id": None},
+                        {"id": HIJO_ID, "reporta_a_id": RAIZ_ID},
+                        {"id": NIETO_ID, "reporta_a_id": HIJO_ID},
+                    ]
+                ),
+            ),
+        ]
+    )
+    _override_identidad(fake_client)
+
+    response = TestClient(app).post(
+        "/api/permisos/otorgar",
+        json=_cuerpo_otorgar(codigo="permiso_ficticio_heredable", puesto_id="{" + NIETO_ID.upper() + "}"),
+        headers={"Authorization": "Bearer fake-token"},
+    )
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 422
+    assert "rodeo del organigrama" in response.json()["detail"]

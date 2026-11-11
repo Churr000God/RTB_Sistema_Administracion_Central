@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.tipos_id import IdUuid
 from app.deps import get_caller_client
 from app.errores import manejar_violacion_unicidad, rechazo_generico
 from app.permisos import MENSAJE_SIN_PERMISO_GENERICO, requiere_permiso
@@ -190,7 +191,7 @@ def listar_asignaciones(
 
 @router.get("/{asignacion_id}", response_model=AsignacionConDetalle)
 def obtener_asignacion(
-    asignacion_id: str,
+    asignacion_id: IdUuid,
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(requiere_permiso("asignacion_lectura", "asignacion_edicion", mensaje=MENSAJE_SIN_PERMISO_GENERICO)),
 ) -> dict:
@@ -245,7 +246,7 @@ def alta_asignacion(
 
 @router.patch("/{asignacion_id}/terminar", response_model=AsignacionOut)
 def terminar_asignacion(
-    asignacion_id: str,
+    asignacion_id: IdUuid,
     datos: AsignacionTerminar,
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(requiere_permiso("asignacion_edicion", mensaje=MENSAJE_SIN_PERMISO_GENERICO)),
@@ -286,7 +287,7 @@ def terminar_asignacion(
 
 @router.post("/{asignacion_id}/cambiar-puesto", response_model=AsignacionOut)
 def cambiar_puesto_asignacion(
-    asignacion_id: str,
+    asignacion_id: IdUuid,
     datos: AsignacionCambiarPuesto,
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(requiere_permiso("asignacion_edicion", mensaje=MENSAJE_SIN_PERMISO_GENERICO)),

@@ -2,10 +2,12 @@ from datetime import date, datetime
 
 from pydantic import BaseModel
 
+from app.tipos_id import IdUuid
+
 
 class AsignacionCreate(BaseModel):
-    persona_id: str
-    puesto_id: str
+    persona_id: IdUuid
+    puesto_id: IdUuid
     vigente_desde: date
 
 
@@ -14,7 +16,7 @@ class AsignacionTerminar(BaseModel):
 
 
 class AsignacionCambiarPuesto(BaseModel):
-    puesto_nuevo_id: str
+    puesto_nuevo_id: IdUuid
     fecha: date
 
 

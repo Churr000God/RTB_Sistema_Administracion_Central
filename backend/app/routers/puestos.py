@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from supabase import Client
 
+from app.tipos_id import IdUuid
 from app.deps import get_caller_client
 from app.permisos import requiere_permiso
 from app.schemas.puestos import PuestoCreate, PuestoEstado, PuestoOut, PuestoUpdate
@@ -101,7 +102,7 @@ def alta_puesto(
 
 @router.get("/{puesto_id}", response_model=PuestoOut)
 def obtener_puesto(
-    puesto_id: str,
+    puesto_id: IdUuid,
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(requiere_permiso("puesto_lectura", "puesto_edicion")),
 ) -> dict:
@@ -120,7 +121,7 @@ def obtener_puesto(
 
 @router.patch("/{puesto_id}", response_model=PuestoOut)
 def actualizar_puesto(
-    puesto_id: str,
+    puesto_id: IdUuid,
     datos: PuestoUpdate,
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(requiere_permiso("puesto_edicion")),
@@ -148,7 +149,7 @@ def actualizar_puesto(
 
 @router.patch("/{puesto_id}/estado", response_model=PuestoOut)
 def cambiar_estado_puesto(
-    puesto_id: str,
+    puesto_id: IdUuid,
     datos: PuestoEstado,
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(requiere_permiso("puesto_edicion")),

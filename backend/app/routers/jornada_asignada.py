@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.tipos_id import IdUuid
 from app.zona import hoy_mexico
 from app.errores import rechazo_generico
 from app.deps import get_caller_client
@@ -189,7 +190,7 @@ def asignar_jornada(
 
 @router_persona.get("/jornada-vigente", response_model=JornadaAsignadaOut)
 def jornada_vigente_de_persona(
-    persona_id: str,
+    persona_id: IdUuid,
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(
         requiere_permiso("jornada_asignada_lectura", "jornada_asignada_edicion")
@@ -285,7 +286,7 @@ def _armar_jornada_en_cadena(
 
 @router_persona.get("/jornadas", response_model=list[JornadaEnCadena])
 def listar_jornadas_de_persona(
-    persona_id: str,
+    persona_id: IdUuid,
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(
         requiere_permiso("jornada_asignada_lectura", "jornada_asignada_edicion")

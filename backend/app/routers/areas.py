@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.tipos_id import IdUuid
 from app.deps import get_caller_client
 from app.errores import manejar_violacion_unicidad
 from app.permisos import requiere_permiso
@@ -68,7 +69,7 @@ def alta_area(
 
 @router.get("/{area_id}", response_model=AreaOut)
 def obtener_area(
-    area_id: str,
+    area_id: IdUuid,
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(requiere_permiso("area_lectura", "area_edicion")),
 ) -> dict:
@@ -87,7 +88,7 @@ def obtener_area(
 
 @router.patch("/{area_id}", response_model=AreaOut)
 def renombrar_area(
-    area_id: str,
+    area_id: IdUuid,
     datos: AreaRename,
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(requiere_permiso("area_edicion")),
@@ -116,7 +117,7 @@ def renombrar_area(
 
 @router.patch("/{area_id}/estado", response_model=AreaOut)
 def cambiar_estado_area(
-    area_id: str,
+    area_id: IdUuid,
     datos: AreaEstado,
     db: Client = Depends(get_caller_client),
     _permiso: None = Depends(requiere_permiso("area_edicion")),

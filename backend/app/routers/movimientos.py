@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from postgrest.exceptions import APIError
 from supabase import Client
 
+from app.tipos_id import IdUuid
 from app.deps import CallerIdentity, get_caller_client, get_caller_identity, get_service_client
 from app.errores import PERMISO_DENEGADO, limpiar_para_log
 from app import permisos
@@ -92,7 +93,7 @@ def _traducir_42501(tipo_movimiento: str) -> HTTPException:
 
 @router.post("", status_code=201, response_model=MovimientoOut)
 def crear_movimiento(
-    persona_id: str,
+    persona_id: IdUuid,
     datos: MovimientoCreate,
     db: Client = Depends(get_caller_client),
     caller: CallerIdentity = Depends(get_caller_identity),
@@ -148,7 +149,7 @@ def crear_movimiento(
 
 
 @router.get("", response_model=list[MovimientoOut])
-def listar_movimientos(persona_id: str, db: Client = Depends(get_caller_client)) -> list[dict]:
+def listar_movimientos(persona_id: IdUuid, db: Client = Depends(get_caller_client)) -> list[dict]:
     tabla = db.postgrest.schema("personas").table
     movimientos = (
         tabla("bitacora_movimiento_persona")

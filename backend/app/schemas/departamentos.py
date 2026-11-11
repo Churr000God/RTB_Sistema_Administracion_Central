@@ -2,9 +2,11 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_validator
 
+from app.tipos_id import IdUuid
+
 
 class DepartamentoCreate(BaseModel):
-    area_id: str
+    area_id: IdUuid
     nombre_departamento: str
 
     @field_validator("nombre_departamento")
